@@ -1,13 +1,14 @@
 import { Animated, Text, View, ImageBackground, TouchableOpacity } from "react-native";
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import slides from "./dataSlide";
 import { useNavigation } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import theme from "../../../theme";
 
 export default function IntroScreen() {
   const [slideAtual, setSlideAtual] = useState(0);
-  const fadeAnim = useState(new Animated.Value(1))[0];
+  const fadeAnim = useRef(new Animated.Value(1)).current;
   const navigation = useNavigation();
 
   const fadeIn = () => {
@@ -29,8 +30,10 @@ export default function IntroScreen() {
     });
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (slideAtual === slides.length - 1) {
+      // Salvar que o usuário já visualizou a intro
+      await AsyncStorage.setItem("@leva_mais:intro_viewed", "true");
       navigation.navigate("SignIn");
     } else {
       fadeOut(() => setSlideAtual(slideAtual + 1));

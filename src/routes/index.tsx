@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import AuthRoutes from "./auth.routes";
-// import DrawerClienteRoutes from "./drawer.cliente.routes";
+import DrawerClienteRoutes from "./drawer.cliente.routes";
 // import DrawerDriverRoutes from "./drawer.driver.routes";
 import { useAuthStore } from "../context/authStore";
 
@@ -11,13 +11,15 @@ export default function Routes() {
     return <AuthRoutes />;
   }
 
-  // if (userType === "client") {
-  //   return <DrawerClienteRoutes />;
-  // }
+  // Rotas autenticadas
+  if (userType === "client") {
+    return <DrawerClienteRoutes />;
+  }
 
   // if (userType === "driver") {
   //   return <DrawerDriverRoutes />;
   // }
 
+  // Fallback - retorna null se não houver tipo de usuário definido
   return null;
 }

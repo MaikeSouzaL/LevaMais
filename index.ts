@@ -1,4 +1,12 @@
 import { registerRootComponent } from 'expo';
+import { configureReanimatedLogger, ReanimatedLogLevel } from 'react-native-reanimated';
+
+// Configura o logger do Reanimated para desabilitar o strict mode
+// Isso elimina os warnings sobre leitura/escrita de valores durante o render
+configureReanimatedLogger({
+  strict: false, // Desabilita o strict mode que causa os warnings
+  level: ReanimatedLogLevel.error, // Mostra apenas erros, não warnings
+});
 
 import App from './App';
 

@@ -10,8 +10,10 @@ import {
 } from "react-native";
 // import * as Location from "expo-location";
 import { useNavigation, useRoute } from "@react-navigation/native";
-"@react-navigation/native-stack";
-// import api from "../../../services/api";
+import {
+  login as loginService,
+  googleAuth,
+} from "../../../services/auth.service";
 import { useAuthStore } from "../../../context/authStore";
 import {
   GoogleSignin,
@@ -24,8 +26,14 @@ import PhoneNumberModal from "./component/PhoneNumberModal";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getCidadeUsuario } from "./getCidadeUsuario";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { CLIENTE_WEB_ID } from "@env";
 
-
+// Configurar Google Sign In
+GoogleSignin.configure({
+  webClientId: CLIENTE_WEB_ID,
+  profileImageSize: 150,
+  offlineAccess: true,
+});
 
 export default function SignInScreen() {
   const navigation = useNavigation();
@@ -47,159 +55,203 @@ export default function SignInScreen() {
     navigation.navigate("SignUp");
   }
 
-  // async function handleGoogleSignIn() {
-  //   if (!phone) {
-  //     Toast.show({
-  //       type: "error",
-  //       text1: "Número de telefone necessário",
-  //       text2: "Informe seu telefone antes de continuar",
-  //     });
-  //     setShowPhoneModal(true);
-  //     return;
-  //   }
+  async function handleGoogleSignIn() {
+    setGoogleLoading(true);
+    try {
+      // 1. Autenticar com o Google
+      await GoogleSignin.hasPlayServices();
+      const userInfo = await GoogleSignin.signIn();
 
-  //   // setGoogleLoading(true);
-  //   try {
-  //     // 1. Autenticar com o Google
-  //     await GoogleSignin.hasPlayServices();
-  //     const userInfo = await GoogleSignin.signIn();
+      if (!isSuccessResponse(userInfo)) {
+        Toast.show({ type: "error", text1: "Falha ao autenticar com Google" });
+        return;
+      }
 
-  //     if (!isSuccessResponse(userInfo)) {
-  //       Toast.show({ type: "error", text1: "Falha ao autenticar com Google" });
-  //       return;
-  //     }
+      // 2. Extrair informações do usuário Google
+      const { user } = userInfo.data;
+      const { email, id, name, photo } = user;
 
-  //     // 2. Extrair informações do usuário Google
-  //     const { user, idToken, scopes, serverAuthCode } = userInfo.data;
-  //     const { givenName, email, familyName, id, name, photo } = user;
+      // 3. Enviar para API de autenticação Google
+      const response = await googleAuth({
+        googleId: id,
+        email: email.trim().toLowerCase(),
+        name: name || email.split("@")[0],
+        profilePhoto: photo || undefined,
+      });
 
-  //     // 3. Enviar para API de login Google
-  //     const response = await api.post("/login", {
-  //       email: email.trim().toLowerCase(),
-  //       password: `${email}-${id}`,
-  //     });
-  //     // console.log("Login com Google:", response.status);
+      if (response.success && response.data) {
+        const { user: userData, token } = response.data;
+        const {
+          _id,
+          name: userName,
+          email: userEmail,
+          phone,
+          userType,
+          profilePhoto,
+          googleId,
+          acceptedTerms,
+          city,
+        } = userData;
 
-  //     if (response.status === 200) {
-  //       const { user } = response.data;
-  //       const {
-  //         token,
-  //         _id,
-  //         name,
-  //         email,
-  //         phone,
-  //         userType,
-  //         profilePhoto,
-  //         googleId,
-  //         acceptedTerms,
-  //         expoToken,
-  //       } = user;
-  //       // console.log("Dados do usuário:", JSON.stringify(user, null, 2));
+        // Verificar se o usuário JÁ POSSUI um cadastro completo
+        // Se tiver telefone E cidade, significa que já tinha cadastro completo (manual ou Google completo)
+        // Se não tiver, significa que foi criado agora pelo Google e precisa completar
+        const hasCompleteRegistration = phone && city;
 
-  //       await AsyncStorage.setItem("@auth_token", token);
+        if (hasCompleteRegistration) {
+          // Usuário já possui cadastro completo, fazer login direto
+          const cidade = city || "";
 
-  //       useAuthStore.getState().login(
-  //         userType,
-  //         {
-  //           id: _id,
-  //           cidade: city,
-  //           nome: name,
-  //           email: email,
-  //           telefone: phone,
-  //           fotoPerfil: profilePhoto,
-  //           googleId: googleId,
-  //           aceitouTermos: acceptedTerms,
-  //           expoPushToken: expoToken,
-  //         },
-  //         token
-  //       );
-  //       Toast.show({
-  //         type: "success",
-  //         text1: "Login com Google realizado com sucesso!",
-  //       });
-  //     }
-  //   } catch (error: any) {
-  //     console.log("Erro no login com Google:", error);
-  //     Toast.show({
-  //       type: "error",
-  //       text1:
-  //         error.response?.data?.error ||
-  //         "Erro ao fazer login com Google. Verifique sua conexão.",
-  //     });
-  //   }
-  // }
+          useAuthStore.getState().login(
+            userType,
+            {
+              id: _id,
+              cidade: cidade,
+              nome: userName,
+              email: userEmail,
+              telefone: phone || "",
+              fotoPerfil: profilePhoto,
+              googleId: googleId,
+              aceitouTermos: acceptedTerms,
+            },
+            token
+          );
 
-  // async function handleManualLogin() {
-  //   if (!email.trim()) {
-  //     Toast.show({
-  //       type: "error",
-  //       text1: "Email obrigatório",
-  //       text2: "Preencha seu email para continuar",
-  //     });
-  //     return;
-  //   }
-  //   if (!password || password.length < 6) {
-  //     Toast.show({
-  //       type: "error",
-  //       text1: "Senha inválida",
-  //       text2: "A senha deve ter pelo menos 6 caracteres",
-  //     });
-  //     return;
-  //   }
-  //   setLoading(true);
-  //   try {
-  //     // 1. Fazer a requisição para a API
-  //     const response = await api.post("/login", {
-  //       email: email.trim().toLowerCase(),
-  //       password,
-  //     });
+          Toast.show({
+            type: "success",
+            text1: "Login com Google realizado com sucesso!",
+            text2: `Bem-vindo, ${userName}!`,
+          });
 
-  //     if (response.status === 200) {
-  //       const { user } = response.data;
-  //       const {
-  //         token,
-  //         _id,
-  //         name,
-  //         email,
-  //         phone,
-  //         userType,
-  //         profilePhoto,
-  //         googleId,
-  //         acceptedTerms,
-  //         expoToken,
-  //       } = user;
-  //       // console.log("Dados do usuário:", JSON.stringify(user, null, 2));
+          // A navegação será automática através do componente Routes
+        } else {
+          // Usuário não possui cadastro completo, precisa completar
+          // Gerar senha usando email + id do Google
+          const generatedPassword = `${userEmail}-${id}`;
 
-  //       await AsyncStorage.setItem("@auth_token", token);
+          // Navegar para SelectProfile para escolher o tipo de usuário e completar cadastro
+          navigation.navigate("SelectProfile", {
+            user: {
+              _id,
+              name: userName,
+              email: userEmail,
+              password: generatedPassword, // Senha gerada: email-id
+              phone: phone || "",
+              city: city || "",
+              userType: userType || undefined,
+              googleId,
+              profilePhoto,
+              acceptedTerms,
+            },
+            token,
+          });
+        }
+      } else {
+        Toast.show({
+          type: "error",
+          text1: "Erro ao autenticar com Google",
+          text2: response.message || "Verifique sua conexão e tente novamente",
+        });
+      }
+    } catch (error: any) {
+      console.error("Erro no login com Google:", error);
+      Toast.show({
+        type: "error",
+        text1: "Erro ao fazer login com Google",
+        text2:
+          error.message ||
+          "Erro ao fazer login com Google. Verifique sua conexão.",
+      });
+    } finally {
+      setGoogleLoading(false);
+    }
+  }
 
-  //       useAuthStore.getState().login(
-  //         userType,
-  //         {
-  //           id: _id,
-  //           cidade: city,
-  //           nome: name,
-  //           email: email,
-  //           telefone: phone,
-  //           fotoPerfil: profilePhoto,
-  //           googleId: googleId,
-  //           aceitouTermos: acceptedTerms,
-  //           expoPushToken: expoToken,
-  //         },
-  //         token
-  //       );
-  //       Toast.show({
-  //         type: "success",
-  //         text1: "Login com Google realizado com sucesso!",
-  //       });
-  //     }
-  //   } catch (error: any) {
-  //     console.log("Erro no login:", error);
-  //     Toast.show({
-  //       type: "error",
-  //       text1: error.response?.data?.error || "Erro ao fazer login",
-  //     });
-  //   }
-  // }
+  async function handleManualLogin() {
+    if (!email.trim()) {
+      Toast.show({
+        type: "error",
+        text1: "Email obrigatório",
+        text2: "Preencha seu email para continuar",
+      });
+      return;
+    }
+    if (!password || password.length < 6) {
+      Toast.show({
+        type: "error",
+        text1: "Senha inválida",
+        text2: "A senha deve ter pelo menos 6 caracteres",
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Fazer login usando o serviço
+      const response = await loginService({
+        email: email.trim().toLowerCase(),
+        password,
+      });
+
+      if (response.success && response.data) {
+        const { user, token } = response.data;
+        const {
+          _id,
+          name,
+          email: userEmail,
+          phone,
+          userType,
+          profilePhoto,
+          googleId,
+          acceptedTerms,
+          city,
+        } = user;
+
+        // Usar city direto
+        const cidade = city || "";
+
+        // Salvar no Zustand
+        useAuthStore.getState().login(
+          userType,
+          {
+            id: _id,
+            cidade: cidade,
+            nome: name,
+            email: userEmail,
+            telefone: phone || "",
+            fotoPerfil: profilePhoto,
+            googleId: googleId,
+            aceitouTermos: acceptedTerms,
+          },
+          token
+        );
+
+        Toast.show({
+          type: "success",
+          text1: "Login realizado com sucesso!",
+          text2: `Bem-vindo, ${name}!`,
+        });
+
+        // A navegação será automática através do componente Routes
+        // que verifica isAuthenticated e userType
+      } else {
+        Toast.show({
+          type: "error",
+          text1: "Erro ao fazer login",
+          text2: response.message || "Email ou senha inválidos",
+        });
+      }
+    } catch (error: any) {
+      console.error("Erro no login:", error);
+      Toast.show({
+        type: "error",
+        text1: "Erro ao fazer login",
+        text2: error.message || "Verifique sua conexão e tente novamente",
+      });
+    } finally {
+      setLoading(false);
+    }
+  }
 
   // function handlePhoneConfirm(numero: string) {
   //   setPhone(numero);
@@ -285,7 +337,9 @@ export default function SignInScreen() {
       >
         <SafeAreaView className="flex-1 px-6 justify-center">
           <View className="mb-10">
-            <Text className="text-4xl font-bold text-white tracking-tight">Bem-vindo</Text>
+            <Text className="text-4xl font-bold text-white tracking-tight">
+              Bem-vindo
+            </Text>
             <Text className="text-base text-gray-400 mt-2 font-regular">
               Faça login para continuar
             </Text>
@@ -306,7 +360,9 @@ export default function SignInScreen() {
                 onPress={() => setShowPhoneModal(true)}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Text className="text-brand-light font-bold text-sm">Alterar</Text>
+                <Text className="text-brand-light font-bold text-sm">
+                  Alterar
+                </Text>
               </TouchableOpacity>
             </View>
           ) : null}
@@ -343,7 +399,7 @@ export default function SignInScreen() {
 
           <TouchableOpacity
             className="mb-8 items-end"
-            // onPress={() => navigation.navigate("EsqueciSenhaScreen")}
+            onPress={() => navigation.navigate("ForgotPassword")}
           >
             <Text className="text-gray-400 font-regular text-right">
               Esqueceu a senha?
@@ -352,7 +408,7 @@ export default function SignInScreen() {
 
           <TouchableOpacity
             className="h-14 bg-brand-light rounded-2xl items-center justify-center mb-6 shadow-lg shadow-brand-light/20"
-            // onPress={handleManualLogin}
+            onPress={handleManualLogin}
             disabled={loading}
           >
             <Text className="text-brand-dark font-bold text-lg">
@@ -366,7 +422,7 @@ export default function SignInScreen() {
             <View className="flex-1 h-[1px] bg-gray-700" />
           </View>
 
-          <GoogleButton onPress={()=>{}} loading={googleLoading} />
+          <GoogleButton onPress={handleGoogleSignIn} loading={googleLoading} />
 
           <TouchableOpacity
             className="mt-6 items-center"
@@ -379,7 +435,6 @@ export default function SignInScreen() {
           </TouchableOpacity>
         </SafeAreaView>
       </ScrollView>
-
     </KeyboardAvoidingView>
   );
 }

@@ -22,13 +22,25 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.maikesouzaleite.Leva_Mais"
+      "package": "com.maikesouzaleite.Leva_Mais",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyCT_HXT-OBSoTcNwyr_5dX2BbOm_ojtBpA"
+        }
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-font"
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Precisamos da sua localização para mostrar seu endereço no mapa."
+        }
+      ],
+      "expo-maps"
     ]
   }
 }
