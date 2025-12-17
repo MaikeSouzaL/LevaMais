@@ -40,3 +40,7 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Google OAuth credentials (sensitive)
+client_secret_*.json
+client_IOS.plist
