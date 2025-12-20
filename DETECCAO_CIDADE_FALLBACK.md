@@ -5,6 +5,7 @@
 Ao testar a detecção automática de cidade, identificamos que o **Expo Location** nem sempre retorna o campo `city` no resultado do geocoding reverso.
 
 ### Exemplo Real:
+
 ```json
 {
   "name": "395",
@@ -21,12 +22,14 @@ Ao testar a detecção automática de cidade, identificamos que o **Expo Locatio
 ```
 
 **Resultado anterior:**
+
 ```
 LOG  🏙️  Cidade: ❌ não disponível
 LOG  🗺️  Estado: Rondônia ✅
 ```
 
 **Console da busca:**
+
 ```
 LOG  🔍 EXECUTANDO BUSCA:
 LOG     Query: "av maceio"
@@ -39,10 +42,12 @@ LOG     Estado: Rondônia ✅
 Criamos um **sistema de fallback hierárquico** para detecção de cidade:
 
 ```typescript
-const cidadeDetectada = endereco?.city || endereco?.subregion || endereco?.district;
+const cidadeDetectada =
+  endereco?.city || endereco?.subregion || endereco?.district;
 ```
 
 ### Ordem de Prioridade:
+
 1. **`city`** - Prioridade máxima (quando disponível)
 2. **`subregion`** - Fallback primário (geralmente contém o nome da cidade)
 3. **`district`** - Fallback secundário (bairro, usado em último caso)
@@ -50,6 +55,7 @@ const cidadeDetectada = endereco?.city || endereco?.subregion || endereco?.distr
 ## 📊 Comparação Antes vs Depois
 
 ### ❌ Antes (sem fallback):
+
 ```typescript
 if (endereco?.city) {
   setUserCity(endereco.city);
@@ -59,12 +65,15 @@ if (endereco?.city) {
 ```
 
 **Resultado:**
+
 - Cidade: `(não detectada)`
 - Busca: sem contextualização por cidade
 
 ### ✅ Depois (com fallback):
+
 ```typescript
-const cidadeDetectada = endereco?.city || endereco?.subregion || endereco?.district;
+const cidadeDetectada =
+  endereco?.city || endereco?.subregion || endereco?.district;
 
 if (cidadeDetectada) {
   setUserCity(cidadeDetectada);
@@ -76,12 +85,14 @@ if (cidadeDetectada) {
 ```
 
 **Resultado esperado:**
+
 - Cidade: `Pimenta Bueno` ✅
 - Busca: contextualizada com cidade e estado
 
 ## 🎯 Impacto nas Buscas
 
 ### Antes (sem cidade):
+
 ```
 Query original: "av maceio"
 Query melhorada: "av maceio, Rondônia"
@@ -89,6 +100,7 @@ Resultados: qualquer Av. Maceió no Brasil
 ```
 
 ### Depois (com cidade):
+
 ```
 Query original: "av maceio"
 Query melhorada: "av maceio, Pimenta Bueno, Rondônia"
@@ -110,38 +122,46 @@ Isso ajuda a entender de onde veio a informação da cidade.
 ## 🌍 Casos de Uso
 
 ### Caso 1: City disponível (ideal)
+
 ```json
 {
   "city": "São Paulo",
   "region": "São Paulo"
 }
 ```
+
 ✅ Usa `city` diretamente
 
 ### Caso 2: Apenas subregion (comum em cidades pequenas)
+
 ```json
 {
   "subregion": "Pimenta Bueno",
   "region": "Rondônia"
 }
 ```
+
 ✅ Usa `subregion` como fallback
 
 ### Caso 3: Apenas district (raro)
+
 ```json
 {
   "district": "Centro",
   "region": "Bahia"
 }
 ```
+
 ✅ Usa `district` como último recurso
 
 ### Caso 4: Nenhum disponível (muito raro)
+
 ```json
 {
   "region": "Rondônia"
 }
 ```
+
 ⚠️ Busca apenas com estado (menos preciso)
 
 ## 🔍 Verificação
@@ -149,6 +169,7 @@ Isso ajuda a entender de onde veio a informação da cidade.
 Para verificar se está funcionando, observe os logs:
 
 1. **Detecção inicial:**
+
 ```
 🌍 DETECTANDO LOCALIZAÇÃO DO USUÁRIO...
 📍 Usando coordenadas do mapa atual:
@@ -160,6 +181,7 @@ Para verificar se está funcionando, observe os logs:
 ```
 
 2. **Durante a busca:**
+
 ```
 🔍 EXECUTANDO BUSCA:
    Query: "av maceio"

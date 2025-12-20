@@ -3,11 +3,13 @@
 ## 🎯 Como Funciona (Já Implementado!)
 
 ### Você Digita APENAS:
+
 ```
 "Av Maceio"
 ```
 
 ### Sistema Busca AUTOMATICAMENTE:
+
 ```
 "Av Maceio, Pimenta Bueno, Rondônia"
 ```
@@ -19,6 +21,7 @@
 ## 📱 Demonstração Prática
 
 ### ❌ O que você NÃO precisa mais fazer:
+
 ```
 Campo de busca:
 ┌─────────────────────────────────────────┐
@@ -27,6 +30,7 @@ Campo de busca:
 ```
 
 ### ✅ O que você faz AGORA:
+
 ```
 Campo de busca:
 ┌─────────────────────────────────────────┐
@@ -60,6 +64,7 @@ Quando você digita apenas "Av Maceio", veja o que acontece:
 ## 🧠 Inteligência do Sistema
 
 ### 1. Detecta Sua Localização
+
 ```
 Ao abrir o mapa:
 ├─ Pega GPS
@@ -69,12 +74,14 @@ Ao abrir o mapa:
 ```
 
 ### 2. Armazena Internamente
+
 ```typescript
 const [userCity, setUserCity] = useState("Pimenta Bueno");
 const [userRegion, setUserRegion] = useState("Rondônia");
 ```
 
 ### 3. Adiciona à Busca Automaticamente
+
 ```typescript
 // Você digita: "Av Maceio"
 const query = "Av Maceio";
@@ -85,14 +92,16 @@ const enhancedQuery = `${query}, ${userCity}, ${userRegion}`;
 ```
 
 ### 4. Busca com Ambas Versões
+
 ```typescript
 Promise.all([
-  geocode("Av Maceio"),                              // Original
-  geocode("Av Maceio, Pimenta Bueno, Rondônia")     // Melhorada
-])
+  geocode("Av Maceio"), // Original
+  geocode("Av Maceio, Pimenta Bueno, Rondônia"), // Melhorada
+]);
 ```
 
 ### 5. Prioriza Resultados da Sua Cidade
+
 ```
 Resultados ordenados:
 1. Av Maceio - Pimenta Bueno - RO  ✨ (SUA CIDADE)
@@ -105,6 +114,7 @@ Resultados ordenados:
 ## 📊 Comparação: Antes vs Agora
 
 ### Antes (Outros Apps)
+
 ```
 Você precisa digitar:
 "Rua Josias da Silva 279 Pimenta Bueno Rondonia"
@@ -113,6 +123,7 @@ Você precisa digitar:
 ```
 
 ### Agora (LevaMais)
+
 ```
 Você digita apenas:
 "Rua Josias"
@@ -130,15 +141,18 @@ Sistema adiciona automaticamente:
 ## 🎯 Exemplos Reais
 
 ### Exemplo 1: Avenida
+
 **Você digita:** `"Av Maceio"`
 
 **Sistema busca:**
+
 ```
 1. "Av Maceio"                              ← Busca geral
 2. "Av Maceio, Pimenta Bueno, Rondônia"    ← Busca específica
 ```
 
 **Resultados:**
+
 ```
 📍 Avenida Maceió - Pimenta Bueno - RO      ← PRIMEIRO! (sua cidade)
 📍 Avenida Maceió - Porto Velho - RO
@@ -148,15 +162,18 @@ Sistema adiciona automaticamente:
 ---
 
 ### Exemplo 2: Rua Simples
+
 **Você digita:** `"Rua Pará"`
 
 **Sistema busca:**
+
 ```
 1. "Rua Pará"
 2. "Rua Pará, Pimenta Bueno, Rondônia"
 ```
 
 **Resultados:**
+
 ```
 📍 Rua Pará, 1175 - Pimenta Bueno - RO      ← SUA CIDADE PRIMEIRO!
 📍 Rua Pará - Porto Velho - RO
@@ -166,15 +183,18 @@ Sistema adiciona automaticamente:
 ---
 
 ### Exemplo 3: Endereço Completo
+
 **Você digita:** `"Rua Josias 279"`
 
 **Sistema busca:**
+
 ```
 1. "Rua Josias 279"
 2. "Rua Josias 279, Pimenta Bueno, Rondônia"
 ```
 
 **Resultados:**
+
 ```
 📍 Rua Josias da Silva, 279 - Pimenta Bueno - RO  ← EXATO!
 📍 Rua Josias - Pimenta Bueno - RO
@@ -185,6 +205,7 @@ Sistema adiciona automaticamente:
 ## 💡 Por Que Funciona Melhor
 
 ### Estratégia Dupla
+
 ```
 Busca 1: Query original
 ├─ Encontra resultados em todo país
@@ -198,6 +219,7 @@ Busca 2: Query + Cidade + Estado
 ```
 
 ### Ordenação Inteligente
+
 ```typescript
 // Depois de buscar, reordena:
 results.sort((a, b) => {
@@ -215,6 +237,7 @@ results.sort((a, b) => {
 ## 🎨 Feedback Visual
 
 ### Placeholder Inteligente
+
 ```
 ┌─────────────────────────────────────────┐
 │ 🔍 Buscar em Pimenta Bueno - RO        │ ← Mostra onde você está
@@ -248,27 +271,32 @@ results.sort((a, b) => {
 ## 📱 Teste Agora!
 
 ### Passo 1: Abra o app
+
 ```bash
 npx expo start
 ```
 
 ### Passo 2: Entre no modo de mapa
+
 - Toque em "Escolher destino"
 
 ### Passo 3: Veja o placeholder
+
 ```
 🔍 Buscar em [Sua Cidade] - [Seu Estado]
 ```
 
 ### Passo 4: Digite APENAS o nome da rua
+
 ```
 Exemplos:
 - "Av Maceio"
-- "Rua Pará"  
+- "Rua Pará"
 - "Rua Josias"
 ```
 
 ### Passo 5: Veja a mágica acontecer!
+
 ```
 ✨ Resultados da SUA cidade aparecem primeiro!
 ✨ Sem precisar digitar cidade ou estado!
@@ -305,11 +333,13 @@ Quando você digita "av maceio pimenta bueno":
 ## ✨ Resumo
 
 ### O que VOCÊ precisa fazer:
+
 ```
 Digite apenas: "Av Maceio"
 ```
 
 ### O que o SISTEMA faz automaticamente:
+
 ```
 1. Detecta que você está em Pimenta Bueno
 2. Adiciona cidade e estado à busca
@@ -319,6 +349,7 @@ Digite apenas: "Av Maceio"
 ```
 
 ### Resultado:
+
 ```
 ✅ Digitação MÍNIMA
 ✅ Resultados MÁXIMOS

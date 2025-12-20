@@ -3,6 +3,7 @@
 ## 📊 Problema Identificado
 
 O autocomplete estava retornando **apenas 2 resultados** e com **duplicatas**:
+
 - Rua Diamante, 15 (aparecendo 2 vezes)
 - Faltavam mais opções para o usuário escolher
 
@@ -16,15 +17,15 @@ Agora fazemos **4 buscas simultâneas** para obter mais resultados:
 // Antes: apenas 2 buscas
 const [originalResults, enhancedResults] = await Promise.all([
   Location.geocodeAsync(query),
-  Location.geocodeAsync(`${query}, ${userCity}, ${userRegion}`)
+  Location.geocodeAsync(`${query}, ${userCity}, ${userRegion}`),
 ]);
 
 // Depois: até 4 buscas diferentes
 const searchPromises = [
-  Location.geocodeAsync(query),                    // 1. Query original
-  Location.geocodeAsync(`${query}, ${userCity}`),  // 2. Com cidade
-  Location.geocodeAsync(`${query}, ${userRegion}`),// 3. Com estado
-  Location.geocodeAsync(enhancedQuery)             // 4. Com cidade + estado
+  Location.geocodeAsync(query), // 1. Query original
+  Location.geocodeAsync(`${query}, ${userCity}`), // 2. Com cidade
+  Location.geocodeAsync(`${query}, ${userRegion}`), // 3. Com estado
+  Location.geocodeAsync(enhancedQuery), // 4. Com cidade + estado
 ];
 ```
 
@@ -38,6 +39,7 @@ const coordKey = `${result.latitude.toFixed(4)},${result.longitude.toFixed(4)}`;
 ```
 
 **Exemplo:**
+
 - Antes: Rua Diamante (-10.2345, -65.3456) + Rua Diamante (-10.2345, -65.3456) ❌
 - Depois: Rua Diamante (-10.2345, -65.3456) ✅ (única)
 
@@ -50,6 +52,7 @@ const coordKey = `${result.latitude.toFixed(4)},${result.longitude.toFixed(4)}`;
 ### 4. **Logs Detalhados**
 
 Console mostra:
+
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🔍 BUSCA DE ENDEREÇO INICIADA
@@ -68,13 +71,13 @@ Console mostra:
 
 ## 📈 Resultados Esperados
 
-| Métrica | Antes | Depois |
-|---------|-------|--------|
-| Número de resultados | 2 | Até 10 |
-| Duplicatas | Sim ❌ | Não ✅ |
-| Altura da lista | 300px | 400px |
-| Buscas paralelas | 2 | 4 |
-| Precisão (duplicatas) | ~10m | ~10m |
+| Métrica               | Antes  | Depois |
+| --------------------- | ------ | ------ |
+| Número de resultados  | 2      | Até 10 |
+| Duplicatas            | Sim ❌ | Não ✅ |
+| Altura da lista       | 300px  | 400px  |
+| Buscas paralelas      | 2      | 4      |
+| Precisão (duplicatas) | ~10m   | ~10m   |
 
 ## 🎯 Como Funciona
 
@@ -113,7 +116,6 @@ Exibe na lista (altura 400px)
 
 - `src/utils/location.ts`
   - Função `buscarEnderecoPorTexto()` - múltiplas buscas + remoção de duplicatas
-  
 - `src/screens/(authenticated)/Client/HomeScreen/components/MapLocationPickerOverlay.tsx`
   - `maxHeight: 300` → `maxHeight: 400` (2 ocorrências)
 

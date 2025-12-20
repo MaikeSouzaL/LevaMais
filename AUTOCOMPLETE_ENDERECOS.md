@@ -9,17 +9,20 @@ Sistema completo de busca e autocomplete de endereços com movimentação autom�
 ## 🎯 Funcionalidades
 
 ### 1️⃣ Busca por Texto
+
 - Usuário digita no campo de busca
 - Sistema busca endereços correspondentes
 - Mostra lista de sugestões em tempo real
 
 ### 2️⃣ Autocomplete Dinâmico
+
 - Debounce de 500ms (evita chamadas excessivas)
 - Busca ativada a partir de 3 caracteres
 - Loading indicator durante a busca
 - Lista dropdown com resultados
 
 ### 3️⃣ Seleção e Navegação
+
 - Ao clicar em um resultado:
   - Pin move para a localização
   - Mapa anima até o local
@@ -31,6 +34,7 @@ Sistema completo de busca e autocomplete de endereços com movimentação autom�
 ## 📱 Fluxo de Uso
 
 ### Passo 1: Usuário Digita
+
 ```
 ┌────────────────────────────┐
 │ 🔍 Rua Josias...     ⏳    │ ← Campo de busca com loading
@@ -38,6 +42,7 @@ Sistema completo de busca e autocomplete de endereços com movimentação autom�
 ```
 
 ### Passo 2: Sugestões Aparecem
+
 ```
 ┌────────────────────────────┐
 │ 🔍 Rua Josias da Silva     │
@@ -55,6 +60,7 @@ Sistema completo de busca e autocomplete de endereços com movimentação autom�
 ```
 
 ### Passo 3: Seleção
+
 ```
 Usuário toca em um resultado
          ↓
@@ -76,10 +82,11 @@ Endereço atualiza no bottom sheet
 ```typescript
 export async function buscarEnderecoPorTexto(
   query: string
-): Promise<GeocodingResult[]>
+): Promise<GeocodingResult[]>;
 ```
 
 **Funcionamento:**
+
 1. Valida query (mínimo 3 caracteres)
 2. Usa `Location.geocodeAsync(query)` do Expo
 3. Para cada resultado, faz reverse geocoding
@@ -87,9 +94,10 @@ export async function buscarEnderecoPorTexto(
 5. Retorna lista de `GeocodingResult`
 
 **Tipo de Retorno:**
+
 ```typescript
 type GeocodingResult = {
-  formattedAddress: string;  // "Rua X, 123 - Bairro - Cidade/UF"
+  formattedAddress: string; // "Rua X, 123 - Bairro - Cidade/UF"
   latitude: number;
   longitude: number;
   street?: string;
@@ -116,10 +124,10 @@ useEffect(() => {
     if (searchQuery.trim().length >= 3) {
       setIsSearching(true);
       setShowResults(true);
-      
+
       const results = await buscarEnderecoPorTexto(searchQuery);
       setSearchResults(results);
-      
+
       setIsSearching(false);
     } else {
       setSearchResults([]);
@@ -169,6 +177,7 @@ const handleSelectSearchLocation = (
 ## 🎨 UI/UX
 
 ### Campo de Busca
+
 ```tsx
 <TextInput
   value={searchQuery}
@@ -183,13 +192,15 @@ const handleSelectSearchLocation = (
 ```
 
 ### Loading Indicator
+
 ```tsx
-{isSearching && (
-  <ActivityIndicator size="small" color="#02de95" />
-)}
+{
+  isSearching && <ActivityIndicator size="small" color="#02de95" />;
+}
 ```
 
 ### Lista de Resultados
+
 ```tsx
 <FlatList
   data={searchResults}
@@ -198,12 +209,14 @@ const handleSelectSearchLocation = (
       <View>
         {/* Ícone de localização */}
         <MaterialIcons name="location-on" size={18} color="#02de95" />
-        
+
         {/* Nome da rua */}
         <Text>{item.street || item.formattedAddress.split(" - ")[0]}</Text>
-        
+
         {/* Cidade - Estado */}
-        <Text>{item.city} - {item.region}</Text>
+        <Text>
+          {item.city} - {item.region}
+        </Text>
       </View>
     </TouchableOpacity>
   )}
@@ -261,20 +274,24 @@ Quando usuário seleciona um resultado:
 ## ⚡ Otimizações
 
 ### 1. Debounce
+
 - **Por quê?** Evita fazer uma busca a cada letra digitada
 - **Valor:** 500ms (meio segundo)
 - **Resultado:** Chamadas API reduzidas em ~80%
 
 ### 2. Mínimo de Caracteres
+
 - **Valor:** 3 caracteres
 - **Por quê?** Resultados mais relevantes
 - **Exemplo:** "R" → muitos resultados | "Rua" → específico
 
 ### 3. Reverse Geocoding nos Resultados
+
 - **Por quê?** Garante endereços formatados consistentemente
 - **Trade-off:** Um pouco mais lento, mas muito mais preciso
 
 ### 4. Animação Suave
+
 - **Duração:** 1000ms (1 segundo)
 - **Tipo:** `animateToRegion` nativo do MapView
 - **Zoom:** 0.005 delta (bem próximo)
@@ -284,6 +301,7 @@ Quando usuário seleciona um resultado:
 ## 🎯 Casos de Uso
 
 ### Cenário 1: Busca Exata
+
 ```
 Input: "Rua Josias da Silva 279"
 Output: 1-3 resultados precisos
@@ -291,6 +309,7 @@ Tempo: ~1-2 segundos
 ```
 
 ### Cenário 2: Busca Parcial
+
 ```
 Input: "Josias"
 Output: Múltiplos resultados
@@ -298,6 +317,7 @@ Tempo: ~1-2 segundos
 ```
 
 ### Cenário 3: Busca por Cidade
+
 ```
 Input: "Pimenta Bueno"
 Output: Centro da cidade + pontos de referência
@@ -305,6 +325,7 @@ Tempo: ~1-2 segundos
 ```
 
 ### Cenário 4: Sem Resultados
+
 ```
 Input: "xyzabc123"
 Output: Lista vazia
@@ -316,18 +337,22 @@ UI: "Nenhum resultado encontrado" (pode adicionar)
 ## 🚀 Como Testar
 
 1. **Abra o app**
+
    ```bash
    npx expo start
    ```
 
 2. **Entre no modo de seleção de mapa**
+
    - Toque em "Escolher destino"
 
 3. **Digite no campo de busca**
+
    - Digite pelo menos 3 caracteres
    - Exemplo: "Rua Josias"
 
 4. **Veja o autocomplete aparecer**
+
    - Lista dropdown com sugestões
    - Loading indicator durante busca
 
@@ -344,41 +369,47 @@ UI: "Nenhum resultado encontrado" (pode adicionar)
 ## 🎨 Melhorias Futuras (Opcional)
 
 ### 1. Histórico de Buscas
+
 ```typescript
 const [searchHistory, setSearchHistory] = useState<string[]>([]);
 
 // Salvar busca
 const saveToHistory = (query: string) => {
-  setSearchHistory(prev => [query, ...prev.slice(0, 4)]);
+  setSearchHistory((prev) => [query, ...prev.slice(0, 4)]);
 };
 ```
 
 ### 2. Favoritos
+
 ```typescript
 const [favorites, setFavorites] = useState<GeocodingResult[]>([]);
 
 // Adicionar aos favoritos
 const addToFavorites = (result: GeocodingResult) => {
-  setFavorites(prev => [...prev, result]);
+  setFavorites((prev) => [...prev, result]);
 };
 ```
 
 ### 3. Mensagem de "Sem Resultados"
+
 ```tsx
-{showResults && searchResults.length === 0 && !isSearching && (
-  <View style={styles.noResults}>
-    <Text>Nenhum resultado encontrado</Text>
-  </View>
-)}
+{
+  showResults && searchResults.length === 0 && !isSearching && (
+    <View style={styles.noResults}>
+      <Text>Nenhum resultado encontrado</Text>
+    </View>
+  );
+}
 ```
 
 ### 4. Categorização de Resultados
+
 ```tsx
 // Separar por tipo
 const categorizeResults = (results: GeocodingResult[]) => ({
-  streets: results.filter(r => r.street),
-  cities: results.filter(r => r.city && !r.street),
-  others: results.filter(r => !r.street && !r.city),
+  streets: results.filter((r) => r.street),
+  cities: results.filter((r) => r.city && !r.street),
+  others: results.filter((r) => !r.street && !r.city),
 });
 ```
 
@@ -387,6 +418,7 @@ const categorizeResults = (results: GeocodingResult[]) => ({
 ## ✨ Resultado Final
 
 **Experiência profissional de busca de endereços:**
+
 - ✅ Autocomplete em tempo real
 - ✅ Animação suave do mapa
 - ✅ Feedback visual (loading)

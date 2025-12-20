@@ -825,18 +825,6 @@ export default function HomeScreen() {
         {/* Bottom Sheet - sobrepõe o mapa */}
         {!isMapPickerMode && (
           <>
-            {/* Overlay de debug: lat/lng ao arrastar o pin */}
-            {dragLatLng && (
-              <View className="absolute bottom-28 left-4 right-4 z-20">
-                <View className="bg-surface-dark/90 border border-white/10 rounded-xl px-3 py-2">
-                  <Text className="text-xs text-white font-semibold">
-                    Lat: {dragLatLng.lat.toFixed(6)} | Lng:{" "}
-                    {dragLatLng.lng.toFixed(6)}
-                  </Text>
-                </View>
-              </View>
-            )}
-
             <BottomSheet
               ref={bottomSheetRef}
               onPressSearch={handlePressSearch}

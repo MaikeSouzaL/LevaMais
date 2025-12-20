@@ -287,12 +287,12 @@ export type GeocodingResult = {
 /**
  * Busca coordenadas a partir de um endereço (geocoding)
  * Retorna uma lista de resultados possíveis para autocomplete
- * 
+ *
  * @param query - Texto do endereço a buscar
  * @param userCity - Cidade atual do usuário (opcional) - prioriza resultados desta cidade
  * @param userRegion - Estado atual do usuário (opcional) - prioriza resultados deste estado
  * @returns Lista de resultados encontrados, ordenados por relevância
- * 
+ *
  * Exemplo: buscarEnderecoPorTexto("Rua Josias", "Pimenta Bueno", "RO")
  */
 export async function buscarEnderecoPorTexto(
@@ -312,19 +312,18 @@ export async function buscarEnderecoPorTexto(
     if (userRegion) console.log(`   🗺️  Estado do usuário: ${userRegion}`);
 
     // Se temos a cidade do usuário, adicionar à query para melhorar resultados
-    const enhancedQuery = userCity && userRegion
-      ? `${query}, ${userCity}, ${userRegion}`
-      : userCity
-      ? `${query}, ${userCity}`
-      : query;
+    const enhancedQuery =
+      userCity && userRegion
+        ? `${query}, ${userCity}, ${userRegion}`
+        : userCity
+        ? `${query}, ${userCity}`
+        : query;
 
     console.log(`   🎯 Query melhorada: "${enhancedQuery}"`);
     console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     // Buscar com múltiplas variações para obter mais resultados
-    const searchPromises = [
-      Location.geocodeAsync(query).catch(() => []),
-    ];
+    const searchPromises = [Location.geocodeAsync(query).catch(() => [])];
 
     // Se temos cidade/estado, adicionar buscas contextualizadas
     if (userCity && userRegion) {
@@ -351,7 +350,9 @@ export async function buscarEnderecoPorTexto(
     const coordsSet = new Set<string>();
 
     for (const result of flatResults) {
-      const coordKey = `${result.latitude.toFixed(4)},${result.longitude.toFixed(4)}`;
+      const coordKey = `${result.latitude.toFixed(
+        4
+      )},${result.longitude.toFixed(4)}`;
       if (!coordsSet.has(coordKey)) {
         coordsSet.add(coordKey);
         uniqueResults.push(result);
@@ -365,7 +366,9 @@ export async function buscarEnderecoPorTexto(
       return [];
     }
 
-    console.log(`✅ ${allResults.length} resultado(s) encontrado(s) (após remover duplicatas)`);
+    console.log(
+      `✅ ${allResults.length} resultado(s) encontrado(s) (após remover duplicatas)`
+    );
 
     // Converter resultados para formato mais amigável
     const geocodingResults: GeocodingResult[] = [];
@@ -402,7 +405,9 @@ export async function buscarEnderecoPorTexto(
       } catch (e) {
         // Se falhar o reverse, usar apenas as coordenadas
         geocodingResults.push({
-          formattedAddress: `${result.latitude.toFixed(6)}, ${result.longitude.toFixed(6)}`,
+          formattedAddress: `${result.latitude.toFixed(
+            6
+          )}, ${result.longitude.toFixed(6)}`,
           latitude: result.latitude,
           longitude: result.longitude,
         });
@@ -414,10 +419,10 @@ export async function buscarEnderecoPorTexto(
       geocodingResults.sort((a, b) => {
         const aCityMatch = a.city?.toLowerCase() === userCity.toLowerCase();
         const bCityMatch = b.city?.toLowerCase() === userCity.toLowerCase();
-        
+
         if (aCityMatch && !bCityMatch) return -1;
         if (!aCityMatch && bCityMatch) return 1;
-        
+
         // Se ambos ou nenhum correspondem, manter ordem original
         return 0;
       });

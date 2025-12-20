@@ -11,6 +11,7 @@ O sistema agora detecta automaticamente a cidade onde o usuário está e prioriz
 ### 1️⃣ Detecção Automática da Cidade
 
 **Ao abrir o modo de seleção de mapa:**
+
 ```
 1. Sistema pega localização GPS atual
          ↓
@@ -22,6 +23,7 @@ O sistema agora detecta automaticamente a cidade onde o usuário está e prioriz
 ```
 
 **Console Output:**
+
 ```
 🏙️  Cidade detectada: Pimenta Bueno
 🗺️  Estado detectado: Rondônia
@@ -34,6 +36,7 @@ O sistema agora detecta automaticamente a cidade onde o usuário está e prioriz
 **Quando você busca "Rua Josias":**
 
 **Sem contexto (antes):**
+
 ```
 Location.geocodeAsync("Rua Josias")
          ↓
@@ -41,6 +44,7 @@ Resultados de TODO o Brasil (sem ordem)
 ```
 
 **Com contexto (agora):**
+
 ```
 Location.geocodeAsync("Rua Josias, Pimenta Bueno, RO")
          ↓
@@ -55,12 +59,13 @@ Para garantir melhores resultados, fazemos 2 buscas em paralelo:
 
 ```typescript
 Promise.all([
-  Location.geocodeAsync("Rua Josias"),              // Busca original
-  Location.geocodeAsync("Rua Josias, Pimenta Bueno, RO")  // Busca contextualizada
-])
+  Location.geocodeAsync("Rua Josias"), // Busca original
+  Location.geocodeAsync("Rua Josias, Pimenta Bueno, RO"), // Busca contextualizada
+]);
 ```
 
 **Resultado:** Melhor dos dois mundos!
+
 - ✅ Encontra resultados na sua cidade
 - ✅ Também encontra em outras cidades (se necessário)
 
@@ -75,9 +80,9 @@ Depois de obter os resultados, reordenamos:
 results.sort((a, b) => {
   const aCityMatch = a.city === "Pimenta Bueno";
   const bCityMatch = b.city === "Pimenta Bueno";
-  
+
   if (aCityMatch && !bCityMatch) return -1; // a vem primeiro
-  if (!aCityMatch && bCityMatch) return 1;  // b vem primeiro
+  if (!aCityMatch && bCityMatch) return 1; // b vem primeiro
   return 0; // mantém ordem original
 });
 ```
@@ -89,6 +94,7 @@ results.sort((a, b) => {
 ### Antes (Sem Contexto)
 
 **Usuário em Pimenta Bueno busca "Rua Josias":**
+
 ```
 ┌─────────────────────────────────┐
 │ 🔍 Buscar endereço              │
@@ -108,6 +114,7 @@ results.sort((a, b) => {
 ### Depois (Com Contexto)
 
 **Usuário em Pimenta Bueno busca "Rua Josias":**
+
 ```
 ┌─────────────────────────────────┐
 │ 🔍 Buscar em Pimenta Bueno - RO │ ← Mostra cidade detectada
@@ -131,12 +138,14 @@ results.sort((a, b) => {
 ## 🔍 Console Output Detalhado
 
 ### Detecção da Cidade
+
 ```
 🏙️  Cidade detectada: Pimenta Bueno
 🗺️  Estado detectado: Rondônia
 ```
 
 ### Durante a Busca
+
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🔍 BUSCA DE ENDEREÇO INICIADA
@@ -148,6 +157,7 @@ results.sort((a, b) => {
 ```
 
 ### Resultados Encontrados
+
 ```
 ✅ 5 resultado(s) encontrado(s)
 📍 Rua Josias da Silva, 279 - Pimenta Bueno - RO
@@ -182,7 +192,7 @@ useEffect(() => {
         location.latitude,
         location.longitude
       );
-      
+
       setUserCity(endereco?.city || "");
       setUserRegion(endereco?.region || "");
     }
@@ -197,8 +207,8 @@ useEffect(() => {
 ```typescript
 const results = await buscarEnderecoPorTexto(
   searchQuery,
-  userCity,      // ← Passa cidade
-  userRegion     // ← Passa estado
+  userCity, // ← Passa cidade
+  userRegion // ← Passa estado
 );
 ```
 
@@ -207,9 +217,9 @@ const results = await buscarEnderecoPorTexto(
 ```typescript
 export async function buscarEnderecoPorTexto(
   query: string,
-  userCity?: string,      // ← Novo parâmetro opcional
-  userRegion?: string     // ← Novo parâmetro opcional
-): Promise<GeocodingResult[]>
+  userCity?: string, // ← Novo parâmetro opcional
+  userRegion?: string // ← Novo parâmetro opcional
+): Promise<GeocodingResult[]>;
 ```
 
 ---
@@ -217,16 +227,19 @@ export async function buscarEnderecoPorTexto(
 ## 🎯 Casos de Uso
 
 ### Cenário 1: Busca Local
+
 **Usuário em:** Pimenta Bueno - RO  
 **Busca:** "Rua Josias"  
 **Resultado:** Prioriza Pimenta Bueno ✅
 
 ### Cenário 2: Busca em Outra Cidade
+
 **Usuário em:** Pimenta Bueno - RO  
 **Busca:** "Rua Josias, São Paulo"  
 **Resultado:** Encontra em São Paulo também ✅
 
 ### Cenário 3: Sem Localização
+
 **GPS desligado ou sem permissão**  
 **Busca:** "Rua Josias"  
 **Resultado:** Busca normal (sem priorização) ✅
@@ -235,31 +248,36 @@ export async function buscarEnderecoPorTexto(
 
 ## 📊 Comparação
 
-| Aspecto | Antes | Depois |
-|---------|-------|--------|
-| **Relevância** | Aleatória | Prioriza cidade local |
-| **Placeholder** | "Buscar endereço" | "Buscar em Pimenta Bueno - RO" |
-| **Query** | "Rua X" | "Rua X, Cidade, Estado" |
-| **Resultados** | Misturados | Ordenados por relevância |
-| **UX** | Difícil achar local | Fácil e intuitivo |
+| Aspecto         | Antes               | Depois                         |
+| --------------- | ------------------- | ------------------------------ |
+| **Relevância**  | Aleatória           | Prioriza cidade local          |
+| **Placeholder** | "Buscar endereço"   | "Buscar em Pimenta Bueno - RO" |
+| **Query**       | "Rua X"             | "Rua X, Cidade, Estado"        |
+| **Resultados**  | Misturados          | Ordenados por relevância       |
+| **UX**          | Difícil achar local | Fácil e intuitivo              |
 
 ---
 
 ## ✨ Benefícios
 
 ### 1. **Mais Rápido**
+
 Usuário encontra o que procura no topo da lista
 
 ### 2. **Mais Relevante**
+
 Resultados da cidade atual aparecem primeiro
 
 ### 3. **Mais Inteligente**
+
 Sistema entende contexto do usuário
 
 ### 4. **Mais Profissional**
+
 Comportamento igual ao Uber, 99, Google Maps
 
 ### 5. **Feedback Visual**
+
 Placeholder mostra cidade detectada
 
 ---
@@ -267,25 +285,31 @@ Placeholder mostra cidade detectada
 ## 🚀 Como Testar
 
 1. **Abra o app**
+
    ```bash
    npx expo start
    ```
 
 2. **Permita acesso à localização**
+
    - Sistema detectará sua cidade automaticamente
 
 3. **Entre no modo de mapa**
+
    - Toque em "Escolher destino"
 
 4. **Veja o placeholder**
+
    ```
    🔍 Buscar em [Sua Cidade] - [Seu Estado]
    ```
 
 5. **Digite um endereço comum**
+
    - Ex: "Rua Josias"
 
 6. **Observe os resultados**
+
    - Endereços da sua cidade aparecem PRIMEIRO!
    - Console mostra detalhes da busca
 
@@ -301,12 +325,14 @@ Placeholder mostra cidade detectada
 ## 🎨 Melhorias Futuras (Opcional)
 
 ### 1. Cache de Localização
+
 ```typescript
 // Salvar cidade para não buscar toda vez
-AsyncStorage.setItem('userCity', city);
+AsyncStorage.setItem("userCity", city);
 ```
 
 ### 2. Mostrar Distância
+
 ```typescript
 // Adicionar distância aos resultados
 📍 Rua X - 500m de você
@@ -314,6 +340,7 @@ AsyncStorage.setItem('userCity', city);
 ```
 
 ### 3. Histórico de Buscas
+
 ```typescript
 // Salvar buscas recentes
 Últimas buscas:
@@ -322,6 +349,7 @@ AsyncStorage.setItem('userCity', city);
 ```
 
 ### 4. Filtro por Cidade
+
 ```typescript
 // Toggle para mudar cidade
 [Pimenta Bueno ▼]  [Todas as cidades]
@@ -332,6 +360,7 @@ AsyncStorage.setItem('userCity', city);
 ## ✅ Resultado Final
 
 **Experiência de busca inteligente e contextualizada:**
+
 - 🎯 Detecta cidade automaticamente
 - 🔍 Prioriza resultados locais
 - 📍 Placeholder personalizado

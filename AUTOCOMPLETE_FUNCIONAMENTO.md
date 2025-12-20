@@ -3,6 +3,7 @@
 ## 📱 Passo a Passo Visual
 
 ### Estado Inicial
+
 ```
 ┌─────────────────────────────────┐
 │  ← 🔍 Buscar endereço           │
@@ -14,6 +15,7 @@
 ---
 
 ### Usuário digita: "R"
+
 ```
 ┌─────────────────────────────────┐
 │  ← 🔍 R                          │
@@ -26,6 +28,7 @@
 ---
 
 ### Usuário digita: "Ru"
+
 ```
 ┌─────────────────────────────────┐
 │  ← 🔍 Ru                         │
@@ -38,6 +41,7 @@
 ---
 
 ### Usuário digita: "Rua" (3 caracteres)
+
 ```
 ┌─────────────────────────────────┐
 │  ← 🔍 Rua                    ⏳  │ ← Loading aparece
@@ -50,6 +54,7 @@
 ---
 
 ### 500ms depois (parou de digitar)
+
 ```
 ┌─────────────────────────────────┐
 │  ← 🔍 Rua                    ⏳  │
@@ -62,6 +67,7 @@
 ---
 
 ### Resultados Chegam!
+
 ```
 ┌─────────────────────────────────┐
 │  ← 🔍 Rua                    ❌  │ ← Botão limpar
@@ -84,6 +90,7 @@
 ---
 
 ### Usuário continua digitando: "Rua J"
+
 ```
 ┌─────────────────────────────────┐
 │  ← 🔍 Rua J                  ⏳  │ ← Loading reaparece
@@ -97,6 +104,7 @@
 ---
 
 ### Usuário digita: "Rua Jo"
+
 ```
 ┌─────────────────────────────────┐
 │  ← 🔍 Rua Jo                 ⏳  │
@@ -109,6 +117,7 @@
 ---
 
 ### Usuário digita: "Rua Josias"
+
 ```
 ┌─────────────────────────────────┐
 │  ← 🔍 Rua Josias             ⏳  │
@@ -121,6 +130,7 @@
 ---
 
 ### 500ms depois (parou de digitar "Rua Josias")
+
 ```
 ┌─────────────────────────────────┐
 │  ← 🔍 Rua Josias             ⏳  │
@@ -133,6 +143,7 @@
 ---
 
 ### Novos Resultados (mais específicos)
+
 ```
 ┌─────────────────────────────────┐
 │  ← 🔍 Rua Josias             ❌  │
@@ -152,6 +163,7 @@
 ---
 
 ### Usuário Seleciona um Resultado
+
 ```
 Usuário toca em:
 📍 Rua Josias da Silva, 279
@@ -177,6 +189,7 @@ Usuário toca em:
 ## 🔄 Comportamento Dinâmico
 
 ### Cenário 1: Digitação Rápida
+
 ```
 "R" → "Ru" → "Rua" → "Rua " → "Rua J" → "Rua Jo" → "Rua Jos"
   ↓     ↓      ↓       ↓        ↓        ↓          ↓
@@ -194,6 +207,7 @@ Aguarda... Aguarda... Timer reinicia continuamente...
 ---
 
 ### Cenário 2: Digitação Lenta
+
 ```
 "R"  →  aguarda 2s  →  "u"  →  aguarda 2s  →  "a"
   ↓                      ↓                      ↓
@@ -206,6 +220,7 @@ Aguarda... Aguarda... Timer reinicia continuamente...
 ---
 
 ### Cenário 3: Backspace
+
 ```
 "Rua Josias" ← Backspace ← "Rua Josi" ← Backspace ← "Rua Jos"
       ↓                          ↓                       ↓
@@ -221,22 +236,26 @@ Busca "Rua Josias"      Busca "Rua Josi"      Busca "Rua Jos"
 ## 🎯 Regras de Negócio
 
 ### ✅ Lista Aparece Quando:
+
 - Usuário digitou **3 ou mais caracteres**
 - Passou **500ms sem digitar** (debounce)
 - **Busca retornou resultados**
 
 ### ❌ Lista NÃO Aparece Quando:
+
 - Menos de 3 caracteres
 - Usuário ainda está digitando (dentro dos 500ms)
 - Busca não retornou resultados
 - Campo de busca está vazio
 
 ### 🔄 Lista Atualiza Quando:
+
 - Usuário para de digitar por 500ms
 - Nova busca é completada
 - Resultados diferentes chegam
 
 ### 🚫 Lista Desaparece Quando:
+
 - Usuário seleciona um resultado
 - Usuário clica no X (limpar)
 - Campo fica com menos de 3 caracteres
@@ -289,6 +308,7 @@ T = 3200ms  : Novos resultados chegam!
 ## 💡 Por que Debounce?
 
 ### Sem Debounce:
+
 ```
 Usuário digita: "Rua Josias da Silva"
 Caracteres: 22
@@ -300,6 +320,7 @@ Performance: PÉSSIMA 🐌
 ```
 
 ### Com Debounce (500ms):
+
 ```
 Usuário digita: "Rua Josias da Silva"
 Tempo digitando: ~5 segundos
@@ -318,21 +339,25 @@ Performance: ÓTIMA ⚡
 ## 🎨 Estados Visuais
 
 ### Estado 1: Vazio
+
 ```
 🔍 Buscar endereço
 ```
 
 ### Estado 2: Digitando (< 3 chars)
+
 ```
 🔍 Ru
 ```
 
 ### Estado 3: Buscando
+
 ```
 🔍 Rua Josias    ⏳
 ```
 
 ### Estado 4: Resultados
+
 ```
 🔍 Rua Josias    ❌
 ┌──────────────────┐
@@ -343,6 +368,7 @@ Performance: ÓTIMA ⚡
 ```
 
 ### Estado 5: Sem Resultados
+
 ```
 🔍 xyzabc123    ❌
 ┌──────────────────┐
@@ -355,6 +381,7 @@ Performance: ÓTIMA ⚡
 ## ✨ Experiência do Usuário
 
 **Fluxo Natural:**
+
 1. Usuário começa a digitar
 2. Após 3 caracteres, vê o loading
 3. Meio segundo depois, vê os resultados

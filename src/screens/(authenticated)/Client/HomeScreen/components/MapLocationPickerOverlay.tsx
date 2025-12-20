@@ -22,7 +22,11 @@ import {
 interface MapLocationPickerOverlayProps {
   onBack: () => void;
   onConfirm: (location: string) => void;
-  onSelectLocation?: (latitude: number, longitude: number, address: string) => void;
+  onSelectLocation?: (
+    latitude: number,
+    longitude: number,
+    address: string
+  ) => void;
   currentAddress: string;
   currentLatLng?: { lat: number; lng: number } | null;
   isLoading?: boolean;
@@ -42,7 +46,7 @@ export function MapLocationPickerOverlay({
   const [searchResults, setSearchResults] = useState<GeocodingResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showResults, setShowResults] = useState(false);
-  
+
   // Cidade e estado do usuário para contextualizar a busca
   const [userCity, setUserCity] = useState<string>("");
   const [userRegion, setUserRegion] = useState<string>("");
@@ -54,23 +58,24 @@ export function MapLocationPickerOverlay({
       try {
         console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         console.log("🌍 DETECTANDO LOCALIZAÇÃO DO USUÁRIO...");
-        
+
         setIsDetectingLocation(true);
-        
+
         // Primeiro, tentar usar currentLatLng se disponível
         if (currentLatLng) {
           console.log(`📍 Usando coordenadas do mapa atual:`);
           console.log(`   Lat: ${currentLatLng.lat}`);
           console.log(`   Lng: ${currentLatLng.lng}`);
-          
+
           const endereco = await obterEnderecoPorCoordenadas(
             currentLatLng.lat,
             currentLatLng.lng
           );
-          
+
           // Tentar city primeiro, se não tiver, usar subregion como fallback
-          const cidadeDetectada = endereco?.city || endereco?.subregion || endereco?.district;
-          
+          const cidadeDetectada =
+            endereco?.city || endereco?.subregion || endereco?.district;
+
           if (cidadeDetectada) {
             setUserCity(cidadeDetectada);
             console.log(`✅ Cidade detectada: ${cidadeDetectada}`);
@@ -80,34 +85,35 @@ export function MapLocationPickerOverlay({
           } else {
             console.log(`⚠️  Cidade não disponível no geocoding`);
           }
-          
+
           if (endereco?.region) {
             setUserRegion(endereco.region);
             console.log(`✅ Estado detectado: ${endereco.region}`);
           }
-          
+
           setIsDetectingLocation(false);
           console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
           return;
         }
-        
+
         // Se não tiver currentLatLng, buscar localização GPS
         console.log("📡 Buscando localização GPS...");
         const location = await getCurrentLocation();
-        
+
         if (location) {
           console.log(`✅ GPS obtido:`);
           console.log(`   Lat: ${location.latitude}`);
           console.log(`   Lng: ${location.longitude}`);
-          
+
           const endereco = await obterEnderecoPorCoordenadas(
             location.latitude,
             location.longitude
           );
-          
+
           // Tentar city primeiro, se não tiver, usar subregion como fallback
-          const cidadeDetectada = endereco?.city || endereco?.subregion || endereco?.district;
-          
+          const cidadeDetectada =
+            endereco?.city || endereco?.subregion || endereco?.district;
+
           if (cidadeDetectada) {
             setUserCity(cidadeDetectada);
             console.log(`✅ Cidade detectada: ${cidadeDetectada}`);
@@ -117,7 +123,7 @@ export function MapLocationPickerOverlay({
           } else {
             console.log(`⚠️  Cidade não disponível no geocoding`);
           }
-          
+
           if (endereco?.region) {
             setUserRegion(endereco.region);
             console.log(`✅ Estado detectado: ${endereco.region}`);
@@ -125,7 +131,7 @@ export function MapLocationPickerOverlay({
         } else {
           console.log("❌ Não foi possível obter localização GPS");
         }
-        
+
         setIsDetectingLocation(false);
         console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
       } catch (error) {
@@ -149,13 +155,13 @@ export function MapLocationPickerOverlay({
       if (searchQuery.trim().length >= 3) {
         setIsSearching(true);
         setShowResults(true);
-        
+
         console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         console.log("🔍 EXECUTANDO BUSCA:");
         console.log(`   Query: "${searchQuery}"`);
         console.log(`   Cidade: ${userCity || "(não detectada)"}`);
         console.log(`   Estado: ${userRegion || "(não detectado)"}`);
-        
+
         try {
           // Passar cidade e estado do usuário para contextualizar a busca
           const results = await buscarEnderecoPorTexto(
@@ -163,7 +169,7 @@ export function MapLocationPickerOverlay({
             userCity,
             userRegion
           );
-          
+
           console.log(`✅ Resultados encontrados: ${results.length}`);
           if (results.length > 0) {
             console.log("📋 Primeiros 3 resultados:");
@@ -172,7 +178,7 @@ export function MapLocationPickerOverlay({
             });
           }
           console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-          
+
           setSearchResults(results);
         } catch (error) {
           console.error("❌ Erro na busca:", error);
@@ -195,10 +201,14 @@ export function MapLocationPickerOverlay({
     setShowResults(false);
     setSearchResults([]);
     setAddress(result.formattedAddress);
-    
+
     // Notificar o componente pai para mover o mapa
     if (onSelectLocation) {
-      onSelectLocation(result.latitude, result.longitude, result.formattedAddress);
+      onSelectLocation(
+        result.latitude,
+        result.longitude,
+        result.formattedAddress
+      );
     }
   };
 
@@ -270,8 +280,10 @@ export function MapLocationPickerOverlay({
               value={searchQuery}
               onChangeText={setSearchQuery}
               placeholder={
-                userCity 
-                  ? `Buscar em ${userCity}${userRegion ? ` - ${userRegion}` : ''}` 
+                userCity
+                  ? `Buscar em ${userCity}${
+                      userRegion ? ` - ${userRegion}` : ""
+                    }`
                   : "Buscar endereço"
               }
               placeholderTextColor="#9db9b9"
@@ -288,10 +300,14 @@ export function MapLocationPickerOverlay({
               }}
             />
             {isSearching && (
-              <ActivityIndicator size="small" color="#02de95" style={{ marginLeft: 8 }} />
+              <ActivityIndicator
+                size="small"
+                color="#02de95"
+                style={{ marginLeft: 8 }}
+              />
             )}
             {searchQuery.length > 0 && !isSearching && (
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => {
                   setSearchQuery("");
                   setShowResults(false);
@@ -324,14 +340,17 @@ export function MapLocationPickerOverlay({
             >
               <FlatList
                 data={searchResults}
-                keyExtractor={(item, index) => `${item.latitude}-${item.longitude}-${index}`}
+                keyExtractor={(item, index) =>
+                  `${item.latitude}-${item.longitude}-${index}`
+                }
                 renderItem={({ item, index }) => (
                   <TouchableOpacity
                     onPress={() => handleSelectResult(item)}
                     style={{
                       paddingHorizontal: 16,
                       paddingVertical: 12,
-                      borderBottomWidth: index < searchResults.length - 1 ? 1 : 0,
+                      borderBottomWidth:
+                        index < searchResults.length - 1 ? 1 : 0,
                       borderBottomColor: "rgba(255,255,255,0.05)",
                       flexDirection: "row",
                       alignItems: "center",
@@ -349,7 +368,11 @@ export function MapLocationPickerOverlay({
                         justifyContent: "center",
                       }}
                     >
-                      <MaterialIcons name="location-on" size={18} color="#02de95" />
+                      <MaterialIcons
+                        name="location-on"
+                        size={18}
+                        color="#02de95"
+                      />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text
@@ -375,7 +398,11 @@ export function MapLocationPickerOverlay({
                           : item.formattedAddress}
                       </Text>
                     </View>
-                    <MaterialIcons name="north-west" size={16} color="#9db9b9" />
+                    <MaterialIcons
+                      name="north-west"
+                      size={16}
+                      color="#9db9b9"
+                    />
                   </TouchableOpacity>
                 )}
                 style={{ maxHeight: 400 }} // Aumentado de 300 para 400
@@ -635,22 +662,6 @@ export function MapLocationPickerOverlay({
                     </>
                   );
                 })()}
-
-                {/* Coordenadas (debug) */}
-                {currentLatLng && (
-                  <Text
-                    style={{
-                      color: "#6b8888",
-                      fontSize: 11,
-                      fontWeight: "600",
-                      textAlign: "center",
-                      marginTop: 4,
-                    }}
-                  >
-                    Lat: {currentLatLng.lat.toFixed(6)} | Lng:{" "}
-                    {currentLatLng.lng.toFixed(6)}
-                  </Text>
-                )}
               </>
             )}
           </View>
