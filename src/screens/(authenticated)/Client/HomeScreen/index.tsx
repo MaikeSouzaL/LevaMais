@@ -44,6 +44,8 @@ import {
   getCurrentLocation,
   getCurrentLocationAndAddress,
   getAddressFromCoordinates,
+  obterEnderecoPorCoordenadas,
+  formatarEndereco,
 } from "../../../../utils/location";
 
 import { DriverFoundSheet } from "./components/DriverFoundSheet";
@@ -106,6 +108,8 @@ export default function HomeScreen() {
   const [isMapPickerMode, setIsMapPickerMode] = useState(false);
   // Estado para armazenar o endereço sendo selecionado no mapa (reverse geocoding)
   const [mapPickerAddress, setMapPickerAddress] = useState<string>("");
+  // Estado para controlar loading do geocoding
+  const [isGeocodingLoading, setIsGeocodingLoading] = useState(false);
 
   // Estado para controlar se o motorista foi encontrado
   const [isDriverFound, setIsDriverFound] = useState(false);
@@ -268,22 +272,70 @@ export default function HomeScreen() {
   }) => {
     // Atualiza overlay de debug com coordenadas do centro
     setDragLatLng({ lat: r.latitude, lng: r.longitude });
+    
     if (isMapPickerMode) {
+      setIsGeocodingLoading(true);
       try {
-        const address = await getAddressFromCoordinates({
-          latitude: r.latitude,
-          longitude: r.longitude,
-        });
-        if (address) {
-          const { street, number, city, state } = address;
-          const formatted = `${street}, ${number} - ${city} - ${state}`;
-          setMapPickerAddress(formatted);
+        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        console.log("🗺️  PIN MOVIDO - BUSCANDO ENDEREÇO...");
+        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        console.log("📍 Coordenadas:");
+        console.log(`   Latitude: ${r.latitude}`);
+        console.log(`   Longitude: ${r.longitude}`);
+        console.log("");
+
+        // Buscar endereço completo com TODOS os dados
+        const enderecoCompleto = await obterEnderecoPorCoordenadas(
+          r.latitude,
+          r.longitude
+        );
+
+        if (enderecoCompleto) {
+          console.log("✅ DADOS COMPLETOS DO REVERSE GEOCODING:");
+          console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+          console.log("📌 Campos principais:");
+          console.log(`   🏠 Nome: ${enderecoCompleto.name || "❌ não disponível"}`);
+          console.log(`   🛣️  Rua: ${enderecoCompleto.street || "❌ não disponível"}`);
+          console.log(`   🔢 Número: ${enderecoCompleto.streetNumber || "❌ não disponível"}`);
+          console.log(`   🏘️  Bairro: ${enderecoCompleto.district || "❌ não disponível"}`);
+          console.log(`   🏙️  Cidade: ${enderecoCompleto.city || "❌ não disponível"}`);
+          console.log(`   🗺️  Estado: ${enderecoCompleto.region || "❌ não disponível"}`);
+          console.log(`   📮 CEP: ${enderecoCompleto.postalCode || "❌ não disponível"}`);
+          console.log("");
+          console.log("📌 Campos secundários:");
+          console.log(`   🌍 País: ${enderecoCompleto.country || "❌ não disponível"}`);
+          console.log(`   🏳️  Código ISO: ${enderecoCompleto.isoCountryCode || "❌ não disponível"}`);
+          console.log(`   🗂️  Sub-região: ${enderecoCompleto.subregion || "❌ não disponível"}`);
+          console.log(`   🕐 Timezone: ${enderecoCompleto.timezone || "❌ não disponível"}`);
+          console.log("");
+          console.log("📌 Objeto completo (JSON):");
+          console.log(JSON.stringify(enderecoCompleto, null, 2));
+          console.log("");
+          
+          // Formatação final
+          const enderecoFormatado = formatarEndereco(enderecoCompleto);
+          console.log("✨ ENDEREÇO FORMATADO:");
+          console.log(`   ${enderecoFormatado}`);
+          console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+          console.log("");
+
+          // Atualizar UI
+          setMapPickerAddress(enderecoFormatado);
         } else {
+          console.log("❌ ERRO: Endereço não encontrado");
+          console.log("   O reverse geocoding retornou null");
+          console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+          console.log("");
           setMapPickerAddress("Endereço não encontrado");
         }
       } catch (error) {
-        console.log("Erro no reverse geocoding:", error);
+        console.log("❌ ERRO NO REVERSE GEOCODING:");
+        console.log(error);
+        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        console.log("");
         setMapPickerAddress("Erro ao buscar endereço");
+      } finally {
+        setIsGeocodingLoading(false);
       }
     }
 
@@ -705,6 +757,7 @@ export default function HomeScreen() {
                 mapPickerAddress || destinationAddress || currentAddress
               }
               currentLatLng={dragLatLng}
+              isLoading={isGeocodingLoading}
             />
           )}
         </View>

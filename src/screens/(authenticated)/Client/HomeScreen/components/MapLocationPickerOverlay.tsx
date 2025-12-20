@@ -6,6 +6,7 @@ import {
   TextInput,
   Dimensions,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -15,6 +16,7 @@ interface MapLocationPickerOverlayProps {
   onConfirm: (location: string) => void;
   currentAddress: string;
   currentLatLng?: { lat: number; lng: number } | null;
+  isLoading?: boolean;
 }
 
 export function MapLocationPickerOverlay({
@@ -22,9 +24,15 @@ export function MapLocationPickerOverlay({
   onConfirm,
   currentAddress,
   currentLatLng,
+  isLoading = false,
 }: MapLocationPickerOverlayProps) {
   const insets = useSafeAreaInsets();
   const [address, setAddress] = useState(currentAddress);
+
+  // Atualizar o endereço local quando o prop mudar (pin movido)
+  useEffect(() => {
+    setAddress(currentAddress);
+  }, [currentAddress]);
 
   return (
     <View
@@ -303,39 +311,80 @@ export function MapLocationPickerOverlay({
 
           {/* Dynamic Address */}
           <View style={{ alignItems: "center", gap: 4 }}>
-            <Text
-              style={{
-                color: "#fff",
-                fontSize: 24,
-                fontWeight: "700",
-                textAlign: "center",
-              }}
-              numberOfLines={1}
-            >
-              {address.split(",")[0]}
-            </Text>
-            <Text
-              style={{
-                color: "#9db9b9",
-                fontSize: 16,
-                fontWeight: "400",
-                textAlign: "center",
-              }}
-            >
-              {address.split("-")[1]?.trim() || "São Paulo - SP"}
-            </Text>
-            {currentLatLng && (
-              <Text
-                style={{
-                  color: "#9db9b9",
-                  fontSize: 12,
-                  fontWeight: "600",
-                  textAlign: "center",
-                }}
-              >
-                Lat: {currentLatLng.lat.toFixed(6)} | Lng:{" "}
-                {currentLatLng.lng.toFixed(6)}
-              </Text>
+            {isLoading ? (
+              // Loading state
+              <View style={{ alignItems: "center", gap: 8, paddingVertical: 16 }}>
+                <ActivityIndicator size="small" color="#02de95" />
+                <Text
+                  style={{
+                    color: "#9db9b9",
+                    fontSize: 16,
+                    fontWeight: "500",
+                    textAlign: "center",
+                  }}
+                >
+                  Buscando endereço...
+                </Text>
+              </View>
+            ) : (
+              // Address loaded
+              <>
+                {/* Extrair rua e número do endereço formatado */}
+                {(() => {
+                  // Formato: "Rua, Número - Bairro - Cidade/Estado"
+                  const parts = address.split(" - ");
+                  const ruaNumero = parts[0] || address; // "Rua, Número"
+                  const bairro = parts[1] || ""; // "Bairro"
+                  const cidadeEstado = parts[2] || ""; // "Cidade/Estado"
+
+                  return (
+                    <>
+                      {/* Rua e Número (principal) */}
+                      <Text
+                        style={{
+                          color: "#fff",
+                          fontSize: 24,
+                          fontWeight: "700",
+                          textAlign: "center",
+                        }}
+                        numberOfLines={2}
+                      >
+                        {ruaNumero}
+                      </Text>
+                      
+                      {/* Bairro - Cidade/Estado */}
+                      {(bairro || cidadeEstado) && (
+                        <Text
+                          style={{
+                            color: "#9db9b9",
+                            fontSize: 16,
+                            fontWeight: "400",
+                            textAlign: "center",
+                          }}
+                        >
+                          {[bairro, cidadeEstado].filter(Boolean).join(" - ")}
+                        </Text>
+                      )}
+                    </>
+                  );
+                })()}
+
+                {/* Coordenadas (debug) */}
+                {currentLatLng && (
+                  <Text
+                    style={{
+                      color: "#6b8888",
+                      fontSize: 11,
+                      fontWeight: "600",
+                      textAlign: "center",
+                      marginTop: 4,
+                    }}
+                  >
+                    Lat: {currentLatLng.lat.toFixed(6)} | Lng:{" "}
+                    {currentLatLng.lng.toFixed(6)}
+                  </Text>
+                )}
+              </>
             )}
           </View>
 
