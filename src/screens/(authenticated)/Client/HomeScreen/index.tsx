@@ -14,7 +14,10 @@ import { LocationHeader } from "../../../../components/LocationHeader";
 import { VehicleMarker } from "./components/VehicleMarker";
 import { BottomSheet } from "./components/BottomSheet";
 import { LocationPickerSheet } from "./components/LocationPickerSheet";
-import { SafetyHelpSheet } from "./components/SafetyHelpSheet";
+import {
+  SafetyHelpSheet,
+  SafetyHelpSheetRef,
+} from "./components/SafetyHelpSheet";
 
 // Dados mockados
 const MOCK_DATA = {
@@ -121,7 +124,7 @@ export default function HomeScreen() {
   const mapRef = useRef<MapView>(null);
   const bottomSheetRef = useRef<GorhomBottomSheet>(null);
   const locationPickerRef = useRef<GorhomBottomSheet>(null);
-  const safetyHelpRef = useRef<GorhomBottomSheet>(null);
+  const safetyHelpRef = useRef<SafetyHelpSheetRef>(null);
   const navigation = useNavigation<DrawerNavigationProp<any>>();
 
   const [region] = useState({
@@ -349,10 +352,7 @@ export default function HomeScreen() {
         />
 
         {/* Safety Help Sheet - Ajuda e Segurança */}
-        <SafetyHelpSheet 
-          ref={safetyHelpRef} 
-          onClose={handleCloseSafetyHelp} 
-        />
+        <SafetyHelpSheet ref={safetyHelpRef} onClose={handleCloseSafetyHelp} />
       </View>
     </GestureHandlerRootView>
   );
