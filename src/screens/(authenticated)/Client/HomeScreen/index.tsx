@@ -471,6 +471,35 @@ export default function HomeScreen() {
     locationPickerRef.current?.snapToIndex(0);
   };
 
+  // Handler para mover o mapa quando selecionar um resultado da busca
+  const handleSelectSearchLocation = (
+    latitude: number,
+    longitude: number,
+    address: string
+  ) => {
+    console.log("📍 LOCALIZAÇÃO SELECIONADA DA BUSCA:");
+    console.log(`   Endereço: ${address}`);
+    console.log(`   Latitude: ${latitude}`);
+    console.log(`   Longitude: ${longitude}`);
+
+    // Mover o mapa para a localização selecionada
+    if (mapRef.current) {
+      mapRef.current.animateToRegion(
+        {
+          latitude,
+          longitude,
+          latitudeDelta: 0.005, // Zoom próximo
+          longitudeDelta: 0.005,
+        },
+        1000 // 1 segundo de animação
+      );
+    }
+
+    // Atualizar o endereço exibido
+    setMapPickerAddress(address);
+    setDragLatLng({ lat: latitude, lng: longitude });
+  };
+
   const handleSelectLocation = (location: string) => {
     console.log("Selected location:", location);
     setDestinationAddress(location);
@@ -783,6 +812,7 @@ export default function HomeScreen() {
             <MapLocationPickerOverlay
               onBack={handleBackFromMapPicker}
               onConfirm={handleConfirmMapLocation}
+              onSelectLocation={handleSelectSearchLocation}
               currentAddress={
                 mapPickerAddress || destinationAddress || currentAddress
               }

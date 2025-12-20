@@ -7,13 +7,20 @@ import {
   Dimensions,
   Platform,
   ActivityIndicator,
+  FlatList,
+  KeyboardAvoidingView,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  buscarEnderecoPorTexto,
+  type GeocodingResult,
+} from "../../../../../utils/location";
 
 interface MapLocationPickerOverlayProps {
   onBack: () => void;
   onConfirm: (location: string) => void;
+  onSelectLocation?: (latitude: number, longitude: number, address: string) => void;
   currentAddress: string;
   currentLatLng?: { lat: number; lng: number } | null;
   isLoading?: boolean;
@@ -22,17 +29,58 @@ interface MapLocationPickerOverlayProps {
 export function MapLocationPickerOverlay({
   onBack,
   onConfirm,
+  onSelectLocation,
   currentAddress,
   currentLatLng,
   isLoading = false,
 }: MapLocationPickerOverlayProps) {
   const insets = useSafeAreaInsets();
   const [address, setAddress] = useState(currentAddress);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<GeocodingResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showResults, setShowResults] = useState(false);
 
   // Atualizar o endereço local quando o prop mudar (pin movido)
   useEffect(() => {
     setAddress(currentAddress);
   }, [currentAddress]);
+
+  // Debounced search
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      if (searchQuery.trim().length >= 3) {
+        setIsSearching(true);
+        setShowResults(true);
+        try {
+          const results = await buscarEnderecoPorTexto(searchQuery);
+          setSearchResults(results);
+        } catch (error) {
+          console.error("Erro na busca:", error);
+          setSearchResults([]);
+        } finally {
+          setIsSearching(false);
+        }
+      } else {
+        setSearchResults([]);
+        setShowResults(false);
+      }
+    }, 500); // 500ms de debounce
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const handleSelectResult = (result: GeocodingResult) => {
+    setSearchQuery("");
+    setShowResults(false);
+    setSearchResults([]);
+    setAddress(result.formattedAddress);
+    
+    // Notificar o componente pai para mover o mapa
+    if (onSelectLocation) {
+      onSelectLocation(result.latitude, result.longitude, result.formattedAddress);
+    }
+  };
 
   return (
     <View
@@ -78,44 +126,139 @@ export function MapLocationPickerOverlay({
         </TouchableOpacity>
 
         {/* Search Bar */}
-        <View
-          style={{
-            flex: 1,
-            height: 48,
-            borderRadius: 12,
-            backgroundColor: "#1c2727",
-            flexDirection: "row",
-            alignItems: "center",
-            paddingHorizontal: 16,
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.3,
-            shadowRadius: 12,
-            elevation: 8,
-          }}
-        >
-          <MaterialIcons
-            name="search"
-            size={20}
-            color="#9db9b9"
-            style={{ marginRight: 8 }}
-          />
-          <TextInput
-            value={address}
-            onChangeText={setAddress}
-            placeholder="Buscar endereço"
-            placeholderTextColor="#9db9b9"
+        <View style={{ flex: 1 }}>
+          <View
             style={{
-              flex: 1,
-              color: "#fff",
-              fontSize: 16,
-              height: "100%",
+              height: 48,
+              borderRadius: 12,
+              backgroundColor: "#1c2727",
+              flexDirection: "row",
+              alignItems: "center",
+              paddingHorizontal: 16,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.3,
+              shadowRadius: 12,
+              elevation: 8,
             }}
-          />
-          {address.length > 0 && (
-            <TouchableOpacity onPress={() => setAddress("")}>
-              <MaterialIcons name="close" size={20} color="#9db9b9" />
-            </TouchableOpacity>
+          >
+            <MaterialIcons
+              name="search"
+              size={20}
+              color="#9db9b9"
+              style={{ marginRight: 8 }}
+            />
+            <TextInput
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Buscar endereço"
+              placeholderTextColor="#9db9b9"
+              style={{
+                flex: 1,
+                color: "#fff",
+                fontSize: 16,
+                height: "100%",
+              }}
+              onFocus={() => {
+                if (searchResults.length > 0) {
+                  setShowResults(true);
+                }
+              }}
+            />
+            {isSearching && (
+              <ActivityIndicator size="small" color="#02de95" style={{ marginLeft: 8 }} />
+            )}
+            {searchQuery.length > 0 && !isSearching && (
+              <TouchableOpacity 
+                onPress={() => {
+                  setSearchQuery("");
+                  setShowResults(false);
+                  setSearchResults([]);
+                }}
+              >
+                <MaterialIcons name="close" size={20} color="#9db9b9" />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Autocomplete Results */}
+          {showResults && searchResults.length > 0 && (
+            <View
+              style={{
+                position: "absolute",
+                top: 56,
+                left: 0,
+                right: 0,
+                maxHeight: 300,
+                backgroundColor: "#1c2727",
+                borderRadius: 12,
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.3,
+                shadowRadius: 12,
+                elevation: 8,
+                overflow: "hidden",
+              }}
+            >
+              <FlatList
+                data={searchResults}
+                keyExtractor={(item, index) => `${item.latitude}-${item.longitude}-${index}`}
+                renderItem={({ item, index }) => (
+                  <TouchableOpacity
+                    onPress={() => handleSelectResult(item)}
+                    style={{
+                      paddingHorizontal: 16,
+                      paddingVertical: 12,
+                      borderBottomWidth: index < searchResults.length - 1 ? 1 : 0,
+                      borderBottomColor: "rgba(255,255,255,0.05)",
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 12,
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: 16,
+                        backgroundColor: "rgba(2, 222, 149, 0.1)",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <MaterialIcons name="location-on" size={18} color="#02de95" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={{
+                          color: "#fff",
+                          fontSize: 15,
+                          fontWeight: "600",
+                        }}
+                        numberOfLines={1}
+                      >
+                        {item.street || item.formattedAddress.split(" - ")[0]}
+                      </Text>
+                      <Text
+                        style={{
+                          color: "#9db9b9",
+                          fontSize: 13,
+                          marginTop: 2,
+                        }}
+                        numberOfLines={1}
+                      >
+                        {item.city && item.region
+                          ? `${item.city} - ${item.region}`
+                          : item.formattedAddress}
+                      </Text>
+                    </View>
+                    <MaterialIcons name="north-west" size={16} color="#9db9b9" />
+                  </TouchableOpacity>
+                )}
+                style={{ maxHeight: 300 }}
+              />
+            </View>
           )}
         </View>
       </View>

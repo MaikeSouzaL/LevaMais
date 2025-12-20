@@ -270,3 +270,80 @@ export async function getCurrentLocationAndAddress(): Promise<{
     return null;
   }
 }
+
+/**
+ * Resultado da busca de endereço (geocoding)
+ */
+export type GeocodingResult = {
+  formattedAddress: string;
+  latitude: number;
+  longitude: number;
+  street?: string;
+  city?: string;
+  region?: string;
+  postalCode?: string;
+};
+
+/**
+ * Busca coordenadas a partir de um endereço (geocoding)
+ * Retorna uma lista de resultados possíveis para autocomplete
+ * 
+ * @param query - Texto do endereço a buscar
+ * @returns Lista de resultados encontrados
+ * 
+ * Exemplo: buscarEnderecoPorTexto("Rua Josias da Silva")
+ */
+export async function buscarEnderecoPorTexto(
+  query: string
+): Promise<GeocodingResult[]> {
+  try {
+    if (!query || query.trim().length < 3) {
+      return [];
+    }
+
+    const results = await Location.geocodeAsync(query);
+
+    if (!results || results.length === 0) {
+      return [];
+    }
+
+    // Converter resultados para formato mais amigável
+    const geocodingResults: GeocodingResult[] = [];
+
+    for (const result of results) {
+      // Obter endereço reverso para ter informações completas
+      try {
+        const reverseGeo = await obterEnderecoPorCoordenadas(
+          result.latitude,
+          result.longitude
+        );
+
+        const formatted = reverseGeo
+          ? formatarEndereco(reverseGeo)
+          : `${result.latitude.toFixed(6)}, ${result.longitude.toFixed(6)}`;
+
+        geocodingResults.push({
+          formattedAddress: formatted,
+          latitude: result.latitude,
+          longitude: result.longitude,
+          street: reverseGeo?.street,
+          city: reverseGeo?.city,
+          region: reverseGeo?.region,
+          postalCode: reverseGeo?.postalCode,
+        });
+      } catch (e) {
+        // Se falhar o reverse, usar apenas as coordenadas
+        geocodingResults.push({
+          formattedAddress: `${result.latitude.toFixed(6)}, ${result.longitude.toFixed(6)}`,
+          latitude: result.latitude,
+          longitude: result.longitude,
+        });
+      }
+    }
+
+    return geocodingResults;
+  } catch (error) {
+    console.error("Erro ao buscar endereço por texto:", error);
+    return [];
+  }
+}
