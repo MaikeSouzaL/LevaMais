@@ -8,6 +8,9 @@ import {
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import HomeScreen from "../screens/(authenticated)/Client/HomeScreen/index";
 import FinalOrderSummaryScreen from "../screens/(authenticated)/Client/FinalOrderSummaryScreen";
+import CancelFeeScreen from "../screens/(authenticated)/Client/CancelFeeScreen";
+import ChatScreen from "../screens/(authenticated)/Client/ChatScreen";
+import OrderDetailsScreen from "../screens/(authenticated)/Client/OrderDetailsScreen";
 import PaymentScreen from "../screens/(authenticated)/Client/PaymentScreen";
 import { useAuthStore } from "../context/authStore";
 
@@ -150,6 +153,33 @@ export default function DrawerClienteRoutes() {
         options={{
           drawerLabel: () => null,
           title: "Resumo do pedido",
+          drawerItemStyle: { display: "none" },
+        }}
+      />
+      <Screen
+        name="CancelFee"
+        component={CancelFeeScreen}
+        options={{
+          drawerLabel: () => null,
+          title: "Cancelar corrida",
+          drawerItemStyle: { display: "none" },
+        }}
+      />
+      <Screen
+        name="Chat"
+        component={ChatScreen}
+        options={{
+          drawerLabel: () => null,
+          title: "Chat",
+          drawerItemStyle: { display: "none" },
+        }}
+      />
+      <Screen
+        name="OrderDetails"
+        component={OrderDetailsScreen}
+        options={{
+          drawerLabel: () => null,
+          title: "Detalhes do pedido",
           drawerItemStyle: { display: "none" },
         }}
       />

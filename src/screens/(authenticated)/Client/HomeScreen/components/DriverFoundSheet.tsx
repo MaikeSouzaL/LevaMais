@@ -9,10 +9,11 @@ interface DriverFoundSheetProps {
   onChat?: () => void;
   onShare?: () => void;
   onCancel?: () => void;
+  onDetails?: () => void;
 }
 
 export const DriverFoundSheet = forwardRef<BottomSheet, DriverFoundSheetProps>(
-  ({ onClose, onCall, onChat, onShare, onCancel }, ref) => {
+  ({ onClose, onCall, onChat, onShare, onCancel, onDetails }, ref) => {
     const snapPoints = useMemo(() => ["45%", "85%"], []);
 
     return (
@@ -24,7 +25,9 @@ export const DriverFoundSheet = forwardRef<BottomSheet, DriverFoundSheetProps>(
         handleIndicatorStyle={{ backgroundColor: "rgba(255,255,255,0.2)" }}
         backgroundStyle={{ backgroundColor: "#111816" }}
       >
-        <BottomSheetView style={{ flex: 1, paddingHorizontal: 20, paddingBottom: 24 }}>
+        <BottomSheetView
+          style={{ flex: 1, paddingHorizontal: 20, paddingBottom: 24 }}
+        >
           {/* Status & ETA */}
           <View className="flex-col gap-3 mb-5">
             {/* Badge */}
@@ -73,7 +76,9 @@ export const DriverFoundSheet = forwardRef<BottomSheet, DriverFoundSheetProps>(
                 />
                 <View className="absolute -bottom-1 -right-1 bg-[#111816] rounded-full p-0.5">
                   <View className="flex items-center justify-center bg-yellow-500 w-5 h-5 rounded-full">
-                    <Text className="text-black text-[10px] font-bold">4.9</Text>
+                    <Text className="text-black text-[10px] font-bold">
+                      4.9
+                    </Text>
                   </View>
                 </View>
               </View>
@@ -160,7 +165,10 @@ export const DriverFoundSheet = forwardRef<BottomSheet, DriverFoundSheetProps>(
           <View className="h-px w-full bg-white/5 my-1 mb-4" />
 
           {/* Collapsible Details Trigger */}
-          <TouchableOpacity className="flex-row items-center justify-between w-full py-2">
+          <TouchableOpacity
+            onPress={onDetails}
+            className="flex-row items-center justify-between w-full py-2"
+          >
             <View className="flex-row items-center gap-3">
               <View className="bg-[#2a3833] p-1.5 rounded-lg">
                 <MaterialIcons name="receipt-long" size={20} color="#0bd592" />

@@ -1,5 +1,13 @@
 import React, { useState, useRef, useEffect } from "react";
-import { View, StyleSheet, Platform, TouchableOpacity } from "react-native";
+import {
+  View,
+  StyleSheet,
+  Platform,
+  TouchableOpacity,
+  Linking,
+  Share,
+  Text,
+} from "react-native";
 import MapView, { Marker } from "react-native-maps";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
@@ -36,6 +44,7 @@ import {
 } from "../../../../utils/location";
 
 import { DriverFoundSheet } from "./components/DriverFoundSheet";
+import { useAuthStore } from "../../../../context/authStore";
 
 // Dados mockados
 const MOCK_DATA = {
@@ -157,7 +166,7 @@ export default function HomeScreen() {
     price: string;
     eta: string;
   }>({ visible: false, title: "", price: "", eta: "" });
-  
+
   // Estado para controlar se o motorista foi encontrado
   const [isDriverFound, setIsDriverFound] = useState(false);
 
@@ -168,7 +177,18 @@ export default function HomeScreen() {
     useState<FinalOrderSummaryData | null>(null);
   const navigation = useNavigation<DrawerNavigationProp<any>>();
   const route = useRoute<any>();
+  const walletBalance = useAuthStore((s) => s.walletBalance || 0);
 
+  const formatBRL = (value: number) => {
+    try {
+      return new Intl.NumberFormat("pt-BR", {
+        style: "currency",
+        currency: "BRL",
+      }).format(value);
+    } catch {
+      return `R$ ${value.toFixed(2)}`;
+    }
+  };
   useEffect(() => {
     // 1. Reabertura de ofertas (vindo de "Voltar" do resumo)
     if (route.params?.reopenOffers && route.params?.vehicleType) {
@@ -187,39 +207,50 @@ export default function HomeScreen() {
         });
       }, 300);
     }
-    
+
     // 2. Iniciar busca real (vindo do pagamento confirmado)
     if (route.params?.startSearch && route.params?.searchData) {
       const { title, price, eta } = route.params.searchData;
-      
-      // Delay pequeno para garantir transição suave
-        setTimeout(() => {
-          setSearchingModal({
-            visible: true,
-            title: title || "Buscando...",
-            price: price || "",
-            eta: eta || "",
-          });
-          
-          // Limpar params
-          navigation.setParams({
-            startSearch: undefined,
-            searchData: undefined,
-          });
 
-          // SIMULAÇÃO: Encontrar motorista após 10 segundos
+      // Delay pequeno para garantir transição suave
+      setTimeout(() => {
+        setSearchingModal({
+          visible: true,
+          title: title || "Buscando...",
+          price: price || "",
+          eta: eta || "",
+        });
+
+        // Limpar params
+        navigation.setParams({
+          startSearch: undefined,
+          searchData: undefined,
+        });
+
+        // SIMULAÇÃO: Encontrar motorista após 10 segundos
+        setTimeout(() => {
+          setSearchingModal((prev) => ({ ...prev, visible: false }));
+          setIsDriverFound(true);
+
+          // Pequeno delay para garantir que o modal de busca fechou
           setTimeout(() => {
-            setSearchingModal((prev) => ({ ...prev, visible: false }));
-            setIsDriverFound(true);
-            
-            // Pequeno delay para garantir que o modal de busca fechou
-            setTimeout(() => {
-                driverFoundRef.current?.snapToIndex(0); // Abre o sheet de motorista encontrado
-            }, 300);
-          }, 10000); // 10 segundos
-        }, 300);
-      }
-    }, [route.params]);
+            driverFoundRef.current?.snapToIndex(0); // Abre o sheet de motorista encontrado
+          }, 300);
+        }, 10000); // 10 segundos
+      }, 300);
+    }
+
+    // 3. Retornar da tela de cancelamento e manter corrida: reabrir "Motorista a caminho"
+    if (route.params?.resumeDriverFound) {
+      // limpar param
+      navigation.setParams({ resumeDriverFound: undefined });
+      // garantir estado e abrir sheet
+      setIsDriverFound(true);
+      setTimeout(() => {
+        driverFoundRef.current?.snapToIndex(0);
+      }, 200);
+    }
+  }, [route.params]);
 
   const [region, setRegion] = useState<{
     latitude: number;
@@ -394,7 +425,7 @@ export default function HomeScreen() {
   const handleConfirmMotoOffer = (offerId: string) => {
     console.log("Moto offer confirmed:", offerId);
     offersMotoRef.current?.close();
-    
+
     // Navegar diretamente para o resumo (sem modal de busca aqui)
     const data: FinalOrderSummaryData = {
       pickupAddress: currentAddress,
@@ -494,25 +525,33 @@ export default function HomeScreen() {
               {/* Marcador do Motorista (Quando encontrado) */}
               {isDriverFound && (
                 <Marker
-                    coordinate={{
-                        latitude: MOCK_DATA.currentLocation.coordinates.latitude - 0.002, // Perto do usuário
-                        longitude: MOCK_DATA.currentLocation.coordinates.longitude - 0.002,
-                    }}
-                    anchor={{ x: 0.5, y: 0.5 }}
+                  coordinate={{
+                    latitude:
+                      MOCK_DATA.currentLocation.coordinates.latitude - 0.002, // Perto do usuário
+                    longitude:
+                      MOCK_DATA.currentLocation.coordinates.longitude - 0.002,
+                  }}
+                  anchor={{ x: 0.5, y: 0.5 }}
                 >
-                    <View style={{ 
-                        backgroundColor: 'white', 
-                        padding: 6, 
-                        borderRadius: 20, 
-                        shadowColor: '#000',
-                        shadowOffset: { width: 0, height: 2 },
-                        shadowOpacity: 0.25,
-                        shadowRadius: 3.84,
-                        elevation: 5,
-                        transform: [{ rotate: '45deg' }]
-                    }}>
-                         <MaterialIcons name="directions-car" size={24} color="black" />
-                    </View>
+                  <View
+                    style={{
+                      backgroundColor: "white",
+                      padding: 6,
+                      borderRadius: 20,
+                      shadowColor: "#000",
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.25,
+                      shadowRadius: 3.84,
+                      elevation: 5,
+                      transform: [{ rotate: "45deg" }],
+                    }}
+                  >
+                    <MaterialIcons
+                      name="directions-car"
+                      size={24}
+                      color="black"
+                    />
+                  </View>
                 </Marker>
               )}
             </GlobalMap>
@@ -561,8 +600,15 @@ export default function HomeScreen() {
             />
           </View>
 
-          {/* Botão More Options (3 pontos) - canto superior direito */}
-          <View className="absolute top-14 right-4 z-20">
+          {/* Botão More Options (3 pontos) - canto superior direito + badge de carteira */}
+          <View className="absolute top-14 right-4 z-20 flex-row items-center gap-2">
+            {/* Badge de carteira (CashLeva) */}
+            <View className="flex-row items-center gap-1 px-3 h-12 rounded-full bg-surface-dark/90 border border-white/10">
+              <MaterialIcons name="attach-money" size={20} color="#02de95" />
+              <Text className="text-white font-semibold">
+                {formatBRL(walletBalance)}
+              </Text>
+            </View>
             <TouchableOpacity
               onPress={handlePressMoreOptions}
               className="w-12 h-12 rounded-full bg-surface-dark/90 border border-white/10 items-center justify-center shadow-2xl"
@@ -634,7 +680,7 @@ export default function HomeScreen() {
           onConfirm={(offerId: string) => {
             console.log("Car offer confirmed:", offerId);
             offersCarRef.current?.close();
-            
+
             const data: FinalOrderSummaryData = {
               pickupAddress: currentAddress,
               pickupNeighborhood: "Centro, São Paulo - SP",
@@ -695,7 +741,7 @@ export default function HomeScreen() {
           onConfirm={(offerId: string) => {
             console.log("Van offer confirmed:", offerId);
             offersVanRef.current?.close();
-            
+
             const data: FinalOrderSummaryData = {
               pickupAddress: currentAddress,
               pickupNeighborhood: "Centro, São Paulo - SP",
@@ -729,7 +775,7 @@ export default function HomeScreen() {
           onConfirm={(offerId: string) => {
             console.log("Truck offer confirmed:", offerId);
             offersTruckRef.current?.close();
-            
+
             const data: FinalOrderSummaryData = {
               pickupAddress: currentAddress,
               pickupNeighborhood: "Centro, São Paulo - SP",
@@ -757,25 +803,78 @@ export default function HomeScreen() {
           onBack={handleBackFromOffers}
         />
         {/* Driver Found Sheet - Tela de Motorista Encontrado */}
-          <DriverFoundSheet
-            ref={driverFoundRef}
-            onClose={() => {
-              // Lógica ao fechar, talvez cancelar ou minimizar
-              console.log("Fechou driver found sheet");
-            }}
-            onCall={() => console.log("Call driver")}
-            onChat={() => console.log("Chat driver")}
-            onShare={() => console.log("Share ride")}
-            onCancel={() => {
-                console.log("Cancel ride");
-                setIsDriverFound(false);
-                driverFoundRef.current?.close();
-                // Voltar ao estado inicial?
-            }}
-          />
+        <DriverFoundSheet
+          ref={driverFoundRef}
+          onClose={() => {
+            // Lógica ao fechar, talvez cancelar ou minimizar
+            console.log("Fechou driver found sheet");
+          }}
+          onCall={() => {
+            // Sim número do motorista mockado
+            const phone = "+5511999999999";
+            try {
+              Linking.openURL(`tel:${phone}`);
+            } catch (e) {
+              console.log("Falha ao iniciar chamada", e);
+            }
+          }}
+          onChat={() => {
+            // Navegar para Chat
+            (navigation as any).navigate("Chat", {
+              driverName: "Carlos Silva",
+            });
+          }}
+          onShare={async () => {
+            try {
+              const message = `Estou em uma corrida com ETA ~6 min. Motorista: Carlos Silva. Acompanhe pelo app.`;
+              await Share.share({ message });
+            } catch (e) {
+              console.log("Falha ao compartilhar", e);
+            }
+          }}
+          onCancel={() => {
+            // Ir para tela de taxa de cancelamento
+            const total = finalSummaryData?.pricing.total ?? 30.9;
+            (navigation as any).navigate("CancelFee", { total });
+            // mantém sheet fechada
+            driverFoundRef.current?.close();
+            setIsDriverFound(false);
+          }}
+          onDetails={() => {
+            // Navegar para detalhes do pedido
+            if (finalSummaryData) {
+              (navigation as any).navigate("OrderDetails", {
+                data: finalSummaryData,
+              });
+            } else {
+              // fallback: construir dados mínimos
+              const data = {
+                pickupAddress: currentAddress,
+                pickupNeighborhood: "Centro, São Paulo - SP",
+                dropoffAddress: "Av. Paulista, 1000",
+                dropoffNeighborhood: "Bela Vista, São Paulo - SP",
+                vehicleType: "car",
+                servicePurposeLabel: "Entrega",
+                etaMinutes: 6,
+                pricing: {
+                  base: 10,
+                  distanceKm: 4.2,
+                  distancePrice: 12.4,
+                  serviceFee: 3.5,
+                  total: 25.9,
+                },
+                paymentSummary: "Pix",
+                itemType: "Documento",
+                helperIncluded: false,
+                insuranceLevel: "basic",
+              } as any;
+              (navigation as any).navigate("OrderDetails", { data });
+            }
+          }}
+        />
 
-          {/* Resumo final agora é uma Screen dedicada; sheet não é mais renderizado aqui */}
-        </View>
-      </GestureHandlerRootView>
-    );
-  }
+        {/* Resumo final agora é uma Screen dedicada; sheet não é mais renderizado aqui */}
+      </View>
+    </GestureHandlerRootView>
+  );
+}

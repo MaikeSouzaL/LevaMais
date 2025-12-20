@@ -22,12 +22,14 @@ export interface AuthState {
   userType: UserType;
   userData: UserData | null;
   token: string | null;
+  walletBalance?: number;
 
   // Ações
   login: (userType: UserType, userData: UserData, token: string) => void;
   logout: () => void;
   updateUserData: (data: Partial<UserData>) => void;
   updateUserType: (userType: UserType) => void;
+  creditWallet: (amount: number) => void;
 }
 
 // Criar a store com persistência
@@ -38,6 +40,7 @@ export const useAuthStore = create<AuthState>()(
       userType: null,
       userData: null,
       token: null,
+      walletBalance: 0,
 
       login: (userType, userData, token) =>
         set({ isAuthenticated: true, userType, userData, token }),
@@ -48,6 +51,7 @@ export const useAuthStore = create<AuthState>()(
           userType: null,
           userData: null,
           token: null,
+          walletBalance: 0,
         }),
 
       updateUserData: (data) =>
@@ -56,6 +60,11 @@ export const useAuthStore = create<AuthState>()(
         })),
 
       updateUserType: (userType) => set({ userType }),
+
+      creditWallet: (amount) =>
+        set((state) => ({
+          walletBalance: (state.walletBalance || 0) + amount,
+        })),
     }),
     {
       name: "auth-storage",

@@ -26,9 +26,7 @@ export function SearchingDriverModal({
   onBack,
   onHelp,
 }: SearchingDriverModalProps) {
-  if (!visible) return null;
-
-  // Animated radar setup
+  // Animated radar setup (hooks must be unconditional)
   const rotateAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.loop(
@@ -36,6 +34,7 @@ export function SearchingDriverModal({
         toValue: 1,
         duration: 2000,
         easing: Easing.linear,
+        // useNativeDriver can stay true for transform, but disable if errors persist
         useNativeDriver: true,
       })
     ).start();
@@ -57,11 +56,15 @@ export function SearchingDriverModal({
     };
   });
 
+  if (!visible) {
+    return null;
+  }
+
   return (
     <SafeAreaView
       style={{
         position: "absolute",
-        inset: 0 as any,
+        // fill screen
         left: 0,
         right: 0,
         top: 0,
