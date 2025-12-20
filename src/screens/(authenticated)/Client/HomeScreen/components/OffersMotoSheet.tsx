@@ -20,6 +20,7 @@ interface OfferItem {
 interface OffersMotoSheetProps {
   onConfirm?: (offerId: string) => void;
   onClose?: () => void;
+  onBack?: () => void;
 }
 
 const MOCK_OFFERS: OfferItem[] = [
@@ -60,8 +61,8 @@ const MOCK_OFFERS: OfferItem[] = [
 export const OffersMotoSheet = forwardRef<
   OffersMotoSheetRef,
   OffersMotoSheetProps
->(({ onConfirm, onClose }, ref) => {
-  const snapPoints = useMemo(() => ["90%"], []);
+>(({ onConfirm, onClose, onBack }, ref) => {
+  const snapPoints = useMemo(() => ["70%"], []);
   const insets = useSafeAreaInsets();
   const [paymentMethod, setPaymentMethod] = useState<
     "dinheiro" | "pix" | "cartao"
@@ -73,7 +74,7 @@ export const OffersMotoSheet = forwardRef<
       index={-1}
       snapPoints={snapPoints}
       enablePanDownToClose
-      enableHandlePanningGesture={false}
+      enableHandlePanningGesture
       enableContentPanningGesture
       onClose={onClose}
       backgroundStyle={{ backgroundColor: "#0f231c" }}
@@ -321,37 +322,70 @@ export const OffersMotoSheet = forwardRef<
               <Text style={{ color: "#9bbbb0", fontSize: 13 }}>Cupom</Text>
             </View>
           </View>
-          <TouchableOpacity
-            activeOpacity={0.9}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              backgroundColor: "#02de95",
-              paddingVertical: 14,
-              paddingHorizontal: 16,
-              borderRadius: 12,
-            }}
-            onPress={() => onConfirm?.("economico")}
-          >
-            <Text style={{ color: "#0f231c", fontSize: 16, fontWeight: "700" }}>
-              Confirmar entrega
-            </Text>
-            <View
+          <View style={{ flexDirection: "row", gap: 12 }}>
+            <TouchableOpacity
+              activeOpacity={0.9}
               style={{
-                backgroundColor: "rgba(0,0,0,0.1)",
-                paddingHorizontal: 8,
-                paddingVertical: 2,
-                borderRadius: 6,
+                flex: 1,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "#162e26",
+                paddingVertical: 14,
+                paddingHorizontal: 16,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: "rgba(255,255,255,0.12)",
               }}
+              onPress={() => onBack?.()}
+            >
+              <MaterialIcons name="arrow-back" size={18} color="#9bbbb0" />
+              <Text
+                style={{
+                  color: "#9bbbb0",
+                  fontSize: 16,
+                  fontWeight: "700",
+                  marginLeft: 6,
+                }}
+              >
+                Voltar
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              activeOpacity={0.9}
+              style={{
+                flex: 1,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                backgroundColor: "#02de95",
+                paddingVertical: 14,
+                paddingHorizontal: 16,
+                borderRadius: 12,
+              }}
+              onPress={() => onConfirm?.("economico")}
             >
               <Text
-                style={{ color: "#0f231c", fontSize: 14, fontWeight: "700" }}
+                style={{ color: "#0f231c", fontSize: 16, fontWeight: "700" }}
               >
-                R$ 9,50
+                Próximo
               </Text>
-            </View>
-          </TouchableOpacity>
+              <View
+                style={{
+                  backgroundColor: "rgba(0,0,0,0.1)",
+                  paddingHorizontal: 8,
+                  paddingVertical: 2,
+                  borderRadius: 6,
+                }}
+              >
+                <Text
+                  style={{ color: "#0f231c", fontSize: 14, fontWeight: "700" }}
+                >
+                  R$ 9,50
+                </Text>
+              </View>
+            </TouchableOpacity>
+          </View>
         </View>
       </BottomSheetScrollView>
     </BottomSheet>

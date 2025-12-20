@@ -16,7 +16,9 @@ import {
 } from "./components/SafetyHelpSheet";
 import { SelectVehicleSheet } from "./components/SelectVehicleSheet";
 import { OffersMotoSheet } from "./components/OffersMotoSheet";
+import { OffersCarSheet } from "./components/OffersCarSheet";
 import type { OffersMotoSheetRef } from "./components/OffersMotoSheet";
+import type { OffersCarSheetRef } from "./components/OffersCarSheet";
 import { ServicePurposeScreen } from "./components/ServicePurposeScreen";
 import type { SelectVehicleSheetRef } from "./components/SelectVehicleSheet";
 import GlobalMap from "../../../../components/GlobalMap";
@@ -133,7 +135,11 @@ export default function HomeScreen() {
   const safetyHelpRef = useRef<SafetyHelpSheetRef>(null);
   const selectVehicleRef = useRef<SelectVehicleSheetRef>(null);
   const offersMotoRef = useRef<OffersMotoSheetRef>(null);
+  const offersCarRef = useRef<OffersCarSheetRef>(null);
   const [showPurposeScreen, setShowPurposeScreen] = useState(false);
+  const [selectedVehicleType, setSelectedVehicleType] = useState<
+    "motorcycle" | "car" | null
+  >(null);
   const navigation = useNavigation<DrawerNavigationProp<any>>();
 
   const [region, setRegion] = useState<{
@@ -289,9 +295,9 @@ export default function HomeScreen() {
     type: "motorcycle" | "car" | "van" | "truck"
   ) => {
     console.log("Vehicle selected:", type);
-    // Se for moto, abrir o bottom sheet de ofertas de motos
-    if (type === "motorcycle") {
-      // Primeiro abre a tela de propósito/uso
+    // Para moto ou carro, abrir tela de finalidade
+    if (type === "motorcycle" || type === "car") {
+      setSelectedVehicleType(type);
       selectVehicleRef.current?.close();
       setTimeout(() => setShowPurposeScreen(true), 150);
       return;
@@ -308,11 +314,24 @@ export default function HomeScreen() {
     bottomSheetRef.current?.snapToIndex(1);
   };
 
+  const handleBackFromOffers = () => {
+    // Fecha listas de ofertas e volta para a tela de escolha de finalidade
+    offersMotoRef.current?.close();
+    offersCarRef.current?.close();
+    setTimeout(() => setShowPurposeScreen(true), 150);
+  };
+
   const handleSelectPurpose = (purposeId: string) => {
     console.log("Purpose selected:", purposeId);
     setShowPurposeScreen(false);
-    // Após escolher propósito, abrir lista de motos próximas com valores
-    setTimeout(() => offersMotoRef.current?.snapToIndex(0), 150);
+    // Após escolher propósito, abrir lista de ofertas conforme veículo
+    setTimeout(() => {
+      if (selectedVehicleType === "motorcycle") {
+        offersMotoRef.current?.snapToIndex(0);
+      } else if (selectedVehicleType === "car") {
+        offersCarRef.current?.snapToIndex(0);
+      }
+    }, 150);
   };
 
   const handleClosePurpose = () => {
@@ -469,6 +488,19 @@ export default function HomeScreen() {
           ref={offersMotoRef}
           onConfirm={handleConfirmMotoOffer}
           onClose={() => bottomSheetRef.current?.snapToIndex(1)}
+          onBack={handleBackFromOffers}
+        />
+
+        {/* Offers Car Sheet - Ofertas de carros mockadas */}
+        <OffersCarSheet
+          ref={offersCarRef}
+          onConfirm={(offerId: string) => {
+            console.log("Car offer confirmed:", offerId);
+            offersCarRef.current?.close();
+            bottomSheetRef.current?.snapToIndex(1);
+          }}
+          onClose={() => bottomSheetRef.current?.snapToIndex(1)}
+          onBack={handleBackFromOffers}
         />
 
         {/* Safety Help Sheet - Ajuda e Segurança */}
