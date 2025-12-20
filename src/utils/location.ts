@@ -321,28 +321,59 @@ export async function buscarEnderecoPorTexto(
     console.log(`   🎯 Query melhorada: "${enhancedQuery}"`);
     console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
-    // Buscar com query original E query melhorada
-    const [originalResults, enhancedResults] = await Promise.all([
+    // Buscar com múltiplas variações para obter mais resultados
+    const searchPromises = [
       Location.geocodeAsync(query).catch(() => []),
-      userCity || userRegion
-        ? Location.geocodeAsync(enhancedQuery).catch(() => [])
-        : Promise.resolve([])
-    ]);
+    ];
 
-    // Combinar resultados, priorizando os da cidade do usuário
-    const allResults = [...new Set([...enhancedResults, ...originalResults])];
+    // Se temos cidade/estado, adicionar buscas contextualizadas
+    if (userCity && userRegion) {
+      searchPromises.push(
+        Location.geocodeAsync(`${query}, ${userCity}`).catch(() => []),
+        Location.geocodeAsync(`${query}, ${userRegion}`).catch(() => []),
+        Location.geocodeAsync(enhancedQuery).catch(() => [])
+      );
+    } else if (userCity) {
+      searchPromises.push(
+        Location.geocodeAsync(`${query}, ${userCity}`).catch(() => [])
+      );
+    } else if (userRegion) {
+      searchPromises.push(
+        Location.geocodeAsync(`${query}, ${userRegion}`).catch(() => [])
+      );
+    }
+
+    const allSearchResults = await Promise.all(searchPromises);
+    const flatResults = allSearchResults.flat();
+
+    // Remover duplicatas por coordenadas (com tolerância de 0.0001 graus ~ 10 metros)
+    const uniqueResults: typeof flatResults = [];
+    const coordsSet = new Set<string>();
+
+    for (const result of flatResults) {
+      const coordKey = `${result.latitude.toFixed(4)},${result.longitude.toFixed(4)}`;
+      if (!coordsSet.has(coordKey)) {
+        coordsSet.add(coordKey);
+        uniqueResults.push(result);
+      }
+    }
+
+    const allResults = uniqueResults;
 
     if (!allResults || allResults.length === 0) {
       console.log("❌ Nenhum resultado encontrado");
       return [];
     }
 
-    console.log(`✅ ${allResults.length} resultado(s) encontrado(s)`);
+    console.log(`✅ ${allResults.length} resultado(s) encontrado(s) (após remover duplicatas)`);
 
     // Converter resultados para formato mais amigável
     const geocodingResults: GeocodingResult[] = [];
 
-    for (const result of allResults) {
+    // Limitar a 10 resultados para não sobrecarregar
+    const limitedResults = allResults.slice(0, 10);
+
+    for (const result of limitedResults) {
       // Obter endereço reverso para ter informações completas
       try {
         const reverseGeo = await obterEnderecoPorCoordenadas(

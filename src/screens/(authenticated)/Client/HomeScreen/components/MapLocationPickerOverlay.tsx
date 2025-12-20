@@ -68,9 +68,17 @@ export function MapLocationPickerOverlay({
             currentLatLng.lng
           );
           
-          if (endereco?.city) {
-            setUserCity(endereco.city);
-            console.log(`✅ Cidade detectada: ${endereco.city}`);
+          // Tentar city primeiro, se não tiver, usar subregion como fallback
+          const cidadeDetectada = endereco?.city || endereco?.subregion || endereco?.district;
+          
+          if (cidadeDetectada) {
+            setUserCity(cidadeDetectada);
+            console.log(`✅ Cidade detectada: ${cidadeDetectada}`);
+            if (!endereco?.city && endereco?.subregion) {
+              console.log(`   ℹ️  (usando subregion como fallback)`);
+            }
+          } else {
+            console.log(`⚠️  Cidade não disponível no geocoding`);
           }
           
           if (endereco?.region) {
@@ -97,9 +105,17 @@ export function MapLocationPickerOverlay({
             location.longitude
           );
           
-          if (endereco?.city) {
-            setUserCity(endereco.city);
-            console.log(`✅ Cidade detectada: ${endereco.city}`);
+          // Tentar city primeiro, se não tiver, usar subregion como fallback
+          const cidadeDetectada = endereco?.city || endereco?.subregion || endereco?.district;
+          
+          if (cidadeDetectada) {
+            setUserCity(cidadeDetectada);
+            console.log(`✅ Cidade detectada: ${cidadeDetectada}`);
+            if (!endereco?.city && endereco?.subregion) {
+              console.log(`   ℹ️  (usando subregion como fallback)`);
+            }
+          } else {
+            console.log(`⚠️  Cidade não disponível no geocoding`);
           }
           
           if (endereco?.region) {
@@ -201,14 +217,11 @@ export function MapLocationPickerOverlay({
           paddingTop: Math.max(insets.top, 20),
           paddingHorizontal: 16,
           paddingBottom: 16,
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 12,
           zIndex: 20,
         }}
         pointerEvents="box-none"
       >
-        {/* Back Button */}
+        {/* Back Button - Acima do input */}
         <TouchableOpacity
           onPress={onBack}
           activeOpacity={0.8}
@@ -224,13 +237,14 @@ export function MapLocationPickerOverlay({
             shadowOpacity: 0.3,
             shadowRadius: 12,
             elevation: 8,
+            marginBottom: 12,
           }}
         >
           <MaterialIcons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
 
         {/* Search Bar */}
-        <View style={{ flex: 1 }}>
+        <View style={{ width: "100%" }}>
           <View
             style={{
               height: 48,
@@ -297,7 +311,7 @@ export function MapLocationPickerOverlay({
                 top: 56,
                 left: 0,
                 right: 0,
-                maxHeight: 300,
+                maxHeight: 400, // Aumentado de 300 para 400
                 backgroundColor: "#1c2727",
                 borderRadius: 12,
                 shadowColor: "#000",
@@ -364,7 +378,7 @@ export function MapLocationPickerOverlay({
                     <MaterialIcons name="north-west" size={16} color="#9db9b9" />
                   </TouchableOpacity>
                 )}
-                style={{ maxHeight: 300 }}
+                style={{ maxHeight: 400 }} // Aumentado de 300 para 400
               />
             </View>
           )}
