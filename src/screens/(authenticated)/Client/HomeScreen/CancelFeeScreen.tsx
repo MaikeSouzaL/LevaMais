@@ -2,7 +2,7 @@ import React from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { View, Text, TouchableOpacity } from "react-native";
 import { RouteProp, useRoute, useNavigation } from "@react-navigation/native";
-import { useAuthStore } from "../../../context/authStore";
+import { useAuthStore } from "../../../../context/authStore";
 
 type Params = { CancelFee: { total: number } };
 

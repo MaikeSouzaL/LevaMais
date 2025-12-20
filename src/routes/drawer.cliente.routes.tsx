@@ -7,11 +7,11 @@ import {
 } from "@react-navigation/drawer";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import HomeScreen from "../screens/(authenticated)/Client/HomeScreen/index";
-import FinalOrderSummaryScreen from "../screens/(authenticated)/Client/FinalOrderSummaryScreen";
-import CancelFeeScreen from "../screens/(authenticated)/Client/CancelFeeScreen";
-import ChatScreen from "../screens/(authenticated)/Client/ChatScreen";
-import OrderDetailsScreen from "../screens/(authenticated)/Client/OrderDetailsScreen";
-import PaymentScreen from "../screens/(authenticated)/Client/PaymentScreen";
+import FinalOrderSummaryScreen from "../screens/(authenticated)/Client/HomeScreen/FinalOrderSummaryScreen";
+import CancelFeeScreen from "../screens/(authenticated)/Client/HomeScreen/CancelFeeScreen";
+import ChatScreen from "../screens/(authenticated)/Client/HomeScreen/ChatScreen";
+import OrderDetailsScreen from "../screens/(authenticated)/Client/HomeScreen/OrderDetailsScreen";
+import PaymentScreen from "../screens/(authenticated)/Client/HomeScreen/PaymentScreen";
 import { useAuthStore } from "../context/authStore";
 
 const Drawer = createDrawerNavigator();

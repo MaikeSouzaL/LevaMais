@@ -2,7 +2,7 @@ import React from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { View, Text, TouchableOpacity } from "react-native";
 import { RouteProp, useRoute, useNavigation } from "@react-navigation/native";
-import type { FinalOrderSummaryData } from "./HomeScreen/components/FinalOrderSummarySheet";
+import type { FinalOrderSummaryData } from "./components/FinalOrderSummarySheet";
 
 type Params = { OrderDetails: { data: FinalOrderSummaryData } };
 
