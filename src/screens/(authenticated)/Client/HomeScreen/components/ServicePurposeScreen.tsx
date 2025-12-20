@@ -1,5 +1,11 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, FlatList, ActivityIndicator } from "react-native";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  FlatList,
+  ActivityIndicator,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import {
@@ -67,7 +73,9 @@ export function ServicePurposeScreen({
       </View>
 
       {loading ? (
-        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+        <View
+          style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
+        >
           <ActivityIndicator color="#02de95" />
         </View>
       ) : (
@@ -110,10 +118,14 @@ export function ServicePurposeScreen({
                   />
                 </View>
                 <View>
-                  <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}>
+                  <Text
+                    style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}
+                  >
                     {item.title}
                   </Text>
-                  <Text style={{ color: "#9bbbb0", fontSize: 13 }}>{item.subtitle}</Text>
+                  <Text style={{ color: "#9bbbb0", fontSize: 13 }}>
+                    {item.subtitle}
+                  </Text>
                 </View>
               </View>
               <MaterialIcons name="chevron-right" size={24} color="#9bbbb0" />

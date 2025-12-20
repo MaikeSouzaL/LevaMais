@@ -302,7 +302,12 @@ export default function HomeScreen() {
   ) => {
     console.log("Vehicle selected:", type);
     // Para qualquer veículo suportado, abrir tela de finalidade
-    if (type === "motorcycle" || type === "car" || type === "van" || type === "truck") {
+    if (
+      type === "motorcycle" ||
+      type === "car" ||
+      type === "van" ||
+      type === "truck"
+    ) {
       setSelectedVehicleType(type);
       selectVehicleRef.current?.close();
       setTimeout(() => setShowPurposeScreen(true), 150);
@@ -324,8 +329,8 @@ export default function HomeScreen() {
     // Fecha listas de ofertas e volta para a tela de escolha de finalidade
     offersMotoRef.current?.close();
     offersCarRef.current?.close();
-  offersVanRef.current?.close?.();
-  offersTruckRef.current?.close?.();
+    offersVanRef.current?.close?.();
+    offersTruckRef.current?.close?.();
     setTimeout(() => setShowPurposeScreen(true), 150);
   };
 
