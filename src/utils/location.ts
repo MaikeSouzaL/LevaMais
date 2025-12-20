@@ -289,28 +289,60 @@ export type GeocodingResult = {
  * Retorna uma lista de resultados possíveis para autocomplete
  * 
  * @param query - Texto do endereço a buscar
- * @returns Lista de resultados encontrados
+ * @param userCity - Cidade atual do usuário (opcional) - prioriza resultados desta cidade
+ * @param userRegion - Estado atual do usuário (opcional) - prioriza resultados deste estado
+ * @returns Lista de resultados encontrados, ordenados por relevância
  * 
- * Exemplo: buscarEnderecoPorTexto("Rua Josias da Silva")
+ * Exemplo: buscarEnderecoPorTexto("Rua Josias", "Pimenta Bueno", "RO")
  */
 export async function buscarEnderecoPorTexto(
-  query: string
+  query: string,
+  userCity?: string,
+  userRegion?: string
 ): Promise<GeocodingResult[]> {
   try {
     if (!query || query.trim().length < 3) {
       return [];
     }
 
-    const results = await Location.geocodeAsync(query);
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.log("🔍 BUSCA DE ENDEREÇO INICIADA");
+    console.log(`   Query: "${query}"`);
+    if (userCity) console.log(`   🏙️  Cidade do usuário: ${userCity}`);
+    if (userRegion) console.log(`   🗺️  Estado do usuário: ${userRegion}`);
 
-    if (!results || results.length === 0) {
+    // Se temos a cidade do usuário, adicionar à query para melhorar resultados
+    const enhancedQuery = userCity && userRegion
+      ? `${query}, ${userCity}, ${userRegion}`
+      : userCity
+      ? `${query}, ${userCity}`
+      : query;
+
+    console.log(`   🎯 Query melhorada: "${enhancedQuery}"`);
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+    // Buscar com query original E query melhorada
+    const [originalResults, enhancedResults] = await Promise.all([
+      Location.geocodeAsync(query).catch(() => []),
+      userCity || userRegion
+        ? Location.geocodeAsync(enhancedQuery).catch(() => [])
+        : Promise.resolve([])
+    ]);
+
+    // Combinar resultados, priorizando os da cidade do usuário
+    const allResults = [...new Set([...enhancedResults, ...originalResults])];
+
+    if (!allResults || allResults.length === 0) {
+      console.log("❌ Nenhum resultado encontrado");
       return [];
     }
+
+    console.log(`✅ ${allResults.length} resultado(s) encontrado(s)`);
 
     // Converter resultados para formato mais amigável
     const geocodingResults: GeocodingResult[] = [];
 
-    for (const result of results) {
+    for (const result of allResults) {
       // Obter endereço reverso para ter informações completas
       try {
         const reverseGeo = await obterEnderecoPorCoordenadas(
@@ -322,7 +354,7 @@ export async function buscarEnderecoPorTexto(
           ? formatarEndereco(reverseGeo)
           : `${result.latitude.toFixed(6)}, ${result.longitude.toFixed(6)}`;
 
-        geocodingResults.push({
+        const geocodingResult: GeocodingResult = {
           formattedAddress: formatted,
           latitude: result.latitude,
           longitude: result.longitude,
@@ -330,7 +362,12 @@ export async function buscarEnderecoPorTexto(
           city: reverseGeo?.city,
           region: reverseGeo?.region,
           postalCode: reverseGeo?.postalCode,
-        });
+        };
+
+        geocodingResults.push(geocodingResult);
+
+        // Log de cada resultado
+        console.log(`📍 ${formatted}`);
       } catch (e) {
         // Se falhar o reverse, usar apenas as coordenadas
         geocodingResults.push({
@@ -340,6 +377,25 @@ export async function buscarEnderecoPorTexto(
         });
       }
     }
+
+    // Ordenar resultados: priorizar cidade do usuário
+    if (userCity) {
+      geocodingResults.sort((a, b) => {
+        const aCityMatch = a.city?.toLowerCase() === userCity.toLowerCase();
+        const bCityMatch = b.city?.toLowerCase() === userCity.toLowerCase();
+        
+        if (aCityMatch && !bCityMatch) return -1;
+        if (!aCityMatch && bCityMatch) return 1;
+        
+        // Se ambos ou nenhum correspondem, manter ordem original
+        return 0;
+      });
+
+      console.log(`🎯 Resultados reordenados priorizando: ${userCity}`);
+    }
+
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.log("");
 
     return geocodingResults;
   } catch (error) {

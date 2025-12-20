@@ -14,6 +14,8 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   buscarEnderecoPorTexto,
+  obterEnderecoPorCoordenadas,
+  getCurrentLocation,
   type GeocodingResult,
 } from "../../../../../utils/location";
 
@@ -40,6 +42,39 @@ export function MapLocationPickerOverlay({
   const [searchResults, setSearchResults] = useState<GeocodingResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showResults, setShowResults] = useState(false);
+  
+  // Cidade e estado do usuário para contextualizar a busca
+  const [userCity, setUserCity] = useState<string>("");
+  const [userRegion, setUserRegion] = useState<string>("");
+
+  // Obter cidade atual do usuário ao montar o componente
+  useEffect(() => {
+    const detectUserLocation = async () => {
+      try {
+        const location = await getCurrentLocation();
+        if (location) {
+          const endereco = await obterEnderecoPorCoordenadas(
+            location.latitude,
+            location.longitude
+          );
+          
+          if (endereco?.city) {
+            setUserCity(endereco.city);
+            console.log(`🏙️  Cidade detectada: ${endereco.city}`);
+          }
+          
+          if (endereco?.region) {
+            setUserRegion(endereco.region);
+            console.log(`🗺️  Estado detectado: ${endereco.region}`);
+          }
+        }
+      } catch (error) {
+        console.error("Erro ao detectar localização do usuário:", error);
+      }
+    };
+
+    detectUserLocation();
+  }, []);
 
   // Atualizar o endereço local quando o prop mudar (pin movido)
   useEffect(() => {
@@ -53,7 +88,12 @@ export function MapLocationPickerOverlay({
         setIsSearching(true);
         setShowResults(true);
         try {
-          const results = await buscarEnderecoPorTexto(searchQuery);
+          // Passar cidade e estado do usuário para contextualizar a busca
+          const results = await buscarEnderecoPorTexto(
+            searchQuery,
+            userCity,
+            userRegion
+          );
           setSearchResults(results);
         } catch (error) {
           console.error("Erro na busca:", error);
@@ -68,7 +108,7 @@ export function MapLocationPickerOverlay({
     }, 500); // 500ms de debounce
 
     return () => clearTimeout(timer);
-  }, [searchQuery]);
+  }, [searchQuery, userCity, userRegion]);
 
   const handleSelectResult = (result: GeocodingResult) => {
     setSearchQuery("");
@@ -151,7 +191,11 @@ export function MapLocationPickerOverlay({
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
-              placeholder="Buscar endereço"
+              placeholder={
+                userCity 
+                  ? `Buscar em ${userCity}${userRegion ? ` - ${userRegion}` : ''}` 
+                  : "Buscar endereço"
+              }
               placeholderTextColor="#9db9b9"
               style={{
                 flex: 1,
