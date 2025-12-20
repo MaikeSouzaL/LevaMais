@@ -28,6 +28,8 @@ export type FinalOrderSummaryData = {
   itemType?: string; // e.g., "Caixa pequena"
   helperIncluded?: boolean; // Ajudante
   insuranceLevel?: "none" | "basic" | "premium";
+  serviceTitle?: string;
+  etaText?: string;
 };
 
 type Props = {

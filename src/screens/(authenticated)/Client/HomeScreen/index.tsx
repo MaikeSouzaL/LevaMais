@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { View, StyleSheet, Platform, TouchableOpacity } from "react-native";
 import MapView, { Marker } from "react-native-maps";
 import { MaterialIcons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { DrawerNavigationProp } from "@react-navigation/drawer";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import GorhomBottomSheet from "@gorhom/bottom-sheet";
@@ -34,6 +34,8 @@ import {
   getCurrentLocation,
   getCurrentLocationAndAddress,
 } from "../../../../utils/location";
+
+import { DriverFoundSheet } from "./components/DriverFoundSheet";
 
 // Dados mockados
 const MOCK_DATA = {
@@ -146,6 +148,7 @@ export default function HomeScreen() {
   const offersCarRef = useRef<OffersCarSheetRef>(null);
   const offersVanRef = useRef<OffersVanSheetRef>(null);
   const offersTruckRef = useRef<OffersTruckSheetRef>(null);
+  const driverFoundRef = useRef<any>(null); // Ref para o novo sheet
   const finalSummaryRef = useRef<any>(null);
   const [showPurposeScreen, setShowPurposeScreen] = useState(false);
   const [searchingModal, setSearchingModal] = useState<{
@@ -154,12 +157,69 @@ export default function HomeScreen() {
     price: string;
     eta: string;
   }>({ visible: false, title: "", price: "", eta: "" });
+  
+  // Estado para controlar se o motorista foi encontrado
+  const [isDriverFound, setIsDriverFound] = useState(false);
+
   const [selectedVehicleType, setSelectedVehicleType] = useState<
     "motorcycle" | "car" | "van" | "truck" | null
   >(null);
   const [finalSummaryData, setFinalSummaryData] =
     useState<FinalOrderSummaryData | null>(null);
   const navigation = useNavigation<DrawerNavigationProp<any>>();
+  const route = useRoute<any>();
+
+  useEffect(() => {
+    // 1. Reabertura de ofertas (vindo de "Voltar" do resumo)
+    if (route.params?.reopenOffers && route.params?.vehicleType) {
+      const type = route.params.vehicleType;
+      // Pequeno delay para garantir que o layout esteja pronto
+      setTimeout(() => {
+        if (type === "moto") offersMotoRef.current?.snapToIndex(0);
+        else if (type === "car") offersCarRef.current?.snapToIndex(0);
+        else if (type === "van") offersVanRef.current?.snapToIndex(0);
+        else if (type === "truck") offersTruckRef.current?.snapToIndex(0);
+
+        // Resetar params para evitar reabertura indesejada
+        navigation.setParams({
+          reopenOffers: undefined,
+          vehicleType: undefined,
+        });
+      }, 300);
+    }
+    
+    // 2. Iniciar busca real (vindo do pagamento confirmado)
+    if (route.params?.startSearch && route.params?.searchData) {
+      const { title, price, eta } = route.params.searchData;
+      
+      // Delay pequeno para garantir transição suave
+        setTimeout(() => {
+          setSearchingModal({
+            visible: true,
+            title: title || "Buscando...",
+            price: price || "",
+            eta: eta || "",
+          });
+          
+          // Limpar params
+          navigation.setParams({
+            startSearch: undefined,
+            searchData: undefined,
+          });
+
+          // SIMULAÇÃO: Encontrar motorista após 10 segundos
+          setTimeout(() => {
+            setSearchingModal((prev) => ({ ...prev, visible: false }));
+            setIsDriverFound(true);
+            
+            // Pequeno delay para garantir que o modal de busca fechou
+            setTimeout(() => {
+                driverFoundRef.current?.snapToIndex(0); // Abre o sheet de motorista encontrado
+            }, 300);
+          }, 10000); // 10 segundos
+        }, 300);
+      }
+    }, [route.params]);
 
   const [region, setRegion] = useState<{
     latitude: number;
@@ -334,38 +394,30 @@ export default function HomeScreen() {
   const handleConfirmMotoOffer = (offerId: string) => {
     console.log("Moto offer confirmed:", offerId);
     offersMotoRef.current?.close();
-    setSearchingModal({
-      visible: true,
-      title: "Leva+ Moto",
-      price: "R$ 15,90",
-      eta: "Chegada em ~5 min",
-    });
-    // Simula encontrar um motorista e abre o resumo final
-    setTimeout(() => {
-      setSearchingModal((s) => ({ ...s, visible: false }));
-      const data: FinalOrderSummaryData = {
-        pickupAddress: currentAddress,
-        pickupNeighborhood: "Centro, São Paulo - SP",
-        dropoffAddress: "Av. Paulista, 1000",
-        dropoffNeighborhood: "Bela Vista, São Paulo - SP",
-        vehicleType: "moto",
-        servicePurposeLabel: "Documentos",
-        etaMinutes: 15,
-        pricing: {
-          base: 5,
-          distanceKm: 4.2,
-          distancePrice: 8.4,
-          serviceFee: 1.5,
-          total: 14.9,
-        },
-        paymentSummary: "Visa final 4242",
-        itemType: "Caixa pequena",
-        helperIncluded: false,
-        insuranceLevel: "basic",
-      };
-      setFinalSummaryData(data);
-      (navigation as any).navigate("FinalOrderSummary", { data });
-    }, 10000);
+    
+    // Navegar diretamente para o resumo (sem modal de busca aqui)
+    const data: FinalOrderSummaryData = {
+      pickupAddress: currentAddress,
+      pickupNeighborhood: "Centro, São Paulo - SP",
+      dropoffAddress: "Av. Paulista, 1000",
+      dropoffNeighborhood: "Bela Vista, São Paulo - SP",
+      vehicleType: "moto",
+      servicePurposeLabel: "Documentos",
+      etaMinutes: 15,
+      pricing: {
+        base: 5,
+        distanceKm: 4.2,
+        distancePrice: 8.4,
+        serviceFee: 1.5,
+        total: 14.9,
+      },
+      paymentSummary: "Visa final 4242",
+      itemType: "Caixa pequena",
+      helperIncluded: false,
+      insuranceLevel: "basic",
+    };
+    setFinalSummaryData(data);
+    (navigation as any).navigate("FinalOrderSummary", { data });
   };
 
   const handleBackFromOffers = () => {
@@ -438,6 +490,31 @@ export default function HomeScreen() {
                   />
                 </Marker>
               ))}
+
+              {/* Marcador do Motorista (Quando encontrado) */}
+              {isDriverFound && (
+                <Marker
+                    coordinate={{
+                        latitude: MOCK_DATA.currentLocation.coordinates.latitude - 0.002, // Perto do usuário
+                        longitude: MOCK_DATA.currentLocation.coordinates.longitude - 0.002,
+                    }}
+                    anchor={{ x: 0.5, y: 0.5 }}
+                >
+                    <View style={{ 
+                        backgroundColor: 'white', 
+                        padding: 6, 
+                        borderRadius: 20, 
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.25,
+                        shadowRadius: 3.84,
+                        elevation: 5,
+                        transform: [{ rotate: '45deg' }]
+                    }}>
+                         <MaterialIcons name="directions-car" size={24} color="black" />
+                    </View>
+                </Marker>
+              )}
             </GlobalMap>
           </View>
 
@@ -557,37 +634,29 @@ export default function HomeScreen() {
           onConfirm={(offerId: string) => {
             console.log("Car offer confirmed:", offerId);
             offersCarRef.current?.close();
-            setSearchingModal({
-              visible: true,
-              title: "Leva+ Carro",
-              price: "R$ 19,90",
-              eta: "Chegada em ~7 min",
-            });
-            setTimeout(() => {
-              setSearchingModal((s) => ({ ...s, visible: false }));
-              const data: FinalOrderSummaryData = {
-                pickupAddress: currentAddress,
-                pickupNeighborhood: "Centro, São Paulo - SP",
-                dropoffAddress: "Av. Paulista, 1000",
-                dropoffNeighborhood: "Bela Vista, São Paulo - SP",
-                vehicleType: "car",
-                servicePurposeLabel: "Entrega rápida",
-                etaMinutes: 12,
-                pricing: {
-                  base: 7,
-                  distanceKm: 4.2,
-                  distancePrice: 10.4,
-                  serviceFee: 2.5,
-                  total: 19.9,
-                },
-                paymentSummary: "Pix",
-                itemType: "Caixa pequena",
-                helperIncluded: false,
-                insuranceLevel: "basic",
-              };
-              setFinalSummaryData(data);
-              (navigation as any).navigate("FinalOrderSummary", { data });
-            }, 10000);
+            
+            const data: FinalOrderSummaryData = {
+              pickupAddress: currentAddress,
+              pickupNeighborhood: "Centro, São Paulo - SP",
+              dropoffAddress: "Av. Paulista, 1000",
+              dropoffNeighborhood: "Bela Vista, São Paulo - SP",
+              vehicleType: "car",
+              servicePurposeLabel: "Entrega rápida",
+              etaMinutes: 12,
+              pricing: {
+                base: 7,
+                distanceKm: 4.2,
+                distancePrice: 10.4,
+                serviceFee: 2.5,
+                total: 19.9,
+              },
+              paymentSummary: "Pix",
+              itemType: "Caixa pequena",
+              helperIncluded: false,
+              insuranceLevel: "basic",
+            };
+            setFinalSummaryData(data);
+            (navigation as any).navigate("FinalOrderSummary", { data });
           }}
           onClose={() => bottomSheetRef.current?.snapToIndex(1)}
           onBack={handleBackFromOffers}
@@ -626,37 +695,29 @@ export default function HomeScreen() {
           onConfirm={(offerId: string) => {
             console.log("Van offer confirmed:", offerId);
             offersVanRef.current?.close();
-            setSearchingModal({
-              visible: true,
-              title: "Leva+ Van",
-              price: "R$ 30,90",
-              eta: "Chegada em ~10 min",
-            });
-            setTimeout(() => {
-              setSearchingModal((s) => ({ ...s, visible: false }));
-              const data: FinalOrderSummaryData = {
-                pickupAddress: currentAddress,
-                pickupNeighborhood: "Centro, São Paulo - SP",
-                dropoffAddress: "Av. Paulista, 1000",
-                dropoffNeighborhood: "Bela Vista, São Paulo - SP",
-                vehicleType: "van",
-                servicePurposeLabel: "Mudança leve",
-                etaMinutes: 18,
-                pricing: {
-                  base: 12,
-                  distanceKm: 4.2,
-                  distancePrice: 15.4,
-                  serviceFee: 3.5,
-                  total: 30.9,
-                },
-                paymentSummary: "Dinheiro",
-                itemType: "Caixa pequena",
-                helperIncluded: true,
-                insuranceLevel: "basic",
-              };
-              setFinalSummaryData(data);
-              (navigation as any).navigate("FinalOrderSummary", { data });
-            }, 10000);
+            
+            const data: FinalOrderSummaryData = {
+              pickupAddress: currentAddress,
+              pickupNeighborhood: "Centro, São Paulo - SP",
+              dropoffAddress: "Av. Paulista, 1000",
+              dropoffNeighborhood: "Bela Vista, São Paulo - SP",
+              vehicleType: "van",
+              servicePurposeLabel: "Mudança leve",
+              etaMinutes: 18,
+              pricing: {
+                base: 12,
+                distanceKm: 4.2,
+                distancePrice: 15.4,
+                serviceFee: 3.5,
+                total: 30.9,
+              },
+              paymentSummary: "Dinheiro",
+              itemType: "Caixa pequena",
+              helperIncluded: true,
+              insuranceLevel: "basic",
+            };
+            setFinalSummaryData(data);
+            (navigation as any).navigate("FinalOrderSummary", { data });
           }}
           onClose={() => bottomSheetRef.current?.snapToIndex(1)}
           onBack={handleBackFromOffers}
@@ -668,43 +729,53 @@ export default function HomeScreen() {
           onConfirm={(offerId: string) => {
             console.log("Truck offer confirmed:", offerId);
             offersTruckRef.current?.close();
-            setSearchingModal({
-              visible: true,
-              title: "Leva+ Caminhão",
-              price: "R$ 46,90",
-              eta: "Chegada em ~15 min",
-            });
-            setTimeout(() => {
-              setSearchingModal((s) => ({ ...s, visible: false }));
-              const data: FinalOrderSummaryData = {
-                pickupAddress: currentAddress,
-                pickupNeighborhood: "Centro, São Paulo - SP",
-                dropoffAddress: "Av. Paulista, 1000",
-                dropoffNeighborhood: "Bela Vista, São Paulo - SP",
-                vehicleType: "truck",
-                servicePurposeLabel: "Frete",
-                etaMinutes: 22,
-                pricing: {
-                  base: 20,
-                  distanceKm: 4.2,
-                  distancePrice: 22.4,
-                  serviceFee: 4.5,
-                  total: 46.9,
-                },
-                paymentSummary: "Cartão",
-                itemType: "Caixa pequena",
-                helperIncluded: true,
-                insuranceLevel: "basic",
-              };
-              setFinalSummaryData(data);
-              (navigation as any).navigate("FinalOrderSummary", { data });
-            }, 10000);
+            
+            const data: FinalOrderSummaryData = {
+              pickupAddress: currentAddress,
+              pickupNeighborhood: "Centro, São Paulo - SP",
+              dropoffAddress: "Av. Paulista, 1000",
+              dropoffNeighborhood: "Bela Vista, São Paulo - SP",
+              vehicleType: "truck",
+              servicePurposeLabel: "Frete",
+              etaMinutes: 22,
+              pricing: {
+                base: 20,
+                distanceKm: 4.2,
+                distancePrice: 22.4,
+                serviceFee: 4.5,
+                total: 46.9,
+              },
+              paymentSummary: "Cartão",
+              itemType: "Caixa pequena",
+              helperIncluded: true,
+              insuranceLevel: "basic",
+            };
+            setFinalSummaryData(data);
+            (navigation as any).navigate("FinalOrderSummary", { data });
           }}
           onClose={() => bottomSheetRef.current?.snapToIndex(1)}
           onBack={handleBackFromOffers}
         />
-        {/* Resumo final agora é uma Screen dedicada; sheet não é mais renderizado aqui */}
-      </View>
-    </GestureHandlerRootView>
-  );
-}
+        {/* Driver Found Sheet - Tela de Motorista Encontrado */}
+          <DriverFoundSheet
+            ref={driverFoundRef}
+            onClose={() => {
+              // Lógica ao fechar, talvez cancelar ou minimizar
+              console.log("Fechou driver found sheet");
+            }}
+            onCall={() => console.log("Call driver")}
+            onChat={() => console.log("Chat driver")}
+            onShare={() => console.log("Share ride")}
+            onCancel={() => {
+                console.log("Cancel ride");
+                setIsDriverFound(false);
+                driverFoundRef.current?.close();
+                // Voltar ao estado inicial?
+            }}
+          />
+
+          {/* Resumo final agora é uma Screen dedicada; sheet não é mais renderizado aqui */}
+        </View>
+      </GestureHandlerRootView>
+    );
+  }

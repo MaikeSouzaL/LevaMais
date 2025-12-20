@@ -15,6 +15,20 @@ export default function FinalOrderSummaryScreen() {
   const navigation = useNavigation();
   const data = route.params?.data;
 
+  const handleBack = () => {
+    // Navigate back to Home and indicate we want to reopen offers
+    (navigation as any).navigate("Home", {
+      reopenOffers: true,
+      vehicleType: data.vehicleType,
+    });
+  };
+
+  const handleConfirm = () => {
+    (navigation as any).navigate("Payment", {
+      amount: data.pricing.total,
+    });
+  };
+
   if (!data) {
     return (
       <SafeAreaView
@@ -55,7 +69,7 @@ export default function FinalOrderSummaryScreen() {
         }}
       >
         <TouchableOpacity
-          onPress={() => navigation.goBack()}
+          onPress={handleBack}
           style={{ padding: 8 }}
         >
           <Text style={{ color: "#9abcb0" }}>‹ Voltar</Text>
@@ -387,6 +401,7 @@ export default function FinalOrderSummaryScreen() {
         }}
       >
         <TouchableOpacity
+          onPress={handleConfirm}
           activeOpacity={0.9}
           style={{
             height: 56,

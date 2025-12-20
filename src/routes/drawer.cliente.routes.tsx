@@ -8,6 +8,7 @@ import {
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import HomeScreen from "../screens/(authenticated)/Client/HomeScreen/index";
 import FinalOrderSummaryScreen from "../screens/(authenticated)/Client/FinalOrderSummaryScreen";
+import PaymentScreen from "../screens/(authenticated)/Client/PaymentScreen";
 import { useAuthStore } from "../context/authStore";
 
 const Drawer = createDrawerNavigator();
@@ -149,6 +150,15 @@ export default function DrawerClienteRoutes() {
         options={{
           drawerLabel: () => null,
           title: "Resumo do pedido",
+          drawerItemStyle: { display: "none" },
+        }}
+      />
+      <Screen
+        name="Payment"
+        component={PaymentScreen}
+        options={{
+          drawerLabel: () => null,
+          title: "Pagamento",
           drawerItemStyle: { display: "none" },
         }}
       />
