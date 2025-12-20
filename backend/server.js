@@ -1,14 +1,15 @@
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const database = require('./src/config/database');
-const authRoutes = require('./src/routes/auth.routes');
+require("dotenv").config();
+const express = require("express");
+const cors = require("cors");
+const database = require("./src/config/database");
+const authRoutes = require("./src/routes/auth.routes");
+const purposeRoutes = require("./src/routes/purpose.routes");
 
 class Server {
   constructor() {
     this.app = express();
     this.port = process.env.PORT || 3000;
-    
+
     this.middlewares();
     this.routes();
     this.connectDatabase();
@@ -21,14 +22,15 @@ class Server {
   }
 
   routes() {
-    this.app.use('/api/auth', authRoutes);
-    
+    this.app.use("/api/auth", authRoutes);
+    this.app.use("/api/purposes", purposeRoutes);
+
     // Rota de teste
-    this.app.get('/api/health', (req, res) => {
-      res.json({ 
-        status: 'ok', 
-        message: 'Servidor está funcionando',
-        timestamp: new Date().toISOString()
+    this.app.get("/api/health", (req, res) => {
+      res.json({
+        status: "ok",
+        message: "Servidor está funcionando",
+        timestamp: new Date().toISOString(),
       });
     });
   }
@@ -36,17 +38,18 @@ class Server {
   async connectDatabase() {
     try {
       await database.connect();
-      console.log('✅ MongoDB conectado com sucesso');
+      console.log("✅ MongoDB conectado com sucesso");
     } catch (error) {
-      console.error('❌ Erro ao conectar ao MongoDB:', error.message);
+      console.error("❌ Erro ao conectar ao MongoDB:", error.message);
       process.exit(1);
     }
   }
 
   start() {
-    this.app.listen(this.port, () => {
+    this.app.listen(this.port, "0.0.0.0", () => {
       console.log(`🚀 Servidor rodando na porta ${this.port}`);
       console.log(`📍 http://localhost:${this.port}`);
+      console.log(`📍 http://0.0.0.0:${this.port}`);
     });
   }
 }
@@ -58,4 +61,3 @@ function startServer() {
 }
 
 startServer();
-
