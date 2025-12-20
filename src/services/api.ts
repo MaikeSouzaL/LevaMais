@@ -5,7 +5,7 @@ import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from "axios";
 // Para Android Device/IOs use: http://SEU_IP_LOCAL:3000/api (ex: http://192.168.1.100:3000/api)
 // Para produção, configure a URL do seu servidor
 const API_BASE_URL = __DEV__
-  ? "http://10.0.2.2:3000/api" // Android Emulator
+  ? "http://192.168.1.8/api" // Android Emulator
   : "https://sua-api-producao.com/api";
 
 // Criar instância do axios
