@@ -46,13 +46,52 @@ export function MapLocationPickerOverlay({
   // Cidade e estado do usuário para contextualizar a busca
   const [userCity, setUserCity] = useState<string>("");
   const [userRegion, setUserRegion] = useState<string>("");
+  const [isDetectingLocation, setIsDetectingLocation] = useState(true);
 
   // Obter cidade atual do usuário ao montar o componente
   useEffect(() => {
     const detectUserLocation = async () => {
       try {
+        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        console.log("🌍 DETECTANDO LOCALIZAÇÃO DO USUÁRIO...");
+        
+        setIsDetectingLocation(true);
+        
+        // Primeiro, tentar usar currentLatLng se disponível
+        if (currentLatLng) {
+          console.log(`📍 Usando coordenadas do mapa atual:`);
+          console.log(`   Lat: ${currentLatLng.lat}`);
+          console.log(`   Lng: ${currentLatLng.lng}`);
+          
+          const endereco = await obterEnderecoPorCoordenadas(
+            currentLatLng.lat,
+            currentLatLng.lng
+          );
+          
+          if (endereco?.city) {
+            setUserCity(endereco.city);
+            console.log(`✅ Cidade detectada: ${endereco.city}`);
+          }
+          
+          if (endereco?.region) {
+            setUserRegion(endereco.region);
+            console.log(`✅ Estado detectado: ${endereco.region}`);
+          }
+          
+          setIsDetectingLocation(false);
+          console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+          return;
+        }
+        
+        // Se não tiver currentLatLng, buscar localização GPS
+        console.log("📡 Buscando localização GPS...");
         const location = await getCurrentLocation();
+        
         if (location) {
+          console.log(`✅ GPS obtido:`);
+          console.log(`   Lat: ${location.latitude}`);
+          console.log(`   Lng: ${location.longitude}`);
+          
           const endereco = await obterEnderecoPorCoordenadas(
             location.latitude,
             location.longitude
@@ -60,21 +99,28 @@ export function MapLocationPickerOverlay({
           
           if (endereco?.city) {
             setUserCity(endereco.city);
-            console.log(`🏙️  Cidade detectada: ${endereco.city}`);
+            console.log(`✅ Cidade detectada: ${endereco.city}`);
           }
           
           if (endereco?.region) {
             setUserRegion(endereco.region);
-            console.log(`🗺️  Estado detectado: ${endereco.region}`);
+            console.log(`✅ Estado detectado: ${endereco.region}`);
           }
+        } else {
+          console.log("❌ Não foi possível obter localização GPS");
         }
+        
+        setIsDetectingLocation(false);
+        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
       } catch (error) {
-        console.error("Erro ao detectar localização do usuário:", error);
+        console.error("❌ Erro ao detectar localização do usuário:", error);
+        setIsDetectingLocation(false);
+        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
       }
     };
 
     detectUserLocation();
-  }, []);
+  }, [currentLatLng]);
 
   // Atualizar o endereço local quando o prop mudar (pin movido)
   useEffect(() => {
@@ -87,6 +133,13 @@ export function MapLocationPickerOverlay({
       if (searchQuery.trim().length >= 3) {
         setIsSearching(true);
         setShowResults(true);
+        
+        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        console.log("🔍 EXECUTANDO BUSCA:");
+        console.log(`   Query: "${searchQuery}"`);
+        console.log(`   Cidade: ${userCity || "(não detectada)"}`);
+        console.log(`   Estado: ${userRegion || "(não detectado)"}`);
+        
         try {
           // Passar cidade e estado do usuário para contextualizar a busca
           const results = await buscarEnderecoPorTexto(
@@ -94,9 +147,20 @@ export function MapLocationPickerOverlay({
             userCity,
             userRegion
           );
+          
+          console.log(`✅ Resultados encontrados: ${results.length}`);
+          if (results.length > 0) {
+            console.log("📋 Primeiros 3 resultados:");
+            results.slice(0, 3).forEach((r, i) => {
+              console.log(`   ${i + 1}. ${r.formattedAddress}`);
+            });
+          }
+          console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+          
           setSearchResults(results);
         } catch (error) {
-          console.error("Erro na busca:", error);
+          console.error("❌ Erro na busca:", error);
+          console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
           setSearchResults([]);
         } finally {
           setIsSearching(false);
