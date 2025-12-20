@@ -309,3 +309,5 @@ export const OffersCarSheet = forwardRef<OffersCarSheetRef, OffersCarSheetProps>
 );
 
 OffersCarSheet.displayName = "OffersCarSheet";
+
+export default OffersCarSheet;
