@@ -9,6 +9,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import HomeScreen from "../screens/(authenticated)/Client/HomeScreen/index";
 import LocationPickerScreen from "../screens/(authenticated)/Client/HomeScreen/LocationPickerScreen";
 import MapLocationPickerScreen from "../screens/(authenticated)/Client/HomeScreen/MapLocationPickerScreen";
+import AddFavoriteLocationScreen from "../screens/(authenticated)/Client/HomeScreen/AddFavoriteLocationScreen";
 import FinalOrderSummaryScreen from "../screens/(authenticated)/Client/HomeScreen/FinalOrderSummaryScreen";
 import CancelFeeScreen from "../screens/(authenticated)/Client/HomeScreen/CancelFeeScreen";
 import ChatScreen from "../screens/(authenticated)/Client/HomeScreen/ChatScreen";
@@ -164,6 +165,15 @@ export default function DrawerClienteRoutes() {
         options={{
           drawerLabel: () => null,
           title: "Escolher no Mapa",
+          drawerItemStyle: { display: "none" },
+        }}
+      />
+      <Screen
+        name="AddFavoriteLocation"
+        component={AddFavoriteLocationScreen}
+        options={{
+          drawerLabel: () => null,
+          title: "Adicionar Favorito",
           drawerItemStyle: { display: "none" },
         }}
       />

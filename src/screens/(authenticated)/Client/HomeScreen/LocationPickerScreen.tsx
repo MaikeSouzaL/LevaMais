@@ -24,7 +24,7 @@ import {
 export default function LocationPickerScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  
+
   // Animação do bottom sheet
   const slideAnim = useRef(new Animated.Value(400)).current; // Começa fora da tela (400px abaixo)
 
@@ -141,7 +141,7 @@ export default function LocationPickerScreen() {
       setSelectedAddress(null);
     });
   };
-  
+
   // Animar entrada do bottom sheet quando selectedAddress muda
   useEffect(() => {
     if (selectedAddress) {
@@ -278,7 +278,12 @@ export default function LocationPickerScreen() {
                   ))}
 
                   {/* Add Favorite */}
-                  <TouchableOpacity className="flex-row items-center p-3 rounded-xl active:bg-white/5">
+                  <TouchableOpacity
+                    className="flex-row items-center p-3 rounded-xl active:bg-white/5"
+                    onPress={() =>
+                      (navigation as any).navigate("AddFavoriteLocation")
+                    }
+                  >
                     <View className="h-10 w-10 rounded-full border border-dashed border-gray-500 items-center justify-center mr-4">
                       <MaterialIcons name="add" size={20} color="#9CA3AF" />
                     </View>
