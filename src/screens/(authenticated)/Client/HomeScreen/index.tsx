@@ -21,9 +21,13 @@ import type { OffersMotoSheetRef } from "./components/OffersMotoSheet";
 import type { OffersCarSheetRef } from "./components/OffersCarSheet";
 import { ServicePurposeScreen } from "./components/ServicePurposeScreen";
 import type { SelectVehicleSheetRef } from "./components/SelectVehicleSheet";
+import { SearchingDriverModal } from "./components/SearchingDriverModal";
 import { OffersVanSheet } from "./components/OffersVanSheet";
 import type { OffersVanSheetRef } from "./components/OffersVanSheet";
 import { OffersTruckSheet } from "./components/OffersTruckSheet";
+import FinalOrderSummarySheet, {
+  FinalOrderSummaryData,
+} from "./components/FinalOrderSummarySheet";
 import type { OffersTruckSheetRef } from "./components/OffersTruckSheet";
 import GlobalMap from "../../../../components/GlobalMap";
 import {
@@ -142,10 +146,19 @@ export default function HomeScreen() {
   const offersCarRef = useRef<OffersCarSheetRef>(null);
   const offersVanRef = useRef<OffersVanSheetRef>(null);
   const offersTruckRef = useRef<OffersTruckSheetRef>(null);
+  const finalSummaryRef = useRef<any>(null);
   const [showPurposeScreen, setShowPurposeScreen] = useState(false);
+  const [searchingModal, setSearchingModal] = useState<{
+    visible: boolean;
+    title: string;
+    price: string;
+    eta: string;
+  }>({ visible: false, title: "", price: "", eta: "" });
   const [selectedVehicleType, setSelectedVehicleType] = useState<
     "motorcycle" | "car" | "van" | "truck" | null
   >(null);
+  const [finalSummaryData, setFinalSummaryData] =
+    useState<FinalOrderSummaryData | null>(null);
   const navigation = useNavigation<DrawerNavigationProp<any>>();
 
   const [region, setRegion] = useState<{
@@ -321,8 +334,38 @@ export default function HomeScreen() {
   const handleConfirmMotoOffer = (offerId: string) => {
     console.log("Moto offer confirmed:", offerId);
     offersMotoRef.current?.close();
-    // Volta para o sheet principal ou segue fluxo futuro
-    bottomSheetRef.current?.snapToIndex(1);
+    setSearchingModal({
+      visible: true,
+      title: "Leva+ Moto",
+      price: "R$ 15,90",
+      eta: "Chegada em ~5 min",
+    });
+    // Simula encontrar um motorista e abre o resumo final
+    setTimeout(() => {
+      setSearchingModal((s) => ({ ...s, visible: false }));
+      const data: FinalOrderSummaryData = {
+        pickupAddress: currentAddress,
+        pickupNeighborhood: "Centro, São Paulo - SP",
+        dropoffAddress: "Av. Paulista, 1000",
+        dropoffNeighborhood: "Bela Vista, São Paulo - SP",
+        vehicleType: "moto",
+        servicePurposeLabel: "Documentos",
+        etaMinutes: 15,
+        pricing: {
+          base: 5,
+          distanceKm: 4.2,
+          distancePrice: 8.4,
+          serviceFee: 1.5,
+          total: 14.9,
+        },
+        paymentSummary: "Visa final 4242",
+        itemType: "Caixa pequena",
+        helperIncluded: false,
+        insuranceLevel: "basic",
+      };
+      setFinalSummaryData(data);
+      (navigation as any).navigate("FinalOrderSummary", { data });
+    }, 10000);
   };
 
   const handleBackFromOffers = () => {
@@ -514,7 +557,37 @@ export default function HomeScreen() {
           onConfirm={(offerId: string) => {
             console.log("Car offer confirmed:", offerId);
             offersCarRef.current?.close();
-            bottomSheetRef.current?.snapToIndex(1);
+            setSearchingModal({
+              visible: true,
+              title: "Leva+ Carro",
+              price: "R$ 19,90",
+              eta: "Chegada em ~7 min",
+            });
+            setTimeout(() => {
+              setSearchingModal((s) => ({ ...s, visible: false }));
+              const data: FinalOrderSummaryData = {
+                pickupAddress: currentAddress,
+                pickupNeighborhood: "Centro, São Paulo - SP",
+                dropoffAddress: "Av. Paulista, 1000",
+                dropoffNeighborhood: "Bela Vista, São Paulo - SP",
+                vehicleType: "car",
+                servicePurposeLabel: "Entrega rápida",
+                etaMinutes: 12,
+                pricing: {
+                  base: 7,
+                  distanceKm: 4.2,
+                  distancePrice: 10.4,
+                  serviceFee: 2.5,
+                  total: 19.9,
+                },
+                paymentSummary: "Pix",
+                itemType: "Caixa pequena",
+                helperIncluded: false,
+                insuranceLevel: "basic",
+              };
+              setFinalSummaryData(data);
+              (navigation as any).navigate("FinalOrderSummary", { data });
+            }, 10000);
           }}
           onClose={() => bottomSheetRef.current?.snapToIndex(1)}
           onBack={handleBackFromOffers}
@@ -532,13 +605,58 @@ export default function HomeScreen() {
           />
         )}
 
+        {/* Searching Driver Modal */}
+        <SearchingDriverModal
+          visible={searchingModal.visible}
+          serviceTitle={searchingModal.title}
+          price={searchingModal.price}
+          etaText={searchingModal.eta}
+          onCancel={() =>
+            setSearchingModal({ ...searchingModal, visible: false })
+          }
+          onBack={() =>
+            setSearchingModal({ ...searchingModal, visible: false })
+          }
+          onHelp={handlePressSafety}
+        />
+
         {/* Offers Van Sheet - Ofertas de vans */}
         <OffersVanSheet
           ref={offersVanRef}
           onConfirm={(offerId: string) => {
             console.log("Van offer confirmed:", offerId);
             offersVanRef.current?.close();
-            bottomSheetRef.current?.snapToIndex(1);
+            setSearchingModal({
+              visible: true,
+              title: "Leva+ Van",
+              price: "R$ 30,90",
+              eta: "Chegada em ~10 min",
+            });
+            setTimeout(() => {
+              setSearchingModal((s) => ({ ...s, visible: false }));
+              const data: FinalOrderSummaryData = {
+                pickupAddress: currentAddress,
+                pickupNeighborhood: "Centro, São Paulo - SP",
+                dropoffAddress: "Av. Paulista, 1000",
+                dropoffNeighborhood: "Bela Vista, São Paulo - SP",
+                vehicleType: "van",
+                servicePurposeLabel: "Mudança leve",
+                etaMinutes: 18,
+                pricing: {
+                  base: 12,
+                  distanceKm: 4.2,
+                  distancePrice: 15.4,
+                  serviceFee: 3.5,
+                  total: 30.9,
+                },
+                paymentSummary: "Dinheiro",
+                itemType: "Caixa pequena",
+                helperIncluded: true,
+                insuranceLevel: "basic",
+              };
+              setFinalSummaryData(data);
+              (navigation as any).navigate("FinalOrderSummary", { data });
+            }, 10000);
           }}
           onClose={() => bottomSheetRef.current?.snapToIndex(1)}
           onBack={handleBackFromOffers}
@@ -550,11 +668,42 @@ export default function HomeScreen() {
           onConfirm={(offerId: string) => {
             console.log("Truck offer confirmed:", offerId);
             offersTruckRef.current?.close();
-            bottomSheetRef.current?.snapToIndex(1);
+            setSearchingModal({
+              visible: true,
+              title: "Leva+ Caminhão",
+              price: "R$ 46,90",
+              eta: "Chegada em ~15 min",
+            });
+            setTimeout(() => {
+              setSearchingModal((s) => ({ ...s, visible: false }));
+              const data: FinalOrderSummaryData = {
+                pickupAddress: currentAddress,
+                pickupNeighborhood: "Centro, São Paulo - SP",
+                dropoffAddress: "Av. Paulista, 1000",
+                dropoffNeighborhood: "Bela Vista, São Paulo - SP",
+                vehicleType: "truck",
+                servicePurposeLabel: "Frete",
+                etaMinutes: 22,
+                pricing: {
+                  base: 20,
+                  distanceKm: 4.2,
+                  distancePrice: 22.4,
+                  serviceFee: 4.5,
+                  total: 46.9,
+                },
+                paymentSummary: "Cartão",
+                itemType: "Caixa pequena",
+                helperIncluded: true,
+                insuranceLevel: "basic",
+              };
+              setFinalSummaryData(data);
+              (navigation as any).navigate("FinalOrderSummary", { data });
+            }, 10000);
           }}
           onClose={() => bottomSheetRef.current?.snapToIndex(1)}
           onBack={handleBackFromOffers}
         />
+        {/* Resumo final agora é uma Screen dedicada; sheet não é mais renderizado aqui */}
       </View>
     </GestureHandlerRootView>
   );

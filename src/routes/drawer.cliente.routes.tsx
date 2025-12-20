@@ -7,6 +7,7 @@ import {
 } from "@react-navigation/drawer";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import HomeScreen from "../screens/(authenticated)/Client/HomeScreen/index";
+import FinalOrderSummaryScreen from "../screens/(authenticated)/Client/FinalOrderSummaryScreen";
 import { useAuthStore } from "../context/authStore";
 
 const Drawer = createDrawerNavigator();
@@ -140,6 +141,15 @@ export default function DrawerClienteRoutes() {
         options={{
           title: "Leva+",
           drawerLabel: "Início",
+        }}
+      />
+      <Screen
+        name="FinalOrderSummary"
+        component={FinalOrderSummaryScreen}
+        options={{
+          drawerLabel: () => null,
+          title: "Resumo do pedido",
+          drawerItemStyle: { display: "none" },
         }}
       />
       {/* TODO: Adicionar outras screens quando forem criadas */}
