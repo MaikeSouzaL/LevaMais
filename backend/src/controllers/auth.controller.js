@@ -466,6 +466,100 @@ class AuthController {
       });
     }
   }
+
+  // Salvar push token do dispositivo
+  async savePushToken(req, res) {
+    try {
+      const { pushToken } = req.body;
+      const userId = req.user.id;
+
+      // Validar token
+      if (!pushToken || typeof pushToken !== "string") {
+        return res.status(400).json({
+          success: false,
+          message: "Push token é obrigatório",
+        });
+      }
+
+      // Validar formato do token Expo
+      if (
+        !pushToken.startsWith("ExponentPushToken[") &&
+        !pushToken.startsWith("ExpoPushToken[")
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Formato de push token inválido",
+        });
+      }
+
+      // Buscar usuário
+      const user = await User.findById(userId);
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: "Usuário não encontrado",
+        });
+      }
+
+      // Atualizar push token
+      user.pushToken = pushToken;
+      user.pushTokenUpdatedAt = new Date();
+      await user.save();
+
+      console.log(`Push token salvo para usuário ${user.email}: ${pushToken}`);
+
+      res.json({
+        success: true,
+        message: "Push token salvo com sucesso",
+        data: {
+          pushToken: user.pushToken,
+          pushTokenUpdatedAt: user.pushTokenUpdatedAt,
+        },
+      });
+    } catch (error) {
+      console.error("Erro ao salvar push token:", error);
+      res.status(500).json({
+        success: false,
+        message: "Erro ao salvar push token",
+        error: error.message,
+      });
+    }
+  }
+
+  // Remover push token (quando usuário faz logout ou desativa notificações)
+  async removePushToken(req, res) {
+    try {
+      const userId = req.user.id;
+
+      // Buscar usuário
+      const user = await User.findById(userId);
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: "Usuário não encontrado",
+        });
+      }
+
+      // Remover push token
+      user.pushToken = null;
+      user.pushTokenUpdatedAt = new Date();
+      await user.save();
+
+      console.log(`Push token removido para usuário ${user.email}`);
+
+      res.json({
+        success: true,
+        message: "Push token removido com sucesso",
+      });
+    } catch (error) {
+      console.error("Erro ao remover push token:", error);
+      res.status(500).json({
+        success: false,
+        message: "Erro ao remover push token",
+        error: error.message,
+      });
+    }
+  }
 }
 
 const authController = new AuthController();

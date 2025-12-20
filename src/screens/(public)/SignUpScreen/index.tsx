@@ -93,7 +93,7 @@ export default function SignUp() {
       if (result) {
         const { address: detectedAddress } = result;
         const cidade = detectedAddress.city || null;
-        
+
         if (cidade) {
           setDetectedCity(cidade);
           Toast.show({
@@ -508,23 +508,25 @@ export default function SignUp() {
   }
 
   return (
-    <KeyboardAvoidingView
-      className="flex-1 bg-brand-dark"
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
-    >
-      <ScrollView
-        ref={scrollViewRef}
+    <SafeAreaView className="flex-1 bg-brand-dark">
+      <KeyboardAvoidingView
         className="flex-1"
-        contentContainerStyle={{ 
-          flexGrow: 1,
-          paddingBottom: 100 
-        }}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-        keyboardDismissMode="on-drag"
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
       >
-        <SafeAreaView className="flex-1 px-6 justify-center py-6">
+        <ScrollView
+          ref={scrollViewRef}
+          className="flex-1"
+          contentContainerStyle={{
+            flexGrow: 1,
+            paddingHorizontal: 24,
+            paddingVertical: 24,
+            paddingBottom: 100,
+          }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+        >
           <View className="mb-8">
             <Text className="text-3xl font-bold text-white tracking-tight">
               Criar Conta
@@ -701,8 +703,8 @@ export default function SignUp() {
               <Text className="text-brand-light font-bold">Entrar</Text>
             </Text>
           </TouchableOpacity>
-        </SafeAreaView>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }

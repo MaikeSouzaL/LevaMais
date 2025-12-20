@@ -80,13 +80,13 @@ export default function ForgotPasswordScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      className="flex-1 bg-brand-dark justify-center"
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
-    >
-      {/* Ícone de voltar fixo no topo */}
-      <SafeAreaView edges={["top"]} className="bg-brand-dark">
+    <SafeAreaView className="flex-1 bg-brand-dark" edges={["top"]}>
+      <KeyboardAvoidingView
+        className="flex-1"
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+      >
+        {/* Ícone de voltar fixo no topo */}
         <View className="px-6 pt-4">
           <TouchableOpacity
             onPress={() => navigation.goBack()}
@@ -96,87 +96,98 @@ export default function ForgotPasswordScreen() {
             <Feather name="arrow-left" size={24} color={theme.COLORS.WHITE} />
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
 
-      <ScrollView
-        ref={scrollViewRef}
-        className="flex-1"
-        contentContainerStyle={{
-          flexGrow: 1,
-          justifyContent: "center",
-          paddingBottom: 40,
-        }}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        <SafeAreaView edges={["bottom"]} className="flex-1 px-6 justify-center">
-          {/* Título e descrição */}
-          <View className="mb-8">
-            <Text className="text-4xl font-bold text-white tracking-tight mb-3">
-              Esqueceu a senha?
-            </Text>
-            <Text className="text-base text-gray-400 font-regular leading-6">
-              Digite seu email e enviaremos um código de verificação para você
-              criar uma nova senha
-            </Text>
-          </View>
-
-          {/* Campo Email */}
-          <View className="mb-6">
-            <Text className="text-sm font-semibold text-gray-300 mb-3">
-              Seu e-mail
-            </Text>
-            <View className="flex-row items-center border border-gray-700 rounded-xl bg-surface-secondary px-4 h-14 focus:border-brand-light">
-              <Feather
-                name="mail"
-                size={20}
-                color={theme.COLORS.BRAND_LIGHT}
-                style={{ marginRight: 12 }}
-              />
-              <TextInput
-                ref={emailInputRef}
-                className="flex-1 text-base text-white"
-                placeholder="Digite seu e-mail"
-                placeholderTextColor="#7C7C8A"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                value={email}
-                onChangeText={setEmail}
-                autoFocus
-                onFocus={() => {
-                  setTimeout(() => {
-                    scrollViewRef.current?.scrollToEnd({ animated: true });
-                  }, 300);
-                }}
-              />
+        <ScrollView
+          ref={scrollViewRef}
+          className="flex-1"
+          contentContainerStyle={{
+            flexGrow: 1,
+            paddingTop: 20,
+            paddingBottom: 100,
+          }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+        >
+          <View className="px-6 flex-1 justify-center">
+            {/* Título e descrição */}
+            <View className="mb-8">
+              <Text className="text-4xl font-bold text-white tracking-tight mb-3">
+                Esqueceu a senha?
+              </Text>
+              <Text className="text-base text-gray-400 font-regular leading-6">
+                Digite seu email e enviaremos um código de verificação para você
+                criar uma nova senha
+              </Text>
             </View>
+
+            {/* Campo Email */}
+            <View className="mb-6">
+              <Text className="text-sm font-semibold text-gray-300 mb-3">
+                Seu e-mail
+              </Text>
+              <View className="flex-row items-center border border-gray-700 rounded-xl bg-surface-secondary px-4 h-14 focus:border-brand-light">
+                <Feather
+                  name="mail"
+                  size={20}
+                  color={theme.COLORS.BRAND_LIGHT}
+                  style={{ marginRight: 12 }}
+                />
+                <TextInput
+                  ref={emailInputRef}
+                  className="flex-1 text-base text-white"
+                  placeholder="Digite seu e-mail"
+                  placeholderTextColor="#7C7C8A"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  value={email}
+                  onChangeText={setEmail}
+                  returnKeyType="send"
+                  onSubmitEditing={handleSendCode}
+                  onFocus={() => {
+                    setTimeout(() => {
+                      emailInputRef.current?.measureLayout(
+                        scrollViewRef.current as any,
+                        (x, y) => {
+                          scrollViewRef.current?.scrollTo({
+                            y: Math.max(0, y - 150),
+                            animated: true,
+                          });
+                        },
+                        () => {}
+                      );
+                    }, 300);
+                  }}
+                />
+              </View>
+            </View>
+
+            {/* Botão Enviar */}
+            <TouchableOpacity
+              className="h-14 bg-brand-light rounded-2xl items-center justify-center mb-6 shadow-lg shadow-brand-light/20"
+              onPress={handleSendCode}
+              disabled={loading}
+              activeOpacity={0.8}
+            >
+              <Text className="text-brand-dark font-bold text-lg">
+                {loading ? "Enviando..." : "Enviar código"}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Link para voltar ao login */}
+            <TouchableOpacity
+              className="items-center py-4"
+              onPress={() => navigation.goBack()}
+              activeOpacity={0.7}
+            >
+              <Text className="text-base text-gray-400">
+                Lembrou sua senha?{" "}
+                <Text className="text-brand-light font-bold">Entrar</Text>
+              </Text>
+            </TouchableOpacity>
           </View>
-
-          {/* Botão Enviar */}
-          <TouchableOpacity
-            className="h-14 bg-brand-light rounded-2xl items-center justify-center mb-6 shadow-lg shadow-brand-light/20"
-            onPress={handleSendCode}
-            disabled={loading}
-            activeOpacity={0.8}
-          >
-            <Text className="text-brand-dark font-bold text-lg">
-              {loading ? "Enviando..." : "Enviar código"}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Link para voltar ao login */}
-          <TouchableOpacity
-            className="items-center py-4"
-            onPress={() => navigation.goBack()}
-            activeOpacity={0.7}
-          >
-            <Text className="text-base text-gray-400">
-              Lembrou sua senha?{" "}
-              <Text className="text-brand-light font-bold">Entrar</Text>
-            </Text>
-          </TouchableOpacity>
-        </SafeAreaView>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }

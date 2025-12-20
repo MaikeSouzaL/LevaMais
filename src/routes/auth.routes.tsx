@@ -12,6 +12,7 @@ import ForgotPasswordScreen from "../screens/(public)/ForgotPasswordScreen";
 import VerifyCodeScreen from "../screens/(public)/VerifyCodeScreen";
 import NewPasswordScreen from "../screens/(public)/NewPasswordScreen";
 import TermsScreen from "../screens/(public)/TermsScreen";
+import NotificationPermissionScreen from "../screens/(public)/NotificationPermissionScreen";
 import theme from "../theme";
 // import Terms from "../screens/(public)/TermsScreen";
 // import Notificacoes from "../screens/ScreenClient/Notificacao/Notificacoes";
@@ -30,7 +31,9 @@ export default function AuthRoutes() {
   useEffect(() => {
     async function checkIntroStatus() {
       try {
-        const introViewed = await AsyncStorage.getItem("@leva_mais:intro_viewed");
+        const introViewed = await AsyncStorage.getItem(
+          "@leva_mais:intro_viewed"
+        );
         if (introViewed === "true") {
           setHasViewedIntro(true);
           setInitialRoute("SignIn");
@@ -73,11 +76,18 @@ export default function AuthRoutes() {
       <Screen name="SignIn" component={SingnIn} />
       <Screen name="SignUp" component={SingnUp} />
       <Screen name="SelectProfile" component={SelectProfileScreen} />
-      <Screen name="CompleteRegistration" component={CompleteRegistrationScreen} />
+      <Screen
+        name="CompleteRegistration"
+        component={CompleteRegistrationScreen}
+      />
       <Screen name="ForgotPassword" component={ForgotPasswordScreen} />
       <Screen name="VerifyCode" component={VerifyCodeScreen} />
       <Screen name="NewPassword" component={NewPasswordScreen} />
       <Screen name="Terms" component={TermsScreen} />
+      <Screen
+        name="NotificationPermission"
+        component={NotificationPermissionScreen}
+      />
       {/* <Screen name="PerfilScreen" component={PerfilScreen} /> */}
     </Navigator>
   );

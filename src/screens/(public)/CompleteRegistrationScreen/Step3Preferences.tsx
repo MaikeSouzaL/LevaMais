@@ -211,11 +211,23 @@ export default function Step3Preferences({
         text1: "Cadastro realizado com sucesso!",
       });
 
-      // Navegar para próxima tela (quando implementar as rotas autenticadas)
-      onFinish();
+      // Redirecionar para tela de permissão de notificações
+      navigation.navigate("NotificationPermission", {
+        user: {
+          _id: user._id,
+          name: user.name,
+          email: user.email,
+          phone: user.phone || "",
+          userType: user.userType,
+          cidade: user.city || "",
+        },
+        token: token,
+      });
+
+      setLoading(false);
     } catch (error: any) {
       console.error("Erro ao finalizar cadastro:", error);
-      
+
       // Verificar se é erro de conexão/servidor offline
       const errorMessage = error.message || "";
       const isOfflineError =
@@ -584,9 +596,7 @@ export default function Step3Preferences({
           </View>
           <View
             className={`w-6 h-6 rounded-full items-center justify-center ${
-              acceptedTerms
-                ? "bg-brand-light"
-                : "border-2 border-gray-500"
+              acceptedTerms ? "bg-brand-light" : "border-2 border-gray-500"
             }`}
           >
             {acceptedTerms && (
@@ -600,18 +610,14 @@ export default function Step3Preferences({
       <View className="px-6 pb-6 pt-2">
         <TouchableOpacity
           className={`h-14 rounded-2xl items-center justify-center mb-4 ${
-            acceptedTerms
-              ? "bg-brand-light"
-              : "bg-gray-600"
+            acceptedTerms ? "bg-brand-light" : "bg-gray-600"
           }`}
           onPress={handleFinish}
           disabled={loading || !acceptedTerms}
         >
           <Text
             className={`font-bold text-lg ${
-              acceptedTerms
-                ? "text-brand-dark"
-                : "text-gray-400"
+              acceptedTerms ? "text-brand-dark" : "text-gray-400"
             }`}
           >
             {loading ? "Finalizando..." : "Finalizar cadastro"}

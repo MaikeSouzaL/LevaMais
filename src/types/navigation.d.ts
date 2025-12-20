@@ -45,6 +45,17 @@ export declare global {
       Terms: {
         onAccept?: () => void;
       };
+      NotificationPermission: {
+        user: {
+          _id: string;
+          name: string;
+          email: string;
+          phone: string;
+          userType: string;
+          cidade: string;
+        };
+        token: string;
+      };
     }
   }
 }

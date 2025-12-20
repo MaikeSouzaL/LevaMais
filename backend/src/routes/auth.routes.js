@@ -26,5 +26,15 @@ router.get(
   authenticateToken,
   authController.getProfile.bind(authController)
 );
+router.post(
+  "/push-token",
+  authenticateToken,
+  authController.savePushToken.bind(authController)
+);
+router.delete(
+  "/push-token",
+  authenticateToken,
+  authController.removePushToken.bind(authController)
+);
 
 module.exports = router;

@@ -134,13 +134,13 @@ export default function VerifyCodeScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      className="flex-1 bg-brand-dark"
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
-    >
-      {/* Header fixo no topo */}
-      <SafeAreaView edges={["top"]} className="bg-brand-dark">
+    <SafeAreaView className="flex-1 bg-brand-dark" edges={["top"]}>
+      <KeyboardAvoidingView
+        className="flex-1"
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+      >
+        {/* Header fixo no topo */}
         <View className="flex-row items-center px-6 py-4">
           <TouchableOpacity
             onPress={() => navigation.goBack()}
@@ -150,92 +150,94 @@ export default function VerifyCodeScreen() {
             <Feather name="arrow-left" size={24} color={theme.COLORS.WHITE} />
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
 
-      <ScrollView
-        ref={scrollViewRef}
-        className="flex-1"
-        contentContainerStyle={{ flexGrow: 1, paddingBottom: 40 }}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        <SafeAreaView edges={["bottom"]} className="flex-1 px-6">
-          {/* Título e descrição */}
-          <View className="mb-8 mt-4">
-            <Text className="text-4xl font-bold text-white tracking-tight mb-3">
-              Verificar código
-            </Text>
-            <Text className="text-base text-gray-400 font-regular leading-6">
-              Digite o código de 6 dígitos enviado para{"\n"}
-              <Text className="text-brand-light font-semibold">{email}</Text>
-            </Text>
-          </View>
-
-          {/* Inputs do código */}
-          <View className="mb-8">
-            <View className="flex-row justify-between mb-6">
-              {code.map((digit, index) => (
-                <TextInput
-                  key={index}
-                  ref={(ref) => (inputRefs.current[index] = ref)}
-                  className="w-14 h-16 bg-surface-secondary border border-gray-700 rounded-xl text-center text-white text-2xl font-bold"
-                  value={digit}
-                  onChangeText={(text) => handleCodeChange(text, index)}
-                  onKeyPress={({ nativeEvent }) =>
-                    handleKeyPress(nativeEvent.key, index)
-                  }
-                  onFocus={() => {
-                    setTimeout(() => {
-                      scrollViewRef.current?.scrollToEnd({ animated: true });
-                    }, 300);
-                  }}
-                  keyboardType="number-pad"
-                  maxLength={1}
-                  selectTextOnFocus
-                />
-              ))}
+        <ScrollView
+          ref={scrollViewRef}
+          className="flex-1"
+          contentContainerStyle={{ flexGrow: 1, paddingBottom: 40 }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View className="flex-1 px-6">
+            {/* Título e descrição */}
+            <View className="mb-8 mt-4">
+              <Text className="text-4xl font-bold text-white tracking-tight mb-3">
+                Verificar código
+              </Text>
+              <Text className="text-base text-gray-400 font-regular leading-6">
+                Digite o código de 6 dígitos enviado para{"\n"}
+                <Text className="text-brand-light font-semibold">{email}</Text>
+              </Text>
             </View>
 
-            {/* Botão reenviar código */}
+            {/* Inputs do código */}
+            <View className="mb-8">
+              <View className="flex-row justify-between mb-6">
+                {code.map((digit, index) => (
+                  <TextInput
+                    key={index}
+                    ref={(ref) => {
+                      if (ref) inputRefs.current[index] = ref;
+                    }}
+                    className="w-14 h-16 bg-surface-secondary border border-gray-700 rounded-xl text-center text-white text-2xl font-bold"
+                    value={digit}
+                    onChangeText={(text) => handleCodeChange(text, index)}
+                    onKeyPress={({ nativeEvent }) =>
+                      handleKeyPress(nativeEvent.key, index)
+                    }
+                    onFocus={() => {
+                      setTimeout(() => {
+                        scrollViewRef.current?.scrollToEnd({ animated: true });
+                      }, 300);
+                    }}
+                    keyboardType="number-pad"
+                    maxLength={1}
+                    selectTextOnFocus
+                  />
+                ))}
+              </View>
+
+              {/* Botão reenviar código */}
+              <TouchableOpacity
+                onPress={handleResendCode}
+                className="items-center py-2"
+                activeOpacity={0.7}
+              >
+                <Text className="text-base text-gray-400">
+                  Não recebeu o código?{" "}
+                  <Text className="text-brand-light font-bold">Reenviar</Text>
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Botão Verificar */}
             <TouchableOpacity
-              onPress={handleResendCode}
-              className="items-center py-2"
+              className="h-14 bg-brand-light rounded-2xl items-center justify-center mb-6 shadow-lg shadow-brand-light/20"
+              onPress={handleVerifyCode}
+              disabled={loading}
+              activeOpacity={0.8}
+            >
+              <Text className="text-brand-dark font-bold text-lg">
+                {loading ? "Verificando..." : "Verificar código"}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Link para voltar */}
+            <TouchableOpacity
+              className="items-center py-4"
+              onPress={() => navigation.goBack()}
               activeOpacity={0.7}
             >
               <Text className="text-base text-gray-400">
-                Não recebeu o código?{" "}
-                <Text className="text-brand-light font-bold">Reenviar</Text>
+                Voltar para{" "}
+                <Text className="text-brand-light font-bold">
+                  esqueceu a senha
+                </Text>
               </Text>
             </TouchableOpacity>
           </View>
-
-          {/* Botão Verificar */}
-          <TouchableOpacity
-            className="h-14 bg-brand-light rounded-2xl items-center justify-center mb-6 shadow-lg shadow-brand-light/20"
-            onPress={handleVerifyCode}
-            disabled={loading}
-            activeOpacity={0.8}
-          >
-            <Text className="text-brand-dark font-bold text-lg">
-              {loading ? "Verificando..." : "Verificar código"}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Link para voltar */}
-          <TouchableOpacity
-            className="items-center py-4"
-            onPress={() => navigation.goBack()}
-            activeOpacity={0.7}
-          >
-            <Text className="text-base text-gray-400">
-              Voltar para{" "}
-              <Text className="text-brand-light font-bold">
-                esqueceu a senha
-              </Text>
-            </Text>
-          </TouchableOpacity>
-        </SafeAreaView>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }

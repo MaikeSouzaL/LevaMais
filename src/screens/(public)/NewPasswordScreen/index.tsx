@@ -108,13 +108,13 @@ export default function NewPasswordScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      className="flex-1 bg-brand-dark"
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
-    >
-      {/* Ícone de voltar fixo no topo */}
-      <SafeAreaView edges={["top"]} className="bg-brand-dark">
+    <SafeAreaView className="flex-1 bg-brand-dark" edges={["top"]}>
+      <KeyboardAvoidingView
+        className="flex-1"
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+      >
+        {/* Ícone de voltar fixo no topo */}
         <View className="px-6 pt-4">
           <TouchableOpacity
             onPress={() => navigation.goBack()}
@@ -124,132 +124,134 @@ export default function NewPasswordScreen() {
             <Feather name="arrow-left" size={24} color={theme.COLORS.WHITE} />
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
 
-      <ScrollView
-        ref={scrollViewRef}
-        className="flex-1"
-        contentContainerStyle={{
-          paddingBottom: 200,
-          paddingTop: 20,
-        }}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-        keyboardDismissMode="on-drag"
-        nestedScrollEnabled={true}
-      >
-        <SafeAreaView edges={["bottom"]} className="flex-1 px-6">
-          {/* Título e descrição */}
-          <View className="mb-8 mt-4">
-            <Text className="text-4xl font-bold text-white tracking-tight mb-3">
-              Nova senha
-            </Text>
-            <Text className="text-base text-gray-400 font-regular leading-6">
-              Digite sua nova senha para acessar sua conta
-            </Text>
-          </View>
-
-          {/* Campo Nova Senha */}
-          <View className="mb-4">
-            <Text className="text-sm font-semibold text-gray-300 mb-3">
-              Nova senha
-            </Text>
-            <View className="flex-row items-center border border-gray-700 rounded-xl bg-surface-secondary px-4 h-14 focus:border-brand-light">
-              <Feather
-                name="lock"
-                size={20}
-                color={theme.COLORS.BRAND_LIGHT}
-                style={{ marginRight: 12 }}
-              />
-              <TextInput
-                ref={passwordInputRef}
-                className="flex-1 text-base text-white"
-                placeholder="Digite sua nova senha"
-                placeholderTextColor="#7C7C8A"
-                secureTextEntry={!showPassword}
-                value={password}
-                onChangeText={setPassword}
-                autoFocus
-                returnKeyType="next"
-                onSubmitEditing={() => confirmPasswordInputRef.current?.focus()}
-                onFocus={() => handleInputFocus(passwordInputRef)}
-              />
-              <TouchableOpacity
-                onPress={() => setShowPassword(!showPassword)}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Feather
-                  name={showPassword ? "eye" : "eye-off"}
-                  size={20}
-                  color={theme.COLORS.GRAY_400}
-                />
-              </TouchableOpacity>
+        <ScrollView
+          ref={scrollViewRef}
+          className="flex-1"
+          contentContainerStyle={{
+            paddingBottom: 200,
+            paddingTop: 20,
+          }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+          nestedScrollEnabled={true}
+        >
+          <View className="flex-1 px-6">
+            {/* Título e descrição */}
+            <View className="mb-8 mt-4">
+              <Text className="text-4xl font-bold text-white tracking-tight mb-3">
+                Nova senha
+              </Text>
+              <Text className="text-base text-gray-400 font-regular leading-6">
+                Digite sua nova senha para acessar sua conta
+              </Text>
             </View>
-            <PasswordStrengthIndicator password={password} />
-          </View>
 
-          {/* Campo Confirmar Senha */}
-          <View className="mb-6">
-            <Text className="text-sm font-semibold text-gray-300 mb-3">
-              Confirmar senha
-            </Text>
-            <View className="flex-row items-center border border-gray-700 rounded-xl bg-surface-secondary px-4 h-14 focus:border-brand-light">
-              <Feather
-                name="lock"
-                size={20}
-                color={theme.COLORS.BRAND_LIGHT}
-                style={{ marginRight: 12 }}
-              />
-              <TextInput
-                ref={confirmPasswordInputRef}
-                className="flex-1 text-base text-white"
-                placeholder="Confirme sua nova senha"
-                placeholderTextColor="#7C7C8A"
-                secureTextEntry={!showConfirmPassword}
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                returnKeyType="done"
-                onSubmitEditing={handleResetPassword}
-                onFocus={() => handleInputFocus(confirmPasswordInputRef)}
-              />
-              <TouchableOpacity
-                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
+            {/* Campo Nova Senha */}
+            <View className="mb-4">
+              <Text className="text-sm font-semibold text-gray-300 mb-3">
+                Nova senha
+              </Text>
+              <View className="flex-row items-center border border-gray-700 rounded-xl bg-surface-secondary px-4 h-14 focus:border-brand-light">
                 <Feather
-                  name={showConfirmPassword ? "eye" : "eye-off"}
+                  name="lock"
                   size={20}
-                  color={theme.COLORS.GRAY_400}
+                  color={theme.COLORS.BRAND_LIGHT}
+                  style={{ marginRight: 12 }}
                 />
-              </TouchableOpacity>
+                <TextInput
+                  ref={passwordInputRef}
+                  className="flex-1 text-base text-white"
+                  placeholder="Digite sua nova senha"
+                  placeholderTextColor="#7C7C8A"
+                  secureTextEntry={!showPassword}
+                  value={password}
+                  onChangeText={setPassword}
+                  autoFocus
+                  returnKeyType="next"
+                  onSubmitEditing={() =>
+                    confirmPasswordInputRef.current?.focus()
+                  }
+                  onFocus={() => handleInputFocus(passwordInputRef)}
+                />
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Feather
+                    name={showPassword ? "eye" : "eye-off"}
+                    size={20}
+                    color={theme.COLORS.GRAY_400}
+                  />
+                </TouchableOpacity>
+              </View>
+              <PasswordStrengthIndicator password={password} />
             </View>
+
+            {/* Campo Confirmar Senha */}
+            <View className="mb-6">
+              <Text className="text-sm font-semibold text-gray-300 mb-3">
+                Confirmar senha
+              </Text>
+              <View className="flex-row items-center border border-gray-700 rounded-xl bg-surface-secondary px-4 h-14 focus:border-brand-light">
+                <Feather
+                  name="lock"
+                  size={20}
+                  color={theme.COLORS.BRAND_LIGHT}
+                  style={{ marginRight: 12 }}
+                />
+                <TextInput
+                  ref={confirmPasswordInputRef}
+                  className="flex-1 text-base text-white"
+                  placeholder="Confirme sua nova senha"
+                  placeholderTextColor="#7C7C8A"
+                  secureTextEntry={!showConfirmPassword}
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  returnKeyType="done"
+                  onSubmitEditing={handleResetPassword}
+                  onFocus={() => handleInputFocus(confirmPasswordInputRef)}
+                />
+                <TouchableOpacity
+                  onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Feather
+                    name={showConfirmPassword ? "eye" : "eye-off"}
+                    size={20}
+                    color={theme.COLORS.GRAY_400}
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Botão Alterar Senha */}
+            <TouchableOpacity
+              className="h-14 bg-brand-light rounded-2xl items-center justify-center mb-6 shadow-lg shadow-brand-light/20"
+              onPress={handleResetPassword}
+              disabled={loading}
+              activeOpacity={0.8}
+            >
+              <Text className="text-brand-dark font-bold text-lg">
+                {loading ? "Alterando..." : "Alterar senha"}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Link para voltar ao login */}
+            <TouchableOpacity
+              className="items-center py-4"
+              onPress={() => navigation.navigate("SignIn")}
+              activeOpacity={0.7}
+            >
+              <Text className="text-base text-gray-400">
+                Lembrou sua senha?{" "}
+                <Text className="text-brand-light font-bold">Entrar</Text>
+              </Text>
+            </TouchableOpacity>
           </View>
-
-          {/* Botão Alterar Senha */}
-          <TouchableOpacity
-            className="h-14 bg-brand-light rounded-2xl items-center justify-center mb-6 shadow-lg shadow-brand-light/20"
-            onPress={handleResetPassword}
-            disabled={loading}
-            activeOpacity={0.8}
-          >
-            <Text className="text-brand-dark font-bold text-lg">
-              {loading ? "Alterando..." : "Alterar senha"}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Link para voltar ao login */}
-          <TouchableOpacity
-            className="items-center py-4"
-            onPress={() => navigation.navigate("SignIn")}
-            activeOpacity={0.7}
-          >
-            <Text className="text-base text-gray-400">
-              Lembrou sua senha?{" "}
-              <Text className="text-brand-light font-bold">Entrar</Text>
-            </Text>
-          </TouchableOpacity>
-        </SafeAreaView>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }

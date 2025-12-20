@@ -326,115 +326,122 @@ export default function SignInScreen() {
   // }, [route.params]);
 
   return (
-    <KeyboardAvoidingView
-      className="flex-1 bg-brand-dark"
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <ScrollView
+    <SafeAreaView className="flex-1 bg-brand-dark">
+      <KeyboardAvoidingView
         className="flex-1"
-        contentContainerStyle={{ flexGrow: 1 }}
-        keyboardShouldPersistTaps="handled"
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
       >
-        <SafeAreaView className="flex-1 px-6 justify-center">
-          <View className="mb-10">
-            <Text className="text-4xl font-bold text-white tracking-tight">
-              Bem-vindo
-            </Text>
-            <Text className="text-base text-gray-400 mt-2 font-regular">
-              Faça login para continuar
-            </Text>
-          </View>
-
-          {phone ? (
-            <View className="flex-row items-center bg-surface-primary border border-brand-light/30 rounded-2xl px-4 py-3 mb-8">
-              <MaterialCommunityIcons
-                name="cellphone"
-                size={24}
-                color="#00E096"
-              />
-              <Text className="ml-3 text-base text-gray-200 font-semibold">
-                +55 {phone.replace(/^(\d{2})(\d{5})(\d{4})$/, "($1) $2-$3")}
+        <ScrollView
+          className="flex-1"
+          contentContainerStyle={{ flexGrow: 1 }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View className="flex-1 px-6 justify-center">
+            <View className="mb-10">
+              <Text className="text-4xl font-bold text-white tracking-tight">
+                Bem-vindo
               </Text>
-              <TouchableOpacity
-                className="ml-auto"
-                onPress={() => setShowPhoneModal(true)}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Text className="text-brand-light font-bold text-sm">
-                  Alterar
-                </Text>
-              </TouchableOpacity>
+              <Text className="text-base text-gray-400 mt-2 font-regular">
+                Faça login para continuar
+              </Text>
             </View>
-          ) : null}
 
-          <View className="mb-4">
-            <Text className="text-sm font-medium text-gray-300 mb-2">
-              Seu e-mail
-            </Text>
-            <TextInput
-              className="h-14 bg-surface-secondary rounded-xl px-4 text-white border border-gray-700 focus:border-brand-light"
-              placeholder="Digite seu e-mail"
-              placeholderTextColor="#7C7C8A"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              value={email}
-              onChangeText={setEmail}
+            {phone ? (
+              <View className="flex-row items-center bg-surface-primary border border-brand-light/30 rounded-2xl px-4 py-3 mb-8">
+                <MaterialCommunityIcons
+                  name="cellphone"
+                  size={24}
+                  color="#00E096"
+                />
+                <Text className="ml-3 text-base text-gray-200 font-semibold">
+                  +55 {phone.replace(/^(\d{2})(\d{5})(\d{4})$/, "($1) $2-$3")}
+                </Text>
+                <TouchableOpacity
+                  className="ml-auto"
+                  onPress={() => setShowPhoneModal(true)}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Text className="text-brand-light font-bold text-sm">
+                    Alterar
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+
+            <View className="mb-4">
+              <Text className="text-sm font-medium text-gray-300 mb-2">
+                Seu e-mail
+              </Text>
+              <TextInput
+                className="h-14 bg-surface-secondary rounded-xl px-4 text-white border border-gray-700 focus:border-brand-light"
+                placeholder="Digite seu e-mail"
+                placeholderTextColor="#7C7C8A"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={email}
+                onChangeText={setEmail}
+              />
+            </View>
+
+            <View className="mb-6">
+              <Text className="text-sm font-medium text-gray-300 mb-2">
+                Sua senha
+              </Text>
+              <TextInput
+                ref={passwordInputRef}
+                className="h-14 bg-surface-secondary rounded-xl px-4 text-white border border-gray-700 focus:border-brand-light"
+                placeholder="Digite sua senha"
+                placeholderTextColor="#7C7C8A"
+                secureTextEntry
+                value={password}
+                onChangeText={setPassword}
+              />
+            </View>
+
+            <TouchableOpacity
+              className="mb-8 items-end"
+              onPress={() => navigation.navigate("ForgotPassword")}
+            >
+              <Text className="text-gray-400 font-regular text-right">
+                Esqueceu a senha?
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              className="h-14 bg-brand-light rounded-2xl items-center justify-center mb-6 shadow-lg shadow-brand-light/20"
+              onPress={handleManualLogin}
+              disabled={loading}
+            >
+              <Text className="text-brand-dark font-bold text-lg">
+                {loading ? "Entrando..." : "Entrar"}
+              </Text>
+            </TouchableOpacity>
+
+            <View className="flex-row items-center my-6">
+              <View className="flex-1 h-[1px] bg-gray-700" />
+              <Text className="mx-4 text-gray-500 font-medium">OU</Text>
+              <View className="flex-1 h-[1px] bg-gray-700" />
+            </View>
+
+            <GoogleButton
+              onPress={handleGoogleSignIn}
+              loading={googleLoading}
             />
+
+            <TouchableOpacity
+              className="mt-6 items-center"
+              onPress={handleNavigateToSignUp}
+            >
+              <Text className="text-base text-gray-400">
+                Não tem uma conta?{" "}
+                <Text className="text-brand-light font-bold">Criar conta</Text>
+              </Text>
+            </TouchableOpacity>
           </View>
-
-          <View className="mb-6">
-            <Text className="text-sm font-medium text-gray-300 mb-2">
-              Sua senha
-            </Text>
-            <TextInput
-              ref={passwordInputRef}
-              className="h-14 bg-surface-secondary rounded-xl px-4 text-white border border-gray-700 focus:border-brand-light"
-              placeholder="Digite sua senha"
-              placeholderTextColor="#7C7C8A"
-              secureTextEntry
-              value={password}
-              onChangeText={setPassword}
-            />
-          </View>
-
-          <TouchableOpacity
-            className="mb-8 items-end"
-            onPress={() => navigation.navigate("ForgotPassword")}
-          >
-            <Text className="text-gray-400 font-regular text-right">
-              Esqueceu a senha?
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            className="h-14 bg-brand-light rounded-2xl items-center justify-center mb-6 shadow-lg shadow-brand-light/20"
-            onPress={handleManualLogin}
-            disabled={loading}
-          >
-            <Text className="text-brand-dark font-bold text-lg">
-              {loading ? "Entrando..." : "Entrar"}
-            </Text>
-          </TouchableOpacity>
-
-          <View className="flex-row items-center my-6">
-            <View className="flex-1 h-[1px] bg-gray-700" />
-            <Text className="mx-4 text-gray-500 font-medium">OU</Text>
-            <View className="flex-1 h-[1px] bg-gray-700" />
-          </View>
-
-          <GoogleButton onPress={handleGoogleSignIn} loading={googleLoading} />
-
-          <TouchableOpacity
-            className="mt-6 items-center"
-            onPress={handleNavigateToSignUp}
-          >
-            <Text className="text-base text-gray-400">
-              Não tem uma conta?{" "}
-              <Text className="text-brand-light font-bold">Criar conta</Text>
-            </Text>
-          </TouchableOpacity>
-        </SafeAreaView>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }

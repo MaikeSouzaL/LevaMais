@@ -1,4 +1,4 @@
-import { apiPost, apiGet } from "./api";
+import { apiPost, apiGet, apiDelete } from "./api";
 import type { ApiResponse, AuthResponse, User } from "../types/api";
 import {
   registerUserSchema,
@@ -152,9 +152,9 @@ export async function getProfile(token: string): Promise<ApiResponse<User>> {
 }
 
 // Solicitar recuperação de senha (envia código por email)
-export async function requestPasswordReset(
-  data: { email: string }
-): Promise<ApiResponse<{ message: string }>> {
+export async function requestPasswordReset(data: {
+  email: string;
+}): Promise<ApiResponse<{ message: string }>> {
   try {
     const response = await apiPost<ApiResponse<{ message: string }>>(
       "/auth/forgot-password",
@@ -179,9 +179,10 @@ export async function requestPasswordReset(
 }
 
 // Verificar código de recuperação
-export async function verifyResetCode(
-  data: { email: string; code: string }
-): Promise<ApiResponse<{ message: string }>> {
+export async function verifyResetCode(data: {
+  email: string;
+  code: string;
+}): Promise<ApiResponse<{ message: string }>> {
   try {
     const response = await apiPost<ApiResponse<{ message: string }>>(
       "/auth/verify-reset-code",
@@ -209,9 +210,11 @@ export async function verifyResetCode(
 }
 
 // Redefinir senha com código
-export async function resetPassword(
-  data: { email: string; code: string; newPassword: string }
-): Promise<ApiResponse<{ message: string }>> {
+export async function resetPassword(data: {
+  email: string;
+  code: string;
+  newPassword: string;
+}): Promise<ApiResponse<{ message: string }>> {
   try {
     if (data.newPassword.length < 6) {
       return {
@@ -255,5 +258,75 @@ export async function healthCheck(): Promise<boolean> {
   } catch (error) {
     console.error("Servidor offline:", error);
     return false;
+  }
+}
+
+// Salvar push token no backend
+export async function savePushToken(
+  pushToken: string,
+  token: string
+): Promise<ApiResponse<{ pushToken: string; pushTokenUpdatedAt: Date }>> {
+  try {
+    if (!pushToken || !token) {
+      return {
+        success: false,
+        message: "Push token e token de autenticação são obrigatórios",
+        error: "validation_error",
+      };
+    }
+
+    const response = await apiPost<
+      ApiResponse<{ pushToken: string; pushTokenUpdatedAt: Date }>
+    >("/auth/push-token", { pushToken }, token);
+
+    return response.data;
+  } catch (error: any) {
+    // Erro da API
+    if (error.response?.data) {
+      return error.response.data;
+    }
+
+    // Erro de rede ou outro
+    console.error("Erro ao salvar push token:", error);
+    return {
+      success: false,
+      message: error.message || "Erro ao salvar push token",
+      error: error.message,
+    };
+  }
+}
+
+// Remover push token no backend (logout ou desativar notificações)
+export async function removePushToken(
+  token: string
+): Promise<ApiResponse<{ message: string }>> {
+  try {
+    if (!token) {
+      return {
+        success: false,
+        message: "Token de autenticação é obrigatório",
+        error: "validation_error",
+      };
+    }
+
+    const response = await apiDelete<ApiResponse<{ message: string }>>(
+      "/auth/push-token",
+      token
+    );
+
+    return response.data;
+  } catch (error: any) {
+    // Erro da API
+    if (error.response?.data) {
+      return error.response.data;
+    }
+
+    // Erro de rede ou outro
+    console.error("Erro ao remover push token:", error);
+    return {
+      success: false,
+      message: error.message || "Erro ao remover push token",
+      error: error.message,
+    };
   }
 }

@@ -40,7 +40,22 @@
           "locationAlwaysAndWhenInUsePermission": "Precisamos da sua localização para mostrar seu endereço no mapa."
         }
       ],
-      "expo-maps"
-    ]
+      "expo-maps",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#00E096",
+          "sounds": [],
+          "mode": "production"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "seu-project-id-aqui"
+      }
+    },
+    "owner": "seu-username-expo"
   }
 }
