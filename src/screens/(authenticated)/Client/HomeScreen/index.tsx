@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   View,
   StyleSheet,
@@ -10,14 +10,18 @@ import {
 } from "react-native";
 import MapView, { Marker } from "react-native-maps";
 import { MaterialIcons } from "@expo/vector-icons";
-import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import {
+  useNavigation,
+  useRoute,
+  RouteProp,
+  useFocusEffect,
+} from "@react-navigation/native";
 import { DrawerNavigationProp } from "@react-navigation/drawer";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import GorhomBottomSheet from "@gorhom/bottom-sheet";
 import { LocationHeader } from "../../../../components/LocationHeader";
 import { VehicleMarker } from "./components/VehicleMarker";
 import { BottomSheet } from "./components/BottomSheet";
-import { LocationPickerSheet } from "./components/LocationPickerSheet";
 import {
   SafetyHelpSheet,
   SafetyHelpSheetRef,
@@ -49,7 +53,6 @@ import {
 } from "../../../../utils/location";
 
 import { DriverFoundSheet } from "./components/DriverFoundSheet";
-import { MapLocationPickerOverlay } from "./components/MapLocationPickerOverlay";
 import { useAuthStore } from "../../../../context/authStore";
 
 // Dados mockados
@@ -87,7 +90,6 @@ const MOCK_DATA = {
 export default function HomeScreen() {
   const mapRef = useRef<MapView>(null);
   const bottomSheetRef = useRef<GorhomBottomSheet>(null);
-  const locationPickerRef = useRef<GorhomBottomSheet>(null);
   const safetyHelpRef = useRef<SafetyHelpSheetRef>(null);
   const selectVehicleRef = useRef<SelectVehicleSheetRef>(null);
   const servicePurposeRef = useRef<ServicePurposeSheetRef>(null);
@@ -103,13 +105,6 @@ export default function HomeScreen() {
     price: string;
     eta: string;
   }>({ visible: false, title: "", price: "", eta: "" });
-
-  // Estado para controlar o modo de seleção no mapa
-  const [isMapPickerMode, setIsMapPickerMode] = useState(false);
-  // Estado para armazenar o endereço sendo selecionado no mapa (reverse geocoding)
-  const [mapPickerAddress, setMapPickerAddress] = useState<string>("");
-  // Estado para controlar loading do geocoding
-  const [isGeocodingLoading, setIsGeocodingLoading] = useState(false);
 
   // Estado para controlar se o motorista foi encontrado
   const [isDriverFound, setIsDriverFound] = useState(false);
@@ -249,19 +244,28 @@ export default function HomeScreen() {
     };
   }, []);
 
+  // Reabre o bottom sheet quando a tela receber foco (voltando de outra tela)
+  useFocusEffect(
+    useCallback(() => {
+      // Pequeno delay para garantir que a animação de transição terminou
+      const timer = setTimeout(() => {
+        // Só reabre se não estiver em busca ou com motorista encontrado
+        if (!searchingModal.visible && !isDriverFound) {
+          bottomSheetRef.current?.snapToIndex(1);
+        }
+      }, 300);
+
+      return () => clearTimeout(timer);
+    }, [searchingModal.visible, isDriverFound])
+  );
+
   const handleRegionChange = (r: {
     latitude: number;
     longitude: number;
     latitudeDelta: number;
     longitudeDelta: number;
   }) => {
-    // Opcional: Atualizar algo visual enquanto arrasta
-    if (isMapPickerMode) {
-      // Evita setar estado repetidamente se já estiver com o texto
-      if (mapPickerAddress !== "Localizando...") {
-        setMapPickerAddress("Localizando...");
-      }
-    }
+    // Função vazia - não precisa fazer nada durante o arrasto
   };
 
   const handleRegionChangeComplete = async (r: {
@@ -273,102 +277,7 @@ export default function HomeScreen() {
     // Atualiza overlay de debug com coordenadas do centro
     setDragLatLng({ lat: r.latitude, lng: r.longitude });
 
-    if (isMapPickerMode) {
-      setIsGeocodingLoading(true);
-      try {
-        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        console.log("🗺️  PIN MOVIDO - BUSCANDO ENDEREÇO...");
-        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        console.log("📍 Coordenadas:");
-        console.log(`   Latitude: ${r.latitude}`);
-        console.log(`   Longitude: ${r.longitude}`);
-        console.log("");
-
-        // Buscar endereço completo com TODOS os dados
-        const enderecoCompleto = await obterEnderecoPorCoordenadas(
-          r.latitude,
-          r.longitude
-        );
-
-        if (enderecoCompleto) {
-          console.log("✅ DADOS COMPLETOS DO REVERSE GEOCODING:");
-          console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-          console.log("📌 Campos principais:");
-          console.log(
-            `   🏠 Nome: ${enderecoCompleto.name || "❌ não disponível"}`
-          );
-          console.log(
-            `   🛣️  Rua: ${enderecoCompleto.street || "❌ não disponível"}`
-          );
-          console.log(
-            `   🔢 Número: ${
-              enderecoCompleto.streetNumber || "❌ não disponível"
-            }`
-          );
-          console.log(
-            `   🏘️  Bairro: ${enderecoCompleto.district || "❌ não disponível"}`
-          );
-          console.log(
-            `   🏙️  Cidade: ${enderecoCompleto.city || "❌ não disponível"}`
-          );
-          console.log(
-            `   🗺️  Estado: ${enderecoCompleto.region || "❌ não disponível"}`
-          );
-          console.log(
-            `   📮 CEP: ${enderecoCompleto.postalCode || "❌ não disponível"}`
-          );
-          console.log("");
-          console.log("📌 Campos secundários:");
-          console.log(
-            `   🌍 País: ${enderecoCompleto.country || "❌ não disponível"}`
-          );
-          console.log(
-            `   🏳️  Código ISO: ${
-              enderecoCompleto.isoCountryCode || "❌ não disponível"
-            }`
-          );
-          console.log(
-            `   🗂️  Sub-região: ${
-              enderecoCompleto.subregion || "❌ não disponível"
-            }`
-          );
-          console.log(
-            `   🕐 Timezone: ${
-              enderecoCompleto.timezone || "❌ não disponível"
-            }`
-          );
-          console.log("");
-          console.log("📌 Objeto completo (JSON):");
-          console.log(JSON.stringify(enderecoCompleto, null, 2));
-          console.log("");
-
-          // Formatação final
-          const enderecoFormatado = formatarEndereco(enderecoCompleto);
-          console.log("✨ ENDEREÇO FORMATADO:");
-          console.log(`   ${enderecoFormatado}`);
-          console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-          console.log("");
-
-          // Atualizar UI
-          setMapPickerAddress(enderecoFormatado);
-        } else {
-          console.log("❌ ERRO: Endereço não encontrado");
-          console.log("   O reverse geocoding retornou null");
-          console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-          console.log("");
-          setMapPickerAddress("Endereço não encontrado");
-        }
-      } catch (error) {
-        console.log("❌ ERRO NO REVERSE GEOCODING:");
-        console.log(error);
-        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        console.log("");
-        setMapPickerAddress("Erro ao buscar endereço");
-      } finally {
-        setIsGeocodingLoading(false);
-      }
-    }
-
+    // Verifica se o usuário se afastou da localização inicial
     if (!userRegion) return;
     const distanceLat = Math.abs(r.latitude - userRegion.latitude);
     const distanceLng = Math.abs(r.longitude - userRegion.longitude);
@@ -398,10 +307,9 @@ export default function HomeScreen() {
 
   const handlePressSafety = () => {
     console.log("Pressed safety button - Opening safety help");
-    // Fecha outros bottom sheets
+    // Fecha bottom sheet principal
     bottomSheetRef.current?.close();
-    locationPickerRef.current?.close();
-    // Abre o SafetyHelpSheet com pequeno delay para garantir que os outros fecharam
+    // Abre o SafetyHelpSheet com pequeno delay
     setTimeout(() => {
       console.log("Abrindo SafetyHelpSheet...");
       safetyHelpRef.current?.snapToIndex(0);
@@ -439,74 +347,19 @@ export default function HomeScreen() {
     setServiceMode("ride"); // Default para corrida
     // Fecha o BottomSheet principal
     bottomSheetRef.current?.close();
-    // Abre o LocationPickerSheet
-    locationPickerRef.current?.snapToIndex(0);
+    // Navega para a tela LocationPicker
+    (navigation as any).navigate("LocationPicker");
   };
 
   const handleChooseOnMap = () => {
-    // Fecha o LocationPicker e ativa o modo mapa
-    locationPickerRef.current?.close();
-    setIsMapPickerMode(true);
-  };
-
-  const handleConfirmMapLocation = (location: string) => {
-    console.log("Location confirmed from map:", location);
-    setDestinationAddress(location);
-    setIsMapPickerMode(false);
-    setIsNavigatingFromPicker(true); // Sinaliza navegação
-
-    // Lógica de fluxo baseada no modo
-    setTimeout(() => {
-      console.log("Navigating based on mode:", serviceMode);
-      if (serviceMode === "delivery") {
-        selectVehicleRef.current?.snapToIndex(0);
-      } else {
-        // Modo "ride" ou default
-        offersCarRef.current?.snapToIndex(0);
-      }
-    }, 150);
-  };
-
-  const handleBackFromMapPicker = () => {
-    setIsMapPickerMode(false);
-    // Reabre o LocationPicker
-    locationPickerRef.current?.snapToIndex(0);
-  };
-
-  // Handler para mover o mapa quando selecionar um resultado da busca
-  const handleSelectSearchLocation = (
-    latitude: number,
-    longitude: number,
-    address: string
-  ) => {
-    console.log("📍 LOCALIZAÇÃO SELECIONADA DA BUSCA:");
-    console.log(`   Endereço: ${address}`);
-    console.log(`   Latitude: ${latitude}`);
-    console.log(`   Longitude: ${longitude}`);
-
-    // Mover o mapa para a localização selecionada
-    if (mapRef.current) {
-      mapRef.current.animateToRegion(
-        {
-          latitude,
-          longitude,
-          latitudeDelta: 0.005, // Zoom próximo
-          longitudeDelta: 0.005,
-        },
-        1000 // 1 segundo de animação
-      );
-    }
-
-    // Atualizar o endereço exibido
-    setMapPickerAddress(address);
-    setDragLatLng({ lat: latitude, lng: longitude });
+    // Navega para MapLocationPicker
+    (navigation as any).navigate("MapLocationPicker");
   };
 
   const handleSelectLocation = (location: string) => {
     console.log("Selected location:", location);
     setDestinationAddress(location);
-    setIsNavigatingFromPicker(true); // Sinaliza navegação
-    locationPickerRef.current?.close();
+    navigation.goBack(); // Volta para Home
 
     // Lógica de fluxo baseada no modo
     setTimeout(() => {
@@ -519,23 +372,6 @@ export default function HomeScreen() {
       }
     }, 150);
   };
-
-  // Estado para controlar se o fechamento do picker é intencional para navegação
-  const [isNavigatingFromPicker, setIsNavigatingFromPicker] = useState(false);
-
-  const handleCloseLocationPicker = () => {
-    console.log("Closed location picker");
-    // Se estiver navegando para o próximo passo, não reseta o modo nem reabre o bottom sheet principal agora
-    if (isNavigatingFromPicker) {
-      setIsNavigatingFromPicker(false); // Reset flag
-      return;
-    }
-    
-    // Caso contrário (fechou arrastando ou clicando fora), reseta tudo
-    bottomSheetRef.current?.snapToIndex(1);
-    setServiceMode(null);
-  };
-
 
   const handleCloseSafetyHelp = () => {
     console.log("Closed safety help");
@@ -547,15 +383,15 @@ export default function HomeScreen() {
     console.log("Pressed ride service");
     setServiceMode("ride");
     bottomSheetRef.current?.close();
-    locationPickerRef.current?.snapToIndex(0);
+    (navigation as any).navigate("LocationPicker");
   };
 
   const handlePressDelivery = () => {
     console.log("Pressed delivery service");
     setServiceMode("delivery");
-    // Fecha outros sheets e abre seletor de local (agora obrigatório antes do veículo)
+    // Fecha outros sheets e navega para seletor de local
     bottomSheetRef.current?.close();
-    locationPickerRef.current?.snapToIndex(0);
+    (navigation as any).navigate("LocationPicker");
   };
 
   const handleSelectVehicle = (
@@ -648,7 +484,7 @@ export default function HomeScreen() {
   const handleBackFromSelectVehicle = () => {
     selectVehicleRef.current?.close();
     // Volta para seleção de local
-    setTimeout(() => locationPickerRef.current?.snapToIndex(0), 150);
+    setTimeout(() => (navigation as any).navigate("LocationPicker"), 150);
   };
 
   return (
@@ -743,120 +579,84 @@ export default function HomeScreen() {
           </View>
 
           {/* Gradiente inferior - escurece a base */}
-          {!isMapPickerMode && (
-            <View
-              className="absolute bottom-0 left-0 right-0 h-24 pointer-events-none z-10"
-              style={{
-                backgroundColor: "rgba(15, 35, 28, 0.3)",
-              }}
-            />
-          )}
+          <View
+            className="absolute bottom-0 left-0 right-0 h-24 pointer-events-none z-10"
+            style={{
+              backgroundColor: "rgba(15, 35, 28, 0.3)",
+            }}
+          />
 
           {/* Botão Menu Hambúrguer - separado, canto superior esquerdo */}
-          {!isMapPickerMode && (
-            <View className="absolute top-14 left-4 z-20">
-              <TouchableOpacity
-                onPress={handlePressMenu}
-                className="w-12 h-12 rounded-full bg-surface-dark/90 border border-white/10 items-center justify-center shadow-2xl"
-                activeOpacity={0.8}
-              >
-                <MaterialIcons name="menu" size={24} color="#02de95" />
-              </TouchableOpacity>
-            </View>
-          )}
+          <View className="absolute top-14 left-4 z-20">
+            <TouchableOpacity
+              onPress={handlePressMenu}
+              className="w-12 h-12 rounded-full bg-surface-dark/90 border border-white/10 items-center justify-center shadow-2xl"
+              activeOpacity={0.8}
+            >
+              <MaterialIcons name="menu" size={24} color="#02de95" />
+            </TouchableOpacity>
+          </View>
 
           {/* Header com localização - abaixo do menu */}
-          {!isMapPickerMode && (
-            <View className="absolute top-28 left-4 right-4 z-20">
-              <LocationHeader
-                currentAddress={MOCK_DATA.currentLocation.address}
-                userPhotoUrl={MOCK_DATA.user.photoUrl}
-                onPressLocation={handlePressLocation}
-              />
-            </View>
-          )}
+          <View className="absolute top-28 left-4 right-4 z-20">
+            <LocationHeader
+              currentAddress={MOCK_DATA.currentLocation.address}
+              userPhotoUrl={MOCK_DATA.user.photoUrl}
+              onPressLocation={handlePressLocation}
+            />
+          </View>
 
           {/* Botão More Options (3 pontos) - canto superior direito + badge de carteira */}
-          {!isMapPickerMode && (
-            <View className="absolute top-14 right-4 z-20 flex-row items-center gap-2">
-              {/* Badge de carteira (CashLeva) */}
-              <View className="flex-row items-center gap-1 px-3 h-12 rounded-full bg-surface-dark/90 border border-white/10">
-                <MaterialIcons name="attach-money" size={20} color="#02de95" />
-                <Text className="text-white font-semibold">
-                  {formatBRL(walletBalance)}
-                </Text>
-              </View>
-              <TouchableOpacity
-                onPress={handlePressMoreOptions}
-                className="w-12 h-12 rounded-full bg-surface-dark/90 border border-white/10 items-center justify-center shadow-2xl"
-                activeOpacity={0.8}
-              >
-                <MaterialIcons name="more-vert" size={24} color="#02de95" />
-              </TouchableOpacity>
+          <View className="absolute top-14 right-4 z-20 flex-row items-center gap-2">
+            {/* Badge de carteira (CashLeva) */}
+            <View className="flex-row items-center gap-1 px-3 h-12 rounded-full bg-surface-dark/90 border border-white/10">
+              <MaterialIcons name="attach-money" size={20} color="#02de95" />
+              <Text className="text-white font-semibold">
+                {formatBRL(walletBalance)}
+              </Text>
             </View>
-          )}
+            <TouchableOpacity
+              onPress={handlePressMoreOptions}
+              className="w-12 h-12 rounded-full bg-surface-dark/90 border border-white/10 items-center justify-center shadow-2xl"
+              activeOpacity={0.8}
+            >
+              <MaterialIcons name="more-vert" size={24} color="#02de95" />
+            </TouchableOpacity>
+          </View>
 
           {/* Botões de Ação - posicionados próximos ao Bottom Sheet */}
-          {!isMapPickerMode && (
-            <View className="absolute right-4 bottom-[400px] z-20 flex-col gap-3">
-              {/* Botão de Segurança */}
+          <View className="absolute right-4 bottom-[400px] z-20 flex-col gap-3">
+            {/* Botão de Segurança */}
+            <TouchableOpacity
+              onPress={handlePressSafety}
+              className="w-12 h-12 rounded-full bg-surface-dark/90 border border-white/10 items-center justify-center shadow-2xl"
+              activeOpacity={0.8}
+            >
+              <MaterialIcons name="shield" size={24} color="#60A5FA" />
+            </TouchableOpacity>
+
+            {/* Botão de Localização */}
+            {showMyLocationButton && (
               <TouchableOpacity
-                onPress={handlePressSafety}
+                onPress={handlePressMyLocation}
                 className="w-12 h-12 rounded-full bg-surface-dark/90 border border-white/10 items-center justify-center shadow-2xl"
                 activeOpacity={0.8}
               >
-                <MaterialIcons name="shield" size={24} color="#60A5FA" />
+                <MaterialIcons name="my-location" size={24} color="#02de95" />
               </TouchableOpacity>
-
-              {/* Botão de Localização */}
-              {showMyLocationButton && (
-                <TouchableOpacity
-                  onPress={handlePressMyLocation}
-                  className="w-12 h-12 rounded-full bg-surface-dark/90 border border-white/10 items-center justify-center shadow-2xl"
-                  activeOpacity={0.8}
-                >
-                  <MaterialIcons name="my-location" size={24} color="#02de95" />
-                </TouchableOpacity>
-              )}
-            </View>
-          )}
-
-          {/* Map Location Picker Overlay */}
-          {isMapPickerMode && (
-            <MapLocationPickerOverlay
-              onBack={handleBackFromMapPicker}
-              onConfirm={handleConfirmMapLocation}
-              onSelectLocation={handleSelectSearchLocation}
-              currentAddress={
-                mapPickerAddress || destinationAddress || currentAddress
-              }
-              currentLatLng={dragLatLng}
-              isLoading={isGeocodingLoading}
-            />
-          )}
+            )}
+          </View>
         </View>
 
         {/* Bottom Sheet - sobrepõe o mapa */}
-        {!isMapPickerMode && (
-          <>
-            <BottomSheet
-              ref={bottomSheetRef}
-              onPressSearch={handlePressSearch}
-              onPressRide={handlePressRide}
-              onPressDelivery={handlePressDelivery}
-            />
-          </>
-        )}
-
-        {/* Location Picker Sheet - Seleção de Endereço */}
-        <LocationPickerSheet
-          ref={locationPickerRef}
-          onClose={handleCloseLocationPicker}
-          onSelectLocation={handleSelectLocation}
-          onChooseOnMap={handleChooseOnMap}
-          currentLocation={currentAddress}
-          currentAddress={currentAddress}
-        />
+        <>
+          <BottomSheet
+            ref={bottomSheetRef}
+            onPressSearch={handlePressSearch}
+            onPressRide={handlePressRide}
+            onPressDelivery={handlePressDelivery}
+          />
+        </>
 
         {/* Select Vehicle Sheet - Tipo de serviço */}
         <SelectVehicleSheet

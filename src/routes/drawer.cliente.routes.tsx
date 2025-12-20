@@ -7,6 +7,8 @@ import {
 } from "@react-navigation/drawer";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import HomeScreen from "../screens/(authenticated)/Client/HomeScreen/index";
+import LocationPickerScreen from "../screens/(authenticated)/Client/HomeScreen/LocationPickerScreen";
+import MapLocationPickerScreen from "../screens/(authenticated)/Client/HomeScreen/MapLocationPickerScreen";
 import FinalOrderSummaryScreen from "../screens/(authenticated)/Client/HomeScreen/FinalOrderSummaryScreen";
 import CancelFeeScreen from "../screens/(authenticated)/Client/HomeScreen/CancelFeeScreen";
 import ChatScreen from "../screens/(authenticated)/Client/HomeScreen/ChatScreen";
@@ -145,6 +147,24 @@ export default function DrawerClienteRoutes() {
         options={{
           title: "Leva+",
           drawerLabel: "Início",
+        }}
+      />
+      <Screen
+        name="LocationPicker"
+        component={LocationPickerScreen}
+        options={{
+          drawerLabel: () => null,
+          title: "Selecionar Destino",
+          drawerItemStyle: { display: "none" },
+        }}
+      />
+      <Screen
+        name="MapLocationPicker"
+        component={MapLocationPickerScreen}
+        options={{
+          drawerLabel: () => null,
+          title: "Escolher no Mapa",
+          drawerItemStyle: { display: "none" },
         }}
       />
       <Screen
