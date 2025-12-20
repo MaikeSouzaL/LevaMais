@@ -15,7 +15,7 @@ export const SelectVehicleSheet = forwardRef<
   SelectVehicleSheetRef,
   SelectVehicleSheetProps
 >(({ onSelect, onClose }, ref) => {
-  const snapPoints = useMemo(() => ["70%"], []);
+  const snapPoints = useMemo(() => ["100%"], []);
   const insets = useSafeAreaInsets();
 
   return (
@@ -24,6 +24,8 @@ export const SelectVehicleSheet = forwardRef<
       index={-1}
       snapPoints={snapPoints}
       enablePanDownToClose
+      enableHandlePanningGesture={false}
+      enableContentPanningGesture={false}
       onClose={onClose}
       backgroundStyle={{ backgroundColor: "#0f231c" }}
       handleIndicatorStyle={{ backgroundColor: "rgba(255,255,255,0.2)" }}

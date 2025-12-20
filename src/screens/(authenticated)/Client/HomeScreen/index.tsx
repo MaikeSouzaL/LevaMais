@@ -17,6 +17,7 @@ import {
 import { SelectVehicleSheet } from "./components/SelectVehicleSheet";
 import { OffersMotoSheet } from "./components/OffersMotoSheet";
 import type { OffersMotoSheetRef } from "./components/OffersMotoSheet";
+import { ServicePurposeScreen } from "./components/ServicePurposeScreen";
 import type { SelectVehicleSheetRef } from "./components/SelectVehicleSheet";
 import GlobalMap from "../../../../components/GlobalMap";
 import {
@@ -132,6 +133,7 @@ export default function HomeScreen() {
   const safetyHelpRef = useRef<SafetyHelpSheetRef>(null);
   const selectVehicleRef = useRef<SelectVehicleSheetRef>(null);
   const offersMotoRef = useRef<OffersMotoSheetRef>(null);
+  const [showPurposeScreen, setShowPurposeScreen] = useState(false);
   const navigation = useNavigation<DrawerNavigationProp<any>>();
 
   const [region, setRegion] = useState<{
@@ -289,8 +291,9 @@ export default function HomeScreen() {
     console.log("Vehicle selected:", type);
     // Se for moto, abrir o bottom sheet de ofertas de motos
     if (type === "motorcycle") {
+      // Primeiro abre a tela de propósito/uso
       selectVehicleRef.current?.close();
-      setTimeout(() => offersMotoRef.current?.snapToIndex(0), 150);
+      setTimeout(() => setShowPurposeScreen(true), 150);
       return;
     }
     // Demais tipos ainda não implementados: apenas fecha e volta ao principal
@@ -302,6 +305,18 @@ export default function HomeScreen() {
     console.log("Moto offer confirmed:", offerId);
     offersMotoRef.current?.close();
     // Volta para o sheet principal ou segue fluxo futuro
+    bottomSheetRef.current?.snapToIndex(1);
+  };
+
+  const handleSelectPurpose = (purposeId: string) => {
+    console.log("Purpose selected:", purposeId);
+    setShowPurposeScreen(false);
+    // Após escolher propósito, abrir lista de motos próximas com valores
+    setTimeout(() => offersMotoRef.current?.snapToIndex(0), 150);
+  };
+
+  const handleClosePurpose = () => {
+    setShowPurposeScreen(false);
     bottomSheetRef.current?.snapToIndex(1);
   };
 
@@ -458,6 +473,14 @@ export default function HomeScreen() {
 
         {/* Safety Help Sheet - Ajuda e Segurança */}
         <SafetyHelpSheet ref={safetyHelpRef} onClose={handleCloseSafetyHelp} />
+
+        {/* Service Purpose Screen - Tela de seleção de finalidade do serviço */}
+        {showPurposeScreen && (
+          <ServicePurposeScreen
+            onClose={handleClosePurpose}
+            onSelect={handleSelectPurpose}
+          />
+        )}
       </View>
     </GestureHandlerRootView>
   );

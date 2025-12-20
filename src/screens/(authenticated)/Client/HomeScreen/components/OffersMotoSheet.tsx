@@ -1,4 +1,4 @@
-import React, { forwardRef, useMemo } from "react";
+import React, { forwardRef, useMemo, useState } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -61,8 +61,11 @@ export const OffersMotoSheet = forwardRef<
   OffersMotoSheetRef,
   OffersMotoSheetProps
 >(({ onConfirm, onClose }, ref) => {
-  const snapPoints = useMemo(() => ["70%"], []);
+  const snapPoints = useMemo(() => ["90%"], []);
   const insets = useSafeAreaInsets();
+  const [paymentMethod, setPaymentMethod] = useState<
+    "dinheiro" | "pix" | "cartao"
+  >("dinheiro");
 
   return (
     <BottomSheet
@@ -70,6 +73,8 @@ export const OffersMotoSheet = forwardRef<
       index={-1}
       snapPoints={snapPoints}
       enablePanDownToClose
+      enableHandlePanningGesture={false}
+      enableContentPanningGesture
       onClose={onClose}
       backgroundStyle={{ backgroundColor: "#0f231c" }}
       handleIndicatorStyle={{ backgroundColor: "rgba(255,255,255,0.2)" }}
@@ -87,7 +92,7 @@ export const OffersMotoSheet = forwardRef<
       <BottomSheetScrollView
         contentContainerStyle={{
           paddingHorizontal: 16,
-          paddingBottom: insets.bottom + 96,
+          paddingBottom: insets.bottom + 16,
         }}
       >
         {MOCK_OFFERS.map((offer) => {
@@ -218,76 +223,137 @@ export const OffersMotoSheet = forwardRef<
             </TouchableOpacity>
           );
         })}
-      </BottomSheetScrollView>
-
-      {/* Sticky Footer */}
-      <View
-        style={{
-          position: "absolute",
-          left: 0,
-          right: 0,
-          bottom: 0,
-          padding: 16,
-          paddingBottom: insets.bottom + 16,
-          backgroundColor: "#0f231c",
-          borderTopWidth: 1,
-          borderTopColor: "rgba(255,255,255,0.06)",
-        }}
-      >
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 12,
-          }}
-        >
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <MaterialIcons name="payments" size={20} color="#9bbbb0" />
-            <Text style={{ color: "#9bbbb0", fontSize: 13 }}>
-              Pagamento em Dinheiro
-            </Text>
-            <MaterialIcons name="expand-more" size={16} color="#9bbbb0" />
-          </View>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <MaterialIcons
-              name="confirmation-number"
-              size={20}
-              color="#9bbbb0"
-            />
-            <Text style={{ color: "#9bbbb0", fontSize: 13 }}>Cupom</Text>
+        {/* Seleção de pagamento */}
+        <View style={{ paddingTop: 8 }}>
+          <Text style={{ color: "#9bbbb0", fontSize: 13, marginBottom: 8 }}>
+            Forma de pagamento
+          </Text>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            {(
+              [
+                { id: "dinheiro", label: "Dinheiro", icon: "payments" },
+                { id: "pix", label: "Pix", icon: "qr-code-2" },
+                { id: "cartao", label: "Cartão", icon: "credit-card" },
+              ] as const
+            ).map((opt) => {
+              const selected = paymentMethod === opt.id;
+              return (
+                <TouchableOpacity
+                  key={opt.id}
+                  onPress={() => setPaymentMethod(opt.id)}
+                  activeOpacity={0.9}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 6,
+                    paddingVertical: 10,
+                    paddingHorizontal: 12,
+                    borderRadius: 9999,
+                    borderWidth: 1,
+                    borderColor: selected
+                      ? "#06db94"
+                      : "rgba(255,255,255,0.12)",
+                    backgroundColor: selected
+                      ? "rgba(6,219,148,0.15)"
+                      : "#162e26",
+                  }}
+                >
+                  <MaterialIcons
+                    name={opt.icon as any}
+                    size={18}
+                    color={selected ? "#06db94" : "#9bbbb0"}
+                  />
+                  <Text
+                    style={{
+                      color: selected ? "#06db94" : "#9bbbb0",
+                      fontSize: 13,
+                      fontWeight: selected ? "700" : "600",
+                    }}
+                  >
+                    {opt.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
-        <TouchableOpacity
-          activeOpacity={0.9}
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
-            backgroundColor: "#02de95",
-            paddingVertical: 14,
-            paddingHorizontal: 16,
-            borderRadius: 12,
-          }}
-          onPress={() => onConfirm?.("economico")}
-        >
-          <Text style={{ color: "#0f231c", fontSize: 16, fontWeight: "700" }}>
-            Confirmar entrega
-          </Text>
+
+        {/* Info de pagamento e ação ao final da lista */}
+        <View style={{ paddingTop: 8, paddingBottom: insets.bottom + 8 }}>
           <View
             style={{
-              backgroundColor: "rgba(0,0,0,0.1)",
-              paddingHorizontal: 8,
-              paddingVertical: 2,
-              borderRadius: 6,
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 12,
             }}
           >
-            <Text style={{ color: "#0f231c", fontSize: 14, fontWeight: "700" }}>
-              R$ 9,50
-            </Text>
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+            >
+              <MaterialIcons
+                name={
+                  paymentMethod === "dinheiro"
+                    ? "payments"
+                    : paymentMethod === "pix"
+                    ? "qr-code-2"
+                    : "credit-card"
+                }
+                size={20}
+                color="#9bbbb0"
+              />
+              <Text style={{ color: "#9bbbb0", fontSize: 13 }}>
+                {paymentMethod === "dinheiro"
+                  ? "Pagamento em Dinheiro"
+                  : paymentMethod === "pix"
+                  ? "Pagamento via Pix"
+                  : "Pagamento com Cartão"}
+              </Text>
+            </View>
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+            >
+              <MaterialIcons
+                name="confirmation-number"
+                size={20}
+                color="#9bbbb0"
+              />
+              <Text style={{ color: "#9bbbb0", fontSize: 13 }}>Cupom</Text>
+            </View>
           </View>
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity
+            activeOpacity={0.9}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              backgroundColor: "#02de95",
+              paddingVertical: 14,
+              paddingHorizontal: 16,
+              borderRadius: 12,
+            }}
+            onPress={() => onConfirm?.("economico")}
+          >
+            <Text style={{ color: "#0f231c", fontSize: 16, fontWeight: "700" }}>
+              Confirmar entrega
+            </Text>
+            <View
+              style={{
+                backgroundColor: "rgba(0,0,0,0.1)",
+                paddingHorizontal: 8,
+                paddingVertical: 2,
+                borderRadius: 6,
+              }}
+            >
+              <Text
+                style={{ color: "#0f231c", fontSize: 14, fontWeight: "700" }}
+              >
+                R$ 9,50
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+      </BottomSheetScrollView>
     </BottomSheet>
   );
 });
