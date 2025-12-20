@@ -105,7 +105,6 @@ export default function AddFavoriteLocationScreen() {
   const [userRegion, setUserRegion] = useState<string>("");
   const [favoriteLabel, setFavoriteLabel] = useState("");
   const [selectedIcon, setSelectedIcon] = useState("home");
-  const [showBottomSheet, setShowBottomSheet] = useState(true);
 
   const [region, setRegion] = useState<{
     latitude: number;
@@ -507,21 +506,15 @@ export default function AddFavoriteLocationScreen() {
           </View>
 
           {/* Bottom Sheet Component */}
-          {showBottomSheet && (
-            <FavoriteBottomSheet
-              address={address}
-              isGeocodingLoading={isGeocodingLoading}
-              favoriteLabel={favoriteLabel}
-              selectedIcon={selectedIcon}
-              onLabelChange={setFavoriteLabel}
-              onIconSelect={setSelectedIcon}
-              onSave={handleSaveFavorite}
-              onDismiss={() => {
-                setShowBottomSheet(false);
-                navigation.goBack();
-              }}
-            />
-          )}
+          <FavoriteBottomSheet
+            address={address}
+            isGeocodingLoading={isGeocodingLoading}
+            favoriteLabel={favoriteLabel}
+            selectedIcon={selectedIcon}
+            onLabelChange={setFavoriteLabel}
+            onIconSelect={setSelectedIcon}
+            onSave={handleSaveFavorite}
+          />
         </>
       )}
     </View>
