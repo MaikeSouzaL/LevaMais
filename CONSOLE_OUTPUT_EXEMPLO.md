@@ -121,21 +121,22 @@ Se o reverse geocoding falhar após 3 tentativas:
 
 ## 📍 Campos disponíveis por plataforma
 
-| Campo | iOS | Android | Observação |
-|-------|-----|---------|------------|
-| `name` | ✅ | ✅ | Nome da localização |
-| `street` | ✅ | ✅ | Nome da rua |
-| `streetNumber` | ⚠️ | ⚠️ | Nem sempre disponível |
-| `district` | ⚠️ | ⚠️ | Bairro - varia muito |
-| `city` | ✅ | ✅ | Cidade |
-| `region` | ✅ | ✅ | Estado/província |
-| `postalCode` | ⚠️ | ⚠️ | CEP - nem sempre |
-| `country` | ✅ | ✅ | País |
-| `isoCountryCode` | ✅ | ✅ | Código ISO do país |
-| `subregion` | ✅ | ✅ | Sub-região |
-| `timezone` | ✅ | ✅ | Fuso horário |
+| Campo            | iOS | Android | Observação            |
+| ---------------- | --- | ------- | --------------------- |
+| `name`           | ✅  | ✅      | Nome da localização   |
+| `street`         | ✅  | ✅      | Nome da rua           |
+| `streetNumber`   | ⚠️  | ⚠️      | Nem sempre disponível |
+| `district`       | ⚠️  | ⚠️      | Bairro - varia muito  |
+| `city`           | ✅  | ✅      | Cidade                |
+| `region`         | ✅  | ✅      | Estado/província      |
+| `postalCode`     | ⚠️  | ⚠️      | CEP - nem sempre      |
+| `country`        | ✅  | ✅      | País                  |
+| `isoCountryCode` | ✅  | ✅      | Código ISO do país    |
+| `subregion`      | ✅  | ✅      | Sub-região            |
+| `timezone`       | ✅  | ✅      | Fuso horário          |
 
 **Legenda:**
+
 - ✅ = Geralmente disponível
 - ⚠️ = Pode não estar disponível em alguns locais
 

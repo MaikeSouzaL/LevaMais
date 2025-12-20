@@ -313,7 +313,9 @@ export function MapLocationPickerOverlay({
           <View style={{ alignItems: "center", gap: 4 }}>
             {isLoading ? (
               // Loading state
-              <View style={{ alignItems: "center", gap: 8, paddingVertical: 16 }}>
+              <View
+                style={{ alignItems: "center", gap: 8, paddingVertical: 16 }}
+              >
                 <ActivityIndicator size="small" color="#02de95" />
                 <Text
                   style={{
@@ -351,7 +353,7 @@ export function MapLocationPickerOverlay({
                       >
                         {ruaNumero}
                       </Text>
-                      
+
                       {/* Bairro - Cidade/Estado */}
                       {(bairro || cidadeEstado) && (
                         <Text

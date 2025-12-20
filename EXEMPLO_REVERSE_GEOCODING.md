@@ -53,6 +53,7 @@ console.log(endereco);
 ```
 
 **Características:**
+
 - ✅ Retry automático (3 tentativas)
 - ✅ Backoff progressivo quando serviço indisponível
 - ✅ Retorna `null` se falhar
@@ -63,7 +64,10 @@ console.log(endereco);
 Transforma o endereço em string legível.
 
 ```typescript
-import { obterEnderecoPorCoordenadas, formatarEndereco } from "@/utils/location";
+import {
+  obterEnderecoPorCoordenadas,
+  formatarEndereco,
+} from "@/utils/location";
 
 const endereco = await obterEnderecoPorCoordenadas(lat, lng);
 const texto = formatarEndereco(endereco);
@@ -79,7 +83,10 @@ console.log(texto);
 Versão compacta sem o bairro (ideal para pins no mapa).
 
 ```typescript
-import { obterEnderecoPorCoordenadas, formatarEnderecoCompacto } from "@/utils/location";
+import {
+  obterEnderecoPorCoordenadas,
+  formatarEnderecoCompacto,
+} from "@/utils/location";
 
 const endereco = await obterEnderecoPorCoordenadas(lat, lng);
 const texto = formatarEnderecoCompacto(endereco);
@@ -109,6 +116,7 @@ pinGeocode.debouncedReverse(lat, lng, (resultado) => {
 ```
 
 **Características:**
+
 - ✅ Debounce de 400ms (evita chamadas excessivas durante arrasto)
 - ✅ Fallback para coordenadas se geocoding falhar
 - ✅ Callback para atualização assíncrona
@@ -135,7 +143,7 @@ const handleRegionChangeComplete = async (region: {
 <MapView
   onRegionChangeComplete={handleRegionChangeComplete}
   // ...
-/>
+/>;
 ```
 
 ### Exemplo 2: Buscar endereço ao clicar em "Usar minha localização"
@@ -169,7 +177,7 @@ const [formData, setFormData] = useState({
 
 const preencherComCoordenadas = async (lat: number, lng: number) => {
   const endereco = await obterEnderecoPorCoordenadas(lat, lng);
-  
+
   if (endereco) {
     setFormData({
       rua: endereco.street || "",
@@ -188,6 +196,7 @@ const preencherComCoordenadas = async (lat: number, lng: number) => {
 ### Variações entre Plataformas
 
 O que vem preenchido **varia entre Android e iOS**:
+
 - Às vezes `streetNumber` pode vir vazio
 - `district` pode ter nomes diferentes
 - Nem todos os campos são garantidos
@@ -195,6 +204,7 @@ O que vem preenchido **varia entre Android e iOS**:
 ### Limitações do Expo Location
 
 Para 100% de consistência e mais campos, considere usar:
+
 - Google Geocoding API
 - Mapbox Geocoding
 - OpenCage Geocoding
@@ -222,12 +232,14 @@ setAddress(texto);
 Se você estava usando `getAddressFromCoordinates()`:
 
 ### Antes (Legado)
+
 ```typescript
 const address = await getAddressFromCoordinates({ latitude, longitude });
 const texto = `${address.street}, ${address.number} - ${address.city}/${address.state}`;
 ```
 
 ### Depois (Novo)
+
 ```typescript
 const endereco = await obterEnderecoPorCoordenadas(latitude, longitude);
 const texto = formatarEnderecoCompacto(endereco);

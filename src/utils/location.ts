@@ -86,11 +86,11 @@ export async function getCurrentLocation(): Promise<LocationObjectCoords | null>
 
 /**
  * Obtém o endereço completo a partir das coordenadas usando reverse geocoding
- * 
+ *
  * @param latitude - Latitude da coordenada
  * @param longitude - Longitude da coordenada
  * @returns EnderecoReverso completo ou null se falhar
- * 
+ *
  * Importante: O que vem preenchido varia entre Android e iOS
  * (às vezes streetNumber pode vir vazio, ou district mudar).
  * Para 100% de consistência, considere serviços externos (Google/Mapbox).
@@ -103,7 +103,7 @@ export async function obterEnderecoPorCoordenadas(
     // Tentar algumas vezes com retry e backoff
     const maxAttempts = 3;
     let attempt = 0;
-    
+
     while (attempt < maxAttempts) {
       try {
         const res = await reverseGeocodeAsync({ latitude, longitude });
@@ -130,14 +130,17 @@ export async function obterEnderecoPorCoordenadas(
         };
       } catch (e: any) {
         const msg = String(e?.message || e);
-        
+
         // Se serviço indisponível, aguardar e tentar novamente
-        if (msg.includes("UNAVAILABLE") || msg.toUpperCase().includes("UNAVAILABLE")) {
+        if (
+          msg.includes("UNAVAILABLE") ||
+          msg.toUpperCase().includes("UNAVAILABLE")
+        ) {
           await new Promise((res) => setTimeout(res, 500 * (attempt + 1)));
           attempt++;
           continue;
         }
-        
+
         // Outros erros: relançar
         throw e;
       }
@@ -154,7 +157,7 @@ export async function obterEnderecoPorCoordenadas(
 /**
  * Formata o endereço reverso em uma string legível
  * Formato: "Rua X, 123 - Bairro - Cidade/UF"
- * 
+ *
  * @param e - EnderecoReverso obtido de obterEnderecoPorCoordenadas
  * @returns String formatada ou vazia se endereço for null
  */
@@ -162,11 +165,13 @@ export function formatarEndereco(e: EnderecoReverso | null): string {
   if (!e) return "";
 
   // Linha 1: Rua + número
-  const linha1 = [e.street || e.name, e.streetNumber].filter(Boolean).join(", ");
-  
+  const linha1 = [e.street || e.name, e.streetNumber]
+    .filter(Boolean)
+    .join(", ");
+
   // Linha 2: Bairro
   const linha2 = e.district || "";
-  
+
   // Linha 3: Cidade/Estado
   const estado = e.region ? e.region.substring(0, 2).toUpperCase() : "";
   const linha3 = [e.city, estado].filter(Boolean).join("/");
@@ -181,7 +186,9 @@ export function formatarEndereco(e: EnderecoReverso | null): string {
 export function formatarEnderecoCompacto(e: EnderecoReverso | null): string {
   if (!e) return "";
 
-  const linha1 = [e.street || e.name, e.streetNumber].filter(Boolean).join(", ");
+  const linha1 = [e.street || e.name, e.streetNumber]
+    .filter(Boolean)
+    .join(", ");
   const estado = e.region ? e.region.substring(0, 2).toUpperCase() : "";
   const linha2 = [e.city, estado].filter(Boolean).join("/");
 
@@ -191,7 +198,7 @@ export function formatarEnderecoCompacto(e: EnderecoReverso | null): string {
 /**
  * Função legada mantida para compatibilidade com código existente
  * @deprecated Use obterEnderecoPorCoordenadas() + formatarEndereco()
- * 
+ *
  * Converte EnderecoReverso para o formato UserAddress legado
  */
 export async function getAddressFromCoordinates(coords: {
@@ -199,8 +206,11 @@ export async function getAddressFromCoordinates(coords: {
   longitude: number;
 }): Promise<UserAddress | null> {
   try {
-    const endereco = await obterEnderecoPorCoordenadas(coords.latitude, coords.longitude);
-    
+    const endereco = await obterEnderecoPorCoordenadas(
+      coords.latitude,
+      coords.longitude
+    );
+
     if (!endereco) {
       // Fallback: retornar estrutura mínima com lat/long
       return {
@@ -217,7 +227,9 @@ export async function getAddressFromCoordinates(coords: {
       number: endereco.streetNumber || "",
       neighborhood: endereco.district || "",
       city: endereco.city || "",
-      state: endereco.region ? endereco.region.substring(0, 2).toUpperCase() : "",
+      state: endereco.region
+        ? endereco.region.substring(0, 2).toUpperCase()
+        : "",
       zipCode: endereco.postalCode || "",
       latitude: coords.latitude,
       longitude: coords.longitude,

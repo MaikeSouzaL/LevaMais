@@ -272,7 +272,7 @@ export default function HomeScreen() {
   }) => {
     // Atualiza overlay de debug com coordenadas do centro
     setDragLatLng({ lat: r.latitude, lng: r.longitude });
-    
+
     if (isMapPickerMode) {
       setIsGeocodingLoading(true);
       try {
@@ -294,24 +294,54 @@ export default function HomeScreen() {
           console.log("✅ DADOS COMPLETOS DO REVERSE GEOCODING:");
           console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
           console.log("📌 Campos principais:");
-          console.log(`   🏠 Nome: ${enderecoCompleto.name || "❌ não disponível"}`);
-          console.log(`   🛣️  Rua: ${enderecoCompleto.street || "❌ não disponível"}`);
-          console.log(`   🔢 Número: ${enderecoCompleto.streetNumber || "❌ não disponível"}`);
-          console.log(`   🏘️  Bairro: ${enderecoCompleto.district || "❌ não disponível"}`);
-          console.log(`   🏙️  Cidade: ${enderecoCompleto.city || "❌ não disponível"}`);
-          console.log(`   🗺️  Estado: ${enderecoCompleto.region || "❌ não disponível"}`);
-          console.log(`   📮 CEP: ${enderecoCompleto.postalCode || "❌ não disponível"}`);
+          console.log(
+            `   🏠 Nome: ${enderecoCompleto.name || "❌ não disponível"}`
+          );
+          console.log(
+            `   🛣️  Rua: ${enderecoCompleto.street || "❌ não disponível"}`
+          );
+          console.log(
+            `   🔢 Número: ${
+              enderecoCompleto.streetNumber || "❌ não disponível"
+            }`
+          );
+          console.log(
+            `   🏘️  Bairro: ${enderecoCompleto.district || "❌ não disponível"}`
+          );
+          console.log(
+            `   🏙️  Cidade: ${enderecoCompleto.city || "❌ não disponível"}`
+          );
+          console.log(
+            `   🗺️  Estado: ${enderecoCompleto.region || "❌ não disponível"}`
+          );
+          console.log(
+            `   📮 CEP: ${enderecoCompleto.postalCode || "❌ não disponível"}`
+          );
           console.log("");
           console.log("📌 Campos secundários:");
-          console.log(`   🌍 País: ${enderecoCompleto.country || "❌ não disponível"}`);
-          console.log(`   🏳️  Código ISO: ${enderecoCompleto.isoCountryCode || "❌ não disponível"}`);
-          console.log(`   🗂️  Sub-região: ${enderecoCompleto.subregion || "❌ não disponível"}`);
-          console.log(`   🕐 Timezone: ${enderecoCompleto.timezone || "❌ não disponível"}`);
+          console.log(
+            `   🌍 País: ${enderecoCompleto.country || "❌ não disponível"}`
+          );
+          console.log(
+            `   🏳️  Código ISO: ${
+              enderecoCompleto.isoCountryCode || "❌ não disponível"
+            }`
+          );
+          console.log(
+            `   🗂️  Sub-região: ${
+              enderecoCompleto.subregion || "❌ não disponível"
+            }`
+          );
+          console.log(
+            `   🕐 Timezone: ${
+              enderecoCompleto.timezone || "❌ não disponível"
+            }`
+          );
           console.log("");
           console.log("📌 Objeto completo (JSON):");
           console.log(JSON.stringify(enderecoCompleto, null, 2));
           console.log("");
-          
+
           // Formatação final
           const enderecoFormatado = formatarEndereco(enderecoCompleto);
           console.log("✨ ENDEREÇO FORMATADO:");

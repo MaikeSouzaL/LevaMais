@@ -1,4 +1,8 @@
-import { obterEnderecoPorCoordenadas, formatarEnderecoCompacto, type EnderecoReverso } from "./location";
+import {
+  obterEnderecoPorCoordenadas,
+  formatarEnderecoCompacto,
+  type EnderecoReverso,
+} from "./location";
 
 /**
  * Resultado do geocoding do pin (formato simplificado para UI)
@@ -22,7 +26,7 @@ function debounce<T extends (...args: any[]) => any>(fn: T, wait = 300) {
 /**
  * Obtém endereço reverso com retry automático
  * Ideal para uso com pins arrastáveis no mapa
- * 
+ *
  * @param lat - Latitude
  * @param lng - Longitude
  * @returns Resultado com endereço e string formatada
@@ -33,7 +37,7 @@ async function reverseGeocodeWithRetry(
 ): Promise<PinGeocodeResult> {
   try {
     const endereco = await obterEnderecoPorCoordenadas(lat, lng);
-    
+
     if (!endereco) {
       return {
         endereco: null,
@@ -42,7 +46,7 @@ async function reverseGeocodeWithRetry(
     }
 
     const formatted = formatarEnderecoCompacto(endereco);
-    
+
     return {
       endereco,
       formatted: formatted || `${lat.toFixed(6)}, ${lng.toFixed(6)}`,

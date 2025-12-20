@@ -16,6 +16,7 @@
 ## 📱 Experiência do Usuário
 
 ### 1️⃣ Estado Inicial
+
 ```
 ┌─────────────────────────────────┐
 │  CONFIRMAR LOCAL DE PARTIDA     │
@@ -30,6 +31,7 @@
 ```
 
 ### 2️⃣ Usuário Move o Pin
+
 ```
 ┌─────────────────────────────────┐
 │  CONFIRMAR LOCAL DE PARTIDA     │
@@ -42,6 +44,7 @@
 ```
 
 ### 3️⃣ Endereço Atualizado
+
 ```
 ┌─────────────────────────────────┐
 │  CONFIRMAR LOCAL DE PARTIDA     │
@@ -61,30 +64,35 @@
 ## 🛠️ Implementação Técnica
 
 ### Estados Criados
+
 ```typescript
 const [mapPickerAddress, setMapPickerAddress] = useState<string>("");
 const [isGeocodingLoading, setIsGeocodingLoading] = useState(false);
-const [dragLatLng, setDragLatLng] = useState<{ lat: number; lng: number } | null>(null);
+const [dragLatLng, setDragLatLng] = useState<{
+  lat: number;
+  lng: number;
+} | null>(null);
 ```
 
 ### Handler Principal
+
 ```typescript
 const handleRegionChangeComplete = async (region) => {
   setDragLatLng({ lat: region.latitude, lng: region.longitude });
-  
+
   if (isMapPickerMode) {
     setIsGeocodingLoading(true); // ← Mostra loading
-    
+
     try {
       const endereco = await obterEnderecoPorCoordenadas(
         region.latitude,
         region.longitude
       );
-      
+
       if (endereco) {
         const formatado = formatarEndereco(endereco);
         setMapPickerAddress(formatado); // ← Atualiza endereço
-        
+
         // Loga TODOS os dados no console
         console.log(JSON.stringify(endereco, null, 2));
       }
@@ -96,16 +104,18 @@ const handleRegionChangeComplete = async (region) => {
 ```
 
 ### Componente Atualizado
+
 ```typescript
 <MapLocationPickerOverlay
-  currentAddress={mapPickerAddress}    // ← Passa endereço atual
-  currentLatLng={dragLatLng}           // ← Passa coordenadas
-  isLoading={isGeocodingLoading}       // ← Passa estado de loading
+  currentAddress={mapPickerAddress} // ← Passa endereço atual
+  currentLatLng={dragLatLng} // ← Passa coordenadas
+  isLoading={isGeocodingLoading} // ← Passa estado de loading
   onConfirm={handleConfirmMapLocation}
 />
 ```
 
 ### useEffect no Overlay
+
 ```typescript
 useEffect(() => {
   setAddress(currentAddress); // ← Atualiza quando prop muda
@@ -117,6 +127,7 @@ useEffect(() => {
 ## 📊 Formato do Endereço
 
 ### Padrão de Exibição
+
 ```
 ┌─────────────────────────────┐
 │  Rua Principal, 123         │ ← parts[0] (Rua + Número)
@@ -125,49 +136,58 @@ useEffect(() => {
 ```
 
 ### Parsing Inteligente
+
 ```typescript
 const parts = address.split(" - ");
 // "Rua X, 123 - Bairro - Cidade/UF"
 
-const ruaNumero = parts[0];      // "Rua X, 123"
-const bairro = parts[1];         // "Bairro"
-const cidadeEstado = parts[2];   // "Cidade/UF"
+const ruaNumero = parts[0]; // "Rua X, 123"
+const bairro = parts[1]; // "Bairro"
+const cidadeEstado = parts[2]; // "Cidade/UF"
 ```
 
 ### Casos Especiais
 
-| Cenário | Resultado |
-|---------|-----------|
+| Cenário           | Resultado                         |
+| ----------------- | --------------------------------- |
 | Endereço completo | "Rua X, 123 - Bairro - Cidade/UF" |
-| Sem número | "Rua X - Bairro - Cidade/UF" |
-| Sem bairro | "Rua X, 123 - Cidade/UF" |
-| Apenas cidade | "Cidade/UF" |
-| Loading | "Buscando endereço..." |
-| Erro | "Endereço não encontrado" |
+| Sem número        | "Rua X - Bairro - Cidade/UF"      |
+| Sem bairro        | "Rua X, 123 - Cidade/UF"          |
+| Apenas cidade     | "Cidade/UF"                       |
+| Loading           | "Buscando endereço..."            |
+| Erro              | "Endereço não encontrado"         |
 
 ---
 
 ## 🎨 Estados Visuais
 
 ### Loading
+
 ```tsx
-{isLoading && (
-  <View>
-    <ActivityIndicator size="small" color="#02de95" />
-    <Text>Buscando endereço...</Text>
-  </View>
-)}
+{
+  isLoading && (
+    <View>
+      <ActivityIndicator size="small" color="#02de95" />
+      <Text>Buscando endereço...</Text>
+    </View>
+  );
+}
 ```
 
 ### Endereço Carregado
+
 ```tsx
-{!isLoading && (
-  <>
-    <Text style={styles.mainAddress}>{ruaNumero}</Text>
-    <Text style={styles.secondaryAddress}>{bairro} - {cidade}</Text>
-    <Text style={styles.coords}>Lat: ... | Lng: ...</Text>
-  </>
-)}
+{
+  !isLoading && (
+    <>
+      <Text style={styles.mainAddress}>{ruaNumero}</Text>
+      <Text style={styles.secondaryAddress}>
+        {bairro} - {cidade}
+      </Text>
+      <Text style={styles.coords}>Lat: ... | Lng: ...</Text>
+    </>
+  );
+}
 ```
 
 ---
@@ -218,15 +238,18 @@ Cada movimento do pin gera:
 ## ✨ Benefícios
 
 1. **✅ Feedback Visual Imediato**
+
    - Loading spinner enquanto busca
    - Atualização suave do texto
 
 2. **✅ Informação Completa**
+
    - Rua + Número em destaque
    - Bairro e Cidade como contexto
    - Coordenadas para debug
 
 3. **✅ UX Profissional**
+
    - Semelhante ao Uber/99
    - Sem travamentos
    - Retry automático
