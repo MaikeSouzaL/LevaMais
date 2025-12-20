@@ -306,40 +306,62 @@ export async function buscarEnderecoPorTexto(
       return [];
     }
 
+    // Normalizar acentos para NFC (mantém acentos corretamente) e gerar uma versão sem acentos como fallback
+    const queryNFC = query.normalize("NFC");
+    const stripDiacritics = (s: string) =>
+      s.normalize("NFD").replace(/\p{Diacritic}+/gu, "");
+    const queryNoAccents = stripDiacritics(queryNFC);
+
     console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     console.log("🔍 BUSCA DE ENDEREÇO INICIADA");
     console.log(`   Query: "${query}"`);
+    if (query !== queryNFC) console.log(`   🔤 NFC: "${queryNFC}"`);
+    if (queryNoAccents !== queryNFC)
+      console.log(`   🔤 Sem acentos (fallback): "${queryNoAccents}"`);
     if (userCity) console.log(`   🏙️  Cidade do usuário: ${userCity}`);
     if (userRegion) console.log(`   🗺️  Estado do usuário: ${userRegion}`);
 
     // Se temos a cidade do usuário, adicionar à query para melhorar resultados
     const enhancedQuery =
       userCity && userRegion
-        ? `${query}, ${userCity}, ${userRegion}`
+        ? `${queryNFC}, ${userCity}, ${userRegion}`
         : userCity
-        ? `${query}, ${userCity}`
-        : query;
+        ? `${queryNFC}, ${userCity}`
+        : queryNFC;
 
     console.log(`   🎯 Query melhorada: "${enhancedQuery}"`);
     console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     // Buscar com múltiplas variações para obter mais resultados
-    const searchPromises = [Location.geocodeAsync(query).catch(() => [])];
+    const searchPromises = [
+      Location.geocodeAsync(queryNFC).catch(() => []),
+      // Fallback sem acentos (alguns providers têm dificuldade com diacríticos)
+      Location.geocodeAsync(queryNoAccents).catch(() => []),
+    ];
 
     // Se temos cidade/estado, adicionar buscas contextualizadas
     if (userCity && userRegion) {
       searchPromises.push(
-        Location.geocodeAsync(`${query}, ${userCity}`).catch(() => []),
-        Location.geocodeAsync(`${query}, ${userRegion}`).catch(() => []),
-        Location.geocodeAsync(enhancedQuery).catch(() => [])
+        Location.geocodeAsync(`${queryNFC}, ${userCity}`).catch(() => []),
+        Location.geocodeAsync(`${queryNFC}, ${userRegion}`).catch(() => []),
+        Location.geocodeAsync(enhancedQuery).catch(() => []),
+        // Fallbacks sem acentos
+        Location.geocodeAsync(`${queryNoAccents}, ${userCity}`).catch(() => []),
+        Location.geocodeAsync(`${queryNoAccents}, ${userRegion}`).catch(
+          () => []
+        )
       );
     } else if (userCity) {
       searchPromises.push(
-        Location.geocodeAsync(`${query}, ${userCity}`).catch(() => [])
+        Location.geocodeAsync(`${queryNFC}, ${userCity}`).catch(() => []),
+        Location.geocodeAsync(`${queryNoAccents}, ${userCity}`).catch(() => [])
       );
     } else if (userRegion) {
       searchPromises.push(
-        Location.geocodeAsync(`${query}, ${userRegion}`).catch(() => [])
+        Location.geocodeAsync(`${queryNFC}, ${userRegion}`).catch(() => []),
+        Location.geocodeAsync(`${queryNoAccents}, ${userRegion}`).catch(
+          () => []
+        )
       );
     }
 

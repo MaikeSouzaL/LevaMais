@@ -218,7 +218,7 @@ export default function MapLocationPickerScreen() {
   };
 
   const handleBack = () => {
-    navigation.goBack();
+    (navigation as any).navigate("LocationPicker");
   };
 
   return (

@@ -16,13 +16,14 @@ import {
   buscarEnderecoPorTexto,
   obterEnderecoPorCoordenadas,
   getCurrentLocation,
+  formatarEndereco,
   type GeocodingResult,
 } from "../../../../utils/location";
 
 export default function LocationPickerScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  
+
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<GeocodingResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -30,18 +31,31 @@ export default function LocationPickerScreen() {
 
   const [userCity, setUserCity] = useState<string>("");
   const [userRegion, setUserRegion] = useState<string>("");
-  const [currentLocation, setCurrentLocation] = useState<string>("Av. Paulista, 1578");
-  const [currentAddress, setCurrentAddress] = useState<string>("Bela Vista, São Paulo - SP");
+  const [currentLocation, setCurrentLocation] =
+    useState<string>("Av. Paulista, 1578");
+  const [currentAddress, setCurrentAddress] = useState<string>(
+    "Bela Vista, São Paulo - SP"
+  );
 
   const favorites = [
     { icon: "home", title: "Casa", address: "Rua Augusta, 500 - Consolação" },
-    { icon: "work", title: "Trabalho", address: "Av. Faria Lima, 3477 - Itaim Bibi" },
+    {
+      icon: "work",
+      title: "Trabalho",
+      address: "Av. Faria Lima, 3477 - Itaim Bibi",
+    },
   ];
 
   const recents = [
-    { title: "Shopping Cidade São Paulo", address: "Av. Paulista, 1230 - Bela Vista" },
+    {
+      title: "Shopping Cidade São Paulo",
+      address: "Av. Paulista, 1230 - Bela Vista",
+    },
     { title: "Aeroporto de Congonhas", address: "Vila Congonhas, São Paulo" },
-    { title: "Parque Ibirapuera - Portão 3", address: "Av. Pedro Álvares Cabral" },
+    {
+      title: "Parque Ibirapuera - Portão 3",
+      address: "Av. Pedro Álvares Cabral",
+    },
   ];
 
   useEffect(() => {
@@ -56,8 +70,16 @@ export default function LocationPickerScreen() {
           if (address) {
             setUserCity(address.city || "");
             setUserRegion(address.region || "");
-            setCurrentLocation(`${address.street || ""}${address.streetNumber ? ", " + address.streetNumber : ""}`);
-            setCurrentAddress(`${address.district || ""}, ${address.city || ""} - ${address.region || ""}`);
+            setCurrentLocation(
+              `${address.street || ""}${
+                address.streetNumber ? ", " + address.streetNumber : ""
+              }`
+            );
+            setCurrentAddress(
+              `${address.district || ""}, ${address.city || ""} - ${
+                address.region || ""
+              }`
+            );
           }
         }
       } catch (error) {
@@ -73,7 +95,11 @@ export default function LocationPickerScreen() {
         setIsSearching(true);
         setShowResults(true);
         try {
-          const results = await buscarEnderecoPorTexto(searchQuery, userCity, userRegion);
+          const results = await buscarEnderecoPorTexto(
+            searchQuery,
+            userCity,
+            userRegion
+          );
           setSearchResults(results);
         } catch (error) {
           console.error("Erro na busca:", error);
@@ -120,7 +146,9 @@ export default function LocationPickerScreen() {
             <MaterialIcons name="arrow-back" size={24} color="#02de95" />
           </TouchableOpacity>
           <View className="flex-1">
-            <Text className="text-white text-lg font-bold">Selecionar Destino</Text>
+            <Text className="text-white text-lg font-bold">
+              Selecionar Destino
+            </Text>
             <Text className="text-gray-400 text-xs">Para onde você vai?</Text>
           </View>
         </View>
@@ -131,32 +159,12 @@ export default function LocationPickerScreen() {
             Local Atual
           </Text>
           <View className="flex-row items-center gap-2">
-            <Text className="text-white text-lg font-bold">{currentLocation}</Text>
+            <Text className="text-white text-lg font-bold">
+              {currentLocation}
+            </Text>
             <MaterialIcons name="edit" size={18} color="#02de95" />
           </View>
           <Text className="text-gray-400 text-sm mt-1">{currentAddress}</Text>
-        </View>
-
-        {/* Search Bar */}
-        <View className="px-6 py-4">
-          <View className="relative">
-            <View className="absolute left-4 top-1/2 -translate-y-1/2 z-10">
-              <MaterialIcons name="search" size={20} color="#9CA3AF" />
-            </View>
-            <TextInput
-              placeholder="Digite um endereço ou escolha no mapa"
-              placeholderTextColor="#6B7280"
-              className="w-full p-4 pl-12 text-sm text-white border border-white/10 rounded-xl bg-surface-dark"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              autoFocus
-            />
-            {isSearching && (
-              <View className="absolute right-4 top-1/2 -translate-y-1/2">
-                <ActivityIndicator size="small" color="#02de95" />
-              </View>
-            )}
-          </View>
         </View>
 
         {/* Results or Content */}
@@ -166,46 +174,30 @@ export default function LocationPickerScreen() {
           keyboardShouldPersistTaps="handled"
         >
           {showResults && searchResults.length > 0 ? (
-            /* Search Results */
-            <View className="mb-6">
-              <Text className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 pl-1">
-                Resultados ({searchResults.length})
-              </Text>
-              {searchResults.map((result, index) => (
-                <TouchableOpacity
-                  key={index}
-                  className="flex-row items-center p-3 rounded-xl active:bg-white/5 mb-2"
-                  onPress={() => handleSelectResult(result)}
-                >
-                  <View className="h-10 w-10 rounded-full bg-primary/10 items-center justify-center mr-4">
-                    <MaterialIcons name="place" size={20} color="#02de95" />
-                  </View>
-                  <View className="flex-1">
-                    <Text className="text-sm font-medium text-white">
-                      {result.formattedAddress}
-                    </Text>
-                    <Text className="text-xs text-gray-400" numberOfLines={1}>
-                      {result.city}, {result.region}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </View>
+            // Enquanto há resultados, a lista fica no dropdown; esconder conteúdo abaixo
+            <View />
           ) : (
             <>
               {/* Quick Actions */}
-              <View className="flex-row gap-3 mb-6">
+              <View className="flex-row gap-3 mb-6 mt-6">
                 <TouchableOpacity
-                  className="flex-1 p-4 rounded-2xl bg-surface-dark border border-white/5 active:opacity-80"
+                  className="flex-1 flex-row items-center p-4 rounded-2xl bg-surface-dark border border-white/5 active:opacity-80"
                   onPress={handleChooseOnMap}
                 >
-                  <View className="h-10 w-10 rounded-full bg-blue-500/10 items-center justify-center mb-3">
-                    <MaterialIcons name="map" size={20} color="#60A5FA" />
+                  <View className="h-10 w-10 rounded-full bg-blue-500/10 items-center justify-center mr-3">
+                  <MaterialIcons name="map" size={20} color="#60A5FA" />
                   </View>
+                  <View className="flex-1">
                   <Text className="text-sm font-semibold text-white">
                     Escolher no Mapa
                   </Text>
                   <Text className="text-xs text-gray-400">Ajustar pino</Text>
+                  </View>
+                  <MaterialIcons
+                  name="chevron-right"
+                  size={22}
+                  color="#9CA3AF"
+                  />
                 </TouchableOpacity>
               </View>
 
@@ -219,7 +211,11 @@ export default function LocationPickerScreen() {
                     <TouchableOpacity
                       key={index}
                       className="flex-row items-center p-3 rounded-xl active:bg-white/5"
-                      onPress={() => handleSelectResult({ formattedAddress: item.address } as any)}
+                      onPress={() =>
+                        handleSelectResult({
+                          formattedAddress: item.address,
+                        } as any)
+                      }
                     >
                       <View className="h-10 w-10 rounded-full bg-white/10 items-center justify-center mr-4">
                         <MaterialIcons
@@ -232,7 +228,10 @@ export default function LocationPickerScreen() {
                         <Text className="text-sm font-medium text-white">
                           {item.title}
                         </Text>
-                        <Text className="text-xs text-gray-400" numberOfLines={1}>
+                        <Text
+                          className="text-xs text-gray-400"
+                          numberOfLines={1}
+                        >
                           {item.address}
                         </Text>
                       </View>
@@ -266,7 +265,11 @@ export default function LocationPickerScreen() {
                     <TouchableOpacity
                       key={index}
                       className="flex-row items-center p-3 rounded-xl active:bg-white/5"
-                      onPress={() => handleSelectResult({ formattedAddress: item.address } as any)}
+                      onPress={() =>
+                        handleSelectResult({
+                          formattedAddress: item.address,
+                        } as any)
+                      }
                     >
                       <View className="h-10 w-10 rounded-full bg-white/5 items-center justify-center mr-4">
                         <MaterialIcons
@@ -279,7 +282,10 @@ export default function LocationPickerScreen() {
                         <Text className="text-sm font-medium text-white">
                           {item.title}
                         </Text>
-                        <Text className="text-xs text-gray-400" numberOfLines={1}>
+                        <Text
+                          className="text-xs text-gray-400"
+                          numberOfLines={1}
+                        >
                           {item.address}
                         </Text>
                       </View>
