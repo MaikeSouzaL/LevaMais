@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, Suspense } from "react";
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  Suspense,
+  useCallback,
+} from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Plus,
@@ -23,7 +29,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 import { purposesService } from "@/services/purposesService";
-import { PurposeItem, VehicleType } from "@/types";
+import { PurposeItem, VehicleType, LucideIcon } from "@/types";
 import { Modal } from "@/components/ui/Modal";
 import { Drawer } from "@/components/ui/Drawer";
 import { IconPicker } from "@/components/ui/IconPicker";
@@ -31,7 +37,12 @@ import { useToast } from "@/components/ui/Toast";
 import { useConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { cn } from "@/lib/utils";
 
-// Helper to render dynamic icons
+// Type guard para verificar se o ícone existe no Lucide
+function isValidLucideIcon(iconName: string): iconName is keyof typeof Icons {
+  return iconName in Icons;
+}
+
+// Helper to render dynamic icons with proper typing
 const DynamicIcon = ({
   name,
   className,
@@ -39,13 +50,13 @@ const DynamicIcon = ({
   name: string;
   className?: string;
 }) => {
-  const Icon = (Icons as any)[name];
-  if (!Icon)
+  if (!isValidLucideIcon(name)) {
     return <span className="text-xs font-mono">{name?.substring(0, 2)}</span>;
-  return <Icon className={className} />;
-};
+  }
 
-type LucideIcon = React.FC<{ size?: number; className?: string }>;
+  const IconComponent = Icons[name] as LucideIcon;
+  return <IconComponent className={className} />;
+};
 
 const VEHICLE_TABS: { id: VehicleType; label: string; icon: LucideIcon }[] = [
   { id: "motorcycle", label: "Moto", icon: Bike },
@@ -88,7 +99,7 @@ function PurposesPageContent() {
   });
 
   // Load Data
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const items = await purposesService.getAll(activeTab);
@@ -102,11 +113,11 @@ function PurposesPageContent() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeTab, showToast]);
 
   useEffect(() => {
     loadData();
-  }, [activeTab]);
+  }, [loadData]);
 
   // Filtered Data
   const filteredData = useMemo(() => {
@@ -250,20 +261,18 @@ function PurposesPageContent() {
 
   const handleDuplicate = async (item: PurposeItem) => {
     try {
-      const newItem = {
-        ...item,
+      // Remove MongoDB-specific and timestamp fields before sending to API
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { _id, createdAt, updatedAt, ...itemWithoutMeta } = item;
+
+      const cleanItem: Omit<PurposeItem, "createdAt" | "updatedAt" | "_id"> & {
+        vehicleType: VehicleType;
+      } = {
+        ...itemWithoutMeta,
         id: `${item.id}-copy-${Date.now().toString().slice(-4)}`,
         title: `${item.title} (Cópia)`,
         vehicleType: activeTab,
       };
-      // Remove timestamp fields from MongoDB document
-
-      const {
-        createdAt: _createdAt,
-        updatedAt: _updatedAt,
-        _id,
-        ...cleanItem
-      } = newItem as any;
 
       await purposesService.create(cleanItem);
       showToast("Serviço duplicado com sucesso!", "success");

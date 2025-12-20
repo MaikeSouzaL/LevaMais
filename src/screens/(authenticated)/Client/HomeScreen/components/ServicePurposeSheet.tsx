@@ -8,6 +8,7 @@ import {
   type PurposeItem,
   type VehicleType,
 } from "../../../../../services/purposes";
+import { mapIconName } from "../../../../../utils/iconMapper";
 
 export type ServicePurposeSheetRef = BottomSheet;
 
@@ -79,9 +80,7 @@ export const ServicePurposeSheet = forwardRef<
           >
             Finalidade do Serviço
           </Text>
-          <Text
-            style={{ color: "#9bbbb0", fontSize: 13, textAlign: "center" }}
-          >
+          <Text style={{ color: "#9bbbb0", fontSize: 13, textAlign: "center" }}>
             O que vamos transportar hoje?
           </Text>
         </View>
@@ -118,7 +117,9 @@ export const ServicePurposeSheet = forwardRef<
                 borderColor: "rgba(255,255,255,0.05)",
               }}
             >
-              <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+              <View
+                style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
+              >
                 <View
                   style={{
                     width: 48,
@@ -131,7 +132,7 @@ export const ServicePurposeSheet = forwardRef<
                   }}
                 >
                   <MaterialIcons
-                    name={(item.icon as any) ?? ("list" as any)}
+                    name={mapIconName(item.icon) as any}
                     size={28}
                     color="#02de95"
                   />

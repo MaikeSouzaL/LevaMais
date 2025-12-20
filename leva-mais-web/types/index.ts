@@ -9,6 +9,18 @@ export interface PurposeItem {
   isActive: boolean;
   createdAt: string; // ISO date string
   updatedAt: string; // ISO date string
+  vehicleType?: VehicleType;
+  _id?: string; // MongoDB ID
 }
 
 export type PurposesState = Record<VehicleType, PurposeItem[]>;
+
+// Lucide Icon Component Type
+export interface LucideIconProps {
+  size?: number | string;
+  className?: string;
+  strokeWidth?: number;
+  color?: string;
+}
+
+export type LucideIcon = React.ComponentType<LucideIconProps>;

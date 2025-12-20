@@ -60,7 +60,12 @@ interface SidebarProps {
   onToggleCollapse: () => void;
 }
 
-export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }: SidebarProps) {
+export function Sidebar({
+  isOpen,
+  onClose,
+  isCollapsed,
+  onToggleCollapse,
+}: SidebarProps) {
   const pathname = usePathname();
 
   return (
@@ -206,7 +211,11 @@ export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }: Side
 interface NavItemProps {
   item: {
     label: string;
-    icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
+    icon: React.ComponentType<{
+      size?: number;
+      strokeWidth?: number;
+      className?: string;
+    }>;
     href: string;
     disabled?: boolean;
     active?: boolean;
@@ -221,16 +230,23 @@ function NavItem({ item, currentPath, onClick, isCollapsed }: NavItemProps) {
 
   if (item.disabled) {
     return (
-      <div 
+      <div
         className={cn(
           "flex items-center px-3 py-2.5 text-slate-400 cursor-not-allowed opacity-60 select-none rounded-xl",
           isCollapsed ? "justify-center" : "justify-between"
         )}
         title={isCollapsed ? item.label : undefined}
       >
-        <div className={cn("flex items-center gap-3", isCollapsed && "justify-center")}>
+        <div
+          className={cn(
+            "flex items-center gap-3",
+            isCollapsed && "justify-center"
+          )}
+        >
           <item.icon size={18} strokeWidth={2} />
-          {!isCollapsed && <span className="text-sm font-medium">{item.label}</span>}
+          {!isCollapsed && (
+            <span className="text-sm font-medium">{item.label}</span>
+          )}
         </div>
       </div>
     );
@@ -252,7 +268,12 @@ function NavItem({ item, currentPath, onClick, isCollapsed }: NavItemProps) {
       {isActive && !isCollapsed && (
         <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-emerald-500 rounded-r-full" />
       )}
-      <div className={cn("flex items-center gap-3", isCollapsed && "justify-center")}>
+      <div
+        className={cn(
+          "flex items-center gap-3",
+          isCollapsed && "justify-center"
+        )}
+      >
         <item.icon
           size={18}
           strokeWidth={isActive ? 2.5 : 2}
@@ -263,9 +284,13 @@ function NavItem({ item, currentPath, onClick, isCollapsed }: NavItemProps) {
               : "text-slate-500 group-hover:text-slate-700"
           )}
         />
-        {!isCollapsed && <span className="text-sm font-medium">{item.label}</span>}
+        {!isCollapsed && (
+          <span className="text-sm font-medium">{item.label}</span>
+        )}
       </div>
-      {isActive && !isCollapsed && <ChevronRight size={14} className="text-emerald-400" />}
+      {isActive && !isCollapsed && (
+        <ChevronRight size={14} className="text-emerald-400" />
+      )}
     </Link>
   );
 }

@@ -26,9 +26,9 @@ export default function RootLayout({
             isCollapsed={isSidebarCollapsed}
             onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
           />
-          <div 
+          <div
             className={`flex-1 transition-all duration-300 ${
-              isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'
+              isSidebarCollapsed ? "lg:ml-20" : "lg:ml-64"
             }`}
           >
             <Topbar onMenuClick={() => setIsSidebarOpen(true)} />
