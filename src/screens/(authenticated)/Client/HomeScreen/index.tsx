@@ -27,7 +27,8 @@ import { OffersMotoSheet } from "./components/OffersMotoSheet";
 import { OffersCarSheet } from "./components/OffersCarSheet";
 import type { OffersMotoSheetRef } from "./components/OffersMotoSheet";
 import type { OffersCarSheetRef } from "./components/OffersCarSheet";
-import { ServicePurposeScreen } from "./components/ServicePurposeScreen";
+import { ServicePurposeSheet } from "./components/ServicePurposeSheet";
+import type { ServicePurposeSheetRef } from "./components/ServicePurposeSheet";
 import type { SelectVehicleSheetRef } from "./components/SelectVehicleSheet";
 import { SearchingDriverModal } from "./components/SearchingDriverModal";
 import { OffersVanSheet } from "./components/OffersVanSheet";
@@ -78,88 +79,19 @@ const MOCK_DATA = {
   ],
 };
 
-// Estilo do mapa escuro (dark mode)
-const darkMapStyle = [
-  {
-    elementType: "geometry",
-    stylers: [{ color: "#101816" }],
-  },
-  {
-    elementType: "labels.text.fill",
-    stylers: [{ color: "#746855" }],
-  },
-  {
-    elementType: "labels.text.stroke",
-    stylers: [{ color: "#101816" }],
-  },
-  {
-    featureType: "administrative",
-    elementType: "geometry",
-    stylers: [{ visibility: "off" }],
-  },
-  {
-    featureType: "administrative.locality",
-    elementType: "labels.text.fill",
-    stylers: [{ color: "#9ca5a3" }],
-  },
-  {
-    featureType: "poi",
-    stylers: [{ visibility: "off" }],
-  },
-  {
-    featureType: "road",
-    elementType: "geometry",
-    stylers: [{ color: "#1b2823" }],
-  },
-  {
-    featureType: "road",
-    elementType: "geometry.stroke",
-    stylers: [{ color: "#16201d" }],
-  },
-  {
-    featureType: "road",
-    elementType: "labels.icon",
-    stylers: [{ visibility: "off" }],
-  },
-  {
-    featureType: "road.arterial",
-    elementType: "geometry",
-    stylers: [{ color: "#1f2d29" }],
-  },
-  {
-    featureType: "road.highway",
-    elementType: "geometry",
-    stylers: [{ color: "#23332d" }],
-  },
-  {
-    featureType: "road.highway",
-    elementType: "geometry.stroke",
-    stylers: [{ color: "#1f2d29" }],
-  },
-  {
-    featureType: "transit",
-    stylers: [{ visibility: "off" }],
-  },
-  {
-    featureType: "water",
-    elementType: "geometry",
-    stylers: [{ color: "#0a1410" }],
-  },
-];
-
 export default function HomeScreen() {
   const mapRef = useRef<MapView>(null);
   const bottomSheetRef = useRef<GorhomBottomSheet>(null);
   const locationPickerRef = useRef<GorhomBottomSheet>(null);
   const safetyHelpRef = useRef<SafetyHelpSheetRef>(null);
   const selectVehicleRef = useRef<SelectVehicleSheetRef>(null);
+  const servicePurposeRef = useRef<ServicePurposeSheetRef>(null);
   const offersMotoRef = useRef<OffersMotoSheetRef>(null);
   const offersCarRef = useRef<OffersCarSheetRef>(null);
   const offersVanRef = useRef<OffersVanSheetRef>(null);
   const offersTruckRef = useRef<OffersTruckSheetRef>(null);
   const driverFoundRef = useRef<any>(null); // Ref para o novo sheet
-  const finalSummaryRef = useRef<any>(null);
-  const [showPurposeScreen, setShowPurposeScreen] = useState(false);
+  
   const [searchingModal, setSearchingModal] = useState<{
     visible: boolean;
     title: string;
@@ -170,11 +102,17 @@ export default function HomeScreen() {
   // Estado para controlar se o motorista foi encontrado
   const [isDriverFound, setIsDriverFound] = useState(false);
 
+  // Controle de Fluxo
+  const [serviceMode, setServiceMode] = useState<"ride" | "delivery" | null>(null);
+  const [destinationAddress, setDestinationAddress] = useState<string>("");
+  
   const [selectedVehicleType, setSelectedVehicleType] = useState<
     "motorcycle" | "car" | "van" | "truck" | null
   >(null);
+  
   const [finalSummaryData, setFinalSummaryData] =
     useState<FinalOrderSummaryData | null>(null);
+    
   const navigation = useNavigation<DrawerNavigationProp<any>>();
   const route = useRoute<any>();
   const walletBalance = useAuthStore((s) => s.walletBalance || 0);
@@ -189,6 +127,7 @@ export default function HomeScreen() {
       return `R$ ${value.toFixed(2)}`;
     }
   };
+
   useEffect(() => {
     // 1. Reabertura de ofertas (vindo de "Voltar" do resumo)
     if (route.params?.reopenOffers && route.params?.vehicleType) {
@@ -264,6 +203,7 @@ export default function HomeScreen() {
   } | null>(null);
   const [showMyLocationButton, setShowMyLocationButton] =
     useState<boolean>(false);
+    
   // Ao montar, obter localização atual e setar região inicial
   useEffect(() => {
     let isMounted = true;
@@ -364,6 +304,7 @@ export default function HomeScreen() {
 
   const handlePressSearch = () => {
     console.log("Pressed search bar - Opening location picker");
+    setServiceMode("ride"); // Default para corrida
     // Fecha o BottomSheet principal
     bottomSheetRef.current?.close();
     // Abre o LocationPickerSheet
@@ -372,15 +313,25 @@ export default function HomeScreen() {
 
   const handleSelectLocation = (location: string) => {
     console.log("Selected location:", location);
-    // TODO: Atualizar localização selecionada
+    setDestinationAddress(location);
     locationPickerRef.current?.close();
-    bottomSheetRef.current?.snapToIndex(1);
+    
+    // Lógica de fluxo baseada no modo
+    setTimeout(() => {
+      if (serviceMode === "delivery") {
+        selectVehicleRef.current?.snapToIndex(0);
+      } else {
+        // Modo "ride" ou default
+        offersCarRef.current?.snapToIndex(0);
+      }
+    }, 150);
   };
 
   const handleCloseLocationPicker = () => {
     console.log("Closed location picker");
     // Reabre o BottomSheet principal
     bottomSheetRef.current?.snapToIndex(1);
+    setServiceMode(null);
   };
 
   const handleCloseSafetyHelp = () => {
@@ -391,16 +342,19 @@ export default function HomeScreen() {
 
   const handlePressRide = () => {
     console.log("Pressed ride service");
+    setServiceMode("ride");
+    bottomSheetRef.current?.close();
+    locationPickerRef.current?.snapToIndex(0);
   };
 
   const handlePressDelivery = () => {
-    console.log("Pressed delivery service - open vehicle select");
-    // Fecha outros sheets
-    locationPickerRef.current?.close();
+    console.log("Pressed delivery service");
+    setServiceMode("delivery");
+    // Fecha outros sheets e abre seletor de local (agora obrigatório antes do veículo)
     bottomSheetRef.current?.close();
-    // Abre o seletor de veículo
-    selectVehicleRef.current?.snapToIndex(0);
+    locationPickerRef.current?.snapToIndex(0);
   };
+  
   const handleSelectVehicle = (
     type: "motorcycle" | "car" | "van" | "truck"
   ) => {
@@ -414,7 +368,7 @@ export default function HomeScreen() {
     ) {
       setSelectedVehicleType(type);
       selectVehicleRef.current?.close();
-      setTimeout(() => setShowPurposeScreen(true), 150);
+      setTimeout(() => servicePurposeRef.current?.snapToIndex(0), 150);
       return;
     }
     // Demais tipos ainda não implementados: apenas fecha e volta ao principal
@@ -429,9 +383,9 @@ export default function HomeScreen() {
     // Navegar diretamente para o resumo (sem modal de busca aqui)
     const data: FinalOrderSummaryData = {
       pickupAddress: currentAddress,
-      pickupNeighborhood: "Centro, São Paulo - SP",
-      dropoffAddress: "Av. Paulista, 1000",
-      dropoffNeighborhood: "Bela Vista, São Paulo - SP",
+      pickupNeighborhood: "Centro, São Paulo - SP", // Mock
+      dropoffAddress: destinationAddress || "Av. Paulista, 1000",
+      dropoffNeighborhood: "Bela Vista, São Paulo - SP", // Mock
       vehicleType: "moto",
       servicePurposeLabel: "Documentos",
       etaMinutes: 15,
@@ -457,12 +411,12 @@ export default function HomeScreen() {
     offersCarRef.current?.close();
     offersVanRef.current?.close?.();
     offersTruckRef.current?.close?.();
-    setTimeout(() => setShowPurposeScreen(true), 150);
+    setTimeout(() => servicePurposeRef.current?.snapToIndex(0), 150);
   };
 
   const handleSelectPurpose = (purposeId: string) => {
     console.log("Purpose selected:", purposeId);
-    setShowPurposeScreen(false);
+    servicePurposeRef.current?.close();
     // Após escolher propósito, abrir lista de ofertas conforme veículo
     setTimeout(() => {
       if (selectedVehicleType === "motorcycle") {
@@ -478,8 +432,20 @@ export default function HomeScreen() {
   };
 
   const handleClosePurpose = () => {
-    setShowPurposeScreen(false);
+    servicePurposeRef.current?.close();
     bottomSheetRef.current?.snapToIndex(1);
+  };
+  
+  const handleBackFromPurpose = () => {
+     servicePurposeRef.current?.close();
+     // Volta para seleção de veículo
+     setTimeout(() => selectVehicleRef.current?.snapToIndex(0), 150);
+  }
+
+  const handleBackFromSelectVehicle = () => {
+    selectVehicleRef.current?.close();
+    // Volta para seleção de local
+    setTimeout(() => locationPickerRef.current?.snapToIndex(0), 150);
   };
 
   return (
@@ -664,6 +630,16 @@ export default function HomeScreen() {
           ref={selectVehicleRef}
           onSelect={handleSelectVehicle}
           onClose={() => bottomSheetRef.current?.snapToIndex(1)}
+          onBack={handleBackFromSelectVehicle}
+        />
+        
+        {/* Service Purpose Sheet - Substitui a Screen anterior */}
+        <ServicePurposeSheet
+            ref={servicePurposeRef}
+            vehicleType={selectedVehicleType as any}
+            onSelect={handleSelectPurpose}
+            onClose={handleClosePurpose}
+            onBack={handleBackFromPurpose}
         />
 
         {/* Offers Moto Sheet - Ofertas de motos mockadas */}
@@ -684,7 +660,7 @@ export default function HomeScreen() {
             const data: FinalOrderSummaryData = {
               pickupAddress: currentAddress,
               pickupNeighborhood: "Centro, São Paulo - SP",
-              dropoffAddress: "Av. Paulista, 1000",
+              dropoffAddress: destinationAddress || "Av. Paulista, 1000",
               dropoffNeighborhood: "Bela Vista, São Paulo - SP",
               vehicleType: "car",
               servicePurposeLabel: "Entrega rápida",
@@ -711,15 +687,6 @@ export default function HomeScreen() {
         {/* Safety Help Sheet - Ajuda e Segurança */}
         <SafetyHelpSheet ref={safetyHelpRef} onClose={handleCloseSafetyHelp} />
 
-        {/* Service Purpose Screen - Tela de seleção de finalidade do serviço */}
-        {showPurposeScreen && selectedVehicleType && (
-          <ServicePurposeScreen
-            vehicleType={selectedVehicleType as any}
-            onClose={handleClosePurpose}
-            onSelect={handleSelectPurpose}
-          />
-        )}
-
         {/* Searching Driver Modal */}
         <SearchingDriverModal
           visible={searchingModal.visible}
@@ -745,7 +712,7 @@ export default function HomeScreen() {
             const data: FinalOrderSummaryData = {
               pickupAddress: currentAddress,
               pickupNeighborhood: "Centro, São Paulo - SP",
-              dropoffAddress: "Av. Paulista, 1000",
+              dropoffAddress: destinationAddress || "Av. Paulista, 1000",
               dropoffNeighborhood: "Bela Vista, São Paulo - SP",
               vehicleType: "van",
               servicePurposeLabel: "Mudança leve",
@@ -779,7 +746,7 @@ export default function HomeScreen() {
             const data: FinalOrderSummaryData = {
               pickupAddress: currentAddress,
               pickupNeighborhood: "Centro, São Paulo - SP",
-              dropoffAddress: "Av. Paulista, 1000",
+              dropoffAddress: destinationAddress || "Av. Paulista, 1000",
               dropoffNeighborhood: "Bela Vista, São Paulo - SP",
               vehicleType: "truck",
               servicePurposeLabel: "Frete",
@@ -851,7 +818,7 @@ export default function HomeScreen() {
               const data = {
                 pickupAddress: currentAddress,
                 pickupNeighborhood: "Centro, São Paulo - SP",
-                dropoffAddress: "Av. Paulista, 1000",
+                dropoffAddress: destinationAddress || "Av. Paulista, 1000",
                 dropoffNeighborhood: "Bela Vista, São Paulo - SP",
                 vehicleType: "car",
                 servicePurposeLabel: "Entrega",
