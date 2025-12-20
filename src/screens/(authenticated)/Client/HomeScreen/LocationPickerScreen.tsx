@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Animated,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -23,6 +24,9 @@ import {
 export default function LocationPickerScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+  
+  // Animação do bottom sheet
+  const slideAnim = useRef(new Animated.Value(400)).current; // Começa fora da tela (400px abaixo)
 
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<GeocodingResult[]>([]);
@@ -36,6 +40,8 @@ export default function LocationPickerScreen() {
   const [currentAddress, setCurrentAddress] = useState<string>(
     "Bela Vista, São Paulo - SP"
   );
+
+  const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
 
   const favorites = [
     { icon: "home", title: "Casa", address: "Rua Augusta, 500 - Consolação" },
@@ -117,8 +123,36 @@ export default function LocationPickerScreen() {
 
   const handleSelectResult = (result: GeocodingResult) => {
     console.log("📍 Destino selecionado:", result.formattedAddress);
+    setSelectedAddress(result.formattedAddress);
+  };
+
+  const handleConfirmLocation = () => {
+    console.log("📍 Destino confirmado:", selectedAddress);
     navigation.goBack();
   };
+
+  const handleCancelSelection = () => {
+    // Animar saída
+    Animated.timing(slideAnim, {
+      toValue: 400,
+      duration: 300,
+      useNativeDriver: true,
+    }).start(() => {
+      setSelectedAddress(null);
+    });
+  };
+  
+  // Animar entrada do bottom sheet quando selectedAddress muda
+  useEffect(() => {
+    if (selectedAddress) {
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 65,
+        friction: 11,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [selectedAddress]);
 
   const handleChooseOnMap = () => {
     (navigation as any).navigate("MapLocationPicker");
@@ -185,18 +219,18 @@ export default function LocationPickerScreen() {
                   onPress={handleChooseOnMap}
                 >
                   <View className="h-10 w-10 rounded-full bg-blue-500/10 items-center justify-center mr-3">
-                  <MaterialIcons name="map" size={20} color="#60A5FA" />
+                    <MaterialIcons name="map" size={20} color="#60A5FA" />
                   </View>
                   <View className="flex-1">
-                  <Text className="text-sm font-semibold text-white">
-                    Escolher no Mapa
-                  </Text>
-                  <Text className="text-xs text-gray-400">Ajustar pino</Text>
+                    <Text className="text-sm font-semibold text-white">
+                      Escolher no Mapa
+                    </Text>
+                    <Text className="text-xs text-gray-400">Ajustar pino</Text>
                   </View>
                   <MaterialIcons
-                  name="chevron-right"
-                  size={22}
-                  color="#9CA3AF"
+                    name="chevron-right"
+                    size={22}
+                    color="#9CA3AF"
                   />
                 </TouchableOpacity>
               </View>
@@ -296,6 +330,157 @@ export default function LocationPickerScreen() {
             </>
           )}
         </ScrollView>
+
+        {/* Bottom Sheet de Confirmação (aparece quando há endereço selecionado) */}
+        {selectedAddress && (
+          <Animated.View
+            style={{
+              position: "absolute",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              backgroundColor: "#111818",
+              borderTopLeftRadius: 32,
+              borderTopRightRadius: 32,
+              borderTopWidth: 1,
+              borderTopColor: "rgba(255,255,255,0.05)",
+              paddingBottom: Math.max(insets.bottom, 24),
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: -10 },
+              shadowOpacity: 0.5,
+              shadowRadius: 40,
+              elevation: 20,
+              transform: [{ translateY: slideAnim }],
+            }}
+          >
+            <View
+              style={{
+                height: 24,
+                width: "100%",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <View
+                style={{
+                  width: 48,
+                  height: 4,
+                  borderRadius: 9999,
+                  backgroundColor: "#3b5454",
+                }}
+              />
+            </View>
+
+            <View style={{ paddingHorizontal: 24, gap: 16 }}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
+                <Text
+                  style={{
+                    color: "#9db9b9",
+                    fontSize: 14,
+                    fontWeight: "500",
+                    textTransform: "uppercase",
+                    letterSpacing: 0.5,
+                    flex: 1,
+                  }}
+                >
+                  Confirmar Destino
+                </Text>
+                <TouchableOpacity onPress={handleCancelSelection}>
+                  <MaterialIcons name="close" size={24} color="#9db9b9" />
+                </TouchableOpacity>
+              </View>
+
+              <View style={{ alignItems: "center", gap: 4 }}>
+                {(() => {
+                  const parts = selectedAddress.split(" - ");
+                  const ruaNumero = parts[0] || selectedAddress;
+                  const resto = parts.slice(1).join(" - ");
+
+                  return (
+                    <>
+                      <Text
+                        style={{
+                          color: "#fff",
+                          fontSize: 24,
+                          fontWeight: "700",
+                          textAlign: "center",
+                        }}
+                        numberOfLines={2}
+                      >
+                        {ruaNumero}
+                      </Text>
+                      {resto && (
+                        <Text
+                          style={{
+                            color: "#9db9b9",
+                            fontSize: 16,
+                            fontWeight: "400",
+                            textAlign: "center",
+                          }}
+                        >
+                          {resto}
+                        </Text>
+                      )}
+                    </>
+                  );
+                })()}
+              </View>
+
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  backgroundColor: "#1c2727",
+                  borderRadius: 12,
+                  padding: 12,
+                  borderWidth: 1,
+                  borderColor: "rgba(255,255,255,0.05)",
+                  gap: 12,
+                }}
+              >
+                <MaterialIcons name="edit" size={20} color="#02de95" />
+                <TextInput
+                  placeholder="Adicionar ponto de referência (opcional)"
+                  placeholderTextColor="#9db9b9"
+                  style={{ flex: 1, color: "#fff", fontSize: 14, padding: 0 }}
+                />
+              </View>
+
+              <TouchableOpacity
+                onPress={handleConfirmLocation}
+                activeOpacity={0.9}
+                style={{
+                  width: "100%",
+                  height: 56,
+                  backgroundColor: "#02de95",
+                  borderRadius: 9999,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                  shadowColor: "#02de95",
+                  shadowOffset: { width: 0, height: 0 },
+                  shadowOpacity: 0.3,
+                  shadowRadius: 20,
+                  elevation: 10,
+                }}
+              >
+                <Text
+                  style={{ color: "#111818", fontSize: 16, fontWeight: "700" }}
+                >
+                  Confirmar Destino
+                </Text>
+                <MaterialIcons name="arrow-forward" size={20} color="#111818" />
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        )}
       </KeyboardAvoidingView>
     </View>
   );
