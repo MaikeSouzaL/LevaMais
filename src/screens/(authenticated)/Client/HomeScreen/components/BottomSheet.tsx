@@ -1,5 +1,5 @@
 import React, { forwardRef, useMemo } from "react";
-import { View } from "react-native";
+import { View, Text } from "react-native";
 import GorhomBottomSheet, {
   BottomSheetBackdrop,
   BottomSheetView,
@@ -53,6 +53,18 @@ export const BottomSheet = forwardRef<GorhomBottomSheet, BottomSheetProps>(
           <View className="px-6 pt-2">
             {/* Barra de busca */}
             <SearchBar onPress={onPressSearch} />
+
+            <Text
+              style={{
+                color: "#9bbbb0",
+                fontSize: 14,
+                fontWeight: "600",
+                marginBottom: 12,
+                marginLeft: 4,
+              }}
+            >
+              Nossos serviços
+            </Text>
 
             {/* Cards de serviços - grid 2 colunas */}
             <View className="flex-row gap-4">

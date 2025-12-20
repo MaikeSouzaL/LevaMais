@@ -9,12 +9,13 @@ export type SelectVehicleSheetRef = BottomSheet;
 interface SelectVehicleSheetProps {
   onSelect: (type: "motorcycle" | "car" | "van" | "truck") => void;
   onClose?: () => void;
+  onBack?: () => void;
 }
 
 export const SelectVehicleSheet = forwardRef<
   SelectVehicleSheetRef,
   SelectVehicleSheetProps
->(({ onSelect, onClose }, ref) => {
+>(({ onSelect, onClose, onBack }, ref) => {
   const snapPoints = useMemo(() => ["60%"], []);
   const insets = useSafeAreaInsets();
 
@@ -30,21 +31,41 @@ export const SelectVehicleSheet = forwardRef<
       backgroundStyle={{ backgroundColor: "#0f231c" }}
       handleIndicatorStyle={{ backgroundColor: "rgba(255,255,255,0.2)" }}
     >
-      <View style={{ paddingTop: 8, paddingBottom: 12, paddingHorizontal: 24 }}>
-        <Text
-          style={{
-            color: "#fff",
-            fontSize: 20,
-            fontWeight: "700",
-            textAlign: "center",
-            marginBottom: 6,
-          }}
-        >
-          Qual tipo de veículo você precisa?
-        </Text>
-        <Text style={{ color: "#9bbbb0", fontSize: 13, textAlign: "center" }}>
-          Selecione o melhor porte para sua carga
-        </Text>
+      <View
+        style={{
+          paddingTop: 8,
+          paddingBottom: 12,
+          paddingHorizontal: 24,
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        {onBack && (
+          <TouchableOpacity
+            onPress={onBack}
+            style={{ padding: 4, marginRight: 8 }}
+          >
+            <MaterialIcons name="arrow-back" size={24} color="#fff" />
+          </TouchableOpacity>
+        )}
+        <View style={{ flex: 1, alignItems: "center" }}>
+          <Text
+            style={{
+              color: "#fff",
+              fontSize: 20,
+              fontWeight: "700",
+              textAlign: "center",
+              marginBottom: 4,
+            }}
+          >
+            Qual o tamanho?
+          </Text>
+          <Text style={{ color: "#9bbbb0", fontSize: 13, textAlign: "center" }}>
+            Selecione o veículo ideal
+          </Text>
+        </View>
+        {onBack && <View style={{ width: 32 }} />}
       </View>
 
       <BottomSheetScrollView
