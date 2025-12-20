@@ -8,6 +8,7 @@ import {
   Modal,
   Pressable,
   Dimensions,
+  Platform,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 
@@ -68,228 +69,299 @@ export const SafetyHelpSheet = forwardRef<
   const handleShareLocation = () => {
     console.log("Compartilhar Localização");
   };
-
-  return (
-    <Modal
-      visible={visible}
-      transparent={true}
-      animationType="fade"
-      onRequestClose={handleClose}
-      statusBarTranslucent
+  const Content = (
+    <Pressable
+      onPress={(e) => e.stopPropagation()}
+      style={{
+        width: "91.666%",
+        maxWidth: 420,
+        borderRadius: 24,
+        overflow: "hidden",
+        backgroundColor: "rgba(15, 35, 28, 0.85)",
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.08)",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.37,
+        shadowRadius: 32,
+        elevation: 20,
+      }}
     >
-      {/* Backdrop */}
-      <Pressable
-        className="flex-1 bg-black/40 items-center justify-center"
-        onPress={handleClose}
+      <View
+        style={{ paddingTop: 20, paddingBottom: 12, paddingHorizontal: 24 }}
       >
-        {/* Modal Content */}
-        <Pressable
-          className="w-11/12 max-w-md rounded-[2rem] overflow-hidden"
+        <View
           style={{
-            maxHeight: height * 0.85,
-            backgroundColor: "rgba(11, 26, 21, 0.98)",
-            borderWidth: 1,
-            borderColor: "rgba(255, 255, 255, 0.1)",
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: 8 },
-            shadowOpacity: 0.37,
-            shadowRadius: 32,
-            elevation: 20,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
           }}
-          onPress={(e) => e.stopPropagation()}
         >
-          <View className="flex-1 relative">
-            {/* Glow Effect - canto superior direito */}
-            <View
-              className="absolute top-0 right-0 w-32 h-32 pointer-events-none rounded-full"
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: "#fff", fontSize: 20, fontWeight: "700" }}>
+              Ajuda Rápida
+            </Text>
+            <Text
               style={{
-                backgroundColor: "rgba(2, 222, 149, 0.15)",
-                transform: [{ translateX: 64 }, { translateY: -64 }],
+                color: "#9CA3AF",
+                fontSize: 11,
+                marginTop: 4,
+                fontWeight: "500",
               }}
-            />
-
-            {/* Header */}
-            <View className="px-6 pt-6 pb-4 flex-row items-center justify-between relative z-10">
-              <View className="flex-1">
-                <Text className="text-white text-xl font-bold tracking-tight">
-                  Ajuda Rápida
-                </Text>
-                <Text className="text-gray-400 text-xs mt-1 font-medium">
-                  Segurança em primeiro lugar
-                </Text>
-              </View>
-              <View className="h-10 w-10 rounded-full bg-white/5 items-center justify-center border border-white/10">
-                <MaterialIcons name="shield" size={20} color="#02de95" />
-              </View>
-            </View>
-
-            {/* Divider */}
-            <View className="h-px w-full mb-2 bg-white/10" />
-
-            {/* Scrollable Content */}
-            <ScrollView
-              className="flex-1 px-4"
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ paddingBottom: 24 }}
             >
-              <View className="flex flex-col gap-3">
-                {/* Central de Ajuda */}
-                <TouchableOpacity
-                  onPress={handleHelpCenter}
-                  className="flex-row items-center gap-4 p-4 rounded-2xl border border-white/5"
-                  style={{
-                    backgroundColor: "rgba(21, 46, 38, 0.6)",
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View
-                    className="items-center justify-center rounded-xl w-12 h-12"
-                    style={{
-                      backgroundColor: "rgba(255, 255, 255, 0.05)",
-                    }}
-                  >
-                    <MaterialIcons
-                      name="help-center"
-                      size={24}
-                      color="#D1D5DB"
-                    />
-                  </View>
-                  <View className="flex-1">
-                    <Text className="text-white text-base font-semibold leading-tight">
-                      Central de Ajuda
-                    </Text>
-                    <Text className="text-gray-500 text-[11px] mt-0.5">
-                      Dúvidas frequentes
-                    </Text>
-                  </View>
-                  <MaterialIcons
-                    name="arrow-forward-ios"
-                    size={14}
-                    color="#6B7280"
-                  />
-                </TouchableOpacity>
-
-                {/* Falar com suporte */}
-                <TouchableOpacity
-                  onPress={handleSupport}
-                  className="flex-row items-center gap-4 p-4 rounded-2xl border border-white/5"
-                  style={{
-                    backgroundColor: "rgba(21, 46, 38, 0.6)",
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View
-                    className="items-center justify-center rounded-xl w-12 h-12"
-                    style={{
-                      backgroundColor: "rgba(255, 255, 255, 0.05)",
-                    }}
-                  >
-                    <MaterialIcons
-                      name="support-agent"
-                      size={24}
-                      color="#D1D5DB"
-                    />
-                  </View>
-                  <View className="flex-1">
-                    <Text className="text-white text-base font-semibold leading-tight">
-                      Falar com suporte
-                    </Text>
-                    <Text className="text-gray-500 text-[11px] mt-0.5">
-                      Atendimento 24h
-                    </Text>
-                  </View>
-                  <MaterialIcons
-                    name="arrow-forward-ios"
-                    size={14}
-                    color="#6B7280"
-                  />
-                </TouchableOpacity>
-
-                {/* Compartilhar localização */}
-                <TouchableOpacity
-                  onPress={handleShareLocation}
-                  className="flex-row items-center gap-4 p-4 rounded-2xl border border-white/5"
-                  style={{
-                    backgroundColor: "rgba(21, 46, 38, 0.6)",
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View
-                    className="items-center justify-center rounded-xl w-12 h-12"
-                    style={{
-                      backgroundColor: "rgba(255, 255, 255, 0.05)",
-                    }}
-                  >
-                    <MaterialIcons
-                      name="share-location"
-                      size={24}
-                      color="#D1D5DB"
-                    />
-                  </View>
-                  <View className="flex-1">
-                    <Text className="text-white text-base font-semibold leading-tight">
-                      Compartilhar localização
-                    </Text>
-                    <Text className="text-gray-500 text-[11px] mt-0.5">
-                      Enviar para amigos
-                    </Text>
-                  </View>
-                  <MaterialIcons
-                    name="arrow-forward-ios"
-                    size={14}
-                    color="#6B7280"
-                  />
-                </TouchableOpacity>
-
-                {/* Emergência - Botão Vermelho Destaque */}
-                <TouchableOpacity
-                  onPress={handleCallEmergency}
-                  className="flex-row items-center gap-4 p-4 rounded-2xl mt-2 border"
-                  style={{
-                    backgroundColor: "rgba(239, 68, 68, 0.1)",
-                    borderColor: "rgba(239, 68, 68, 0.3)",
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View
-                    className="items-center justify-center rounded-xl w-12 h-12"
-                    style={{
-                      backgroundColor: "rgba(239, 68, 68, 0.2)",
-                      shadowColor: "rgba(239, 68, 68, 0.2)",
-                      shadowOffset: { width: 0, height: 0 },
-                      shadowOpacity: 1,
-                      shadowRadius: 15,
-                      elevation: 5,
-                    }}
-                  >
-                    <MaterialIcons name="warning" size={24} color="#EF4444" />
-                  </View>
-                  <View className="flex-1">
-                    <Text className="text-white text-base font-bold leading-tight">
-                      Emergência
-                    </Text>
-                    <Text
-                      className="text-[11px] mt-0.5 font-medium tracking-wide"
-                      style={{ color: "rgba(252, 165, 165, 0.7)" }}
-                    >
-                      LIGAR 190
-                    </Text>
-                  </View>
-                  <View
-                    className="h-8 w-8 rounded-full items-center justify-center"
-                    style={{
-                      backgroundColor: "rgba(239, 68, 68, 0.2)",
-                    }}
-                  >
-                    <MaterialIcons name="call" size={18} color="#EF4444" />
-                  </View>
-                </TouchableOpacity>
-              </View>
-            </ScrollView>
+              Segurança em primeiro lugar
+            </Text>
           </View>
+          <View
+            style={{
+              height: 40,
+              width: 40,
+              borderRadius: 20,
+              backgroundColor: "rgba(255,255,255,0.05)",
+              alignItems: "center",
+              justifyContent: "center",
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.1)",
+            }}
+          >
+            <MaterialIcons name="shield" size={20} color="#02de95" />
+          </View>
+        </View>
+      </View>
+
+      <View
+        style={{
+          height: 1,
+          backgroundColor: "rgba(255,255,255,0.1)",
+          marginHorizontal: 0,
+          marginBottom: 8,
+        }}
+      />
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
+      >
+        <View style={{ gap: 12 }}>
+          {/* Card: Central de Ajuda */}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={handleHelpCenter}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 12,
+              padding: 16,
+              borderRadius: 16,
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.06)",
+              backgroundColor: "rgba(21,46,38,0.6)",
+            }}
+          >
+            <View
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: 12,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "rgba(255,255,255,0.06)",
+              }}
+            >
+              <MaterialIcons name="help-center" size={24} color="#D1D5DB" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: "#fff", fontSize: 16, fontWeight: "600" }}>
+                Central de Ajuda
+              </Text>
+              <Text style={{ color: "#6B7280", fontSize: 11, marginTop: 4 }}>
+                Dúvidas frequentes
+              </Text>
+            </View>
+            <MaterialIcons name="arrow-forward-ios" size={14} color="#6B7280" />
+          </TouchableOpacity>
+
+          {/* Card: Falar com suporte */}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={handleSupport}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 12,
+              padding: 16,
+              borderRadius: 16,
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.06)",
+              backgroundColor: "rgba(21,46,38,0.6)",
+            }}
+          >
+            <View
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: 12,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "rgba(255,255,255,0.06)",
+              }}
+            >
+              <MaterialIcons name="support-agent" size={24} color="#D1D5DB" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: "#fff", fontSize: 16, fontWeight: "600" }}>
+                Falar com suporte
+              </Text>
+              <Text style={{ color: "#6B7280", fontSize: 11, marginTop: 4 }}>
+                Atendimento 24h
+              </Text>
+            </View>
+            <MaterialIcons name="arrow-forward-ios" size={14} color="#6B7280" />
+          </TouchableOpacity>
+
+          {/* Card: Compartilhar localização */}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={handleShareLocation}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 12,
+              padding: 16,
+              borderRadius: 16,
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.06)",
+              backgroundColor: "rgba(21,46,38,0.6)",
+            }}
+          >
+            <View
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: 12,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "rgba(255,255,255,0.06)",
+              }}
+            >
+              <MaterialIcons name="share-location" size={24} color="#D1D5DB" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: "#fff", fontSize: 16, fontWeight: "600" }}>
+                Compartilhar localização
+              </Text>
+              <Text style={{ color: "#6B7280", fontSize: 11, marginTop: 4 }}>
+                Enviar para amigos
+              </Text>
+            </View>
+            <MaterialIcons name="arrow-forward-ios" size={14} color="#6B7280" />
+          </TouchableOpacity>
+
+          {/* Botão: Emergência */}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={handleCallEmergency}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 12,
+              padding: 16,
+              borderRadius: 16,
+              borderWidth: 1,
+              borderColor: "rgba(239,68,68,0.3)",
+              backgroundColor: "rgba(239,68,68,0.1)",
+            }}
+          >
+            <View
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: 12,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "rgba(239,68,68,0.2)",
+              }}
+            >
+              <MaterialIcons name="warning" size={24} color="#EF4444" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}>
+                Emergência
+              </Text>
+              <Text
+                style={{
+                  color: "#FCA5A5",
+                  opacity: 0.7,
+                  fontSize: 11,
+                  marginTop: 4,
+                  fontWeight: "500",
+                }}
+              >
+                LIGAR 190
+              </Text>
+            </View>
+            <View
+              style={{
+                height: 32,
+                width: 32,
+                borderRadius: 16,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "rgba(239,68,68,0.2)",
+              }}
+            >
+              <MaterialIcons name="call" size={18} color="#EF4444" />
+            </View>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </Pressable>
+  );
+
+  if (!visible) return null;
+
+  // iOS/Android usam Modal; Web usa overlay absoluto por limitações do Modal
+  if (Platform.OS !== "web") {
+    return (
+      <Modal
+        visible={visible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleClose}
+        statusBarTranslucent
+      >
+        <Pressable
+          className="flex-1 items-center justify-center"
+          onPress={handleClose}
+          style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
+        >
+          {Content}
         </Pressable>
+      </Modal>
+    );
+  }
+
+  // Fallback Web
+  return (
+    <View
+      pointerEvents="box-none"
+      style={{
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 9999,
+      }}
+    >
+      <Pressable
+        className="flex-1 items-center justify-center"
+        onPress={handleClose}
+        style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
+      >
+        {Content}
       </Pressable>
-    </Modal>
+    </View>
   );
 });
 

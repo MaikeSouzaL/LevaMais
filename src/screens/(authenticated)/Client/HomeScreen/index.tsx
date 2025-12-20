@@ -18,6 +18,7 @@ import {
   SafetyHelpSheet,
   SafetyHelpSheetRef,
 } from "./components/SafetyHelpSheet";
+import { getCurrentLocation } from "../../../../utils/location";
 
 // Dados mockados
 const MOCK_DATA = {
@@ -160,17 +161,22 @@ export default function HomeScreen() {
     }, 150);
   };
 
-  const handlePressMyLocation = () => {
+  const handlePressMyLocation = async () => {
     console.log("Pressed my location");
-    // Centralizar no usuário
+    const coords = await getCurrentLocation();
+    if (!coords) {
+      console.warn("Permissão negada ou falha ao obter localização");
+      return;
+    }
     if (mapRef.current) {
       mapRef.current.animateToRegion(
         {
-          ...MOCK_DATA.currentLocation.coordinates,
+          latitude: coords.latitude,
+          longitude: coords.longitude,
           latitudeDelta: 0.01,
           longitudeDelta: 0.01,
         },
-        500
+        600
       );
     }
   };
