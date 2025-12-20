@@ -1,10 +1,6 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { View, StyleSheet, Platform, TouchableOpacity } from "react-native";
-import MapView, {
-  Marker,
-  PROVIDER_DEFAULT,
-  PROVIDER_GOOGLE,
-} from "react-native-maps";
+import MapView, { Marker } from "react-native-maps";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { DrawerNavigationProp } from "@react-navigation/drawer";
@@ -18,7 +14,11 @@ import {
   SafetyHelpSheet,
   SafetyHelpSheetRef,
 } from "./components/SafetyHelpSheet";
-import { getCurrentLocation } from "../../../../utils/location";
+import GlobalMap from "../../../../components/GlobalMap";
+import {
+  getCurrentLocation,
+  getCurrentLocationAndAddress,
+} from "../../../../utils/location";
 
 // Dados mockados
 const MOCK_DATA = {
@@ -128,12 +128,63 @@ export default function HomeScreen() {
   const safetyHelpRef = useRef<SafetyHelpSheetRef>(null);
   const navigation = useNavigation<DrawerNavigationProp<any>>();
 
-  const [region] = useState({
-    latitude: MOCK_DATA.currentLocation.coordinates.latitude,
-    longitude: MOCK_DATA.currentLocation.coordinates.longitude,
-    latitudeDelta: 0.01,
-    longitudeDelta: 0.01,
-  });
+  const [region, setRegion] = useState<{
+    latitude: number;
+    longitude: number;
+    latitudeDelta: number;
+    longitudeDelta: number;
+  } | null>(null);
+  const [userRegion, setUserRegion] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
+  const [showMyLocationButton, setShowMyLocationButton] =
+    useState<boolean>(false);
+  // Ao montar, obter localização atual e setar região inicial
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      const result = await getCurrentLocationAndAddress();
+      if (!result || !isMounted) return;
+      const { location, address } = result;
+      setRegion({
+        latitude: location.latitude,
+        longitude: location.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      });
+      setCurrentAddress(
+        `${address.street}${address.number ? ", " + address.number : ""}`
+      );
+      setUserRegion({
+        latitude: location.latitude,
+        longitude: location.longitude,
+      });
+      setShowMyLocationButton(false);
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleRegionChangeComplete = (r: {
+    latitude: number;
+    longitude: number;
+    latitudeDelta: number;
+    longitudeDelta: number;
+  }) => {
+    if (!userRegion) return;
+    const distanceLat = Math.abs(r.latitude - userRegion.latitude);
+    const distanceLng = Math.abs(r.longitude - userRegion.longitude);
+    const thresholdLat = r.latitudeDelta * 0.5;
+    const thresholdLng = r.longitudeDelta * 0.5;
+    const isFar = distanceLat > thresholdLat || distanceLng > thresholdLng;
+    setShowMyLocationButton(isFar);
+  };
+
+  const [currentAddress, setCurrentAddress] = useState<string>(
+    MOCK_DATA.currentLocation.address
+  );
 
   // Handlers (sem funcionalidade por enquanto)
   const handlePressLocation = () => {
@@ -163,22 +214,28 @@ export default function HomeScreen() {
 
   const handlePressMyLocation = async () => {
     console.log("Pressed my location");
-    const coords = await getCurrentLocation();
-    if (!coords) {
-      console.warn("Permissão negada ou falha ao obter localização");
+    const result = await getCurrentLocationAndAddress();
+    if (!result) {
+      console.warn("Permissão negada ou falha ao obter localização/endereço");
       return;
     }
+    const { location, address } = result;
+    setCurrentAddress(
+      `${address.street}${address.number ? ", " + address.number : ""}`
+    );
+    // Centraliza no usuário
     if (mapRef.current) {
       mapRef.current.animateToRegion(
         {
-          latitude: coords.latitude,
-          longitude: coords.longitude,
+          latitude: location.latitude,
+          longitude: location.longitude,
           latitudeDelta: 0.01,
           longitudeDelta: 0.01,
         },
         600
       );
     }
+    // Não abre o LocationPicker: apenas centraliza no usuário
   };
 
   const handlePressSearch = () => {
@@ -223,25 +280,19 @@ export default function HomeScreen() {
         <View className="relative flex-1 w-full bg-[#101816] overflow-hidden">
           {/* Mapa com overlay de imagem (background) */}
           <View className="absolute inset-0">
-            <MapView
-              ref={mapRef}
-              provider={
-                Platform.OS === "android" ? PROVIDER_GOOGLE : PROVIDER_DEFAULT
+            <GlobalMap
+              initialRegion={
+                (region ?? {
+                  latitude: MOCK_DATA.currentLocation.coordinates.latitude,
+                  longitude: MOCK_DATA.currentLocation.coordinates.longitude,
+                  latitudeDelta: 0.05,
+                  longitudeDelta: 0.05,
+                }) as any
               }
-              style={StyleSheet.absoluteFillObject}
-              initialRegion={region}
-              customMapStyle={darkMapStyle}
-              showsUserLocation={false}
-              showsMyLocationButton={false}
-              showsCompass={false}
-              showsTraffic={false}
-              showsBuildings={false}
-              showsIndoors={false}
-              toolbarEnabled={false}
-              rotateEnabled={true}
-              scrollEnabled={true}
-              zoomEnabled={true}
-              pitchEnabled={false}
+              region={region ?? undefined}
+              showsUserLocation={true}
+              onMapRef={(ref) => (mapRef.current = ref)}
+              onRegionChangeComplete={handleRegionChangeComplete}
             >
               {/* Marcadores de veículos */}
               {MOCK_DATA.vehicles.map((vehicle) => (
@@ -261,7 +312,7 @@ export default function HomeScreen() {
                   />
                 </Marker>
               ))}
-            </MapView>
+            </GlobalMap>
           </View>
 
           {/* Gradiente superior - escurece o topo */}
@@ -330,13 +381,15 @@ export default function HomeScreen() {
             </TouchableOpacity>
 
             {/* Botão de Localização */}
-            <TouchableOpacity
-              onPress={handlePressMyLocation}
-              className="w-12 h-12 rounded-full bg-surface-dark/90 border border-white/10 items-center justify-center shadow-2xl"
-              activeOpacity={0.8}
-            >
-              <MaterialIcons name="my-location" size={24} color="#02de95" />
-            </TouchableOpacity>
+            {showMyLocationButton && (
+              <TouchableOpacity
+                onPress={handlePressMyLocation}
+                className="w-12 h-12 rounded-full bg-surface-dark/90 border border-white/10 items-center justify-center shadow-2xl"
+                activeOpacity={0.8}
+              >
+                <MaterialIcons name="my-location" size={24} color="#02de95" />
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -353,8 +406,8 @@ export default function HomeScreen() {
           ref={locationPickerRef}
           onClose={handleCloseLocationPicker}
           onSelectLocation={handleSelectLocation}
-          currentLocation={MOCK_DATA.currentLocation.address}
-          currentAddress="Bela Vista, São Paulo - SP"
+          currentLocation={currentAddress}
+          currentAddress={currentAddress}
         />
 
         {/* Safety Help Sheet - Ajuda e Segurança */}
