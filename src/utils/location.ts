@@ -64,24 +64,49 @@ export async function getCurrentLocation(): Promise<LocationObjectCoords | null>
 /**
  * Obtém o endereço completo a partir das coordenadas
  */
-export async function getAddressFromCoordinates(
-  coords: { latitude: number; longitude: number }
-): Promise<UserAddress | null> {
+export async function getAddressFromCoordinates(coords: {
+  latitude: number;
+  longitude: number;
+}): Promise<UserAddress | null> {
   try {
-    const addressResponse = await reverseGeocodeAsync(coords);
+    // Tentar algumas vezes, pois o serviço pode estar temporariamente indisponível
+    const maxAttempts = 3;
+    let attempt = 0;
+    let addressResponse: Location.LocationGeocodedAddress[] | null = null;
+
+    while (attempt < maxAttempts) {
+      try {
+        addressResponse = await reverseGeocodeAsync(coords);
+        if (addressResponse && addressResponse.length > 0) break;
+      } catch (e: any) {
+        // Se indisponível, aguardar um pouco e tentar novamente
+        const msg = String(e?.message || e);
+        if (msg.includes("UNAVAILABLE") || msg.includes("ihuf")) {
+          await new Promise((res) => setTimeout(res, 500 * (attempt + 1)));
+          attempt++;
+          continue;
+        }
+        // Outros erros: relatar e sair
+        throw e;
+      }
+      attempt++;
+    }
 
     if (!addressResponse || addressResponse.length === 0) {
-      return null;
+      // Fallback: retornar estrutura mínima com lat/long quando geocoder não disponível
+      return {
+        street: "",
+        city: "",
+        state: "",
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+      } as UserAddress;
     }
 
     const address = addressResponse[0];
 
     // Extrair informações do endereço
-    const street =
-      address.street ||
-      address.name ||
-      address.district ||
-      "";
+    const street = address.street || address.name || address.district || "";
 
     // Tentar obter o número (streetNumber)
     const number = address.streetNumber || "";
@@ -109,7 +134,14 @@ export async function getAddressFromCoordinates(
     };
   } catch (error) {
     console.error("Erro ao obter endereço:", error);
-    return null;
+    // Fallback seguro
+    return {
+      street: "",
+      city: "",
+      state: "",
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+    } as UserAddress;
   }
 }
 

@@ -62,6 +62,7 @@ export type GlobalMapProps = {
   showsUserLocation?: boolean;
   onMapRef?: (ref: MapView | null) => void;
   onPressMyLocation?: () => void;
+  onMapRegionChange?: (region: Region) => void;
   onRegionChangeComplete?: (region: Region) => void;
   children?: MapViewProps["children"];
 };
@@ -72,6 +73,7 @@ export function GlobalMap({
   showsUserLocation = true,
   onMapRef,
   onPressMyLocation,
+  onMapRegionChange,
   onRegionChangeComplete,
   children,
 }: GlobalMapProps) {
@@ -91,6 +93,7 @@ export function GlobalMap({
         style={StyleSheet.absoluteFillObject}
         initialRegion={initialRegion}
         region={region}
+        onRegionChange={onMapRegionChange}
         onRegionChangeComplete={onRegionChangeComplete}
         customMapStyle={darkMapStyle}
         showsUserLocation={showsUserLocation}

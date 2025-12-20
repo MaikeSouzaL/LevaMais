@@ -13,6 +13,8 @@ export function LocationHeader({
   userPhotoUrl,
   onPressLocation,
 }: LocationHeaderProps) {
+  const isFallbackAddress =
+    !currentAddress || currentAddress.trim().length === 0;
   return (
     <TouchableOpacity
       onPress={onPressLocation}
@@ -39,12 +41,21 @@ export function LocationHeader({
         <Text className="text-[10px] text-primary font-bold uppercase tracking-wider leading-none mb-1">
           Local atual
         </Text>
-        <Text
-          className="text-sm font-bold text-white leading-none"
-          numberOfLines={1}
-        >
-          {currentAddress}
-        </Text>
+        {!isFallbackAddress ? (
+          <Text
+            className="text-sm font-bold text-white leading-none"
+            numberOfLines={1}
+          >
+            {currentAddress}
+          </Text>
+        ) : (
+          <View className="flex-row items-center gap-1">
+            <MaterialIcons name="error-outline" size={16} color="#F59E0B" />
+            <Text className="text-xs text-[#F59E0B]">
+              Endereço indisponível. Toque para tentar novamente.
+            </Text>
+          </View>
+        )}
       </View>
 
       {/* Seta dropdown - dentro do campo */}

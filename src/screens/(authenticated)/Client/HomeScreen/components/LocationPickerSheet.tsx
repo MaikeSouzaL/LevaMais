@@ -12,6 +12,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 interface LocationPickerSheetProps {
   onClose?: () => void;
   onSelectLocation?: (location: string) => void;
+  onChooseOnMap?: () => void;
   currentLocation?: string;
   currentAddress?: string;
 }
@@ -24,6 +25,7 @@ export const LocationPickerSheet = forwardRef<
     {
       onClose,
       onSelectLocation,
+      onChooseOnMap,
       currentLocation = "Av. Paulista, 1578",
       currentAddress = "Bela Vista, São Paulo - SP",
     },
@@ -114,17 +116,10 @@ export const LocationPickerSheet = forwardRef<
           >
             {/* Quick Actions */}
             <View className="flex-row gap-3 mb-6">
-              <TouchableOpacity className="flex-1 p-4 rounded-2xl bg-surface-dark border border-white/5 active:opacity-80">
-                <View className="h-10 w-10 rounded-full bg-primary/10 items-center justify-center mb-3">
-                  <MaterialIcons name="my-location" size={20} color="#02de95" />
-                </View>
-                <Text className="text-sm font-semibold text-white">
-                  Localização Atual
-                </Text>
-                <Text className="text-xs text-gray-400">Usar GPS</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity className="flex-1 p-4 rounded-2xl bg-surface-dark border border-white/5 active:opacity-80">
+              <TouchableOpacity
+                className="flex-1 p-4 rounded-2xl bg-surface-dark border border-white/5 active:opacity-80"
+                onPress={onChooseOnMap}
+              >
                 <View className="h-10 w-10 rounded-full bg-blue-500/10 items-center justify-center mb-3">
                   <MaterialIcons name="map" size={20} color="#60A5FA" />
                 </View>
