@@ -14,6 +14,10 @@ import {
   SafetyHelpSheet,
   SafetyHelpSheetRef,
 } from "./components/SafetyHelpSheet";
+import { SelectVehicleSheet } from "./components/SelectVehicleSheet";
+import { OffersMotoSheet } from "./components/OffersMotoSheet";
+import type { OffersMotoSheetRef } from "./components/OffersMotoSheet";
+import type { SelectVehicleSheetRef } from "./components/SelectVehicleSheet";
 import GlobalMap from "../../../../components/GlobalMap";
 import {
   getCurrentLocation,
@@ -126,6 +130,8 @@ export default function HomeScreen() {
   const bottomSheetRef = useRef<GorhomBottomSheet>(null);
   const locationPickerRef = useRef<GorhomBottomSheet>(null);
   const safetyHelpRef = useRef<SafetyHelpSheetRef>(null);
+  const selectVehicleRef = useRef<SelectVehicleSheetRef>(null);
+  const offersMotoRef = useRef<OffersMotoSheetRef>(null);
   const navigation = useNavigation<DrawerNavigationProp<any>>();
 
   const [region, setRegion] = useState<{
@@ -270,7 +276,33 @@ export default function HomeScreen() {
   };
 
   const handlePressDelivery = () => {
-    console.log("Pressed delivery service");
+    console.log("Pressed delivery service - open vehicle select");
+    // Fecha outros sheets
+    locationPickerRef.current?.close();
+    bottomSheetRef.current?.close();
+    // Abre o seletor de veículo
+    selectVehicleRef.current?.snapToIndex(0);
+  };
+  const handleSelectVehicle = (
+    type: "motorcycle" | "car" | "van" | "truck"
+  ) => {
+    console.log("Vehicle selected:", type);
+    // Se for moto, abrir o bottom sheet de ofertas de motos
+    if (type === "motorcycle") {
+      selectVehicleRef.current?.close();
+      setTimeout(() => offersMotoRef.current?.snapToIndex(0), 150);
+      return;
+    }
+    // Demais tipos ainda não implementados: apenas fecha e volta ao principal
+    selectVehicleRef.current?.close();
+    bottomSheetRef.current?.snapToIndex(1);
+  };
+
+  const handleConfirmMotoOffer = (offerId: string) => {
+    console.log("Moto offer confirmed:", offerId);
+    offersMotoRef.current?.close();
+    // Volta para o sheet principal ou segue fluxo futuro
+    bottomSheetRef.current?.snapToIndex(1);
   };
 
   return (
@@ -408,6 +440,20 @@ export default function HomeScreen() {
           onSelectLocation={handleSelectLocation}
           currentLocation={currentAddress}
           currentAddress={currentAddress}
+        />
+
+        {/* Select Vehicle Sheet - Tipo de serviço */}
+        <SelectVehicleSheet
+          ref={selectVehicleRef}
+          onSelect={handleSelectVehicle}
+          onClose={() => bottomSheetRef.current?.snapToIndex(1)}
+        />
+
+        {/* Offers Moto Sheet - Ofertas de motos mockadas */}
+        <OffersMotoSheet
+          ref={offersMotoRef}
+          onConfirm={handleConfirmMotoOffer}
+          onClose={() => bottomSheetRef.current?.snapToIndex(1)}
         />
 
         {/* Safety Help Sheet - Ajuda e Segurança */}
