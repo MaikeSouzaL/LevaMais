@@ -3,39 +3,45 @@ import { View, Text, TouchableOpacity } from "react-native";
 import {
   createDrawerNavigator,
   DrawerContentScrollView,
+  DrawerContentComponentProps,
 } from "@react-navigation/drawer";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import HomeScreen from "../screens/(authenticated)/HomeScreen";
+import HomeScreen from "../screens/(authenticated)/Client/HomeScreen/index";
 import { useAuthStore } from "../context/authStore";
-import theme from "../theme";
 
 const Drawer = createDrawerNavigator();
 const { Navigator, Screen } = Drawer;
 
-function CustomDrawerContent(props: any) {
+function CustomDrawerContent(props: DrawerContentComponentProps) {
   const { logout, userData } = useAuthStore();
 
   function handleLogout() {
     logout();
-    // A navegação será automática através do componente Routes
   }
+
+  // Itens do menu
+  const menuItems = [
+    { name: "Home", label: "Início", icon: "home" },
+    { name: "History", label: "Histórico", icon: "history" },
+    { name: "Wallet", label: "Carteira", icon: "wallet" },
+    { name: "Profile", label: "Perfil", icon: "account" },
+    { name: "Help", label: "Ajuda", icon: "help-circle" },
+    { name: "Settings", label: "Configurações", icon: "cog" },
+  ];
 
   return (
     <DrawerContentScrollView
       {...props}
       contentContainerStyle={{
         flex: 1,
-        backgroundColor: theme.COLORS.BRAND_DARK,
+        backgroundColor: "#0f231c", // background-dark
       }}
     >
       {/* Header do drawer */}
-      <View className="px-6 py-8 border-b border-gray-700">
+      <View className="px-6 py-8 border-b border-white/10">
         <View className="flex-row items-center mb-2">
-          <View
-            className="w-16 h-16 rounded-full items-center justify-center mr-4"
-            style={{ backgroundColor: theme.COLORS.BRAND_LIGHT }}
-          >
-            <Text className="text-brand-dark font-bold text-xl">
+          <View className="w-16 h-16 rounded-full items-center justify-center mr-4 bg-primary">
+            <Text className="text-background-dark font-bold text-xl">
               {userData?.nome
                 ?.split(" ")
                 .map((n) => n[0])
@@ -55,34 +61,37 @@ function CustomDrawerContent(props: any) {
 
       {/* Itens do menu */}
       <View className="flex-1 pt-4">
-        {props.state.routes.map((route: any, index: number) => {
-          const isFocused = props.state.index === index;
-          const { options } = props.descriptors[route.key];
+        {menuItems.map((item) => {
+          const isFocused =
+            props.state.routeNames[props.state.index] === item.name;
 
           return (
             <TouchableOpacity
-              key={route.key}
-              onPress={() => props.navigation.navigate(route.name)}
+              key={item.name}
+              onPress={() => {
+                if (item.name === "Home") {
+                  props.navigation.navigate(item.name);
+                } else {
+                  // TODO: Implementar navegação para outras telas
+                  console.log(`Navigate to ${item.name}`);
+                }
+              }}
               className={`flex-row items-center px-6 py-4 ${
-                isFocused ? "bg-brand-light bg-opacity-10" : ""
+                isFocused ? "bg-primary/10 border-l-4 border-primary" : ""
               }`}
+              activeOpacity={0.7}
             >
               <MaterialCommunityIcons
-                name="home"
+                name={item.icon as any}
                 size={24}
-                color={
-                  isFocused ? theme.COLORS.BRAND_LIGHT : theme.COLORS.GRAY_400
-                }
+                color={isFocused ? "#02de95" : "#9ca5a3"}
               />
               <Text
-                className="ml-4 text-base font-semibold"
-                style={{
-                  color: isFocused
-                    ? theme.COLORS.BRAND_LIGHT
-                    : theme.COLORS.GRAY_400,
-                }}
+                className={`ml-4 text-base font-semibold ${
+                  isFocused ? "text-primary" : "text-gray-400"
+                }`}
               >
-                {options.drawerLabel || route.name}
+                {item.label}
               </Text>
             </TouchableOpacity>
           );
@@ -90,10 +99,11 @@ function CustomDrawerContent(props: any) {
       </View>
 
       {/* Botão de sair */}
-      <View className="px-6 py-4 border-t border-gray-700">
+      <View className="px-6 py-4 border-t border-white/10">
         <TouchableOpacity
           onPress={handleLogout}
           className="flex-row items-center py-4"
+          activeOpacity={0.7}
         >
           <MaterialCommunityIcons name="logout" size={24} color="#ef4444" />
           <Text
@@ -113,16 +123,15 @@ export default function DrawerClienteRoutes() {
     <Navigator
       drawerContent={(props) => <CustomDrawerContent {...props} />}
       screenOptions={{
-        headerShown: true,
+        headerShown: false, // Esconder header padrão, usar custom
         drawerStyle: {
-          backgroundColor: theme.COLORS.BRAND_DARK,
+          backgroundColor: "#0f231c",
+          width: 280,
         },
-        drawerActiveTintColor: theme.COLORS.BRAND_LIGHT,
-        drawerInactiveTintColor: theme.COLORS.GRAY_400,
-        headerStyle: {
-          backgroundColor: theme.COLORS.BRAND_DARK,
-        },
-        headerTintColor: theme.COLORS.WHITE,
+        drawerActiveTintColor: "#02de95",
+        drawerInactiveTintColor: "#9ca5a3",
+        drawerType: "slide",
+        overlayColor: "rgba(0, 0, 0, 0.5)",
       }}
     >
       <Screen
@@ -133,6 +142,12 @@ export default function DrawerClienteRoutes() {
           drawerLabel: "Início",
         }}
       />
+      {/* TODO: Adicionar outras screens quando forem criadas */}
+      {/* <Screen name="History" component={HistoryScreen} options={{ drawerLabel: "Histórico" }} /> */}
+      {/* <Screen name="Wallet" component={WalletScreen} options={{ drawerLabel: "Carteira" }} /> */}
+      {/* <Screen name="Profile" component={ProfileScreen} options={{ drawerLabel: "Perfil" }} /> */}
+      {/* <Screen name="Help" component={HelpScreen} options={{ drawerLabel: "Ajuda" }} /> */}
+      {/* <Screen name="Settings" component={SettingsScreen} options={{ drawerLabel: "Configurações" }} /> */}
     </Navigator>
   );
 }

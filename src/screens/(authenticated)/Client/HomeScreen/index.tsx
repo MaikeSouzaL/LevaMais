@@ -1,0 +1,359 @@
+import React, { useState, useRef } from "react";
+import { View, StyleSheet, Platform, TouchableOpacity } from "react-native";
+import MapView, {
+  Marker,
+  PROVIDER_DEFAULT,
+  PROVIDER_GOOGLE,
+} from "react-native-maps";
+import { MaterialIcons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
+import { DrawerNavigationProp } from "@react-navigation/drawer";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import GorhomBottomSheet from "@gorhom/bottom-sheet";
+import { LocationHeader } from "../../../../components/LocationHeader";
+import { VehicleMarker } from "./components/VehicleMarker";
+import { BottomSheet } from "./components/BottomSheet";
+import { LocationPickerSheet } from "./components/LocationPickerSheet";
+import { SafetyHelpSheet } from "./components/SafetyHelpSheet";
+
+// Dados mockados
+const MOCK_DATA = {
+  user: {
+    name: "João Silva",
+    photoUrl:
+      "https://ui-avatars.com/api/?name=Joao+Silva&background=02de95&color=0f231c&size=128",
+  },
+  currentLocation: {
+    address: "Rua das Flores, 123",
+    coordinates: {
+      latitude: -23.5505,
+      longitude: -46.6333,
+    },
+  },
+  vehicles: [
+    {
+      id: "1",
+      type: "car" as const,
+      latitude: -23.5485,
+      longitude: -46.635,
+      rotation: 45,
+    },
+    {
+      id: "2",
+      type: "motorcycle" as const,
+      latitude: -23.5525,
+      longitude: -46.628,
+      rotation: -12,
+    },
+  ],
+};
+
+// Estilo do mapa escuro (dark mode)
+const darkMapStyle = [
+  {
+    elementType: "geometry",
+    stylers: [{ color: "#101816" }],
+  },
+  {
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#746855" }],
+  },
+  {
+    elementType: "labels.text.stroke",
+    stylers: [{ color: "#101816" }],
+  },
+  {
+    featureType: "administrative",
+    elementType: "geometry",
+    stylers: [{ visibility: "off" }],
+  },
+  {
+    featureType: "administrative.locality",
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#9ca5a3" }],
+  },
+  {
+    featureType: "poi",
+    stylers: [{ visibility: "off" }],
+  },
+  {
+    featureType: "road",
+    elementType: "geometry",
+    stylers: [{ color: "#1b2823" }],
+  },
+  {
+    featureType: "road",
+    elementType: "geometry.stroke",
+    stylers: [{ color: "#16201d" }],
+  },
+  {
+    featureType: "road",
+    elementType: "labels.icon",
+    stylers: [{ visibility: "off" }],
+  },
+  {
+    featureType: "road.arterial",
+    elementType: "geometry",
+    stylers: [{ color: "#1f2d29" }],
+  },
+  {
+    featureType: "road.highway",
+    elementType: "geometry",
+    stylers: [{ color: "#23332d" }],
+  },
+  {
+    featureType: "road.highway",
+    elementType: "geometry.stroke",
+    stylers: [{ color: "#1f2d29" }],
+  },
+  {
+    featureType: "transit",
+    stylers: [{ visibility: "off" }],
+  },
+  {
+    featureType: "water",
+    elementType: "geometry",
+    stylers: [{ color: "#0a1410" }],
+  },
+];
+
+export default function HomeScreen() {
+  const mapRef = useRef<MapView>(null);
+  const bottomSheetRef = useRef<GorhomBottomSheet>(null);
+  const locationPickerRef = useRef<GorhomBottomSheet>(null);
+  const safetyHelpRef = useRef<GorhomBottomSheet>(null);
+  const navigation = useNavigation<DrawerNavigationProp<any>>();
+
+  const [region] = useState({
+    latitude: MOCK_DATA.currentLocation.coordinates.latitude,
+    longitude: MOCK_DATA.currentLocation.coordinates.longitude,
+    latitudeDelta: 0.01,
+    longitudeDelta: 0.01,
+  });
+
+  // Handlers (sem funcionalidade por enquanto)
+  const handlePressLocation = () => {
+    console.log("Pressed location dropdown");
+  };
+
+  const handlePressMenu = () => {
+    navigation.openDrawer();
+  };
+
+  const handlePressMoreOptions = () => {
+    console.log("Pressed more options (3 dots) - Future functionality");
+    // TODO: Implementar funcionalidade futura
+  };
+
+  const handlePressSafety = () => {
+    console.log("Pressed safety button - Opening safety help");
+    // Fecha outros bottom sheets
+    bottomSheetRef.current?.close();
+    locationPickerRef.current?.close();
+    // Abre o SafetyHelpSheet com pequeno delay para garantir que os outros fecharam
+    setTimeout(() => {
+      console.log("Abrindo SafetyHelpSheet...");
+      safetyHelpRef.current?.snapToIndex(0);
+    }, 150);
+  };
+
+  const handlePressMyLocation = () => {
+    console.log("Pressed my location");
+    // Centralizar no usuário
+    if (mapRef.current) {
+      mapRef.current.animateToRegion(
+        {
+          ...MOCK_DATA.currentLocation.coordinates,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        },
+        500
+      );
+    }
+  };
+
+  const handlePressSearch = () => {
+    console.log("Pressed search bar - Opening location picker");
+    // Fecha o BottomSheet principal
+    bottomSheetRef.current?.close();
+    // Abre o LocationPickerSheet
+    locationPickerRef.current?.snapToIndex(0);
+  };
+
+  const handleSelectLocation = (location: string) => {
+    console.log("Selected location:", location);
+    // TODO: Atualizar localização selecionada
+    locationPickerRef.current?.close();
+    bottomSheetRef.current?.snapToIndex(1);
+  };
+
+  const handleCloseLocationPicker = () => {
+    console.log("Closed location picker");
+    // Reabre o BottomSheet principal
+    bottomSheetRef.current?.snapToIndex(1);
+  };
+
+  const handleCloseSafetyHelp = () => {
+    console.log("Closed safety help");
+    // Reabre o BottomSheet principal
+    bottomSheetRef.current?.snapToIndex(1);
+  };
+
+  const handlePressRide = () => {
+    console.log("Pressed ride service");
+  };
+
+  const handlePressDelivery = () => {
+    console.log("Pressed delivery service");
+  };
+
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <View className="relative h-full w-full flex-col bg-background-dark">
+        {/* Container do mapa - ocupa tela toda */}
+        <View className="relative flex-1 w-full bg-[#101816] overflow-hidden">
+          {/* Mapa com overlay de imagem (background) */}
+          <View className="absolute inset-0">
+            <MapView
+              ref={mapRef}
+              provider={
+                Platform.OS === "android" ? PROVIDER_GOOGLE : PROVIDER_DEFAULT
+              }
+              style={StyleSheet.absoluteFillObject}
+              initialRegion={region}
+              customMapStyle={darkMapStyle}
+              showsUserLocation={false}
+              showsMyLocationButton={false}
+              showsCompass={false}
+              showsTraffic={false}
+              showsBuildings={false}
+              showsIndoors={false}
+              toolbarEnabled={false}
+              rotateEnabled={true}
+              scrollEnabled={true}
+              zoomEnabled={true}
+              pitchEnabled={false}
+            >
+              {/* Marcadores de veículos */}
+              {MOCK_DATA.vehicles.map((vehicle) => (
+                <Marker
+                  key={vehicle.id}
+                  coordinate={{
+                    latitude: vehicle.latitude,
+                    longitude: vehicle.longitude,
+                  }}
+                  anchor={{ x: 0.5, y: 0.5 }}
+                  tracksViewChanges={false}
+                >
+                  <VehicleMarker
+                    type={vehicle.type}
+                    rotation={vehicle.rotation}
+                    isPulsing={vehicle.id === "1"}
+                  />
+                </Marker>
+              ))}
+            </MapView>
+          </View>
+
+          {/* Gradiente superior - escurece o topo */}
+          <View
+            className="absolute top-0 left-0 right-0 h-40 pointer-events-none z-10"
+            style={{
+              backgroundColor: "transparent",
+            }}
+          >
+            <View
+              className="w-full h-full"
+              style={{
+                backgroundColor: "rgba(0, 0, 0, 0.5)",
+              }}
+            />
+          </View>
+
+          {/* Gradiente inferior - escurece a base */}
+          <View
+            className="absolute bottom-0 left-0 right-0 h-24 pointer-events-none z-10"
+            style={{
+              backgroundColor: "rgba(15, 35, 28, 0.3)",
+            }}
+          />
+
+          {/* Botão Menu Hambúrguer - separado, canto superior esquerdo */}
+          <View className="absolute top-14 left-4 z-20">
+            <TouchableOpacity
+              onPress={handlePressMenu}
+              className="w-12 h-12 rounded-full bg-surface-dark/90 border border-white/10 items-center justify-center shadow-2xl"
+              activeOpacity={0.8}
+            >
+              <MaterialIcons name="menu" size={24} color="#02de95" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Header com localização - abaixo do menu */}
+          <View className="absolute top-28 left-4 right-4 z-20">
+            <LocationHeader
+              currentAddress={MOCK_DATA.currentLocation.address}
+              userPhotoUrl={MOCK_DATA.user.photoUrl}
+              onPressLocation={handlePressLocation}
+            />
+          </View>
+
+          {/* Botão More Options (3 pontos) - canto superior direito */}
+          <View className="absolute top-14 right-4 z-20">
+            <TouchableOpacity
+              onPress={handlePressMoreOptions}
+              className="w-12 h-12 rounded-full bg-surface-dark/90 border border-white/10 items-center justify-center shadow-2xl"
+              activeOpacity={0.8}
+            >
+              <MaterialIcons name="more-vert" size={24} color="#02de95" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Botões de Ação - mais abaixo na direita */}
+          <View className="absolute top-44 right-4 z-20 flex-col gap-3">
+            {/* Botão de Segurança */}
+            <TouchableOpacity
+              onPress={handlePressSafety}
+              className="w-12 h-12 rounded-full bg-surface-dark/90 border border-white/10 items-center justify-center shadow-2xl"
+              activeOpacity={0.8}
+            >
+              <MaterialIcons name="shield" size={24} color="#60A5FA" />
+            </TouchableOpacity>
+
+            {/* Botão de Localização */}
+            <TouchableOpacity
+              onPress={handlePressMyLocation}
+              className="w-12 h-12 rounded-full bg-surface-dark/90 border border-white/10 items-center justify-center shadow-2xl"
+              activeOpacity={0.8}
+            >
+              <MaterialIcons name="my-location" size={24} color="#02de95" />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Bottom Sheet - sobrepõe o mapa */}
+        <BottomSheet
+          ref={bottomSheetRef}
+          onPressSearch={handlePressSearch}
+          onPressRide={handlePressRide}
+          onPressDelivery={handlePressDelivery}
+        />
+
+        {/* Location Picker Sheet - Seleção de Endereço */}
+        <LocationPickerSheet
+          ref={locationPickerRef}
+          onClose={handleCloseLocationPicker}
+          onSelectLocation={handleSelectLocation}
+          currentLocation={MOCK_DATA.currentLocation.address}
+          currentAddress="Bela Vista, São Paulo - SP"
+        />
+
+        {/* Safety Help Sheet - Ajuda e Segurança */}
+        <SafetyHelpSheet 
+          ref={safetyHelpRef} 
+          onClose={handleCloseSafetyHelp} 
+        />
+      </View>
+    </GestureHandlerRootView>
+  );
+}
