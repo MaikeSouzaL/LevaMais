@@ -18,6 +18,7 @@ import {
   buscarEnderecoPorTexto,
   obterEnderecoPorCoordenadas,
   getCurrentLocation,
+  formatarEndereco,
   type GeocodingResult,
 } from "../../../../utils/location";
 
@@ -25,6 +26,75 @@ export default function MapLocationPickerScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const mapRef = React.useRef<MapView>(null);
+
+  // Estilo de mapa escuro (Google Maps) para combinar com o tema da aplicação
+  // Fonte: estilo dark simplificado baseado no Snazzy Maps (ajustado para melhor contraste com os pins).
+  const darkMapStyle = [
+    { elementType: "geometry", stylers: [{ color: "#0f231c" }] },
+    { elementType: "labels.icon", stylers: [{ visibility: "off" }] },
+    { elementType: "labels.text.fill", stylers: [{ color: "#9db9b9" }] },
+    { elementType: "labels.text.stroke", stylers: [{ color: "#0b1814" }] },
+    {
+      featureType: "administrative.locality",
+      elementType: "labels.text.fill",
+      stylers: [{ color: "#9db9b9" }],
+    },
+    {
+      featureType: "poi",
+      elementType: "labels.text.fill",
+      stylers: [{ color: "#9db9b9" }],
+    },
+    {
+      featureType: "poi.park",
+      elementType: "geometry",
+      stylers: [{ color: "#0b1f19" }],
+    },
+    {
+      featureType: "poi.park",
+      elementType: "labels.text.fill",
+      stylers: [{ color: "#6b8f8f" }],
+    },
+    {
+      featureType: "road",
+      elementType: "geometry",
+      stylers: [{ color: "#132b23" }],
+    },
+    {
+      featureType: "road",
+      elementType: "geometry.stroke",
+      stylers: [{ color: "#0b1814" }],
+    },
+    {
+      featureType: "road",
+      elementType: "labels.text.fill",
+      stylers: [{ color: "#9db9b9" }],
+    },
+    {
+      featureType: "road.highway",
+      elementType: "geometry",
+      stylers: [{ color: "#1a3b31" }],
+    },
+    {
+      featureType: "road.highway",
+      elementType: "geometry.stroke",
+      stylers: [{ color: "#0b1814" }],
+    },
+    {
+      featureType: "transit",
+      elementType: "geometry",
+      stylers: [{ color: "#0b1814" }],
+    },
+    {
+      featureType: "water",
+      elementType: "geometry",
+      stylers: [{ color: "#0b1814" }],
+    },
+    {
+      featureType: "water",
+      elementType: "labels.text.fill",
+      stylers: [{ color: "#6b8f8f" }],
+    },
+  ];
 
   const [address, setAddress] = useState("Buscando endereço...");
   const [searchQuery, setSearchQuery] = useState("");
@@ -67,12 +137,7 @@ export default function MapLocationPickerScreen() {
           if (endereco?.region) setUserRegion(endereco.region);
 
           // Formatar endereço
-          const parts = [];
-          if (endereco?.street) parts.push(endereco.street);
-          if (endereco?.district) parts.push(endereco.district);
-          if (endereco?.city && endereco?.region)
-            parts.push(`${endereco.city}/${endereco.region}`);
-          setAddress(parts.join(" - "));
+          setAddress(formatarEndereco(endereco));
         }
       } catch (error) {
         console.error("Erro ao detectar localização:", error);
@@ -121,12 +186,8 @@ export default function MapLocationPickerScreen() {
         newRegion.longitude
       );
 
-      const parts = [];
-      if (endereco?.street) parts.push(endereco.street);
-      if (endereco?.district) parts.push(endereco.district);
-      if (endereco?.city && endereco?.region)
-        parts.push(`${endereco.city}/${endereco.region}`);
-      setAddress(parts.join(" - ") || "Endereço não encontrado");
+      const formatted = formatarEndereco(endereco);
+      setAddress(formatted || "Endereço não encontrado");
     } catch (error) {
       console.error("Erro no geocoding:", error);
       setAddress("Erro ao buscar endereço");
@@ -180,6 +241,7 @@ export default function MapLocationPickerScreen() {
             style={{ flex: 1 }}
             provider={PROVIDER_GOOGLE}
             region={region}
+            customMapStyle={darkMapStyle}
             onRegionChangeComplete={handleRegionChangeComplete}
             showsUserLocation
             showsMyLocationButton={false}
@@ -379,8 +441,11 @@ export default function MapLocationPickerScreen() {
                             }}
                             numberOfLines={1}
                           >
-                            {item.street ||
-                              item.formattedAddress.split(" - ")[0]}
+                            {(item.street ||
+                              item.formattedAddress.split(" - ")[0]) +
+                              (item.streetNumber
+                                ? `, ${item.streetNumber}`
+                                : "")}
                           </Text>
                           <Text
                             style={{

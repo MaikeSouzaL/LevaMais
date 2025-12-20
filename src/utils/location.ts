@@ -279,6 +279,7 @@ export type GeocodingResult = {
   latitude: number;
   longitude: number;
   street?: string;
+  streetNumber?: string;
   city?: string;
   region?: string;
   postalCode?: string;
@@ -393,6 +394,7 @@ export async function buscarEnderecoPorTexto(
           latitude: result.latitude,
           longitude: result.longitude,
           street: reverseGeo?.street,
+          streetNumber: reverseGeo?.streetNumber,
           city: reverseGeo?.city,
           region: reverseGeo?.region,
           postalCode: reverseGeo?.postalCode,
