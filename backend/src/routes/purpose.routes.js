@@ -3,6 +3,7 @@ const router = express.Router();
 const purposeController = require('../controllers/purpose.controller');
 
 // Routes for /api/purposes
+router.get('/seed', purposeController.seed); // Seed route (dev only)
 router.get('/', purposeController.getAll);
 router.post('/', purposeController.create);
 router.put('/:id', purposeController.update);

@@ -453,9 +453,11 @@ export default function HomeScreen() {
     console.log("Location confirmed from map:", location);
     setDestinationAddress(location);
     setIsMapPickerMode(false);
+    setIsNavigatingFromPicker(true); // Sinaliza navegação
 
     // Lógica de fluxo baseada no modo
     setTimeout(() => {
+      console.log("Navigating based on mode:", serviceMode);
       if (serviceMode === "delivery") {
         selectVehicleRef.current?.snapToIndex(0);
       } else {
@@ -503,10 +505,12 @@ export default function HomeScreen() {
   const handleSelectLocation = (location: string) => {
     console.log("Selected location:", location);
     setDestinationAddress(location);
+    setIsNavigatingFromPicker(true); // Sinaliza navegação
     locationPickerRef.current?.close();
 
     // Lógica de fluxo baseada no modo
     setTimeout(() => {
+      console.log("Navigating based on mode:", serviceMode);
       if (serviceMode === "delivery") {
         selectVehicleRef.current?.snapToIndex(0);
       } else {
@@ -516,12 +520,22 @@ export default function HomeScreen() {
     }, 150);
   };
 
+  // Estado para controlar se o fechamento do picker é intencional para navegação
+  const [isNavigatingFromPicker, setIsNavigatingFromPicker] = useState(false);
+
   const handleCloseLocationPicker = () => {
     console.log("Closed location picker");
-    // Reabre o BottomSheet principal
+    // Se estiver navegando para o próximo passo, não reseta o modo nem reabre o bottom sheet principal agora
+    if (isNavigatingFromPicker) {
+      setIsNavigatingFromPicker(false); // Reset flag
+      return;
+    }
+    
+    // Caso contrário (fechou arrastando ou clicando fora), reseta tudo
     bottomSheetRef.current?.snapToIndex(1);
     setServiceMode(null);
   };
+
 
   const handleCloseSafetyHelp = () => {
     console.log("Closed safety help");
