@@ -16,12 +16,12 @@ interface BottomSheetProps {
 export const BottomSheet = forwardRef<GorhomBottomSheet, BottomSheetProps>(
   ({ onPressSearch, onPressRide, onPressDelivery }, ref) => {
     // Pontos de snap: fechado (10%), médio (35%), aberto (90%)
-    const snapPoints = useMemo(() => ["10%", "35%", "90%"], []);
+    const snapPoints = useMemo(() => ["35%"], []);
 
     return (
       <GorhomBottomSheet
         ref={ref}
-        index={1} // Inicia no ponto médio (35%)
+        index={0} // Inicia no ponto (35%)
         snapPoints={snapPoints}
         enablePanDownToClose={false} // Não fecha completamente
         handleIndicatorStyle={{
@@ -33,7 +33,7 @@ export const BottomSheet = forwardRef<GorhomBottomSheet, BottomSheetProps>(
           backgroundColor: "#0f231c",
         }}
         style={{
-          marginHorizontal: 16,
+          // Removidas margens laterais para ocupar toda a largura
           marginBottom: -6,
           borderTopLeftRadius: 24,
           borderTopRightRadius: 24,

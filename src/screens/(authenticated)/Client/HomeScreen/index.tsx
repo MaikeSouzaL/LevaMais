@@ -618,8 +618,8 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Botões de Ação - mais abaixo na direita */}
-          <View className="absolute top-44 right-4 z-20 flex-col gap-3">
+          {/* Botões de Ação - posicionados próximos ao Bottom Sheet */}
+          <View className="absolute right-4 bottom-[400px] z-20 flex-col gap-3">
             {/* Botão de Segurança */}
             <TouchableOpacity
               onPress={handlePressSafety}
