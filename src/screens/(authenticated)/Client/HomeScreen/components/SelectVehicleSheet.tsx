@@ -56,7 +56,7 @@ export const SelectVehicleSheet = forwardRef<
         {/* Card: Moto */}
         <TouchableOpacity
           activeOpacity={0.85}
-          onPress={() => onSelect("motorcycle")}
+          onPress={() => onSelect?.("motorcycle" as const)}
           style={{
             flexDirection: "row",
             alignItems: "center",
@@ -116,7 +116,7 @@ export const SelectVehicleSheet = forwardRef<
         {/* Card: Carro */}
         <TouchableOpacity
           activeOpacity={0.85}
-          onPress={() => onSelect("car")}
+          onPress={() => onSelect?.("car" as const)}
           style={{
             flexDirection: "row",
             alignItems: "center",
@@ -154,7 +154,7 @@ export const SelectVehicleSheet = forwardRef<
         {/* Card: Van */}
         <TouchableOpacity
           activeOpacity={0.85}
-          onPress={() => onSelect("van")}
+          onPress={() => onSelect?.("van" as const)}
           style={{
             flexDirection: "row",
             alignItems: "center",
@@ -192,7 +192,7 @@ export const SelectVehicleSheet = forwardRef<
         {/* Card: Caminhão */}
         <TouchableOpacity
           activeOpacity={0.85}
-          onPress={() => onSelect("truck")}
+          onPress={() => onSelect?.("truck" as const)}
           style={{
             flexDirection: "row",
             alignItems: "center",

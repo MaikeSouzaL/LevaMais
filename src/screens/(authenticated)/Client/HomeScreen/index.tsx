@@ -21,6 +21,10 @@ import type { OffersMotoSheetRef } from "./components/OffersMotoSheet";
 import type { OffersCarSheetRef } from "./components/OffersCarSheet";
 import { ServicePurposeScreen } from "./components/ServicePurposeScreen";
 import type { SelectVehicleSheetRef } from "./components/SelectVehicleSheet";
+import { OffersVanSheet } from "./components/OffersVanSheet";
+import type { OffersVanSheetRef } from "./components/OffersVanSheet";
+import { OffersTruckSheet } from "./components/OffersTruckSheet";
+import type { OffersTruckSheetRef } from "./components/OffersTruckSheet";
 import GlobalMap from "../../../../components/GlobalMap";
 import {
   getCurrentLocation,
@@ -136,9 +140,11 @@ export default function HomeScreen() {
   const selectVehicleRef = useRef<SelectVehicleSheetRef>(null);
   const offersMotoRef = useRef<OffersMotoSheetRef>(null);
   const offersCarRef = useRef<OffersCarSheetRef>(null);
+  const offersVanRef = useRef<OffersVanSheetRef>(null);
+  const offersTruckRef = useRef<OffersTruckSheetRef>(null);
   const [showPurposeScreen, setShowPurposeScreen] = useState(false);
   const [selectedVehicleType, setSelectedVehicleType] = useState<
-    "motorcycle" | "car" | null
+    "motorcycle" | "car" | "van" | "truck" | null
   >(null);
   const navigation = useNavigation<DrawerNavigationProp<any>>();
 
@@ -295,8 +301,8 @@ export default function HomeScreen() {
     type: "motorcycle" | "car" | "van" | "truck"
   ) => {
     console.log("Vehicle selected:", type);
-    // Para moto ou carro, abrir tela de finalidade
-    if (type === "motorcycle" || type === "car") {
+    // Para qualquer veículo suportado, abrir tela de finalidade
+    if (type === "motorcycle" || type === "car" || type === "van" || type === "truck") {
       setSelectedVehicleType(type);
       selectVehicleRef.current?.close();
       setTimeout(() => setShowPurposeScreen(true), 150);
@@ -318,6 +324,8 @@ export default function HomeScreen() {
     // Fecha listas de ofertas e volta para a tela de escolha de finalidade
     offersMotoRef.current?.close();
     offersCarRef.current?.close();
+  offersVanRef.current?.close?.();
+  offersTruckRef.current?.close?.();
     setTimeout(() => setShowPurposeScreen(true), 150);
   };
 
@@ -330,6 +338,10 @@ export default function HomeScreen() {
         offersMotoRef.current?.snapToIndex(0);
       } else if (selectedVehicleType === "car") {
         offersCarRef.current?.snapToIndex(0);
+      } else if (selectedVehicleType === "van") {
+        offersVanRef.current?.snapToIndex(0);
+      } else if (selectedVehicleType === "truck") {
+        offersTruckRef.current?.snapToIndex(0);
       }
     }, 150);
   };
@@ -507,12 +519,37 @@ export default function HomeScreen() {
         <SafetyHelpSheet ref={safetyHelpRef} onClose={handleCloseSafetyHelp} />
 
         {/* Service Purpose Screen - Tela de seleção de finalidade do serviço */}
-        {showPurposeScreen && (
+        {showPurposeScreen && selectedVehicleType && (
           <ServicePurposeScreen
+            vehicleType={selectedVehicleType as any}
             onClose={handleClosePurpose}
             onSelect={handleSelectPurpose}
           />
         )}
+
+        {/* Offers Van Sheet - Ofertas de vans */}
+        <OffersVanSheet
+          ref={offersVanRef}
+          onConfirm={(offerId: string) => {
+            console.log("Van offer confirmed:", offerId);
+            offersVanRef.current?.close();
+            bottomSheetRef.current?.snapToIndex(1);
+          }}
+          onClose={() => bottomSheetRef.current?.snapToIndex(1)}
+          onBack={handleBackFromOffers}
+        />
+
+        {/* Offers Truck Sheet - Ofertas de caminhões */}
+        <OffersTruckSheet
+          ref={offersTruckRef}
+          onConfirm={(offerId: string) => {
+            console.log("Truck offer confirmed:", offerId);
+            offersTruckRef.current?.close();
+            bottomSheetRef.current?.snapToIndex(1);
+          }}
+          onClose={() => bottomSheetRef.current?.snapToIndex(1)}
+          onBack={handleBackFromOffers}
+        />
       </View>
     </GestureHandlerRootView>
   );
