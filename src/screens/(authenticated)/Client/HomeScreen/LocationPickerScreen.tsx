@@ -93,6 +93,10 @@ export default function LocationPickerScreen() {
       try {
         const location = await getCurrentLocation();
         if (location) {
+          setCurrentCoords({
+            latitude: location.latitude,
+            longitude: location.longitude,
+          });
           const address = await obterEnderecoPorCoordenadas(
             location.latitude,
             location.longitude
@@ -178,7 +182,10 @@ export default function LocationPickerScreen() {
   }, [route.params]);
 
   const handleEditCurrentLocation = () => {
-    (navigation as any).navigate("MapLocationPicker", { selectionMode: "currentLocation" });
+    (navigation as any).navigate("MapLocationPicker", {
+      returnScreen: "LocationPicker",
+      selectionMode: "currentLocation",
+    });
   };
 
   const handleSelectResult = (result: GeocodingResult) => {
