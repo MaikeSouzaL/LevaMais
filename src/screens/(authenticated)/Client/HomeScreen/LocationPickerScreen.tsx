@@ -319,7 +319,7 @@ export default function LocationPickerScreen() {
                   ) : favorites.length > 0 ? (
                     favorites.map((item) => (
                       <TouchableOpacity
-                        key={item.id || item._id || Math.random().toString()}
+                        key={item.id || item.id || Math.random().toString()}
                         className="flex-row items-center p-3 rounded-xl active:bg-white/5"
                         onPress={() =>
                           handleSelectResult({
