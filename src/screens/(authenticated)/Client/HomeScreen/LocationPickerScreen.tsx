@@ -194,8 +194,18 @@ export default function LocationPickerScreen() {
   };
 
   const handleConfirmLocation = () => {
-    console.log("📍 Destino confirmado:", selectedAddress);
-    navigation.goBack();
+    const pickup = {
+      address: `${currentLocation} - ${currentAddress}`,
+      latitude: currentCoords?.latitude,
+      longitude: currentCoords?.longitude,
+    };
+    const dropoff = {
+      address: selectedAddress,
+    };
+    (navigation as any).navigate("SelectVehicle", {
+      pickup,
+      dropoff,
+    });
   };
 
   const handleCancelSelection = () => {

@@ -26,14 +26,12 @@ import {
   SafetyHelpSheet,
   SafetyHelpSheetRef,
 } from "./components/SafetyHelpSheet";
-import { SelectVehicleSheet } from "./components/SelectVehicleSheet";
+// Removido: SelectVehicleSheet foi convertido para Screen
 import { OffersMotoSheet } from "./components/OffersMotoSheet";
 import { OffersCarSheet } from "./components/OffersCarSheet";
 import type { OffersMotoSheetRef } from "./components/OffersMotoSheet";
 import type { OffersCarSheetRef } from "./components/OffersCarSheet";
-import { ServicePurposeSheet } from "./components/ServicePurposeSheet";
-import type { SelectVehicleSheetRef } from "./components/SelectVehicleSheet";
-import type { ServicePurposeSheetRef } from "./components/ServicePurposeSheet";
+// Removido: ServicePurposeSheet foi convertido para Screen
 import { SearchingDriverModal } from "./components/SearchingDriverModal";
 import { OffersVanSheet } from "./components/OffersVanSheet";
 import type { OffersVanSheetRef } from "./components/OffersVanSheet";
@@ -91,8 +89,6 @@ export default function HomeScreen() {
   const mapRef = useRef<MapView>(null);
   const bottomSheetRef = useRef<GorhomBottomSheet>(null);
   const safetyHelpRef = useRef<SafetyHelpSheetRef>(null);
-  const selectVehicleRef = useRef<SelectVehicleSheetRef>(null);
-  const servicePurposeRef = useRef<ServicePurposeSheetRef>(null);
   const offersMotoRef = useRef<OffersMotoSheetRef>(null);
   const offersCarRef = useRef<OffersCarSheetRef>(null);
   const offersVanRef = useRef<OffersVanSheetRef>(null);
@@ -201,6 +197,24 @@ export default function HomeScreen() {
       setTimeout(() => {
         driverFoundRef.current?.snapToIndex(0);
       }, 200);
+    }
+
+    // 4. Abrir ofertas conforme retorno da ServicePurposeScreen
+    if (route.params?.openOffersFor) {
+      const type = route.params.openOffersFor as "motorcycle" | "car" | "van" | "truck";
+      setSelectedVehicleType(type);
+      setTimeout(() => {
+        if (type === "motorcycle") {
+          offersMotoRef.current?.snapToIndex(0);
+        } else if (type === "car") {
+          offersCarRef.current?.snapToIndex(0);
+        } else if (type === "van") {
+          offersVanRef.current?.snapToIndex(0);
+        } else if (type === "truck") {
+          offersTruckRef.current?.snapToIndex(0);
+        }
+        navigation.setParams({ openOffersFor: undefined, purposeId: undefined });
+      }, 150);
     }
   }, [route.params]);
 
@@ -364,10 +378,14 @@ export default function HomeScreen() {
     // Lógica de fluxo baseada no modo
     setTimeout(() => {
       console.log("Navigating based on mode:", serviceMode);
+      // Agora SelectVehicle é uma Screen; navegar para ela quando necessário
       if (serviceMode === "delivery") {
-        selectVehicleRef.current?.snapToIndex(0);
+        (navigation as any).navigate("SelectVehicle", {
+          pickup: { address: currentAddress },
+          dropoff: { address: location },
+        });
       } else {
-        // Modo "ride" ou default
+        // Modo "ride" ou default: mantém fluxo de ofertas de carro
         offersCarRef.current?.snapToIndex(0);
       }
     }, 150);
@@ -394,26 +412,7 @@ export default function HomeScreen() {
     (navigation as any).navigate("LocationPicker");
   };
 
-  const handleSelectVehicle = (
-    type: "motorcycle" | "car" | "van" | "truck"
-  ) => {
-    console.log("Vehicle selected:", type);
-    // Para qualquer veículo suportado, abrir tela de finalidade
-    if (
-      type === "motorcycle" ||
-      type === "car" ||
-      type === "van" ||
-      type === "truck"
-    ) {
-      setSelectedVehicleType(type);
-      selectVehicleRef.current?.close();
-      setTimeout(() => servicePurposeRef.current?.snapToIndex(0), 150);
-      return;
-    }
-    // Demais tipos ainda não implementados: apenas fecha e volta ao principal
-    selectVehicleRef.current?.close();
-    bottomSheetRef.current?.snapToIndex(1);
-  };
+  // Removido: handleSelectVehicle (seleção ocorre na SelectVehicleScreen)
 
   const handleConfirmMotoOffer = (offerId: string) => {
     console.log("Moto offer confirmed:", offerId);
@@ -450,42 +449,22 @@ export default function HomeScreen() {
     offersCarRef.current?.close();
     offersVanRef.current?.close?.();
     offersTruckRef.current?.close?.();
-    setTimeout(() => servicePurposeRef.current?.snapToIndex(0), 150);
+    setTimeout(
+      () =>
+        (navigation as any).navigate("ServicePurpose", {
+          vehicleType: selectedVehicleType,
+        }),
+      150
+    );
   };
 
-  const handleSelectPurpose = (purposeId: string) => {
-    console.log("Purpose selected:", purposeId);
-    servicePurposeRef.current?.close();
-    // Após escolher propósito, abrir lista de ofertas conforme veículo
-    setTimeout(() => {
-      if (selectedVehicleType === "motorcycle") {
-        offersMotoRef.current?.snapToIndex(0);
-      } else if (selectedVehicleType === "car") {
-        offersCarRef.current?.snapToIndex(0);
-      } else if (selectedVehicleType === "van") {
-        offersVanRef.current?.snapToIndex(0);
-      } else if (selectedVehicleType === "truck") {
-        offersTruckRef.current?.snapToIndex(0);
-      }
-    }, 150);
-  };
+  // Removido: handleSelectPurpose (feito na ServicePurposeScreen)
 
-  const handleClosePurpose = () => {
-    servicePurposeRef.current?.close();
-    bottomSheetRef.current?.snapToIndex(1);
-  };
+  // Removido: handleClosePurpose (feito na ServicePurposeScreen)
 
-  const handleBackFromPurpose = () => {
-    servicePurposeRef.current?.close();
-    // Volta para seleção de veículo
-    setTimeout(() => selectVehicleRef.current?.snapToIndex(0), 150);
-  };
+  // Removido: handleBackFromPurpose (feito na ServicePurposeScreen)
 
-  const handleBackFromSelectVehicle = () => {
-    selectVehicleRef.current?.close();
-    // Volta para seleção de local
-    setTimeout(() => (navigation as any).navigate("LocationPicker"), 150);
-  };
+  // Removido: handleBackFromSelectVehicle (não há mais sheet de veículo)
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -658,22 +637,9 @@ export default function HomeScreen() {
           />
         </>
 
-        {/* Select Vehicle Sheet - Tipo de serviço */}
-        <SelectVehicleSheet
-          ref={selectVehicleRef}
-          onSelect={handleSelectVehicle}
-          onClose={() => bottomSheetRef.current?.snapToIndex(1)}
-          onBack={handleBackFromSelectVehicle}
-        />
+        {/* Select Vehicle agora é uma Screen: componente de sheet removido */}
 
-        {/* Service Purpose Sheet - Substitui a Screen anterior */}
-        <ServicePurposeSheet
-          ref={servicePurposeRef}
-          vehicleType={selectedVehicleType as any}
-          onSelect={handleSelectPurpose}
-          onClose={handleClosePurpose}
-          onBack={handleBackFromPurpose}
-        />
+        {/* Service Purpose agora é uma Screen */}
 
         {/* Offers Moto Sheet - Ofertas de motos mockadas */}
         <OffersMotoSheet

@@ -56,6 +56,39 @@ export const purposesService = {
     }
   },
 
+  deleteBulk: async (vehicleType: VehicleType, ids: string[]): Promise<number> => {
+    const res = await fetch(`${API_URL}/bulk-delete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        items: ids.map((id) => ({ id, vehicleType })),
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.message || "Failed to bulk delete");
+    }
+    const json = await res.json();
+    return json.deletedCount || 0;
+  },
+
+  deleteAllByVehicle: async (vehicleType: VehicleType): Promise<number> => {
+    const res = await fetch(`${API_URL}/bulk-delete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        deleteAll: true,
+        vehicleType,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.message || "Failed to delete all by vehicle");
+    }
+    const json = await res.json();
+    return json.deletedCount || 0;
+  },
+
   toggleActive: async (id: string, vehicleType: VehicleType): Promise<PurposeItem> => {
     const res = await fetch(`${API_URL}/${id}/toggle`, {
       method: "PATCH",

@@ -1,36 +1,33 @@
-import React, { forwardRef, useMemo } from "react";
+import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
-import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavigation, useRoute } from "@react-navigation/native";
 
-export type SelectVehicleSheetRef = BottomSheet;
-
-interface SelectVehicleSheetProps {
-  onSelect: (type: "motorcycle" | "car" | "van" | "truck") => void;
-  onClose?: () => void;
-  onBack?: () => void;
-}
-
-export const SelectVehicleSheet = forwardRef<
-  SelectVehicleSheetRef,
-  SelectVehicleSheetProps
->(({ onSelect, onClose, onBack }, ref) => {
-  const snapPoints = useMemo(() => ["60%"], []);
+export default function SelectVehicleScreen() {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
+  const route = useRoute();
+  const params = route.params as any;
+
+  const handleBack = () => {
+    if ((navigation as any).canGoBack()) {
+      (navigation as any).goBack();
+    } else {
+      (navigation as any).navigate("LocationPicker");
+    }
+  };
+
+  const handleSelect = (type: "motorcycle" | "car" | "van" | "truck") => {
+    (navigation as any).navigate("ServicePurpose", {
+      vehicleType: type,
+      pickup: params?.pickup,
+      dropoff: params?.dropoff,
+    });
+  };
 
   return (
-    <BottomSheet
-      ref={ref}
-      index={-1}
-      snapPoints={snapPoints}
-      enablePanDownToClose
-      enableHandlePanningGesture
-      enableContentPanningGesture
-      onClose={onClose}
-      backgroundStyle={{ backgroundColor: "#0f231c" }}
-      handleIndicatorStyle={{ backgroundColor: "rgba(255,255,255,0.2)" }}
-    >
+    <View style={{ flex: 1, backgroundColor: "#0f231c", paddingTop: insets.top }}>
       <View
         style={{
           paddingTop: 8,
@@ -39,16 +36,13 @@ export const SelectVehicleSheet = forwardRef<
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
+          borderBottomWidth: 1,
+          borderBottomColor: "rgba(255,255,255,0.08)",
         }}
       >
-        {onBack && (
-          <TouchableOpacity
-            onPress={onBack}
-            style={{ padding: 4, marginRight: 8 }}
-          >
-            <MaterialIcons name="arrow-back" size={24} color="#fff" />
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity onPress={handleBack} style={{ padding: 4, marginRight: 8 }}>
+          <MaterialIcons name="arrow-back" size={24} color="#fff" />
+        </TouchableOpacity>
         <View style={{ flex: 1, alignItems: "center" }}>
           <Text
             style={{
@@ -65,19 +59,13 @@ export const SelectVehicleSheet = forwardRef<
             Selecione o veículo ideal
           </Text>
         </View>
-        {onBack && <View style={{ width: 32 }} />}
+        <View style={{ width: 32 }} />
       </View>
 
-      <BottomSheetScrollView
-        contentContainerStyle={{
-          paddingHorizontal: 16,
-          paddingBottom: insets.bottom + 24,
-        }}
-      >
-        {/* Card: Moto */}
+      <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 12, paddingBottom: Math.max(insets.bottom, 24) }}>
         <TouchableOpacity
           activeOpacity={0.85}
-          onPress={() => onSelect?.("motorcycle" as const)}
+          onPress={() => handleSelect("motorcycle")}
           style={{
             flexDirection: "row",
             alignItems: "center",
@@ -91,13 +79,7 @@ export const SelectVehicleSheet = forwardRef<
           }}
         >
           <View style={{ flex: 1, marginRight: 16 }}>
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                marginBottom: 4,
-              }}
-            >
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
               <Text
                 style={{
                   color: "#06db94",
@@ -113,9 +95,7 @@ export const SelectVehicleSheet = forwardRef<
                 Mais rápido
               </Text>
             </View>
-            <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}>
-              Moto
-            </Text>
+            <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}>Moto</Text>
             <Text style={{ color: "#9bbbb0", fontSize: 13 }}>
               Pequenos pacotes e documentos até 20kg
             </Text>
@@ -134,10 +114,9 @@ export const SelectVehicleSheet = forwardRef<
           </View>
         </TouchableOpacity>
 
-        {/* Card: Carro */}
         <TouchableOpacity
           activeOpacity={0.85}
-          onPress={() => onSelect?.("car" as const)}
+          onPress={() => handleSelect("car")}
           style={{
             flexDirection: "row",
             alignItems: "center",
@@ -151,9 +130,7 @@ export const SelectVehicleSheet = forwardRef<
           }}
         >
           <View style={{ flex: 1, marginRight: 16 }}>
-            <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}>
-              Carro
-            </Text>
+            <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}>Carro</Text>
             <Text style={{ color: "#9bbbb0", fontSize: 13 }}>
               Compras de mercado ou caixas médias
             </Text>
@@ -172,10 +149,9 @@ export const SelectVehicleSheet = forwardRef<
           </View>
         </TouchableOpacity>
 
-        {/* Card: Van */}
         <TouchableOpacity
           activeOpacity={0.85}
-          onPress={() => onSelect?.("van" as const)}
+          onPress={() => handleSelect("van")}
           style={{
             flexDirection: "row",
             alignItems: "center",
@@ -189,9 +165,7 @@ export const SelectVehicleSheet = forwardRef<
           }}
         >
           <View style={{ flex: 1, marginRight: 16 }}>
-            <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}>
-              Van
-            </Text>
+            <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}>Van</Text>
             <Text style={{ color: "#9bbbb0", fontSize: 13 }}>
               Móveis pequenos ou muitas caixas
             </Text>
@@ -210,10 +184,9 @@ export const SelectVehicleSheet = forwardRef<
           </View>
         </TouchableOpacity>
 
-        {/* Card: Caminhão */}
         <TouchableOpacity
           activeOpacity={0.85}
-          onPress={() => onSelect?.("truck" as const)}
+          onPress={() => handleSelect("truck")}
           style={{
             flexDirection: "row",
             alignItems: "center",
@@ -227,13 +200,7 @@ export const SelectVehicleSheet = forwardRef<
           }}
         >
           <View style={{ flex: 1, marginRight: 16 }}>
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                marginBottom: 4,
-              }}
-            >
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
               <Text
                 style={{
                   color: "rgba(255,255,255,0.8)",
@@ -249,9 +216,7 @@ export const SelectVehicleSheet = forwardRef<
                 Grandes volumes
               </Text>
             </View>
-            <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}>
-              Caminhão
-            </Text>
+            <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}>Caminhão</Text>
             <Text style={{ color: "#9bbbb0", fontSize: 13 }}>
               Mudanças e grandes cargas comerciais
             </Text>
@@ -269,12 +234,7 @@ export const SelectVehicleSheet = forwardRef<
             <MaterialIcons name="local-shipping" size={32} color="#ffffff" />
           </View>
         </TouchableOpacity>
-
-        {/* Spacer para garantir respiro no fim da lista */}
-        <View style={{ height: insets.bottom + 24 }} />
-      </BottomSheetScrollView>
-    </BottomSheet>
+      </View>
+    </View>
   );
-});
-
-SelectVehicleSheet.displayName = "SelectVehicleSheet";
+}

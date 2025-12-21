@@ -15,7 +15,9 @@ import CancelFeeScreen from "../screens/(authenticated)/Client/HomeScreen/Cancel
 import ChatScreen from "../screens/(authenticated)/Client/HomeScreen/ChatScreen";
 import OrderDetailsScreen from "../screens/(authenticated)/Client/HomeScreen/OrderDetailsScreen";
 import PaymentScreen from "../screens/(authenticated)/Client/HomeScreen/PaymentScreen";
+import SelectVehicleScreen from "../screens/(authenticated)/Client/HomeScreen/SelectVehicleScreen";
 import { useAuthStore } from "../context/authStore";
+import ServicePurposeScreen from "../screens/(authenticated)/Client/HomeScreen/ServicePurposeScreen";
 
 const Drawer = createDrawerNavigator();
 const { Navigator, Screen } = Drawer;
@@ -165,6 +167,24 @@ export default function DrawerClienteRoutes() {
         options={{
           drawerLabel: () => null,
           title: "Escolher no Mapa",
+          drawerItemStyle: { display: "none" },
+        }}
+      />
+      <Screen
+        name="SelectVehicle"
+        component={SelectVehicleScreen}
+        options={{
+          drawerLabel: () => null,
+          title: "Selecionar Veículo",
+          drawerItemStyle: { display: "none" },
+        }}
+      />
+      <Screen
+        name="ServicePurpose"
+        component={ServicePurposeScreen}
+        options={{
+          drawerLabel: () => null,
+          title: "Finalidade do Serviço",
           drawerItemStyle: { display: "none" },
         }}
       />

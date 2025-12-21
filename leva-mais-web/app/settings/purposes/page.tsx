@@ -79,6 +79,7 @@ function PurposesPageContent() {
   const [statusFilter, setStatusFilter] = useState<
     "all" | "active" | "inactive"
   >("all");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -140,6 +141,11 @@ function PurposesPageContent() {
       );
   }, [data, search, statusFilter]);
 
+  const allSelected = useMemo(
+    () => filteredData.length > 0 && selectedIds.length === filteredData.length,
+    [filteredData, selectedIds]
+  );
+
   // Stats
   const stats = useMemo(() => {
     return {
@@ -167,6 +173,63 @@ function PurposesPageContent() {
       isActive: true,
     });
     setIsModalOpen(true);
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredData.map((i) => i.id));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    showConfirm(
+      "Excluir Selecionados",
+      `Tem certeza que deseja excluir ${selectedIds.length} serviços?`,
+      async () => {
+        try {
+          const count = await purposesService.deleteBulk(activeTab, selectedIds);
+          showToast(`Excluídos: ${count}`, "success");
+          setSelectedIds([]);
+          loadData();
+        } catch (error) {
+          showToast(
+            (error as Error).message || "Erro ao excluir selecionados",
+            "error"
+          );
+        }
+      },
+      "danger"
+    );
+  };
+
+  const handleDeleteAll = async () => {
+    showConfirm(
+      "Excluir Todos",
+      `Excluir todos os serviços de ${VEHICLE_TABS.find((v) => v.id === activeTab)?.label}?`,
+      async () => {
+        try {
+          const count = await purposesService.deleteAllByVehicle(activeTab);
+          showToast(`Excluídos: ${count}`, "success");
+          setSelectedIds([]);
+          loadData();
+        } catch (error) {
+          showToast(
+            (error as Error).message || "Erro ao excluir todos",
+            "error"
+          );
+        }
+      },
+      "danger"
+    );
   };
 
   const handleOpenEdit = (item: PurposeItem) => {
@@ -335,6 +398,38 @@ function PurposesPageContent() {
           ))}
         </div>
 
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggleSelectAll}
+            className={cn(
+              "px-3 py-2 rounded-lg border text-sm",
+              allSelected
+                ? "bg-emerald-50 text-emerald-600 border-emerald-200"
+                : "bg-slate-50 text-slate-600 border-slate-200"
+            )}
+          >
+            {allSelected ? "Desmarcar todos" : "Selecionar todos"}
+          </button>
+          <button
+            onClick={handleBulkDelete}
+            disabled={selectedIds.length === 0}
+            className={cn(
+              "px-3 py-2 rounded-lg text-sm font-medium",
+              selectedIds.length === 0
+                ? "bg-slate-100 text-slate-400 cursor-not-allowed"
+                : "bg-red-500 text-white hover:bg-red-600"
+            )}
+          >
+            Excluir Selecionados ({selectedIds.length})
+          </button>
+          <button
+            onClick={handleDeleteAll}
+            className="px-3 py-2 rounded-lg text-sm font-medium bg-red-50 text-red-600 hover:bg-red-100"
+          >
+            Excluir Todos deste veículo
+          </button>
+        </div>
+
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard
@@ -415,6 +510,7 @@ function PurposesPageContent() {
             <table className="w-full text-left text-sm">
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-500">
                 <tr>
+                  <th className="px-6 py-3 font-semibold w-12">Sel.</th>
                   <th className="px-6 py-3 font-semibold w-16">Ícone</th>
                   <th className="px-6 py-3 font-semibold">Título / ID</th>
                   <th className="px-6 py-3 font-semibold">Subtítulo</th>
@@ -452,6 +548,13 @@ function PurposesPageContent() {
                         setIsDrawerOpen(true);
                       }}
                     >
+                      <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(item.id)}
+                          onChange={() => toggleSelect(item.id)}
+                        />
+                      </td>
                       <td className="px-6 py-4">
                         <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600">
                           <DynamicIcon name={item.icon} className="w-5 h-5" />

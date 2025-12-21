@@ -9,5 +9,6 @@ router.post('/', purposeController.create);
 router.put('/:id', purposeController.update);
 router.delete('/:id', purposeController.delete);
 router.patch('/:id/toggle', purposeController.toggleActive);
+router.post('/bulk-delete', purposeController.bulkDelete);
 
 module.exports = router;

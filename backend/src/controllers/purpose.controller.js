@@ -1,12 +1,22 @@
 const Purpose = require('../models/Purpose');
 
-// List all purposes, optionally filtered by vehicleType
+// List all purposes, optionally filtered by vehicleType and isActive
 exports.getAll = async (req, res) => {
   try {
-    const { vehicleType } = req.query;
-    const filter = vehicleType ? { vehicleType } : {};
-    
-    const purposes = await Purpose.find(filter).sort({ updatedAt: -1 });
+    const { vehicleType, isActive, limit, skip } = req.query;
+
+    const filter = {};
+    if (vehicleType) filter.vehicleType = vehicleType;
+    if (typeof isActive !== "undefined") {
+      // Accept "true"/"false" strings
+      filter.isActive = String(isActive).toLowerCase() === "true";
+    }
+
+    const query = Purpose.find(filter).sort({ updatedAt: -1 });
+    if (limit) query.limit(parseInt(limit, 10));
+    if (skip) query.skip(parseInt(skip, 10));
+
+    const purposes = await query.exec();
     
     res.json(purposes);
   } catch (error) {
@@ -106,6 +116,41 @@ exports.delete = async (req, res) => {
   } catch (error) {
     console.error('Error deleting purpose:', error);
     res.status(500).json({ message: 'Erro ao excluir tipo de serviço' });
+  }
+};
+
+exports.bulkDelete = async (req, res) => {
+  try {
+    const { items, deleteAll, vehicleType } = req.body;
+
+    if (deleteAll) {
+      const filter = vehicleType ? { vehicleType } : {};
+      const result = await Purpose.deleteMany(filter);
+      return res.json({ deletedCount: result.deletedCount || 0 });
+    }
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ message: 'Lista de itens vazia' });
+    }
+
+    const map = new Map();
+    for (const it of items) {
+      if (!it?.id || !it?.vehicleType) continue;
+      const arr = map.get(it.vehicleType) || [];
+      arr.push(it.id);
+      map.set(it.vehicleType, arr);
+    }
+
+    let deletedTotal = 0;
+    for (const [vt, ids] of map.entries()) {
+      const result = await Purpose.deleteMany({ vehicleType: vt, id: { $in: ids } });
+      deletedTotal += result.deletedCount || 0;
+    }
+
+    res.json({ deletedCount: deletedTotal });
+  } catch (error) {
+    console.error('Error bulk deleting purposes:', error);
+    res.status(500).json({ message: 'Erro ao excluir tipos de serviço' });
   }
 };
 

@@ -1,30 +1,21 @@
-import React, { forwardRef, useMemo, useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
-import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
+import React, { useEffect, useState } from "react";
+import { View, Text, TouchableOpacity, ActivityIndicator, ScrollView } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import {
   getPurposesByVehicleType,
   type PurposeItem,
   type VehicleType,
-} from "../../../../../services/purposes";
-import { mapIconName } from "../../../../../utils/iconMapper";
+} from "../../../../services/purposes";
+import { mapIconName } from "../../../../utils/iconMapper";
 
-export type ServicePurposeSheetRef = BottomSheet;
-
-interface ServicePurposeSheetProps {
-  vehicleType: VehicleType;
-  onSelect: (purposeId: string) => void;
-  onClose?: () => void;
-  onBack?: () => void;
-}
-
-export const ServicePurposeSheet = forwardRef<
-  ServicePurposeSheetRef,
-  ServicePurposeSheetProps
->(({ vehicleType, onSelect, onClose, onBack }, ref) => {
-  const snapPoints = useMemo(() => ["85%"], []);
+export default function ServicePurposeScreen() {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
+  const route = useRoute();
+  const { vehicleType, pickup, dropoff } = (route.params as any) || {};
+
   const [loading, setLoading] = useState(false);
   const [purposes, setPurposes] = useState<PurposeItem[]>([]);
 
@@ -32,7 +23,7 @@ export const ServicePurposeSheet = forwardRef<
     let mounted = true;
     if (vehicleType) {
       setLoading(true);
-      getPurposesByVehicleType(vehicleType)
+      getPurposesByVehicleType(vehicleType as VehicleType)
         .then((data) => {
           if (mounted) setPurposes(data);
         })
@@ -43,16 +34,21 @@ export const ServicePurposeSheet = forwardRef<
     };
   }, [vehicleType]);
 
+  const handleBack = () => {
+    (navigation as any).navigate("SelectVehicle", { pickup, dropoff });
+  };
+
+  const handleSelectPurpose = (purposeId: string) => {
+    (navigation as any).navigate("Home", {
+      openOffersFor: vehicleType,
+      purposeId,
+      pickup,
+      dropoff,
+    });
+  };
+
   return (
-    <BottomSheet
-      ref={ref}
-      index={-1}
-      snapPoints={snapPoints}
-      enablePanDownToClose
-      onClose={onClose}
-      backgroundStyle={{ backgroundColor: "#0f231c" }}
-      handleIndicatorStyle={{ backgroundColor: "rgba(255,255,255,0.2)" }}
-    >
+    <View style={{ flex: 1, backgroundColor: "#0f231c", paddingTop: insets.top }}>
       <View
         style={{
           paddingTop: 8,
@@ -61,12 +57,11 @@ export const ServicePurposeSheet = forwardRef<
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
+          borderBottomWidth: 1,
+          borderBottomColor: "rgba(255,255,255,0.08)",
         }}
       >
-        <TouchableOpacity
-          onPress={onBack}
-          style={{ padding: 4, marginRight: 8 }}
-        >
+        <TouchableOpacity onPress={handleBack} style={{ padding: 4, marginRight: 8 }}>
           <MaterialIcons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         <View style={{ flex: 1, alignItems: "center" }}>
@@ -88,22 +83,21 @@ export const ServicePurposeSheet = forwardRef<
       </View>
 
       {loading ? (
-        <View
-          style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
-        >
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
           <ActivityIndicator color="#02de95" />
         </View>
       ) : (
-        <BottomSheetScrollView
+        <ScrollView
           contentContainerStyle={{
             paddingHorizontal: 16,
-            paddingBottom: insets.bottom + 24,
+            paddingVertical: 12,
+            paddingBottom: Math.max(insets.bottom, 24),
           }}
         >
           {purposes.map((item) => (
             <TouchableOpacity
               key={item.id}
-              onPress={() => onSelect(item.id)}
+              onPress={() => handleSelectPurpose(item.id)}
               activeOpacity={0.85}
               style={{
                 flexDirection: "row",
@@ -117,9 +111,7 @@ export const ServicePurposeSheet = forwardRef<
                 borderColor: "rgba(255,255,255,0.05)",
               }}
             >
-              <View
-                style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
-              >
+              <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
                 <View
                   style={{
                     width: 48,
@@ -138,23 +130,17 @@ export const ServicePurposeSheet = forwardRef<
                   />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text
-                    style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}
-                  >
+                  <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}>
                     {item.title}
                   </Text>
-                  <Text style={{ color: "#9bbbb0", fontSize: 13 }}>
-                    {item.subtitle}
-                  </Text>
+                  <Text style={{ color: "#9bbbb0", fontSize: 13 }}>{item.subtitle}</Text>
                 </View>
               </View>
               <MaterialIcons name="chevron-right" size={24} color="#9bbbb0" />
             </TouchableOpacity>
           ))}
-        </BottomSheetScrollView>
+        </ScrollView>
       )}
-    </BottomSheet>
+    </View>
   );
-});
-
-ServicePurposeSheet.displayName = "ServicePurposeSheet";
+}
