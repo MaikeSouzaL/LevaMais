@@ -285,7 +285,8 @@ export default function AddFavoriteLocationScreen() {
         type: "success",
         onClose: () => {
           setModalConfig((prev) => ({ ...prev, visible: false }));
-          navigation.goBack();
+          // Navigate back to LocationPicker specifically
+          (navigation as any).navigate("LocationPicker");
         },
       });
     } catch (error) {

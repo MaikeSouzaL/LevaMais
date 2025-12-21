@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation, useIsFocused } from "@react-navigation/native";
+import { useNavigation, useIsFocused, useRoute } from "@react-navigation/native";
 import {
   buscarEnderecoPorTexto,
   obterEnderecoPorCoordenadas,
@@ -25,6 +25,7 @@ import { favoriteService, FavoriteLocation } from "../../../../services/favorite
 
 export default function LocationPickerScreen() {
   const navigation = useNavigation();
+  const route = useRoute();
   const insets = useSafeAreaInsets();
   const isFocused = useIsFocused();
   const { userData, token } = useAuthStore();
@@ -44,6 +45,10 @@ export default function LocationPickerScreen() {
   const [currentAddress, setCurrentAddress] = useState<string>(
     "Bela Vista, São Paulo - SP"
   );
+  const [currentCoords, setCurrentCoords] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
 
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
   const [favorites, setFavorites] = useState<FavoriteLocation[]>([]);
@@ -140,6 +145,42 @@ export default function LocationPickerScreen() {
     return () => clearTimeout(timer);
   }, [searchQuery, userCity, userRegion]);
 
+  // Atualizar localização atual se retornada do mapa
+  useEffect(() => {
+    const params = route.params as any;
+    console.log("📍 LocationPicker params received:", params);
+    if (params?.selectedLocation) {
+      if (params.selectionMode === "currentLocation") {
+        const { formattedAddress, latitude, longitude } = params.selectedLocation;
+        
+        // Tentar extrair rua/número e bairro/cidade
+        const parts = formattedAddress.split(" - ");
+        const streetPart = parts[0];
+        const cityPart = parts.slice(1).join(" - ");
+
+        setCurrentLocation(streetPart);
+        if (latitude && longitude) {
+          setCurrentCoords({ latitude, longitude });
+        }
+        
+        if (cityPart) {
+          setCurrentAddress(cityPart);
+        } else {
+          setCurrentAddress(formattedAddress);
+        }
+      } else if (params.selectionMode === "destination") {
+        setSelectedAddress(params.selectedLocation.formattedAddress);
+      }
+      
+      // Limpar params para evitar loop ou atualizações indesejadas
+      navigation.setParams({ selectedLocation: null, selectionMode: null } as any);
+    }
+  }, [route.params]);
+
+  const handleEditCurrentLocation = () => {
+    (navigation as any).navigate("MapLocationPicker", { selectionMode: "currentLocation" });
+  };
+
   const handleSelectResult = (result: GeocodingResult) => {
     console.log("📍 Destino selecionado:", result.formattedAddress);
     setSelectedAddress(result.formattedAddress);
@@ -174,7 +215,10 @@ export default function LocationPickerScreen() {
   }, [selectedAddress]);
 
   const handleChooseOnMap = () => {
-    (navigation as any).navigate("MapLocationPicker");
+    (navigation as any).navigate("MapLocationPicker", {
+      returnScreen: "LocationPicker",
+      selectionMode: "destination",
+    });
   };
 
   return (
@@ -211,12 +255,15 @@ export default function LocationPickerScreen() {
           <Text className="text-primary text-xs font-bold tracking-widest uppercase mb-1">
             Local Atual
           </Text>
-          <View className="flex-row items-center gap-2">
+          <TouchableOpacity 
+            className="flex-row items-center gap-2"
+            onPress={handleEditCurrentLocation}
+          >
             <Text className="text-white text-lg font-bold">
               {currentLocation}
             </Text>
             <MaterialIcons name="edit" size={18} color="#02de95" />
-          </View>
+          </TouchableOpacity>
           <Text className="text-gray-400 text-sm mt-1">{currentAddress}</Text>
         </View>
 

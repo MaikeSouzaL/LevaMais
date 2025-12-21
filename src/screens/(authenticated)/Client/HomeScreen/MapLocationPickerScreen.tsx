@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import {
   buscarEnderecoPorTexto,
@@ -25,7 +25,11 @@ import {
 export default function MapLocationPickerScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
+  const route = useRoute();
   const mapRef = React.useRef<MapView>(null);
+  
+  const { returnScreen, selectionMode } = (route.params as any) || {};
+  const isPickupMode = selectionMode === "currentLocation";
 
   // Estilo de mapa escuro (Google Maps) para combinar com o tema da aplicação
   // Fonte: estilo dark simplificado baseado no Snazzy Maps (ajustado para melhor contraste com os pins).
@@ -214,7 +218,22 @@ export default function MapLocationPickerScreen() {
 
   const handleConfirm = () => {
     console.log("📍 Local confirmado:", address);
-    (navigation as any).navigate("Home", { reopenBottomSheet: true });
+    if (returnScreen === "LocationPicker") {
+      navigation.navigate({
+        name: "LocationPicker",
+        params: {
+          selectedLocation: {
+            formattedAddress: address,
+            latitude: region?.latitude,
+            longitude: region?.longitude,
+          },
+          selectionMode: selectionMode,
+        },
+        merge: true,
+      } as any);
+    } else {
+      (navigation as any).navigate("Home", { reopenBottomSheet: true });
+    }
   };
 
   const handleBack = () => {
@@ -523,7 +542,7 @@ export default function MapLocationPickerScreen() {
                   letterSpacing: 0.5,
                 }}
               >
-                Confirmar local de partida
+                {isPickupMode ? "Confirmar local de partida" : "Confirmar destino"}
               </Text>
 
               <View style={{ alignItems: "center", gap: 4 }}>
@@ -628,7 +647,7 @@ export default function MapLocationPickerScreen() {
                 <Text
                   style={{ color: "#111818", fontSize: 16, fontWeight: "700" }}
                 >
-                  Confirmar Local
+                  {isPickupMode ? "Confirmar Local" : "Confirmar Destino"}
                 </Text>
                 <MaterialIcons name="arrow-forward" size={20} color="#111818" />
               </TouchableOpacity>
