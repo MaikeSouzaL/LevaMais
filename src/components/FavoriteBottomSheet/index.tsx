@@ -34,6 +34,7 @@ interface FavoriteBottomSheetProps {
   onIconSelect: (icon: string) => void;
   onSave: () => void;
   onDismiss?: () => void;
+  isLoading?: boolean;
 }
 
 const favoriteIcons = [
@@ -58,6 +59,7 @@ export default function FavoriteBottomSheet({
   onIconSelect,
   onSave,
   onDismiss,
+  isLoading = false,
 }: FavoriteBottomSheetProps) {
   const insets = useSafeAreaInsets();
 
@@ -332,11 +334,12 @@ export default function FavoriteBottomSheet({
             {/* Botão Salvar */}
             <TouchableOpacity
               onPress={onSave}
+              disabled={isLoading}
               activeOpacity={0.9}
               style={{
                 width: "100%",
                 height: 56,
-                backgroundColor: "#02de95",
+                backgroundColor: isLoading ? "#1c2727" : "#02de95",
                 borderRadius: 9999,
                 flexDirection: "row",
                 alignItems: "center",
@@ -347,12 +350,25 @@ export default function FavoriteBottomSheet({
                 shadowOpacity: 0.3,
                 shadowRadius: 20,
                 elevation: 10,
+                opacity: isLoading ? 0.7 : 1,
               }}
             >
-              <MaterialIcons name="bookmark" size={20} color="#111818" />
-              <Text style={{ color: "#111818", fontSize: 16, fontWeight: "700" }}>
-                Salvar Favorito
-              </Text>
+              {isLoading ? (
+                <ActivityIndicator size="small" color="#9db9b9" />
+              ) : (
+                <>
+                  <MaterialIcons name="bookmark" size={20} color="#111818" />
+                  <Text
+                    style={{
+                      color: "#111818",
+                      fontSize: 16,
+                      fontWeight: "700",
+                    }}
+                  >
+                    Salvar Favorito
+                  </Text>
+                </>
+              )}
             </TouchableOpacity>
           </ScrollView>
         </KeyboardAvoidingView>

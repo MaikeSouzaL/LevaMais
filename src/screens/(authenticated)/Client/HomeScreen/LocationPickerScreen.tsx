@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useIsFocused } from "@react-navigation/native";
 import {
   buscarEnderecoPorTexto,
   obterEnderecoPorCoordenadas,
@@ -20,10 +20,14 @@ import {
   formatarEndereco,
   type GeocodingResult,
 } from "../../../../utils/location";
+import { useAuthStore } from "../../../../context/authStore";
+import { favoriteService, FavoriteLocation } from "../../../../services/favorite.service";
 
 export default function LocationPickerScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+  const isFocused = useIsFocused();
+  const { userData, token } = useAuthStore();
 
   // Animação do bottom sheet
   const slideAnim = useRef(new Animated.Value(400)).current; // Começa fora da tela (400px abaixo)
@@ -42,15 +46,30 @@ export default function LocationPickerScreen() {
   );
 
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
+  const [favorites, setFavorites] = useState<FavoriteLocation[]>([]);
+  const [isLoadingFavorites, setIsLoadingFavorites] = useState(false);
 
-  const favorites = [
-    { icon: "home", title: "Casa", address: "Rua Augusta, 500 - Consolação" },
-    {
-      icon: "work",
-      title: "Trabalho",
-      address: "Av. Faria Lima, 3477 - Itaim Bibi",
-    },
-  ];
+  // Carregar favoritos quando a tela estiver em foco
+  useEffect(() => {
+    const loadFavorites = async () => {
+      if (isFocused && userData?.id && token) {
+        setIsLoadingFavorites(true);
+        try {
+          const userFavorites = await favoriteService.listByUser(
+            userData.id,
+            token
+          );
+          setFavorites(userFavorites);
+        } catch (error) {
+          console.error("Erro ao carregar favoritos:", error);
+        } finally {
+          setIsLoadingFavorites(false);
+        }
+      }
+    };
+
+    loadFavorites();
+  }, [isFocused, userData?.id, token]);
 
   const recents = [
     {
@@ -241,41 +260,51 @@ export default function LocationPickerScreen() {
                   Favoritos
                 </Text>
                 <View>
-                  {favorites.map((item, index) => (
-                    <TouchableOpacity
-                      key={index}
-                      className="flex-row items-center p-3 rounded-xl active:bg-white/5"
-                      onPress={() =>
-                        handleSelectResult({
-                          formattedAddress: item.address,
-                        } as any)
-                      }
-                    >
-                      <View className="h-10 w-10 rounded-full bg-white/10 items-center justify-center mr-4">
-                        <MaterialIcons
+                  {isLoadingFavorites ? (
+                    <ActivityIndicator size="small" color="#02de95" />
+                  ) : favorites.length > 0 ? (
+                    favorites.map((item) => (
+                      <TouchableOpacity
+                        key={item.id || item._id || Math.random().toString()}
+                        className="flex-row items-center p-3 rounded-xl active:bg-white/5"
+                        onPress={() =>
+                          handleSelectResult({
+                            formattedAddress: item.address,
+                            latitude: item.latitude,
+                            longitude: item.longitude,
+                          } as any)
+                        }
+                      >
+                        <View className="h-10 w-10 rounded-full bg-white/10 items-center justify-center mr-4">
+                          <MaterialIcons
                           name={item.icon as any}
                           size={20}
                           color="#D1D5DB"
                         />
                       </View>
                       <View className="flex-1">
-                        <Text className="text-sm font-medium text-white">
-                          {item.title}
-                        </Text>
-                        <Text
-                          className="text-xs text-gray-400"
-                          numberOfLines={1}
-                        >
-                          {item.address}
-                        </Text>
-                      </View>
-                      <MaterialIcons
-                        name="chevron-right"
-                        size={18}
-                        color="#9CA3AF"
-                      />
-                    </TouchableOpacity>
-                  ))}
+                          <Text className="text-sm font-medium text-white">
+                            {item.label}
+                          </Text>
+                          <Text
+                            className="text-xs text-gray-400"
+                            numberOfLines={1}
+                          >
+                            {item.address}
+                          </Text>
+                        </View>
+                        <MaterialIcons
+                          name="chevron-right"
+                          size={18}
+                          color="#9CA3AF"
+                        />
+                      </TouchableOpacity>
+                    ))
+                  ) : (
+                    <Text className="text-gray-500 text-sm pl-3 mb-2">
+                      Nenhum favorito salvo
+                    </Text>
+                  )}
 
                   {/* Add Favorite */}
                   <TouchableOpacity

@@ -4,6 +4,7 @@ const cors = require("cors");
 const database = require("./src/config/database");
 const authRoutes = require("./src/routes/auth.routes");
 const purposeRoutes = require("./src/routes/purpose.routes");
+const favoriteRoutes = require("./src/routes/favorite.routes");
 
 class Server {
   constructor() {
@@ -24,6 +25,7 @@ class Server {
   routes() {
     this.app.use("/api/auth", authRoutes);
     this.app.use("/api/purposes", purposeRoutes);
+    this.app.use("/api/favorites", favoriteRoutes);
 
     // Rota de teste
     this.app.get("/api/health", (req, res) => {

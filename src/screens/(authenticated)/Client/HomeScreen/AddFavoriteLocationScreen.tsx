@@ -13,6 +13,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import MapView, { PROVIDER_GOOGLE } from "react-native-maps";
 import FavoriteBottomSheet from "../../../../components/FavoriteBottomSheet";
+import { Modal } from "../../../../components/Modal";
+import { useAuthStore } from "../../../../context/authStore";
+import { favoriteService } from "../../../../services/favorite.service";
 import {
   buscarEnderecoPorTexto,
   obterEnderecoPorCoordenadas,
@@ -100,7 +103,23 @@ export default function AddFavoriteLocationScreen() {
   const [isSearching, setIsSearching] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [isGeocodingLoading, setIsGeocodingLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  
+  const [modalConfig, setModalConfig] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    type: "success" | "error" | "info" | "warning";
+    onClose?: () => void;
+  }>({
+    visible: false,
+    title: "",
+    message: "",
+    type: "info",
+  });
 
+  const { userData, token } = useAuthStore();
+  
   const [userCity, setUserCity] = useState<string>("");
   const [userRegion, setUserRegion] = useState<string>("");
   const [favoriteLabel, setFavoriteLabel] = useState("");
@@ -213,34 +232,73 @@ export default function AddFavoriteLocationScreen() {
 
   const handleSaveFavorite = async () => {
     if (!favoriteLabel.trim()) {
-      Alert.alert("Atenção", "Por favor, dê um nome para este favorito");
+      setModalConfig({
+        visible: true,
+        title: "Atenção",
+        message: "Por favor, dê um nome para este favorito",
+        type: "warning",
+        onClose: () => setModalConfig((prev) => ({ ...prev, visible: false })),
+      });
       return;
     }
 
     if (!region) {
-      Alert.alert("Erro", "Localização não disponível");
+      setModalConfig({
+        visible: true,
+        title: "Erro",
+        message: "Localização não disponível",
+        type: "error",
+        onClose: () => setModalConfig((prev) => ({ ...prev, visible: false })),
+      });
       return;
     }
 
-    try {
-      // TODO: Implementar salvamento no banco de dados
-      console.log("💾 Salvando favorito:", {
-        label: favoriteLabel,
-        icon: selectedIcon,
-        address: address,
-        latitude: region.latitude,
-        longitude: region.longitude,
+    if (!userData?.id || !token) {
+      setModalConfig({
+        visible: true,
+        title: "Erro",
+        message: "Usuário não autenticado",
+        type: "error",
+        onClose: () => setModalConfig((prev) => ({ ...prev, visible: false })),
       });
+      return;
+    }
 
-      Alert.alert("Sucesso", "Favorito adicionado com sucesso!", [
+    setIsSaving(true);
+    try {
+      await favoriteService.create(
         {
-          text: "OK",
-          onPress: () => navigation.goBack(),
+          userId: userData.id,
+          label: favoriteLabel,
+          icon: selectedIcon,
+          address: address,
+          latitude: region.latitude,
+          longitude: region.longitude,
         },
-      ]);
+        token
+      );
+
+      setModalConfig({
+        visible: true,
+        title: "Sucesso!",
+        message: "Seu local favorito foi salvo com sucesso.",
+        type: "success",
+        onClose: () => {
+          setModalConfig((prev) => ({ ...prev, visible: false }));
+          navigation.goBack();
+        },
+      });
     } catch (error) {
       console.error("Erro ao salvar favorito:", error);
-      Alert.alert("Erro", "Não foi possível salvar o favorito");
+      setModalConfig({
+        visible: true,
+        title: "Erro",
+        message: "Não foi possível salvar o favorito. Tente novamente.",
+        type: "error",
+        onClose: () => setModalConfig((prev) => ({ ...prev, visible: false })),
+      });
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -514,6 +572,15 @@ export default function AddFavoriteLocationScreen() {
             onLabelChange={setFavoriteLabel}
             onIconSelect={setSelectedIcon}
             onSave={handleSaveFavorite}
+            isLoading={isSaving}
+          />
+          
+          <Modal
+            visible={modalConfig.visible}
+            title={modalConfig.title}
+            message={modalConfig.message}
+            type={modalConfig.type}
+            onClose={modalConfig.onClose}
           />
         </>
       )}
