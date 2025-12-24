@@ -10,7 +10,8 @@ const vehiclePricingSchema = new mongoose.Schema(
     basePrice: { type: Number, default: 0, min: 0 },
     pricePerKm: { type: Number, required: true, min: 0 },
     pricePerMinute: { type: Number, default: 0, min: 0 },
-    minimumPrice: { type: Number, required: true, min: 0 },
+    minimumKm: { type: Number, required: true, min: 0 },
+    minimumFee: { type: Number, default: 0, min: 0 },
     enabled: { type: Boolean, default: true },
   },
   { _id: false }

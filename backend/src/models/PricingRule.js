@@ -38,9 +38,14 @@ const pricingRuleSchema = new mongoose.Schema(
         default: 0,
         min: 0,
       },
-      minimumPrice: {
+      minimumKm: {
         type: Number,
-        required: [true, "Preço mínimo é obrigatório"],
+        required: [true, "Km mínimo é obrigatório"],
+        min: 0,
+      },
+      minimumFee: {
+        type: Number,
+        default: 0,
         min: 0,
       },
     },

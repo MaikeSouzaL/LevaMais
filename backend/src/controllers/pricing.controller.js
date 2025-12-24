@@ -171,6 +171,9 @@ class PricingController {
       const pricingRule = await PricingRule.findOne(filter).sort({
         priority: -1,
       });
+      const minKm = pricingRule.pricing.minimumKm || 0;
+      const minFee = pricingRule.pricing.minimumFee || 0;
+      const pricePerKm = pricingRule.pricing.pricePerKm || 0;
 
       if (!pricingRule) {
         return res.status(404).json({
@@ -179,11 +182,14 @@ class PricingController {
       }
 
       // Calcular preço base
-      let totalPrice = distance * pricingRule.pricing.pricePerKm;
-
-      // Aplicar preço mínimo
-      if (totalPrice < pricingRule.pricing.minimumPrice) {
-        totalPrice = pricingRule.pricing.minimumPrice;
+      let totalPrice = 0;
+      if (distance <= minKm) {
+        // Se a distância for menor ou igual ao km mínimo, aplica taxa mínima fixa
+        totalPrice = minFee;
+      } else {
+        // Se maior, soma taxa mínima + excedente multiplicado por preço/km
+        const exceedKm = distance - minKm;
+        totalPrice = minFee + exceedKm * pricePerKm;
       }
 
       // Verificar taxas adicionais
@@ -246,9 +252,13 @@ class PricingController {
       const finalPrice = totalPrice * feeMultiplier;
 
       return res.json({
-        basePrice: pricingRule.pricing.basePrice,
-        distancePrice: distance * pricingRule.pricing.pricePerKm,
-        durationPrice: duration * pricingRule.pricing.pricePerMinute,
+        basePrice: 0,
+        distancePrice: Math.max(distance - minKm, 0) * pricePerKm,
+        durationPrice: 0,
+        minimums: {
+          minimumKm: minKm,
+          minimumFee: minFee,
+        },
         subtotal: totalPrice,
         fees,
         totalPrice: finalPrice,

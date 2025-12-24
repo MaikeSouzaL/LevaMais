@@ -17,7 +17,8 @@ const api = axios.create({
 export interface VehiclePricing {
   vehicleType: "motorcycle" | "car" | "van" | "truck";
   pricePerKm: number; // Preço por km rodado
-  minimumPrice: number; // Valor mínimo da corrida
+  minimumKm: number; // Km mínimo da corrida
+  minimumFee?: number; // Valor mínimo (taxa mínima) da corrida
   enabled: boolean; // Se este tipo está ativo
 }
 
@@ -88,7 +89,30 @@ class PricingService {
   async getConfig(): Promise<PricingConfig> {
     try {
       const response = await api.get("/pricing/config");
-      return response.data.config;
+      const cfg: PricingConfig = response.data.config;
+      // Normalizar vehiclePricing para garantir minimumKm definido
+      if (Array.isArray(cfg.vehiclePricing)) {
+        cfg.vehiclePricing = cfg.vehiclePricing.map(
+          (vp: Partial<VehiclePricing> & { minimumPrice?: number }) => {
+            const pricePerKm =
+              typeof vp.pricePerKm === "number" ? vp.pricePerKm : 0;
+            let minimumKm = vp.minimumKm;
+            if (typeof minimumKm !== "number" || Number.isNaN(minimumKm)) {
+              // Se vier legado com minimumPrice, tenta converter para km mínimo aproximado
+              if (typeof vp.minimumPrice === "number" && pricePerKm > 0) {
+                minimumKm = Math.max(0, vp.minimumPrice / pricePerKm);
+              } else {
+                minimumKm = 0;
+              }
+            }
+            return {
+              ...vp,
+              minimumKm,
+            } as VehiclePricing;
+          }
+        );
+      }
+      return cfg;
     } catch (error) {
       if (axios.isAxiosError(error)) {
         // Se não existir endpoint/config (404/500), retornar padrão
@@ -163,25 +187,29 @@ class PricingService {
         {
           vehicleType: "motorcycle",
           pricePerKm: 1.5,
-          minimumPrice: 8.0,
+          minimumKm: 0,
+          minimumFee: 0,
           enabled: true,
         },
         {
           vehicleType: "car",
           pricePerKm: 2.0,
-          minimumPrice: 12.0,
+          minimumKm: 0,
+          minimumFee: 0,
           enabled: true,
         },
         {
           vehicleType: "van",
           pricePerKm: 3.5,
-          minimumPrice: 25.0,
+          minimumKm: 0,
+          minimumFee: 0,
           enabled: true,
         },
         {
           vehicleType: "truck",
           pricePerKm: 5.0,
-          minimumPrice: 40.0,
+          minimumKm: 0,
+          minimumFee: 0,
           enabled: true,
         },
       ],
@@ -258,9 +286,14 @@ class PricingService {
             `Veículo ${index + 1}: Preço por km não pode ser negativo`
           );
         }
-        if (vp.minimumPrice < 0) {
+        if (vp.minimumKm < 0) {
           errors.push(
-            `Veículo ${index + 1}: Preço mínimo deve ser maior ou igual a 0`
+            `Veículo ${index + 1}: Km mínimo deve ser maior ou igual a 0`
+          );
+        }
+        if (vp.minimumFee != null && vp.minimumFee < 0) {
+          errors.push(
+            `Veículo ${index + 1}: Taxa mínima deve ser maior ou igual a 0`
           );
         }
       });

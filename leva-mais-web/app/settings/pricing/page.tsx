@@ -384,8 +384,10 @@ function VehiclePricingTab({
             Como funciona o cálculo de preços
           </h3>
           <p className="text-sm text-blue-700">
-            Preço Total = Preço Base + (Distância × Preço/km) + (Tempo ×
-            Preço/min) + Taxas Adicionais
+            Regra: Se Distância ≤ KM Mínimo, cobra a Taxa Mínima (valor). Se
+            Distância &gt; KM Mínimo, cobra Taxa Mínima + (Distância &minus; KM
+            Mínimo) &times; Preço/km. Depois, aplicam-se eventuais Taxas
+            Adicionais (pico/noturna).
           </p>
         </div>
       </div>
@@ -428,15 +430,7 @@ function VehiclePricingTab({
                 </label>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <PriceInput
-                  label="Preço Base"
-                  value={vp.basePrice}
-                  onChange={(value) => onUpdate(index, "basePrice", value)}
-                  prefix="R$"
-                  hint="Valor fixo inicial"
-                />
-
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <PriceInput
                   label="Preço por KM"
                   value={vp.pricePerKm}
@@ -447,42 +441,81 @@ function VehiclePricingTab({
                 />
 
                 <PriceInput
-                  label="Preço por Minuto"
-                  value={vp.pricePerMinute}
-                  onChange={(value) => onUpdate(index, "pricePerMinute", value)}
-                  prefix="R$"
-                  suffix="/min"
-                  hint="Valor por minuto"
+                  label="KM Mínimo"
+                  value={vp.minimumKm}
+                  onChange={(value) => onUpdate(index, "minimumKm", value)}
+                  prefix={undefined}
+                  suffix="km"
+                  hint="Km mínimo cobrado"
                 />
 
                 <PriceInput
-                  label="Valor Mínimo"
-                  value={vp.minimumPrice}
-                  onChange={(value) => onUpdate(index, "minimumPrice", value)}
+                  label="Taxa Mínima (Valor)"
+                  value={vp.minimumFee || 0}
+                  onChange={(value) => onUpdate(index, "minimumFee", value)}
                   prefix="R$"
-                  hint="Preço mínimo da corrida"
+                  hint="Valor mínimo da corrida"
                 />
               </div>
 
-              {/* Exemplo de cálculo */}
+              {/* Exemplo de cálculo com distância dinâmica */}
               <div className="mt-4 pt-4 border-t border-gray-300">
-                <p className="text-xs text-gray-500 mb-2">
-                  <strong>Exemplo:</strong> 10km em 20min
-                </p>
-                <p className="text-sm font-medium text-gray-900">
-                  R$ {vp.basePrice.toFixed(2)} (base) + R${" "}
-                  {(vp.pricePerKm * 10).toFixed(2)} (distância) + R${" "}
-                  {(vp.pricePerMinute * 20).toFixed(2)} (tempo) ={" "}
-                  <span className="text-green-600">
-                    R${" "}
-                    {Math.max(
-                      vp.basePrice +
-                        vp.pricePerKm * 10 +
-                        vp.pricePerMinute * 20,
-                      vp.minimumPrice
-                    ).toFixed(2)}
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="text-xs text-gray-500 font-medium">
+                    Exemplo:
                   </span>
-                </p>
+                  <input
+                    type="number"
+                    min={0}
+                    step={0.1}
+                    defaultValue={10}
+                    onChange={(e) => {
+                      const exKm = Number(e.target.value);
+                      const minKm = vp.minimumKm || 0;
+                      const exceedKm = Math.max(exKm - minKm, 0);
+                      const distancePrice = exceedKm * vp.pricePerKm;
+                      const subtotal = (vp.minimumFee || 0) + distancePrice;
+                      const el =
+                        e.currentTarget.parentElement?.parentElement?.querySelector(
+                          "[data-example-result]"
+                        ) as HTMLElement | null;
+                      if (el) el.textContent = `R$ ${subtotal.toFixed(2)}`;
+                      const details =
+                        e.currentTarget.parentElement?.parentElement?.querySelector(
+                          "[data-example-details]"
+                        ) as HTMLElement | null;
+                      if (details)
+                        details.textContent = `Distância: ${exKm.toFixed(
+                          2
+                        )} km • KM Mínimo: ${minKm.toFixed(
+                          2
+                        )} km • Excedente: ${exceedKm.toFixed(2)} km`;
+                    }}
+                    className="w-24 px-2 py-1 text-sm border rounded-md"
+                  />
+                  <span className="text-xs text-gray-500">km</span>
+                </div>
+                <div className="text-sm text-gray-700 space-y-1">
+                  <p data-example-details>
+                    Distância: 10.00 km • KM Mínimo:{" "}
+                    {(vp.minimumKm || 0).toFixed(2)} km • Excedente:{" "}
+                    {Math.max(10 - (vp.minimumKm || 0), 0).toFixed(2)} km
+                  </p>
+                  <p>
+                    Taxa Mínima: R$ {(vp.minimumFee || 0).toFixed(2)} • Preço
+                    por KM: R$ {vp.pricePerKm.toFixed(2)}
+                  </p>
+                  <p className="font-medium text-gray-900">
+                    Total (sem taxas adicionais):{" "}
+                    <span data-example-result>
+                      R${" "}
+                      {(
+                        (vp.minimumFee || 0) +
+                        Math.max(10 - (vp.minimumKm || 0), 0) * vp.pricePerKm
+                      ).toFixed(2)}
+                    </span>
+                  </p>
+                </div>
               </div>
             </div>
           );
@@ -1120,12 +1153,11 @@ function PriceInput({
   suffix,
   hint,
 }: PriceInputProps) {
-  const [displayValue, setDisplayValue] = useState("");
-
-  // Atualiza o display quando o valor externo muda
-  useEffect(() => {
-    setDisplayValue(value.toFixed(2).replace(".", ","));
-  }, [value]);
+  const [displayValue, setDisplayValue] = useState(() => {
+    const safeValue =
+      typeof value === "number" && !Number.isNaN(value) ? value : 0;
+    return safeValue.toFixed(2).replace(".", ",");
+  });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let inputValue = e.target.value;
@@ -1153,7 +1185,9 @@ function PriceInput({
 
   const handleBlur = () => {
     // Formata ao perder o foco
-    const formatted = value.toFixed(2).replace(".", ",");
+    const safeValue =
+      typeof value === "number" && !Number.isNaN(value) ? value : 0;
+    const formatted = safeValue.toFixed(2).replace(".", ",");
     setDisplayValue(formatted);
   };
 
