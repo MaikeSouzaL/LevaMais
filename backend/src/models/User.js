@@ -88,6 +88,17 @@ const userSchema = new mongoose.Schema(
       enum: ["client", "driver", "admin"],
       default: "client",
     },
+    // Dados específicos do motorista
+    vehicleType: {
+      type: String,
+      enum: ["motorcycle", "car", "van", "truck"],
+    },
+    vehicleInfo: {
+      plate: String,
+      model: String,
+      color: String,
+      year: Number,
+    },
     googleId: {
       type: String,
       sparse: true, // Permite múltiplos documentos sem esse campo

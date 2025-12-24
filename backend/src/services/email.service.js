@@ -16,7 +16,7 @@ class EmailService {
     });
 
     // Verificar configuração ao inicializar
-    this.verifyConnection();
+    // this.verifyConnection();  // Comentado temporariamente
   }
 
   async verifyConnection() {

@@ -37,4 +37,8 @@ router.delete(
   authController.removePushToken.bind(authController)
 );
 
+// Rotas admin (sem autenticação por enquanto - adicionar depois)
+router.get("/users", authController.listUsers.bind(authController));
+router.get("/users/:id", authController.getUserById.bind(authController));
+
 module.exports = router;

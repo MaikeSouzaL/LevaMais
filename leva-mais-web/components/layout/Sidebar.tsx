@@ -15,6 +15,8 @@ import {
   ChevronRight,
   X,
   ChevronLeft,
+  MapPin,
+  UserCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -26,8 +28,16 @@ const MENU_ITEMS = [
     disabled: true,
   },
   { label: "Usuários", icon: Users, href: "/users", disabled: true },
-  { label: "Motoristas", icon: Car, href: "/drivers", disabled: true },
-  { label: "Clientes", icon: Users, href: "/clients", disabled: true },
+  { label: "Motoristas", icon: Car, href: "/drivers", active: true },
+  {
+    label: "Verificação de Motoristas",
+    icon: UserCheck,
+    href: "/verification/drivers",
+    active: true,
+    badge: 3, // Número de motoristas pendentes
+  },
+  { label: "Clientes", icon: Users, href: "/clients", active: true },
+  { label: "Cidades", icon: MapPin, href: "/cities", active: true },
   { label: "Corridas", icon: Map, href: "/rides", disabled: true },
   { label: "Ganhos", icon: DollarSign, href: "/earnings", disabled: true },
 ];
@@ -49,7 +59,7 @@ const CONFIG_ITEMS = [
     label: "Preços & Regras",
     icon: DollarSign,
     href: "/settings/pricing",
-    disabled: true,
+    active: true,
   },
 ];
 
@@ -219,6 +229,7 @@ interface NavItemProps {
     href: string;
     disabled?: boolean;
     active?: boolean;
+    badge?: number;
   };
   currentPath: string;
   onClick: () => void;
@@ -288,9 +299,21 @@ function NavItem({ item, currentPath, onClick, isCollapsed }: NavItemProps) {
           <span className="text-sm font-medium">{item.label}</span>
         )}
       </div>
-      {isActive && !isCollapsed && (
-        <ChevronRight size={14} className="text-emerald-400" />
-      )}
+      <div className="flex items-center gap-2">
+        {item.badge && item.badge > 0 && (
+          <span
+            className={cn(
+              "px-2 py-0.5 text-xs font-bold rounded-full transition-colors",
+              isActive ? "bg-emerald-600 text-white" : "bg-red-500 text-white"
+            )}
+          >
+            {item.badge}
+          </span>
+        )}
+        {isActive && !isCollapsed && (
+          <ChevronRight size={14} className="text-emerald-400" />
+        )}
+      </div>
     </Link>
   );
 }

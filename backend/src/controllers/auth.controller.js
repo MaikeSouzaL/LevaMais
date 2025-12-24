@@ -560,6 +560,77 @@ class AuthController {
       });
     }
   }
+
+  // Listar usuários (para admin)
+  async listUsers(req, res) {
+    try {
+      const { userType, isActive, limit = 100, page = 1 } = req.query;
+
+      const query = {};
+
+      if (userType) {
+        query.userType = userType;
+      }
+
+      if (isActive !== undefined) {
+        query.isActive = isActive === "true";
+      }
+
+      const users = await User.find(query)
+        .select("-password")
+        .limit(parseInt(limit))
+        .skip((parseInt(page) - 1) * parseInt(limit))
+        .sort({ createdAt: -1 });
+
+      const total = await User.countDocuments(query);
+
+      res.json({
+        success: true,
+        users,
+        pagination: {
+          total,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          pages: Math.ceil(total / parseInt(limit)),
+        },
+      });
+    } catch (error) {
+      console.error("Erro ao listar usuários:", error);
+      res.status(500).json({
+        success: false,
+        message: "Erro ao listar usuários",
+        error: error.message,
+      });
+    }
+  }
+
+  // Buscar usuário por ID (para admin)
+  async getUserById(req, res) {
+    try {
+      const { id } = req.params;
+
+      const user = await User.findById(id).select("-password");
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: "Usuário não encontrado",
+        });
+      }
+
+      res.json({
+        success: true,
+        user,
+      });
+    } catch (error) {
+      console.error("Erro ao buscar usuário:", error);
+      res.status(500).json({
+        success: false,
+        message: "Erro ao buscar usuário",
+        error: error.message,
+      });
+    }
+  }
 }
 
 const authController = new AuthController();
