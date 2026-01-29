@@ -50,7 +50,8 @@ function createApiInstance(): AxiosInstance {
         const status = error.response.status;
 
         // Se token expirou/inválido, desloga para forçar novo login
-        if (status === 401 || status === 403) {
+        // IMPORTANTe: 403 pode ser apenas "sem permissão" (não é sessão expirada).
+        if (status === 401) {
           try {
             const { useAuthStore } = require("../context/authStore");
             useAuthStore.getState().logout();
@@ -61,6 +62,15 @@ function createApiInstance(): AxiosInstance {
             error.response?.data?.error ||
             "Sessão expirada. Faça login novamente.";
 
+          return Promise.reject(new Error(apiMsg));
+        }
+
+        // 403 = Forbidden (sem permissão). Não deslogar automaticamente.
+        if (status === 403) {
+          const apiMsg =
+            error.response?.data?.message ||
+            error.response?.data?.error ||
+            "Você não tem permissão para realizar esta ação.";
           return Promise.reject(new Error(apiMsg));
         }
 

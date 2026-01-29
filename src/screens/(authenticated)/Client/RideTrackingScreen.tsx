@@ -28,6 +28,7 @@ export default function RideTrackingScreen() {
   const [statusText, setStatusText] = useState<string>(
     "Aguardando motorista...",
   );
+  const [driverInfo, setDriverInfo] = useState<any>(null);
 
   const initialRegion = useMemo(() => {
     const lat = ride?.pickup?.latitude ?? -23.5505;
@@ -70,6 +71,7 @@ export default function RideTrackingScreen() {
       if (!mounted) return;
       if (payload?.rideId && payload.rideId !== rideId) return;
       setStatusText("Motorista encontrado");
+      if (payload?.driver) setDriverInfo(payload.driver);
     };
 
     const onDriverLocationUpdated = (payload: any) => {
@@ -208,6 +210,12 @@ export default function RideTrackingScreen() {
           <Text style={{ color: "white", fontWeight: "800", fontSize: 16 }}>
             {statusText}
           </Text>
+
+          {!!driverInfo?.name && (
+            <Text style={{ color: "rgba(255,255,255,0.8)", marginTop: 6 }}>
+              Motorista: {driverInfo.name}
+            </Text>
+          )}
           {!!ride?.pickup?.address && (
             <Text style={{ color: "rgba(255,255,255,0.7)", marginTop: 6 }}>
               Coleta: {ride.pickup.address}

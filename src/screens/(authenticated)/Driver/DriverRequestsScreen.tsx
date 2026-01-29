@@ -50,10 +50,19 @@ export default function DriverRequestsScreen() {
       }
     };
 
+    const onRideTaken = (payload: any) => {
+      if (!mounted) return;
+      const takenId = payload?.rideId;
+      if (!takenId) return;
+      // remove da lista se outro motorista pegou
+      setRequests((prev) => prev.filter((r) => r.rideId !== takenId));
+    };
+
     (async () => {
       try {
         await webSocketService.connect();
         webSocketService.on("new-ride-request", onNewRide);
+        webSocketService.on("ride-taken", onRideTaken);
       } catch (e) {
         console.log("Falha ao conectar WS", e);
       }
@@ -62,6 +71,7 @@ export default function DriverRequestsScreen() {
     return () => {
       mounted = false;
       webSocketService.off("new-ride-request", onNewRide);
+      webSocketService.off("ride-taken", onRideTaken);
       // se sair desta tela, não para o alerta automaticamente (continua até aceitar/rejeitar)
     };
   }, []);

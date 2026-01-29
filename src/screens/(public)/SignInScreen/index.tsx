@@ -133,26 +133,23 @@ export default function SignInScreen() {
           city,
         } = userData;
 
-        // Verificar se o usuário JÁ POSSUI um cadastro completo
-        // Se tiver telefone E cidade, significa que já tinha cadastro completo (manual ou Google completo)
-        // Se não tiver, significa que foi criado agora pelo Google e precisa completar
-        const hasCompleteRegistration = phone && city;
+        // REGRA DO APP:
+        // Se o email já existe (checkEmailExists), então ao autenticar com Google
+        // devemos entrar direto na Home do tipo de usuário já cadastrado.
+        // Só manda para completar cadastro se não existir userType definido.
 
-        if (hasCompleteRegistration) {
-          // Usuário já possui cadastro completo, fazer login direto
-          const cidade = city || "";
-
+        if (userType === "client" || userType === "driver") {
           useAuthStore.getState().login(
             userType,
             {
               id: _id,
-              cidade: cidade,
+              cidade: city || "",
               nome: userName,
               email: userEmail,
               telefone: phone || "",
               fotoPerfil: profilePhoto,
               googleId: googleId,
-              aceitouTermos: acceptedTerms,
+              aceitouTermos: !!acceptedTerms,
             },
             token,
           );
@@ -165,17 +162,16 @@ export default function SignInScreen() {
 
           // A navegação será automática através do componente Routes
         } else {
-          // Usuário não possui cadastro completo, precisa completar
-          // Gerar senha usando email + id do Google
+          // Se por algum motivo o usuário existe mas ainda não tem tipo definido,
+          // força completar cadastro/selecionar perfil.
           const generatedPassword = `${userEmail}-${id}`;
 
-          // Navegar para SelectProfile para escolher o tipo de usuário e completar cadastro
           navigation.navigate("SelectProfile", {
             user: {
               _id,
               name: userName,
               email: userEmail,
-              password: generatedPassword, // Senha gerada: email-id
+              password: generatedPassword,
               phone: phone || "",
               city: city || "",
               userType: userType || undefined,

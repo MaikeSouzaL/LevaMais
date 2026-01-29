@@ -27,12 +27,29 @@ class RideController {
         });
       }
 
+      // Resolver purposeId (o app pode mandar slug, ex.: "documents")
+      let resolvedPurposeId = purposeId;
+      try {
+        const mongoose = require("mongoose");
+        if (resolvedPurposeId && !mongoose.Types.ObjectId.isValid(resolvedPurposeId)) {
+          const Purpose = require("../models/Purpose");
+          const purpose = await Purpose.findOne({
+            id: String(resolvedPurposeId),
+            vehicleType: vehicleType,
+          }).select("_id");
+          resolvedPurposeId = purpose?._id;
+        }
+      } catch (e) {
+        console.log("Aviso: não foi possível resolver purposeId", purposeId);
+        resolvedPurposeId = undefined;
+      }
+
       // Criar a corrida
       const ride = new Ride({
         clientId,
         serviceType,
         vehicleType,
-        purposeId,
+        purposeId: resolvedPurposeId,
         pickup,
         dropoff,
         pricing,
@@ -494,7 +511,17 @@ class RideController {
         }
       }
 
-      const rule = await PricingRule.findOne(ruleFilter).sort({ priority: -1 });
+      // 1) Tenta regra mais específica (com purposeId, se vier)
+      let rule = await PricingRule.findOne(ruleFilter).sort({ priority: -1 });
+
+      // 2) Fallback: se veio purposeId mas não existe regra por purpose,
+      // tenta a regra genérica (sem purposeId).
+      if (!rule && ruleFilter.purposeId) {
+        const fallbackFilter = { ...ruleFilter };
+        delete fallbackFilter.purposeId;
+        rule = await PricingRule.findOne(fallbackFilter).sort({ priority: -1 });
+      }
+
       if (!rule) {
         return res.status(400).json({
           error:

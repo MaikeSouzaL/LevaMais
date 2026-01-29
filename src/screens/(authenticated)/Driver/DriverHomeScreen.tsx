@@ -180,16 +180,29 @@ export default function DriverHomeScreen() {
       }
     };
 
+    const onRideTaken = async (payload: any) => {
+      if (!mounted) return;
+      const takenId = payload?.rideId;
+      if (!takenId) return;
+
+      // se a solicitação que está na tela foi pega por outro motorista, limpa
+      if (incomingRequest?.rideId && incomingRequest.rideId === takenId) {
+        await clearIncoming();
+      }
+    };
+
     (async () => {
       try {
         await webSocketService.connect();
         webSocketService.on("new-ride-request", onNewRideRequest);
+        webSocketService.on("ride-taken", onRideTaken);
       } catch {}
     })();
 
     return () => {
       mounted = false;
       webSocketService.off("new-ride-request", onNewRideRequest);
+      webSocketService.off("ride-taken", onRideTaken);
     };
   }, []);
 
