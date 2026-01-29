@@ -1,11 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { View, Text, ScrollView } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Text } from "react-native";
 import Toast from "react-native-toast-message";
 
-import DriverHeader from "./components/DriverHeader";
 import rideService, { Ride } from "../../../services/ride.service";
 import SectionCard from "../../../components/ui/SectionCard";
+import { DriverScreen } from "./components/DriverScreen";
 
 function formatBRL(value: number) {
   try {
@@ -28,7 +27,10 @@ export default function DriverEarningsScreen() {
   );
 
   const total = useMemo(() => {
-    return completed.reduce((sum, r) => sum + ((r as any)?.pricing?.total || 0), 0);
+    return completed.reduce(
+      (sum, r) => sum + ((r as any)?.pricing?.total || 0),
+      0,
+    );
   }, [completed]);
 
   useEffect(() => {
@@ -57,29 +59,32 @@ export default function DriverEarningsScreen() {
   }, []);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#0f231c" }}>
-      <DriverHeader title="Ganhos" />
+    <DriverScreen title="Ganhos" scroll>
+      <SectionCard>
+        <Text style={{ color: "rgba(255,255,255,0.65)" }}>
+          Ganhos (corridas finalizadas)
+        </Text>
+        <Text
+          style={{
+            color: "#02de95",
+            fontWeight: "900",
+            fontSize: 28,
+            marginTop: 8,
+          }}
+        >
+          {loading ? "Carregando..." : formatBRL(total)}
+        </Text>
+        <Text style={{ color: "rgba(255,255,255,0.55)", marginTop: 8 }}>
+          MVP: cálculo no app. Depois podemos calcular no backend com taxas.
+        </Text>
+      </SectionCard>
 
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
-        <SectionCard>
-          <Text style={{ color: "rgba(255,255,255,0.65)" }}>
-            Ganhos (corridas finalizadas)
-          </Text>
-          <Text style={{ color: "#02de95", fontWeight: "900", fontSize: 28, marginTop: 8 }}>
-            {loading ? "Carregando..." : formatBRL(total)}
-          </Text>
-          <Text style={{ color: "rgba(255,255,255,0.55)", marginTop: 8 }}>
-            MVP: cálculo no app. Depois podemos calcular no backend com taxas.
-          </Text>
-        </SectionCard>
-
-        <SectionCard>
-          <Text style={{ color: "#fff", fontWeight: "900" }}>Resumo</Text>
-          <Text style={{ color: "rgba(255,255,255,0.65)", marginTop: 10 }}>
-            Finalizadas: {completed.length}
-          </Text>
-        </SectionCard>
-      </ScrollView>
-    </SafeAreaView>
+      <SectionCard>
+        <Text style={{ color: "#fff", fontWeight: "900" }}>Resumo</Text>
+        <Text style={{ color: "rgba(255,255,255,0.65)", marginTop: 10 }}>
+          Finalizadas: {completed.length}
+        </Text>
+      </SectionCard>
+    </DriverScreen>
   );
 }

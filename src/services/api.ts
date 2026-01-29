@@ -29,10 +29,15 @@ function createApiInstance(): AxiosInstance {
         const { useAuthStore } = require("../context/authStore");
         const token = useAuthStore.getState().token;
         if (token) {
-          config.headers = {
-            ...(config.headers || {}),
-            Authorization: `Bearer ${token}`,
-          };
+          const headers: any = config.headers;
+          if (headers && typeof headers.set === "function") {
+            headers.set("Authorization", `Bearer ${token}`);
+          } else {
+            config.headers = {
+              ...(config.headers as any),
+              Authorization: `Bearer ${token}`,
+            } as any;
+          }
         }
       } catch {}
       return config;

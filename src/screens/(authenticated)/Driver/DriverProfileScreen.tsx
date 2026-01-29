@@ -1,13 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { View, Text } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 
-import DriverHeader from "./components/DriverHeader";
 import SectionCard from "../../../components/ui/SectionCard";
 import TextField from "../../../components/ui/TextField";
 import ActionButton from "../../../components/ui/ActionButton";
 import userService from "../../../services/user.service";
+import { DriverScreen } from "./components/DriverScreen";
 
 export default function DriverProfileScreen() {
   const [loading, setLoading] = useState(false);
@@ -29,7 +28,11 @@ export default function DriverProfileScreen() {
         setPhone(u?.phone || "");
         setCity(u?.city || "");
       } catch (e: any) {
-        Toast.show({ type: "error", text1: "Falha ao carregar", text2: e?.message });
+        Toast.show({
+          type: "error",
+          text1: "Falha ao carregar",
+          text2: e?.message,
+        });
       } finally {
         if (mounted) setLoading(false);
       }
@@ -51,32 +54,32 @@ export default function DriverProfileScreen() {
       });
       Toast.show({ type: "success", text1: "Perfil atualizado" });
     } catch (e: any) {
-      Toast.show({ type: "error", text1: "Não foi possível salvar", text2: e?.message });
+      Toast.show({
+        type: "error",
+        text1: "Não foi possível salvar",
+        text2: e?.message,
+      });
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#0f231c" }}>
-      <DriverHeader title="Perfil" />
+    <DriverScreen title="Perfil">
+      <SectionCard>
+        <Text style={{ color: "#fff", fontWeight: "900" }}>Dados</Text>
+        <View style={{ height: 12 }} />
+        <TextField label="Nome" value={name} onChangeText={setName} />
+        <TextField label="Telefone" value={phone} onChangeText={setPhone} />
+        <TextField label="Cidade" value={city} onChangeText={setCity} />
+      </SectionCard>
 
-      <View style={{ padding: 16, gap: 12 }}>
-        <SectionCard>
-          <Text style={{ color: "#fff", fontWeight: "900" }}>Dados</Text>
-          <View style={{ height: 12 }} />
-          <TextField label="Nome" value={name} onChangeText={setName} />
-          <TextField label="Telefone" value={phone} onChangeText={setPhone} />
-          <TextField label="Cidade" value={city} onChangeText={setCity} />
-        </SectionCard>
-
-        <ActionButton
-          title={loading ? "Salvando..." : "Salvar"}
-          variant="primary"
-          onPress={save}
-          disabled={!canSave || loading}
-        />
-      </View>
-    </SafeAreaView>
+      <ActionButton
+        title={loading ? "Salvando..." : "Salvar"}
+        variant="primary"
+        onPress={save}
+        disabled={!canSave || loading}
+      />
+    </DriverScreen>
   );
 }

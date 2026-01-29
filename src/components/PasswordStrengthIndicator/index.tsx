@@ -17,9 +17,10 @@ interface PasswordRequirements {
   hasSpecialChar: boolean;
 }
 
-function calculatePasswordStrength(
-  password: string
-): { level: StrengthLevel; requirements: PasswordRequirements } {
+function calculatePasswordStrength(password: string): {
+  level: StrengthLevel;
+  requirements: PasswordRequirements;
+} {
   const requirements: PasswordRequirements = {
     hasMinLength: password.length >= 8,
     hasUpperCase: /[A-Z]/.test(password),
@@ -91,10 +92,7 @@ export default function PasswordStrengthIndicator({
           <Text className="text-gray-400 text-xs font-semibold">
             Força da senha
           </Text>
-          <Text
-            className="text-xs font-bold"
-            style={{ color: config.color }}
-          >
+          <Text className="text-xs font-bold" style={{ color: config.color }}>
             {config.label}
           </Text>
         </View>
@@ -103,7 +101,7 @@ export default function PasswordStrengthIndicator({
             className="h-full rounded-full"
             style={{
               backgroundColor: config.color,
-              width: config.width,
+              width: config.width as any,
             }}
           />
         </View>
@@ -148,13 +146,7 @@ export default function PasswordStrengthIndicator({
   );
 }
 
-function RequirementItem({
-  met,
-  text,
-}: {
-  met: boolean;
-  text: string;
-}) {
+function RequirementItem({ met, text }: { met: boolean; text: string }) {
   return (
     <View className="flex-row items-center">
       <View
@@ -162,18 +154,11 @@ function RequirementItem({
           met ? "bg-brand-light" : "border-2 border-gray-600"
         }`}
       >
-        {met && (
-          <Feather name="check" size={12} color={theme.COLORS.WHITE} />
-        )}
+        {met && <Feather name="check" size={12} color={theme.COLORS.WHITE} />}
       </View>
-      <Text
-        className={`text-xs ${
-          met ? "text-gray-300" : "text-gray-500"
-        }`}
-      >
+      <Text className={`text-xs ${met ? "text-gray-300" : "text-gray-500"}`}>
         {text}
       </Text>
     </View>
   );
 }
-

@@ -6,8 +6,12 @@ import {
   Platform,
   ScrollView,
 } from "react-native";
-import { BottomSheetModal, BottomSheetScrollView } from "@gorhom/bottom-sheet";
+import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  AppBottomSheetModal,
+  type AppBottomSheetModalRef,
+} from "../../../../../components/ui/AppBottomSheetModal";
 
 export type FinalOrderSummaryData = {
   pickupAddress: string;
@@ -44,7 +48,7 @@ type Props = {
 };
 
 // This sheet mimics the provided HTML layout while using RN primitives
-export const FinalOrderSummarySheet = forwardRef<BottomSheetModal, Props>(
+export const FinalOrderSummarySheet = forwardRef<AppBottomSheetModalRef, Props>(
   ({ data, onConfirm }, ref) => {
     const insets = useSafeAreaInsets();
     const snapPoints = useMemo(() => ["85%"], []);
@@ -57,13 +61,17 @@ export const FinalOrderSummarySheet = forwardRef<BottomSheetModal, Props>(
     }[data.vehicleType];
 
     return (
-      <BottomSheetModal
+      <AppBottomSheetModal
         ref={ref}
         snapPoints={snapPoints}
         enablePanDownToClose
-        handleIndicatorStyle={{ backgroundColor: "rgba(255,255,255,0.2)" }}
-        backgroundStyle={{ backgroundColor: "#0f231c" }}
+        handleIndicatorColor="rgba(255,255,255,0.2)"
+        backgroundColor="#0f231c"
         style={{ overflow: "hidden" }}
+        type="view"
+        contentPaddingBottom={0}
+        contentPaddingHorizontal={0}
+        contentPaddingTop={0}
       >
         <View style={{ flex: 1 }}>
           {/* Header */}
@@ -93,7 +101,10 @@ export const FinalOrderSummarySheet = forwardRef<BottomSheetModal, Props>(
             </View>
           </View>
 
-          <BottomSheetScrollView
+          {/* Conteúdo */}
+          {/* Obs: o AppBottomSheetModal também suporta type="scroll", mas aqui mantemos a estrutura atual */}
+          {/* para não mexer na UI. */}
+          <ScrollView
             style={{ flex: 1 }}
             contentContainerStyle={{
               paddingHorizontal: 24,
@@ -420,7 +431,7 @@ export const FinalOrderSummarySheet = forwardRef<BottomSheetModal, Props>(
               </View>
               <Text style={{ color: "#9abcb0" }}>›</Text>
             </TouchableOpacity>
-          </BottomSheetScrollView>
+          </ScrollView>
 
           {/* Footer */}
           <View
@@ -468,7 +479,7 @@ export const FinalOrderSummarySheet = forwardRef<BottomSheetModal, Props>(
             </Text>
           </View>
         </View>
-      </BottomSheetModal>
+      </AppBottomSheetModal>
     );
   },
 );

@@ -143,6 +143,7 @@ export default function SignInScreen() {
             userType,
             {
               id: _id,
+              name: userName,
               cidade: city || "",
               nome: userName,
               email: userEmail,
@@ -251,6 +252,7 @@ export default function SignInScreen() {
           userType,
           {
             id: _id,
+            name: name,
             cidade: cidade,
             nome: name,
             email: userEmail,

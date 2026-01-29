@@ -1,10 +1,14 @@
 import React, { forwardRef, useMemo, useState } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
-import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
+import type BottomSheet from "@gorhom/bottom-sheet";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  AppBottomSheet,
+  type AppBottomSheetRef,
+} from "../../../../../components/ui/AppBottomSheet";
 
-export type OffersCarSheetRef = BottomSheet;
+export type OffersCarSheetRef = AppBottomSheetRef;
 
 interface OfferItem {
   id: string;
@@ -80,7 +84,9 @@ export const OffersCarSheet = forwardRef<
         {
           id: "default",
           title: "Leva Carro",
-          subtitle: nextEtaText ? `Chegada: ${nextEtaText}` : "Calculando ETA...",
+          subtitle: nextEtaText
+            ? `Chegada: ${nextEtaText}`
+            : "Calculando ETA...",
           price: loadingQuote ? "..." : nextPriceText || "R$ --",
           badge: "PREÇO REAL",
           icon: "directions-car",
@@ -91,16 +97,20 @@ export const OffersCarSheet = forwardRef<
     );
 
     return (
-      <BottomSheet
-        ref={ref}
+      <AppBottomSheet
+        ref={ref as unknown as React.Ref<BottomSheet>}
         index={-1}
         snapPoints={snapPoints}
         enablePanDownToClose
         enableHandlePanningGesture
         enableContentPanningGesture
         onClose={onClose}
-        backgroundStyle={{ backgroundColor: "#0f231c" }}
-        handleIndicatorStyle={{ backgroundColor: "rgba(255,255,255,0.2)" }}
+        backgroundColor="#0f231c"
+        handleIndicatorColor="rgba(255,255,255,0.2)"
+        type="scroll"
+        contentPaddingBottom={insets.bottom + 16}
+        contentPaddingHorizontal={0}
+        contentPaddingTop={0}
       >
         <View
           style={{ paddingTop: 8, paddingBottom: 12, paddingHorizontal: 20 }}
@@ -113,12 +123,7 @@ export const OffersCarSheet = forwardRef<
           </Text>
         </View>
 
-        <BottomSheetScrollView
-          contentContainerStyle={{
-            paddingHorizontal: 16,
-            paddingBottom: insets.bottom + 16,
-          }}
-        >
+        <View style={{ paddingHorizontal: 16 }}>
           {offers.map((offer) => {
             const borderColor = offer.selected
               ? "#06db94"
@@ -438,8 +443,8 @@ export const OffersCarSheet = forwardRef<
               </TouchableOpacity>
             </View>
           </View>
-        </BottomSheetScrollView>
-      </BottomSheet>
+        </View>
+      </AppBottomSheet>
     );
   },
 );

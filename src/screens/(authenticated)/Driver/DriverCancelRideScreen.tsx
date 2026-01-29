@@ -1,11 +1,14 @@
 import React, { useMemo, useState } from "react";
-import { View, Text, TouchableOpacity } from "react-native";
+import { View, Text } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import Toast from "react-native-toast-message";
 
-import ActionButton from "../../../components/ui/ActionButton";
 import rideService from "../../../services/ride.service";
+import {
+  CancelReason,
+  DriverCancelReasonModal,
+} from "./components/DriverCancelReasonModal";
 
 type Params = {
   DriverCancelRide: {
@@ -13,7 +16,7 @@ type Params = {
   };
 };
 
-const REASONS = [
+const REASONS: CancelReason[] = [
   { id: "client_no_show", label: "Cliente não apareceu" },
   { id: "wrong_pickup", label: "Local de coleta incorreto" },
   { id: "vehicle_issue", label: "Problema com o veículo" },
@@ -59,13 +62,7 @@ export default function DriverCancelRideScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#0f231c" }}>
-      <View
-        style={{
-          padding: 16,
-          borderBottomWidth: 1,
-          borderBottomColor: "rgba(255,255,255,0.08)",
-        }}
-      >
+      <View style={{ padding: 16 }}>
         <Text style={{ color: "#fff", fontWeight: "900", fontSize: 18 }}>
           Cancelar corrida
         </Text>
@@ -74,47 +71,18 @@ export default function DriverCancelRideScreen() {
         </Text>
       </View>
 
-      <View style={{ flex: 1, padding: 16, gap: 10 }}>
-        {REASONS.map((r) => {
-          const active = r.id === selected;
-          return (
-            <TouchableOpacity
-              key={r.id}
-              onPress={() => setSelected(r.id)}
-              activeOpacity={0.8}
-              style={{
-                padding: 14,
-                borderRadius: 14,
-                backgroundColor: active ? "rgba(239,68,68,0.12)" : "rgba(255,255,255,0.06)",
-                borderWidth: 1,
-                borderColor: active
-                  ? "rgba(239,68,68,0.35)"
-                  : "rgba(255,255,255,0.10)",
-              }}
-            >
-              <Text style={{ color: "#fff", fontWeight: "800" }}>
-                {r.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
-      <View style={{ padding: 16 }}>
-        <ActionButton
-          title={loading ? "Cancelando..." : "Confirmar cancelamento"}
-          variant="danger"
-          onPress={submit}
-          disabled={!canSubmit || loading}
-        />
-        <View style={{ height: 10 }} />
-        <ActionButton
-          title="Voltar"
-          variant="secondary"
-          onPress={() => navigation.goBack()}
-          disabled={loading}
-        />
-      </View>
+      <DriverCancelReasonModal
+        visible
+        title="Cancelar corrida"
+        subtitle="Selecione um motivo. O cliente será notificado."
+        reasons={REASONS}
+        selectedReasonId={selected}
+        onSelectReason={setSelected}
+        onClose={() => navigation.goBack()}
+        onConfirm={submit}
+        confirmDisabled={!canSubmit || loading}
+        confirmLabel={loading ? "Cancelando..." : "Confirmar cancelamento"}
+      />
     </SafeAreaView>
   );
 }

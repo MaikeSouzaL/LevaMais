@@ -1,15 +1,15 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, ScrollView } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Text } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 
-import DriverHeader from "./components/DriverHeader";
 import webSocketService from "../../../services/websocket.service";
 import driverAlertService from "../../../services/driverAlert.service";
 import rideService from "../../../services/ride.service";
 import driverLocationService from "../../../services/driverLocation.service";
-import { formatBRL } from "../../../utils/mappers";
 import Toast from "react-native-toast-message";
+import { DriverScreen } from "./components/DriverScreen";
+import { DriverEmptyState } from "./components/DriverEmptyState";
+import { DriverRequestCard } from "./components/DriverRequestCard";
 
 type RideRequestItem = {
   rideId: string;
@@ -31,7 +31,8 @@ export default function DriverRequestsScreen() {
     (async () => {
       try {
         const me = await driverLocationService.getMe();
-        const isOnline = me?.status === "available" && me?.acceptingRides === true;
+        const isOnline =
+          me?.status === "available" && me?.acceptingRides === true;
         if (!isOnline) {
           Toast.show({
             type: "info",
@@ -163,82 +164,27 @@ export default function DriverRequestsScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#0f231c" }}>
-      <DriverHeader
-        title="Solicitações"
-        right={
-          <Text style={{ color: "rgba(255,255,255,0.7)", fontWeight: "800" }}>
-            {requests.length}
-          </Text>
-        }
-      />
-
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
-        {requests.length === 0 ? (
-          <Text style={{ color: "rgba(255,255,255,0.7)" }}>
-            Nenhuma solicitação no momento.
-          </Text>
-        ) : (
-          requests.map((r) => (
-            <View
-              key={r.rideId}
-              style={{
-                backgroundColor: "#162e26",
-                borderRadius: 16,
-                padding: 14,
-                borderWidth: 1,
-                borderColor: "rgba(255,255,255,0.08)",
-              }}
-            >
-              <Text style={{ color: "white", fontWeight: "800" }}>
-                {formatBRL(r.pricing?.total ?? 0)}
-              </Text>
-              <Text style={{ color: "rgba(255,255,255,0.7)", marginTop: 6 }}>
-                Coleta: {r.pickup?.address || "—"}
-              </Text>
-              <Text style={{ color: "rgba(255,255,255,0.7)", marginTop: 2 }}>
-                Destino: {r.dropoff?.address || "—"}
-              </Text>
-              <Text style={{ color: "rgba(255,255,255,0.6)", marginTop: 6 }}>
-                {r.distance?.text || ""}
-              </Text>
-
-              <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
-                <TouchableOpacity
-                  onPress={() => reject(r.rideId)}
-                  style={{
-                    flex: 1,
-                    paddingVertical: 12,
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: "rgba(239,68,68,0.5)",
-                    alignItems: "center",
-                  }}
-                >
-                  <Text style={{ color: "#ef4444", fontWeight: "900" }}>
-                    Rejeitar
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={() => accept(r.rideId)}
-                  style={{
-                    flex: 1,
-                    paddingVertical: 12,
-                    borderRadius: 12,
-                    backgroundColor: "#02de95",
-                    alignItems: "center",
-                  }}
-                >
-                  <Text style={{ color: "#0f231c", fontWeight: "900" }}>
-                    Aceitar
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))
-        )}
-      </ScrollView>
-    </SafeAreaView>
+    <DriverScreen
+      title="Solicitações"
+      scroll
+      headerRight={
+        <Text style={{ color: "rgba(255,255,255,0.7)", fontWeight: "800" }}>
+          {requests.length}
+        </Text>
+      }
+    >
+      {requests.length === 0 ? (
+        <DriverEmptyState title="Nenhuma solicitação no momento." />
+      ) : (
+        requests.map((r) => (
+          <DriverRequestCard
+            key={r.rideId}
+            item={r}
+            onAccept={accept}
+            onReject={reject}
+          />
+        ))
+      )}
+    </DriverScreen>
   );
 }

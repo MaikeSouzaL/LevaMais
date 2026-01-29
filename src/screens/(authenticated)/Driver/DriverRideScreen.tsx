@@ -8,6 +8,11 @@ import * as ImagePicker from "expo-image-picker";
 import Toast from "react-native-toast-message";
 
 import DriverHeader from "./components/DriverHeader";
+import { DriverStatusCard } from "./components/DriverStatusCard";
+import {
+  DriverCancelReasonModal,
+  CancelReason,
+} from "./components/DriverCancelReasonModal";
 import GlobalMap from "../../../components/GlobalMap";
 import rideService, { Ride } from "../../../services/ride.service";
 import webSocketService from "../../../services/websocket.service";
@@ -32,11 +37,11 @@ export default function DriverRideScreen() {
   >(null);
 
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
-  const [selectedCancelReason, setSelectedCancelReason] = useState<string | null>(
-    null,
-  );
+  const [selectedCancelReason, setSelectedCancelReason] = useState<
+    string | null
+  >(null);
 
-  const cancelReasons = useMemo(
+  const cancelReasons = useMemo<CancelReason[]>(
     () => [
       { id: "client_no_show", label: "Cliente não apareceu" },
       { id: "wrong_pickup", label: "Local de coleta incorreto" },
@@ -143,7 +148,9 @@ export default function DriverRideScreen() {
     };
   }, []);
 
-  const update = async (nextStatus: "arrived" | "in_progress" | "completed") => {
+  const update = async (
+    nextStatus: "arrived" | "in_progress" | "completed",
+  ) => {
     if (!rideId) return;
 
     // validações do fluxo (estilo Uber/99)
@@ -291,198 +298,37 @@ export default function DriverRideScreen() {
           )}
         </GlobalMap>
 
-        <View
-          style={{
-            position: "absolute",
-            left: 16,
-            right: 16,
-            bottom: 16,
-            backgroundColor: "#111816",
-            borderRadius: 16,
-            padding: 14,
-            borderWidth: 1,
-            borderColor: "rgba(255,255,255,0.08)",
-          }}
-        >
-          <Text style={{ color: "white", fontWeight: "900", fontSize: 16 }}>
-            Status: {statusLabel}
-          </Text>
-          <Text style={{ color: "rgba(255,255,255,0.7)", marginTop: 6 }}>
-            Coleta: {ride?.pickup?.address || "—"}
-          </Text>
-          <Text style={{ color: "rgba(255,255,255,0.7)", marginTop: 2 }}>
-            Destino: {ride?.dropoff?.address || "—"}
-          </Text>
-
-          <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
-            <TouchableOpacity
-              disabled={!canArrive || actionLoading != null}
-              onPress={() => update("arrived")}
-              style={{
-                flex: 1,
-                paddingVertical: 12,
-                borderRadius: 12,
-                backgroundColor: !canArrive
-                  ? "rgba(255,255,255,0.08)"
-                  : "#1f2d29",
-                alignItems: "center",
-                borderWidth: 1,
-                borderColor: "rgba(255,255,255,0.08)",
-                opacity: !canArrive || actionLoading != null ? 0.6 : 1,
-              }}
-            >
-              <Text style={{ color: "#fff", fontWeight: "900" }}>
-                {actionLoading === "arrived" ? "..." : "Cheguei"}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              disabled={!canStart || actionLoading != null}
-              onPress={() => update("in_progress")}
-              style={{
-                flex: 1,
-                paddingVertical: 12,
-                borderRadius: 12,
-                backgroundColor: !canStart
-                  ? "rgba(255,255,255,0.08)"
-                  : "#02de95",
-                alignItems: "center",
-                opacity: !canStart || actionLoading != null ? 0.6 : 1,
-              }}
-            >
-              <Text style={{ color: "#0f231c", fontWeight: "900" }}>
-                {actionLoading === "in_progress" ? "..." : "Iniciar"}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              disabled={!canComplete || actionLoading != null}
-              onPress={() => update("completed")}
-              style={{
-                flex: 1,
-                paddingVertical: 12,
-                borderRadius: 12,
-                backgroundColor: !canComplete
-                  ? "rgba(255,255,255,0.08)"
-                  : "#3b82f6",
-                alignItems: "center",
-                opacity: !canComplete || actionLoading != null ? 0.6 : 1,
-              }}
-            >
-              <Text style={{ color: "#fff", fontWeight: "900" }}>
-                {actionLoading === "completed" ? "..." : "Finalizar"}
-              </Text>
-            </TouchableOpacity>
-          </View>
+        <View style={{ position: "absolute", left: 16, right: 16, bottom: 16 }}>
+          <DriverStatusCard
+            statusLabel={statusLabel}
+            pickupAddress={ride?.pickup?.address}
+            dropoffAddress={ride?.dropoff?.address}
+            canArrive={canArrive}
+            canStart={canStart}
+            canComplete={canComplete}
+            actionLoading={actionLoading}
+            onArrive={() => update("arrived")}
+            onStart={() => update("in_progress")}
+            onComplete={() => update("completed")}
+          />
         </View>
       </View>
 
-      {/* Modal de cancelamento (estilo Uber/99: escolher motivo + confirmar) */}
-      <Modal
+      <DriverCancelReasonModal
         visible={cancelModalOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setCancelModalOpen(false)}
-      >
-        <Pressable
-          onPress={() => setCancelModalOpen(false)}
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0,0,0,0.55)",
-            padding: 18,
-            justifyContent: "flex-end",
-          }}
-        >
-          <Pressable
-            onPress={() => {}}
-            style={{
-              backgroundColor: "#111816",
-              borderRadius: 18,
-              borderWidth: 1,
-              borderColor: "rgba(255,255,255,0.10)",
-              padding: 14,
-            }}
-          >
-            <Text style={{ color: "#fff", fontWeight: "900", fontSize: 16 }}>
-              Cancelar entrega
-            </Text>
-            <Text
-              style={{ color: "rgba(255,255,255,0.65)", marginTop: 6 }}
-            >
-              Selecione um motivo. O cliente será notificado.
-            </Text>
-
-            <View style={{ marginTop: 12, gap: 10 }}>
-              {cancelReasons.map((r) => {
-                const selected = selectedCancelReason === r.id;
-                return (
-                  <TouchableOpacity
-                    key={r.id}
-                    onPress={() => setSelectedCancelReason(r.id)}
-                    style={{
-                      paddingVertical: 12,
-                      paddingHorizontal: 12,
-                      borderRadius: 14,
-                      backgroundColor: selected
-                        ? "rgba(2,222,149,0.18)"
-                        : "rgba(255,255,255,0.06)",
-                      borderWidth: 1,
-                      borderColor: selected
-                        ? "rgba(2,222,149,0.55)"
-                        : "rgba(255,255,255,0.08)",
-                    }}
-                  >
-                    <Text style={{ color: "#fff", fontWeight: "800" }}>
-                      {r.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            <View style={{ flexDirection: "row", gap: 10, marginTop: 14 }}>
-              <TouchableOpacity
-                onPress={() => setCancelModalOpen(false)}
-                style={{
-                  flex: 1,
-                  paddingVertical: 12,
-                  borderRadius: 14,
-                  backgroundColor: "rgba(255,255,255,0.06)",
-                  alignItems: "center",
-                }}
-              >
-                <Text style={{ color: "#fff", fontWeight: "900" }}>
-                  Voltar
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                disabled={!selectedCancelReason || actionLoading != null}
-                onPress={() => {
-                  if (!selectedCancelReason) return;
-                  cancel(selectedCancelReason);
-                }}
-                style={{
-                  flex: 1,
-                  paddingVertical: 12,
-                  borderRadius: 14,
-                  backgroundColor:
-                    !selectedCancelReason || actionLoading != null
-                      ? "rgba(239,68,68,0.25)"
-                      : "#ef4444",
-                  alignItems: "center",
-                  opacity:
-                    !selectedCancelReason || actionLoading != null ? 0.7 : 1,
-                }}
-              >
-                <Text style={{ color: "#111816", fontWeight: "900" }}>
-                  {actionLoading === "cancel" ? "Cancelando..." : "Confirmar"}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
+        reasons={cancelReasons}
+        selectedReasonId={selectedCancelReason}
+        onSelectReason={setSelectedCancelReason}
+        onClose={() => setCancelModalOpen(false)}
+        onConfirm={() => {
+          if (!selectedCancelReason) return;
+          cancel(selectedCancelReason);
+        }}
+        confirmDisabled={!selectedCancelReason || actionLoading != null}
+        confirmLabel={
+          actionLoading === "cancel" ? "Cancelando..." : "Confirmar"
+        }
+      />
     </SafeAreaView>
   );
 }

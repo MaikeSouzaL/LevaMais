@@ -211,6 +211,7 @@ export default function Step3Preferences({
         user.userType as "client" | "driver" | "admin",
         {
           id: user._id,
+          name: user.name,
           nome: user.name,
           email: user.email,
           telefone: user.phone || "",

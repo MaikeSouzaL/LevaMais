@@ -2,7 +2,7 @@ import React from "react";
 import { View, Text } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 
-import ActionButton from "../../../../components/ui/ActionButton";
+import ActionButton from "../../../../../components/ui/ActionButton";
 
 export type SearchTimeoutCardProps = {
   visible: boolean;

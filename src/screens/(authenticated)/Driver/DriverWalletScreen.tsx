@@ -1,9 +1,8 @@
 import React from "react";
-import { View, Text } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Text } from "react-native";
 
-import DriverHeader from "./components/DriverHeader";
 import SectionCard from "../../../components/ui/SectionCard";
+import { DriverScreen } from "./components/DriverScreen";
 
 function formatBRL(value: number) {
   try {
@@ -21,20 +20,26 @@ export default function DriverWalletScreen() {
   const available = 0;
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#0f231c" }}>
-      <DriverHeader title="Carteira" />
-
-      <View style={{ padding: 16, gap: 12 }}>
-        <SectionCard>
-          <Text style={{ color: "rgba(255,255,255,0.65)" }}>Saldo disponível</Text>
-          <Text style={{ color: "#02de95", fontWeight: "900", fontSize: 28, marginTop: 8 }}>
-            {formatBRL(available)}
-          </Text>
-          <Text style={{ color: "rgba(255,255,255,0.55)", marginTop: 8 }}>
-            MVP: aqui entram repasses/saques. Podemos calcular pelo histórico e criar um endpoint de payouts.
-          </Text>
-        </SectionCard>
-      </View>
-    </SafeAreaView>
+    <DriverScreen title="Carteira">
+      <SectionCard>
+        <Text style={{ color: "rgba(255,255,255,0.65)" }}>
+          Saldo disponível
+        </Text>
+        <Text
+          style={{
+            color: "#02de95",
+            fontWeight: "900",
+            fontSize: 28,
+            marginTop: 8,
+          }}
+        >
+          {formatBRL(available)}
+        </Text>
+        <Text style={{ color: "rgba(255,255,255,0.55)", marginTop: 8 }}>
+          MVP: aqui entram repasses/saques. Podemos calcular pelo histórico e
+          criar um endpoint de payouts.
+        </Text>
+      </SectionCard>
+    </DriverScreen>
   );
 }

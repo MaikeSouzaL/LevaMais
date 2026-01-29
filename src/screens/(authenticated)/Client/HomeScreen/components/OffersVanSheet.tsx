@@ -1,8 +1,12 @@
 import React, { useMemo, useState, forwardRef } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
+import {
+  AppBottomSheet,
+  type AppBottomSheetRef,
+} from "../../../../../components/ui/AppBottomSheet";
 
-export type OffersVanSheetRef = BottomSheet;
+export type OffersVanSheetRef = AppBottomSheetRef;
 type Payment = "dinheiro" | "pix" | "cartao";
 
 interface OfferItem {

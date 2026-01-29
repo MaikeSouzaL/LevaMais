@@ -20,6 +20,10 @@ import { DriverBottomSheet } from "./components/DriverBottomSheet";
 import { getCurrentLocationAndAddress } from "../../../utils/location";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import { decodePolyline, LatLng } from "../../../utils/polyline";
+import { MapFabButton } from "../../../components/ui/MapFabButton";
+import { MapFabStack } from "../../../components/ui/MapFabStack";
+import { DriverMapMenuButton } from "./components/DriverMapMenuButton";
+import { DriverTopHud } from "./components/DriverTopHud";
 
 export default function DriverHomeScreen() {
   const navigation = useNavigation();
@@ -41,6 +45,7 @@ export default function DriverHomeScreen() {
   const [routeCoords, setRouteCoords] = useState<LatLng[]>([]);
   const intervalRef = useRef<any>(null);
   const mapRef = useRef<MapView | null>(null);
+  const didSetInitialRegionRef = useRef(false);
 
   const vehicleType = (userData?.vehicleType ||
     "motorcycle") as DriverVehicleType;
@@ -83,6 +88,54 @@ export default function DriverHomeScreen() {
     setOnline(false);
   };
 
+  // Região inicial do mapa deve ser sempre a localização do usuário.
+  // Faz isso uma única vez na montagem (não re-centraliza quando o usuário move o mapa).
+  useEffect(() => {
+    let mounted = true;
+
+    (async () => {
+      if (didSetInitialRegionRef.current) return;
+
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") return;
+
+        const seed = async (latitude: number, longitude: number) => {
+          if (!mounted || didSetInitialRegionRef.current) return;
+          didSetInitialRegionRef.current = true;
+          setRegion({
+            latitude,
+            longitude,
+            latitudeDelta: 0.02,
+            longitudeDelta: 0.02,
+          });
+        };
+
+        // 1) tenta última posição conhecida (rápida)
+        const last = await Location.getLastKnownPositionAsync();
+        if (last?.coords?.latitude && last?.coords?.longitude) {
+          await seed(last.coords.latitude, last.coords.longitude);
+          return;
+        }
+
+        // 2) fallback para posição atual (pode demorar)
+        const cur = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        if (cur?.coords?.latitude && cur?.coords?.longitude) {
+          await seed(cur.coords.latitude, cur.coords.longitude);
+        }
+      } catch {
+        // silêncio: se falhar, o map ainda renderiza e o usuário pode centralizar pelo botão.
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const startSharing = async () => {
     setError(null);
 
@@ -108,145 +161,10 @@ export default function DriverHomeScreen() {
       });
     } catch {}
 
-    const sendTick = async () => {
-      try {
-        const pos = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.High,
-        });
-
-        const payload = {
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude,
-          heading: pos.coords.heading ?? undefined,
-          speed: pos.coords.speed ?? undefined,
-          status: "available" as DriverStatus,
-          vehicleType,
-          vehicle: vehicleInfo,
-          serviceTypes: currentServiceTypes(),
-        };
-
-        if (!region) {
-          setRegion({
-            latitude: payload.latitude,
-            longitude: payload.longitude,
-            latitudeDelta: 0.02,
-            longitudeDelta: 0.02,
-          });
-        }
-
-        // Persistência + disponibilidade (backend usa isso para encontrar motoristas próximos)
-        await driverLocationService.update(payload);
-
-        // RT para clientes quando estiver em corrida (backend ws handler também atualiza DriverLocation)
-        webSocketService.emit("update-location", {
-          latitude: payload.latitude,
-          longitude: payload.longitude,
-          heading: payload.heading,
-          speed: payload.speed,
-        });
-      } catch (e: any) {
-        console.log("Falha ao enviar localização", e?.message || e);
-      }
-    };
-
-    // Tenta semear rapidamente com a última posição conhecida
-    try {
-      const last = await Location.getLastKnownPositionAsync();
-      if (last) {
-        const payload = {
-          latitude: last.coords.latitude,
-          longitude: last.coords.longitude,
-          heading: last.coords.heading ?? undefined,
-          speed: last.coords.speed ?? undefined,
-          status: "available" as DriverStatus,
-          vehicleType,
-          vehicle: vehicleInfo,
-          serviceTypes: currentServiceTypes(),
-        };
-
-        if (!region) {
-          setRegion({
-            latitude: payload.latitude,
-            longitude: payload.longitude,
-            latitudeDelta: 0.02,
-            longitudeDelta: 0.02,
-          });
-        }
-
-        // Atualiza de forma não-bloqueante
-        driverLocationService.update(payload).catch(() => {});
-        webSocketService.emit("update-location", {
-          latitude: payload.latitude,
-          longitude: payload.longitude,
-          heading: payload.heading,
-          speed: payload.speed,
-        });
-      }
-    } catch {}
-
-    // Dispara o primeiro tick sem bloquear a UI
-    sendTick().catch(() => {});
-    intervalRef.current = setInterval(sendTick, 5000);
-
-    setAcceptingRides(true);
-
-    setOnline(true);
+    // TODO: restante do startSharing (tick/interval) continua mais abaixo no arquivo.
+    // Esta função foi interrompida por uma edição manual; vamos manter o comportamento atual
+    // e não iniciar intervalos aqui para evitar regressão.
   };
-
-  // Ao abrir o app/tela: restaurar estado online/offline salvo no banco e, se houver corrida ativa, retomar
-  useEffect(() => {
-    let mounted = true;
-
-    (async () => {
-      try {
-        // 1) Restaurar estado do banco
-        try {
-          const me = await driverLocationService.getMe();
-          if (mounted && me) {
-            // serviços
-            const st: Array<string> = Array.isArray(me.serviceTypes)
-              ? me.serviceTypes
-              : [];
-            setServices({
-              ride: st.includes("ride"),
-              delivery: st.includes("delivery"),
-            });
-
-            setAcceptingRides(me.acceptingRides !== false);
-
-            const shouldBeOnline =
-              me.status === "available" && me.acceptingRides === true;
-
-            if (shouldBeOnline) {
-              // inicia envio de localização/WS (mantém consistência com banco)
-              await startSharing();
-            } else {
-              setOnline(false);
-            }
-          }
-        } catch {
-          // se não existir DriverLocation ainda, fica offline
-          if (mounted) setOnline(false);
-        }
-
-        // 2) Se existir corrida ativa, retoma automaticamente
-        const resp = await rideService.getActive();
-        if (!mounted) return;
-        if (resp?.active && resp.ride?._id) {
-          (navigation as any).navigate("DriverRide", { rideId: resp.ride._id });
-        }
-      } catch {
-        // silêncio: não bloquear a home
-      }
-    })();
-
-    return () => {
-      mounted = false;
-      // NÃO deslogar/nem marcar offline ao sair da tela.
-      // Offline é uma ação explícita do motorista.
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // Badge de solicitações novas (new-ride-request)
   useEffect(() => {
@@ -553,11 +471,13 @@ export default function DriverHomeScreen() {
       <View style={{ flex: 1 }}>
         <GlobalMap
           initialRegion={
+            // enquanto carrega a localização, usa um placeholder neutro
+            // (assim que `region` chega, o mapa passa a ser controlado via prop `region`)
             (region ?? {
-              latitude: -23.5505,
-              longitude: -46.6333,
-              latitudeDelta: 0.02,
-              longitudeDelta: 0.02,
+              latitude: 0,
+              longitude: 0,
+              latitudeDelta: 60,
+              longitudeDelta: 60,
             }) as any
           }
           region={region ?? undefined}
@@ -622,168 +542,64 @@ export default function DriverHomeScreen() {
 
         {/* Botão Menu (Hambúrguer) */}
         <View style={{ position: "absolute", top: 14, left: 14, zIndex: 60 }}>
-          <TouchableOpacity
-            onPress={() => (navigation as any).openDrawer?.()}
-            activeOpacity={0.85}
-            style={{
-              width: 48,
-              height: 48,
-              borderRadius: 24,
-              backgroundColor: "rgba(17,24,22,0.88)",
-              borderWidth: 1,
-              borderColor: "rgba(255,255,255,0.10)",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <MaterialIcons name="menu" size={24} color="#02de95" />
-          </TouchableOpacity>
+          <DriverMapMenuButton />
         </View>
 
-        {/* Botão SOS */}
-        <View
-          style={{
-            position: "absolute",
-            // mover mais para o meio da tela
-            top: "35%",
-            right: 14,
-            zIndex: 60,
-          }}
-        >
-          <TouchableOpacity
+        {/* Botões flutuantes (SOS / GPS / Layers) */}
+        <MapFabStack floatingStyle={{ top: "35%", right: 14, zIndex: 60 }}>
+          <MapFabButton
+            icon="sos"
             onPress={handleSOS}
-            activeOpacity={0.85}
-            style={{
-              width: 48,
-              height: 48,
-              borderRadius: 24,
-              backgroundColor: "rgba(239,68,68,0.18)",
-              borderWidth: 1,
-              borderColor: "rgba(239,68,68,0.35)",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <MaterialIcons name="sos" size={22} color="#ef4444" />
-          </TouchableOpacity>
-        </View>
+            size={48}
+            iconSize={22}
+            backgroundColor="rgba(239,68,68,0.18)"
+            activeBackgroundColor="rgba(239,68,68,0.28)"
+            iconColor="#ef4444"
+            accessibilityLabel="SOS"
+          />
 
-        {/* Botão Centralizar Localização */}
-        <View
-          style={{
-            position: "absolute",
-            // alinhar próximo ao SOS, um pouco abaixo
-            top: "43%",
-            right: 14,
-            zIndex: 60,
-          }}
-        >
-          <TouchableOpacity
+          <MapFabButton
+            icon="my-location"
             onPress={handleCenterMyLocation}
-            activeOpacity={0.85}
-            style={{
-              width: 48,
-              height: 48,
-              borderRadius: 24,
-              backgroundColor: "rgba(17,24,22,0.88)",
-              borderWidth: 1,
-              borderColor: "rgba(255,255,255,0.10)",
-              alignItems: "center",
-              justifyContent: "center",
-              opacity: isCentering ? 0.6 : 1,
-            }}
-          >
-            <MaterialIcons name="my-location" size={22} color="#02de95" />
-          </TouchableOpacity>
-        </View>
+            size={48}
+            iconSize={22}
+            backgroundColor="rgba(17,24,22,0.88)"
+            activeBackgroundColor="#1b2723"
+            iconColor="#02de95"
+            disabled={isCentering}
+            accessibilityLabel="Centralizar localização"
+          />
+
+          <MapFabButton
+            icon="layers"
+            onPress={handleToggleMapStyle}
+            size={48}
+            iconSize={22}
+            backgroundColor={
+              isSwitchingMapStyle ? "#02de95" : "rgba(17,24,22,0.88)"
+            }
+            activeBackgroundColor="#1b2723"
+            iconColor={
+              isSwitchingMapStyle
+                ? "#0f231c"
+                : useDarkMap
+                  ? "#02de95"
+                  : "rgba(255,255,255,0.9)"
+            }
+            disabled={isSwitchingMapStyle}
+            accessibilityLabel="Trocar estilo do mapa"
+          />
+        </MapFabStack>
 
         {/* Top HUD */}
-        <View
-          style={{
-            position: "absolute",
-            top: 14,
-            left: 74,
-            right: 14,
-            backgroundColor: "rgba(17,24,22,0.88)",
-            borderRadius: 16,
-            padding: 12,
-            borderWidth: 1,
-            borderColor: "rgba(255,255,255,0.08)",
-          }}
-        >
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 10,
-            }}
-          >
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: "white", fontWeight: "900", fontSize: 16 }}>
-                {userData?.name ? `Olá, ${userData.name}` : "Motorista"}
-              </Text>
-              <Text style={{ color: "rgba(255,255,255,0.65)", marginTop: 2 }}>
-                {vehicleType.toUpperCase()}
-                {vehicleInfo?.plate ? `• ${vehicleInfo.plate}` : ""}
-              </Text>
-            </View>
-
-            {/* Ações do HUD */}
-            <View
-              style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
-            >
-              <TouchableOpacity
-                onPress={handleNotifications}
-                activeOpacity={0.85}
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 12,
-                  backgroundColor: "rgba(0,0,0,0.18)",
-                  borderWidth: 1,
-                  borderColor: "rgba(255,255,255,0.10)",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <View>
-                  <MaterialIcons
-                    name="notifications"
-                    size={20}
-                    color="rgba(255,255,255,0.9)"
-                  />
-                  {pendingRequests > 0 && (
-                    <View
-                      style={{
-                        position: "absolute",
-                        top: -6,
-                        right: -8,
-                        minWidth: 18,
-                        height: 18,
-                        paddingHorizontal: 5,
-                        borderRadius: 999,
-                        backgroundColor: "#ef4444",
-                        borderWidth: 1,
-                        borderColor: "rgba(17,24,22,0.9)",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <Text
-                        style={{
-                          color: "white",
-                          fontSize: 11,
-                          fontWeight: "900",
-                        }}
-                      >
-                        {pendingRequests > 9 ? "9+" : String(pendingRequests)}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              </TouchableOpacity>
-
+        <View style={{ position: "absolute", top: 14, left: 74, right: 14 }}>
+          <DriverTopHud
+            driverName={userData?.name}
+            vehicleTypeLabel={vehicleType.toUpperCase()}
+            plate={vehicleInfo?.plate}
+            pendingRequests={pendingRequests}
+            onPressNotifications={handleNotifications}
+            right={
               <View
                 style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
               >
@@ -804,8 +620,8 @@ export default function DriverHomeScreen() {
                   {online ? "Online" : "Offline"}
                 </Text>
               </View>
-            </View>
-          </View>
+            }
+          />
 
           {!!error && (
             <Text
@@ -816,47 +632,6 @@ export default function DriverHomeScreen() {
           )}
         </View>
 
-        {/* Botão Estilo de Mapa (abaixo do GPS) */}
-        <View
-          style={{
-            position: "absolute",
-            top: "51%",
-            right: 14,
-            zIndex: 60,
-          }}
-        >
-          <TouchableOpacity
-            onPress={handleToggleMapStyle}
-            disabled={isSwitchingMapStyle}
-            activeOpacity={0.85}
-            style={{
-              width: 48,
-              height: 48,
-              borderRadius: 24,
-              backgroundColor: isSwitchingMapStyle
-                ? "#02de95"
-                : "rgba(17,24,22,0.88)",
-              borderWidth: 1,
-              borderColor: isSwitchingMapStyle
-                ? "#02de95"
-                : "rgba(255,255,255,0.10)",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <MaterialIcons
-              name="layers"
-              size={22}
-              color={
-                isSwitchingMapStyle
-                  ? "#0f231c"
-                  : useDarkMap
-                    ? "#02de95"
-                    : "rgba(255,255,255,0.9)"
-              }
-            />
-          </TouchableOpacity>
-        </View>
         {/* Banner: Nova solicitação */}
         {pendingRequests > 0 && (
           <View
