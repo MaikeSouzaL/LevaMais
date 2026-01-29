@@ -5,6 +5,7 @@ import {
   AppBottomSheet,
   type AppBottomSheetRef,
 } from "../../../../components/ui/AppBottomSheet";
+import { ModernSwitch } from "./ModernSwitch";
 
 export type DriverBottomSheetRef = AppBottomSheetRef;
 
@@ -83,7 +84,7 @@ export function DriverBottomSheet({
   isTogglingOnline,
   onToggleOnline,
   onToggleService,
-  snapPoints = ["28%", "60%"],
+  snapPoints = ["35%", "60%"],
   vehicleType,
 }: Props) {
   // Só carros e motos podem fazer corridas (passageiros)
@@ -111,55 +112,26 @@ export function DriverBottomSheet({
       >
         <View style={{ flex: 1, minWidth: 220 }}>
           <Text style={{ color: "white", fontSize: 18, fontWeight: "900" }}>
-            {online ? "Você está online" : "Você está offline"}
+            {online 
+              ? (services.ride && services.delivery 
+                  ? "Procurando corridas e entregas..."
+                  : services.ride 
+                    ? "Procurando corridas..."
+                    : "Procurando entregas...")
+              : "Você está offline"}
           </Text>
           <Text style={{ color: "rgba(255,255,255,0.65)", marginTop: 4 }}>
             {online
-              ? "Recebendo solicitações conforme suas preferências"
+              ? "Aguarde, te avisaremos quando surgir uma nova solicitação."
               : "Ative para começar a receber corridas"}
           </Text>
         </View>
 
-        <TouchableOpacity
-          onPress={onToggleOnline}
-          activeOpacity={0.9}
-          disabled={!!isTogglingOnline}
-          style={{
-            backgroundColor: online ? "rgba(239,68,68,0.18)" : "#02de95",
-            borderRadius: 14,
-            paddingHorizontal: 12,
-            paddingVertical: 10,
-            borderWidth: 1,
-            borderColor: online ? "rgba(239,68,68,0.35)" : "rgba(0,0,0,0.10)",
-            // garante que não seja cortado e ocupe apenas o necessário
-            flexShrink: 0,
-            alignSelf: "flex-start",
-            opacity: isTogglingOnline ? 0.9 : 1,
-          }}
-        >
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            {isTogglingOnline ? (
-              <ActivityIndicator
-                size="small"
-                color={online ? "#ef4444" : "#0f231c"}
-              />
-            ) : (
-              <MaterialIcons
-                name={online ? "toggle-off" : "toggle-on"}
-                size={20}
-                color={online ? "#ef4444" : "#0f231c"}
-              />
-            )}
-            <Text
-              style={{
-                color: online ? "#ef4444" : "#0f231c",
-                fontWeight: "900",
-              }}
-            >
-              {online ? "Parar" : "Ativar"}
-            </Text>
-          </View>
-        </TouchableOpacity>
+        <ModernSwitch 
+          value={online} 
+          onTrack={onToggleOnline} 
+          isLoading={isTogglingOnline} 
+        />
       </View>
 
       <View

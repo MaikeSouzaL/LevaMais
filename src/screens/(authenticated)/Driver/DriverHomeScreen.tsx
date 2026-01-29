@@ -770,10 +770,7 @@ export default function DriverHomeScreen() {
           onToggleOnline={toggleOnline}
           onToggleService={toggleService}
           vehicleType={vehicleType}
-          // Controla a altura do sheet. Exemplos:
-          // ["25%"] → altura fixa em 25%
-          // ["20%", "40%"] → mínima 20%, máxima 40% (pode arrastar)
-          snapPoints={["26%"]}
+          snapPoints={["35%"]}
         />
       </View>
     </SafeAreaView>
