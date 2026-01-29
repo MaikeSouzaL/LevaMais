@@ -12,9 +12,11 @@ import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Audio } from "expo-av";
 import theme from "../../../theme";
+import { MaterialIcons } from "@expo/vector-icons";
 
 export default function IntroScreen() {
   const [slideAtual, setSlideAtual] = useState(0);
+  const [musicPaused, setMusicPaused] = useState(false);
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const navigation = useNavigation();
 
@@ -51,8 +53,29 @@ export default function IntroScreen() {
       );
 
       soundRef.current = sound;
+      setMusicPaused(false);
     } catch (e) {
       console.log("Falha ao tocar Welcome.mp3", e);
+    }
+  };
+
+  const toggleMusic = async () => {
+    try {
+      if (!soundRef.current) {
+        await startBackgroundMusic();
+        setMusicPaused(false);
+        return;
+      }
+
+      if (musicPaused) {
+        await soundRef.current.playAsync();
+        setMusicPaused(false);
+      } else {
+        await soundRef.current.pauseAsync();
+        setMusicPaused(true);
+      }
+    } catch (e) {
+      console.log("Falha ao pausar/retomar música", e);
     }
   };
 
@@ -63,7 +86,8 @@ export default function IntroScreen() {
 
       // ao desfocar, para
       return () => {
-        stopAndUnload();
+  stopAndUnload();
+  setMusicPaused(false);
       };
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []),
@@ -111,6 +135,30 @@ export default function IntroScreen() {
         className="flex-1 justify-end"
         resizeMode="cover"
       >
+        {/* Botão pausar/retomar música */}
+        <View style={{ position: "absolute", top: 48, right: 16, zIndex: 10 }}>
+          <TouchableOpacity
+            onPress={toggleMusic}
+            activeOpacity={0.85}
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 14,
+              backgroundColor: "rgba(0,0,0,0.35)",
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.20)",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <MaterialIcons
+              name={musicPaused ? "volume-off" : "volume-up"}
+              size={24}
+              color={theme.COLORS.BRAND_LIGHT}
+            />
+          </TouchableOpacity>
+        </View>
+
         <LinearGradient
           colors={["transparent", theme.COLORS.BRAND_DARK]}
           style={{
