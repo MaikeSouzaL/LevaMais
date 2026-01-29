@@ -16,7 +16,7 @@ const step1DataBaseSchema = z.object({
         const cleaned = val.replace(/\D/g, "");
         return cleaned.length >= 10 && cleaned.length <= 11;
       },
-      { message: "Telefone inválido" }
+      { message: "Telefone inválido" },
     ),
   documentType: z.enum(["cpf", "cnpj"]),
   cpf: z.string().optional(),
@@ -27,48 +27,51 @@ const step1DataBaseSchema = z.object({
 });
 
 // Schema com validações condicionais usando refine
-export const step1DataSchema = step1DataBaseSchema.refine(
-  (data) => {
-    if (data.documentType === "cpf") {
-      if (!data.cpf || data.cpf.trim() === "") {
-        return false;
+export const step1DataSchema = step1DataBaseSchema
+  .refine(
+    (data) => {
+      if (data.documentType === "cpf") {
+        if (!data.cpf || data.cpf.trim() === "") {
+          return false;
+        }
+        const cleaned = data.cpf.replace(/\D/g, "");
+        return cleaned.length === 11;
       }
-      const cleaned = data.cpf.replace(/\D/g, "");
-      return cleaned.length === 11;
-    }
-    return true;
-  },
-  {
-    message: "CPF é obrigatório e deve ter 11 dígitos",
-    path: ["cpf"],
-  }
-).refine(
-  (data) => {
-    if (data.documentType === "cnpj") {
-      if (!data.cnpj || data.cnpj.trim() === "") {
-        return false;
+      return true;
+    },
+    {
+      message: "CPF é obrigatório e deve ter 11 dígitos",
+      path: ["cpf"],
+    },
+  )
+  .refine(
+    (data) => {
+      if (data.documentType === "cnpj") {
+        if (!data.cnpj || data.cnpj.trim() === "") {
+          return false;
+        }
+        const cleaned = data.cnpj.replace(/\D/g, "");
+        return cleaned.length === 14;
       }
-      const cleaned = data.cnpj.replace(/\D/g, "");
-      return cleaned.length === 14;
-    }
-    return true;
-  },
-  {
-    message: "CNPJ é obrigatório e deve ter 14 dígitos",
-    path: ["cnpj"],
-  }
-).refine(
-  (data) => {
-    if (data.documentType === "cnpj") {
-      return data.companyName && data.companyName.trim() !== "";
-    }
-    return true;
-  },
-  {
-    message: "Nome da empresa é obrigatório quando usar CNPJ",
-    path: ["companyName"],
-  }
-);
+      return true;
+    },
+    {
+      message: "CNPJ é obrigatório e deve ter 14 dígitos",
+      path: ["cnpj"],
+    },
+  )
+  .refine(
+    (data) => {
+      if (data.documentType === "cnpj") {
+        return data.companyName && data.companyName.trim() !== "";
+      }
+      return true;
+    },
+    {
+      message: "Nome da empresa é obrigatório quando usar CNPJ",
+      path: ["companyName"],
+    },
+  );
 
 // Schema para Step 2 - Endereço (apenas coordenadas são obrigatórias)
 export const step2AddressSchema = z.object({
@@ -107,6 +110,16 @@ export const completeRegistrationSchema = step1DataBaseSchema
     password: z.string().min(6, "Senha deve ter no mínimo 6 caracteres"),
     userType: z.enum(["client", "driver"]),
     acceptedTerms: z.boolean(),
+    // Driver
+    vehicleType: z.enum(["motorcycle", "car", "van", "truck"]).optional(),
+    vehicleInfo: z
+      .object({
+        plate: z.string().optional(),
+        model: z.string().optional(),
+        color: z.string().optional(),
+        year: z.number().optional(),
+      })
+      .optional(),
   })
   .refine(
     (data) => {
@@ -122,7 +135,19 @@ export const completeRegistrationSchema = step1DataBaseSchema
     {
       message: "CPF é obrigatório e deve ter 11 dígitos",
       path: ["cpf"],
-    }
+    },
+  )
+  .refine(
+    (data) => {
+      if (data.userType === "driver") {
+        return !!data.vehicleType;
+      }
+      return true;
+    },
+    {
+      message: "Selecione o tipo de veículo",
+      path: ["vehicleType"],
+    },
   )
   .refine(
     (data) => {
@@ -138,7 +163,7 @@ export const completeRegistrationSchema = step1DataBaseSchema
     {
       message: "CNPJ é obrigatório e deve ter 14 dígitos",
       path: ["cnpj"],
-    }
+    },
   )
   .refine(
     (data) => {
@@ -150,7 +175,7 @@ export const completeRegistrationSchema = step1DataBaseSchema
     {
       message: "Nome da empresa é obrigatório quando usar CNPJ",
       path: ["companyName"],
-    }
+    },
   );
 
 // Tipos inferidos
@@ -160,4 +185,3 @@ export type Step3PreferencesInput = z.infer<typeof step3PreferencesSchema>;
 export type CompleteRegistrationInput = z.infer<
   typeof completeRegistrationSchema
 >;
-

@@ -12,9 +12,15 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 export type FinalOrderSummaryData = {
   pickupAddress: string;
   pickupNeighborhood?: string;
+  pickupLatLng?: { latitude: number; longitude: number };
   dropoffAddress: string;
   dropoffNeighborhood?: string;
+  dropoffLatLng?: { latitude: number; longitude: number };
   vehicleType: "moto" | "car" | "van" | "truck";
+  // modo do serviço (nomenclatura do produto). No backend, mapeamos frete->delivery.
+  serviceMode?: "delivery" | "ride" | "frete";
+  // id do purpose selecionado no backend
+  purposeId?: string;
   servicePurposeLabel: string;
   etaMinutes?: number;
   pricing: {
@@ -464,7 +470,7 @@ export const FinalOrderSummarySheet = forwardRef<BottomSheetModal, Props>(
         </View>
       </BottomSheetModal>
     );
-  }
+  },
 );
 
 function labelForVehicle(v: FinalOrderSummaryData["vehicleType"]) {

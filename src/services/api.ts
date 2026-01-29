@@ -1,12 +1,15 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from "axios";
 
 // Configuração base da API
-// Para Android Emulator use: http://10.0.2.2:3000/api
-// Para Android Device/IOs use: http://SEU_IP_LOCAL:3000/api (ex: http://192.168.1.100:3000/api)
-// Para produção, configure a URL do seu servidor
-const API_BASE_URL = __DEV__
-  ? "http://192.168.1.8:3000/api" // Android Emulator
-  : "https://192.168.1.8:3000/api";
+// Preferência:
+// - EXPO_PUBLIC_API_URL (ex.: http://192.168.1.8:3000)
+// - Fallbacks para emulador/dispositivo
+// Obs: baseURL inclui /api
+const RAW_BASE =
+  process.env.EXPO_PUBLIC_API_URL ||
+  (__DEV__ ? "http://10.0.2.2:3000" : "http://192.168.1.8:3000");
+
+const API_BASE_URL = RAW_BASE.replace(/\/$/, "") + "/api";
 
 // Criar instância do axios
 function createApiInstance(): AxiosInstance {
@@ -18,15 +21,23 @@ function createApiInstance(): AxiosInstance {
     },
   });
 
-  // Interceptor para adicionar token nas requisições
+  // Interceptor para adicionar token nas requisições automaticamente
   instance.interceptors.request.use(
     (config) => {
-      // O token será adicionado manualmente em cada chamada
+      try {
+        // import local para evitar ciclo
+        const { useAuthStore } = require("../context/authStore");
+        const token = useAuthStore.getState().token;
+        if (token) {
+          config.headers = {
+            ...(config.headers || {}),
+            Authorization: `Bearer ${token}`,
+          };
+        }
+      } catch {}
       return config;
     },
-    (error) => {
-      return Promise.reject(error);
-    }
+    (error) => Promise.reject(error),
   );
 
   // Interceptor para tratar erros de resposta
@@ -41,13 +52,13 @@ function createApiInstance(): AxiosInstance {
       } else if (error.request) {
         // Erro de rede
         return Promise.reject(
-          new Error("Erro de conexão. Verifique sua internet.")
+          new Error("Erro de conexão. Verifique sua internet."),
         );
       } else {
         // Erro ao configurar requisição
         return Promise.reject(error);
       }
-    }
+    },
   );
 
   return instance;
@@ -58,7 +69,7 @@ const apiInstance = createApiInstance();
 // Funções helpers para requisições
 export function apiGet<T = any>(
   endpoint: string,
-  token?: string
+  token?: string,
 ): Promise<AxiosResponse<T>> {
   const config: AxiosRequestConfig = {};
   if (token) {
@@ -72,7 +83,7 @@ export function apiGet<T = any>(
 export function apiPost<T = any>(
   endpoint: string,
   data: any,
-  token?: string
+  token?: string,
 ): Promise<AxiosResponse<T>> {
   const config: AxiosRequestConfig = {};
   if (token) {
@@ -86,7 +97,7 @@ export function apiPost<T = any>(
 export function apiPut<T = any>(
   endpoint: string,
   data: any,
-  token?: string
+  token?: string,
 ): Promise<AxiosResponse<T>> {
   const config: AxiosRequestConfig = {};
   if (token) {
@@ -99,7 +110,7 @@ export function apiPut<T = any>(
 
 export function apiDelete<T = any>(
   endpoint: string,
-  token?: string
+  token?: string,
 ): Promise<AxiosResponse<T>> {
   const config: AxiosRequestConfig = {};
   if (token) {

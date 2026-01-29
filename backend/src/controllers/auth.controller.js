@@ -37,6 +37,9 @@ class AuthController {
         // Preferências
         preferredPayment,
         notificationsEnabled,
+        // Driver
+        vehicleType,
+        vehicleInfo,
       } = req.body;
 
       // Validar campos obrigatórios
@@ -110,6 +113,12 @@ class AuthController {
       if (preferredPayment) userData.preferredPayment = preferredPayment;
       userData.notificationsEnabled =
         notificationsEnabled !== undefined ? notificationsEnabled : true;
+
+      // Dados do motorista
+      if ((userType || "client") === "driver") {
+        if (vehicleType) userData.vehicleType = vehicleType;
+        if (vehicleInfo) userData.vehicleInfo = vehicleInfo;
+      }
 
       // Criar novo usuário
       const user = await User.create(userData);

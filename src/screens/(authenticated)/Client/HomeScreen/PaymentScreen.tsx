@@ -9,9 +9,18 @@ import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
 
 type PaymentMethod = "credit_card" | "pix" | "cash";
 
+import type { FinalOrderSummaryData } from "./components/FinalOrderSummarySheet";
+import rideService from "../../../../services/ride.service";
+import {
+  mapServiceModeToApi,
+  mapVehicleTypeToApi,
+  formatBRL,
+} from "../../../../utils/mappers";
+
 type Params = {
   Payment: {
     amount: number;
+    order?: FinalOrderSummaryData;
   };
 };
 
@@ -20,50 +29,106 @@ export default function PaymentScreen() {
   const navigation = useNavigation();
   const route = useRoute<RouteProp<Params, "Payment">>();
   const amount = route.params?.amount || 0;
-  
-  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>("credit_card");
+  const order = route.params?.order;
 
-  const formatBRL = (value: number) => {
-    try {
-      return new Intl.NumberFormat("pt-BR", {
-        style: "currency",
-        currency: "BRL",
-      }).format(value);
-    } catch {
-      return `R$ ${value.toFixed(2)}`;
+  const [selectedMethod, setSelectedMethod] =
+    useState<PaymentMethod>("credit_card");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleConfirmPayment = async () => {
+    setError(null);
+    console.log(
+      `Processing payment of ${formatBRL(amount)} via ${selectedMethod}`,
+    );
+
+    if (!order) {
+      // Mantém compatibilidade, mas sem order não dá pra criar corrida.
+      (navigation as any).navigate("Home", {
+        startSearch: true,
+        searchData: {
+          title: "Buscando motorista",
+          price: formatBRL(amount),
+          eta: "Chegada em ~5 min",
+        },
+      });
+      return;
     }
-  };
 
-  const handleConfirmPayment = () => {
-    // Logic to process payment
-    console.log(`Processing payment of ${formatBRL(amount)} via ${selectedMethod}`);
-    
-    // Simular título e ETA baseados no valor ou criar lógica melhor
-    // Idealmente esses dados viriam via params também. 
-    // Por enquanto, vou "chutar" valores genéricos ou passar via params se eu tivesse passado.
-    // Mas a Home espera "startSearch" com dados.
-    
-    // Vou pegar os dados que deveriam ter vindo via rota, mas como não passei, 
-    // vou assumir que a Home vai usar os dados que ela já tem ou vou passar dados genéricos
-    // O ideal é passar tudo via params. Vou atualizar os params do PaymentScreen para receber os dados do modal.
-    
-    const searchData = {
-       title: "Buscando Motorista", // Poderia vir de props
-       price: formatBRL(amount),
-       eta: "Chegada em ~5 min",
-    };
+    if (!order.pickupLatLng || !order.dropoffLatLng) {
+      setError(
+        "Faltam coordenadas de coleta/destino. Selecione no mapa e tente novamente.",
+      );
+      return;
+    }
 
-    (navigation as any).navigate("Home", {
-      startSearch: true,
-      searchData
-    }); 
+    try {
+      setLoading(true);
+
+      const apiVehicle = mapVehicleTypeToApi(order.vehicleType);
+      const apiServiceType = mapServiceModeToApi(order.serviceMode);
+
+      // Mapeia o resumo (UI) para o contrato do backend
+      const ride = await rideService.create({
+        serviceType: apiServiceType,
+        vehicleType: apiVehicle,
+        purposeId: order.purposeId,
+        pickup: {
+          address: order.pickupAddress,
+          latitude: order.pickupLatLng.latitude,
+          longitude: order.pickupLatLng.longitude,
+        },
+        dropoff: {
+          address: order.dropoffAddress,
+          latitude: order.dropoffLatLng.latitude,
+          longitude: order.dropoffLatLng.longitude,
+        },
+        pricing: {
+          basePrice: order.pricing.base,
+          distancePrice: order.pricing.distancePrice,
+          serviceFee: order.pricing.serviceFee,
+          total: order.pricing.total,
+          currency: "BRL",
+        },
+        distance: {
+          value: Math.round((order.pricing.distanceKm || 0) * 1000),
+          text: `${order.pricing.distanceKm?.toFixed?.(1) ?? order.pricing.distanceKm} km`,
+        },
+        duration: {
+          value: (order.etaMinutes || 0) * 60,
+          text: order.etaMinutes ? `${order.etaMinutes} min` : "",
+        },
+        details: {
+          itemType: order.itemType,
+          needsHelper: order.helperIncluded,
+          insurance: (order.insuranceLevel as any) || "none",
+        },
+      });
+
+      const searchData = {
+        title: "Buscando motorista",
+        price: formatBRL(amount),
+        eta: order.etaText || "Chegada em ~5 min",
+        rideId: ride._id,
+      };
+
+      (navigation as any).navigate("Home", {
+        startSearch: true,
+        rideId: ride._id,
+        searchData,
+      });
+    } catch (e: any) {
+      setError(e?.message || "Falha ao confirmar pedido. Tente novamente.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const renderMethod = (
     id: PaymentMethod,
     icon: React.ReactNode,
     label: string,
-    sublabel?: string
+    sublabel?: string,
   ) => {
     const isSelected = selectedMethod === id;
     return (
@@ -140,7 +205,7 @@ export default function PaymentScreen() {
           onPress={() => navigation.goBack()}
           style={{ padding: 8, marginRight: 8 }}
         >
-          <MaterialIcons name="arrow-back" size={24} color="#white" />
+          <MaterialIcons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         <Text style={{ color: "white", fontSize: 18, fontWeight: "800" }}>
           Pagamento
@@ -190,21 +255,21 @@ export default function PaymentScreen() {
           "credit_card",
           <MaterialIcons name="credit-card" size={24} color="white" />,
           "Cartão de Crédito",
-          "Visa final 4242"
+          "Visa final 4242",
         )}
 
         {renderMethod(
           "pix",
           <FontAwesome5 name="pix" size={24} color="#32BCAD" />,
           "Pix",
-          "Aprovação imediata"
+          "Aprovação imediata",
         )}
 
         {renderMethod(
           "cash",
           <FontAwesome5 name="money-bill-wave" size={20} color="#85bb65" />,
           "Dinheiro",
-          "Pagar diretamente ao motorista"
+          "Pagar diretamente ao motorista",
         )}
       </ScrollView>
 
@@ -222,19 +287,35 @@ export default function PaymentScreen() {
           borderTopColor: "rgba(255,255,255,0.05)",
         }}
       >
+        {error && (
+          <View
+            style={{
+              marginBottom: 12,
+              padding: 12,
+              borderRadius: 12,
+              backgroundColor: "rgba(255,75,75,0.12)",
+              borderWidth: 1,
+              borderColor: "rgba(255,75,75,0.25)",
+            }}
+          >
+            <Text style={{ color: "#ffb3b3", fontSize: 13 }}>{error}</Text>
+          </View>
+        )}
+
         <TouchableOpacity
           onPress={handleConfirmPayment}
+          disabled={loading}
           activeOpacity={0.9}
           style={{
             height: 56,
             borderRadius: 12,
-            backgroundColor: "#02de95",
+            backgroundColor: loading ? "rgba(2,222,149,0.5)" : "#02de95",
             alignItems: "center",
             justifyContent: "center",
           }}
         >
           <Text style={{ color: "#0f231c", fontWeight: "800", fontSize: 18 }}>
-            Pagar {formatBRL(amount)}
+            {loading ? "Processando..." : `Pagar ${formatBRL(amount)}`}
           </Text>
         </TouchableOpacity>
       </View>

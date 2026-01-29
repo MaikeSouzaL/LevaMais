@@ -1,8 +1,7 @@
 import io, { Socket } from "socket.io-client";
 import { useAuthStore } from "../context/authStore";
 
-const SOCKET_URL =
-  process.env.EXPO_PUBLIC_API_URL || "http://192.168.15.7:3000";
+const SOCKET_URL = process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.8:3000";
 
 class WebSocketService {
   private socket: Socket | null = null;

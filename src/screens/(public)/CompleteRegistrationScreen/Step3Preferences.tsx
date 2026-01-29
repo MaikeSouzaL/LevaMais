@@ -40,10 +40,10 @@ export default function Step3Preferences({
     "pix" | "cash" | "card"
   >(data.preferredPayment || "pix");
   const [notificationsEnabled, setNotificationsEnabled] = useState(
-    data.notificationsEnabled ?? true
+    data.notificationsEnabled ?? true,
   );
   const [acceptedTerms, setAcceptedTerms] = useState(
-    data.acceptedTerms || false
+    data.acceptedTerms || false,
   );
   const [loading, setLoading] = useState(false);
   const [showOfflineError, setShowOfflineError] = useState(false);
@@ -104,6 +104,9 @@ export default function Step3Preferences({
         userType: data.userType,
         acceptedTerms: acceptedTerms,
         city: data.address?.city || data.city || "",
+        // Driver
+        vehicleType: data.vehicleType,
+        vehicleInfo: data.vehicleInfo,
       };
 
       // Validar todos os dados com o schema completo
@@ -147,6 +150,9 @@ export default function Step3Preferences({
         // Preferências
         preferredPayment: completeData.preferredPayment,
         notificationsEnabled: completeData.notificationsEnabled,
+        // Driver
+        vehicleType: completeData.vehicleType,
+        vehicleInfo: completeData.vehicleInfo,
       };
 
       console.log("Dados completos sendo salvos:", registrationPayload);
@@ -203,7 +209,7 @@ export default function Step3Preferences({
           googleId: user.googleId,
           aceitouTermos: user.acceptedTerms,
         },
-        token
+        token,
       );
 
       Toast.show({

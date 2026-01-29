@@ -60,6 +60,12 @@ export type GlobalMapProps = {
   initialRegion: Region;
   region?: Region;
   showsUserLocation?: boolean;
+  /**
+   * Alterna o estilo (dark) do mapa.
+   * - true (default): aplica o darkMapStyle
+   * - false: usa o estilo padrão do provider
+   */
+  useDarkStyle?: boolean;
   onMapRef?: (ref: MapView | null) => void;
   onPressMyLocation?: () => void;
   onMapRegionChange?: (region: Region) => void;
@@ -71,6 +77,7 @@ export function GlobalMap({
   initialRegion,
   region,
   showsUserLocation = true,
+  useDarkStyle = true,
   onMapRef,
   onPressMyLocation,
   onMapRegionChange,
@@ -95,7 +102,7 @@ export function GlobalMap({
         region={region}
         onRegionChange={onMapRegionChange}
         onRegionChangeComplete={onRegionChangeComplete}
-        customMapStyle={darkMapStyle}
+        customMapStyle={useDarkStyle ? darkMapStyle : undefined}
         showsUserLocation={showsUserLocation}
         showsMyLocationButton={false}
         showsCompass={false}

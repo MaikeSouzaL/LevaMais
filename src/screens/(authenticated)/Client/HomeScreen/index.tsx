@@ -50,8 +50,14 @@ import {
   formatarEndereco,
 } from "../../../../utils/location";
 
-import { DriverFoundSheet } from "./components/DriverFoundSheet";
+import {
+  DriverFoundSheet,
+  DriverFoundInfo,
+} from "./components/DriverFoundSheet";
 import { useAuthStore } from "../../../../context/authStore";
+import rideService from "../../../../services/ride.service";
+import webSocketService from "../../../../services/websocket.service";
+import { formatBRL as formatBRLUtil } from "../../../../utils/mappers";
 
 // Dados mockados
 const MOCK_DATA = {
@@ -100,23 +106,42 @@ export default function HomeScreen() {
     title: string;
     price: string;
     eta: string;
+    rideId?: string;
   }>({ visible: false, title: "", price: "", eta: "" });
+
+  const [currentRideId, setCurrentRideId] = useState<string | null>(null);
 
   // Estado para controlar se o motorista foi encontrado
   const [isDriverFound, setIsDriverFound] = useState(false);
+  const [driverLatLng, setDriverLatLng] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
+  const [driverInfo, setDriverInfo] = useState<DriverFoundInfo | null>(null);
+  const [driverEtaText, setDriverEtaText] = useState<string | undefined>(
+    undefined,
+  );
 
   // Controle de Fluxo
   const [serviceMode, setServiceMode] = useState<"ride" | "delivery" | null>(
-    null
+    null,
   );
   const [destinationAddress, setDestinationAddress] = useState<string>("");
 
   const [selectedVehicleType, setSelectedVehicleType] = useState<
     "motorcycle" | "car" | "van" | "truck" | null
   >(null);
+  const [selectedPurposeId, setSelectedPurposeId] = useState<string | null>(
+    null,
+  );
 
   const [finalSummaryData, setFinalSummaryData] =
     useState<FinalOrderSummaryData | null>(null);
+
+  const [pickupSelection, setPickupSelection] = useState<any>(null);
+  const [dropoffSelection, setDropoffSelection] = useState<any>(null);
+  const [priceQuote, setPriceQuote] = useState<any>(null);
+  const [priceQuoteLoading, setPriceQuoteLoading] = useState(false);
   const [dragLatLng, setDragLatLng] = useState<{
     lat: number;
     lng: number;
@@ -127,14 +152,8 @@ export default function HomeScreen() {
   const walletBalance = useAuthStore((s) => s.walletBalance || 0);
 
   const formatBRL = (value: number) => {
-    try {
-      return new Intl.NumberFormat("pt-BR", {
-        style: "currency",
-        currency: "BRL",
-      }).format(value);
-    } catch {
-      return `R$ ${value.toFixed(2)}`;
-    }
+    // manter compatibilidade, mas preferir util
+    return formatBRLUtil(value);
   };
 
   useEffect(() => {
@@ -158,34 +177,28 @@ export default function HomeScreen() {
 
     // 2. Iniciar busca real (vindo do pagamento confirmado)
     if (route.params?.startSearch && route.params?.searchData) {
-      const { title, price, eta } = route.params.searchData;
+      const { title, price, eta, rideId } = route.params.searchData;
+      const paramRideId = (route.params.rideId as string | undefined) || rideId;
 
       // Delay pequeno para garantir transição suave
       setTimeout(() => {
+        if (paramRideId) setCurrentRideId(paramRideId);
+
         setSearchingModal({
           visible: true,
           title: title || "Buscando...",
           price: price || "",
           eta: eta || "",
+          rideId: paramRideId,
         });
 
         // Limpar params
         navigation.setParams({
           startSearch: undefined,
           searchData: undefined,
+          rideId: undefined,
         });
-
-        // SIMULAÇÃO: Encontrar motorista após 10 segundos
-        setTimeout(() => {
-          setSearchingModal((prev) => ({ ...prev, visible: false }));
-          setIsDriverFound(true);
-
-          // Pequeno delay para garantir que o modal de busca fechou
-          setTimeout(() => {
-            driverFoundRef.current?.snapToIndex(0); // Abre o sheet de motorista encontrado
-          }, 300);
-        }, 10000); // 10 segundos
-      }, 300);
+      }, 250);
     }
 
     // 3. Retornar da tela de cancelamento e manter corrida: reabrir "Motorista a caminho"
@@ -201,8 +214,56 @@ export default function HomeScreen() {
 
     // 4. Abrir ofertas conforme retorno da ServicePurposeScreen
     if (route.params?.openOffersFor) {
-      const type = route.params.openOffersFor as "motorcycle" | "car" | "van" | "truck";
+      const type = route.params.openOffersFor as
+        | "motorcycle"
+        | "car"
+        | "van"
+        | "truck";
+      const purposeId = route.params.purposeId as string | undefined;
+      const pickup = route.params.pickup;
+      const dropoff = route.params.dropoff;
+
       setSelectedVehicleType(type);
+      setSelectedPurposeId(purposeId || null);
+      if (pickup) setPickupSelection(pickup);
+      if (dropoff) setDropoffSelection(dropoff);
+
+      // calcular preço real (backend)
+      (async () => {
+        if (
+          !pickup?.latitude ||
+          !pickup?.longitude ||
+          !dropoff?.latitude ||
+          !dropoff?.longitude
+        ) {
+          setPriceQuote(null);
+          return;
+        }
+        try {
+          setPriceQuoteLoading(true);
+          const resp = await rideService.calculatePrice({
+            pickup: {
+              address: pickup.address,
+              latitude: pickup.latitude,
+              longitude: pickup.longitude,
+            },
+            dropoff: {
+              address: dropoff.address,
+              latitude: dropoff.latitude,
+              longitude: dropoff.longitude,
+            },
+            vehicleType: type as any,
+            purposeId,
+          });
+          setPriceQuote(resp);
+        } catch (e) {
+          console.log("Falha ao calcular preço", e);
+          setPriceQuote(null);
+        } finally {
+          setPriceQuoteLoading(false);
+        }
+      })();
+
       setTimeout(() => {
         if (type === "motorcycle") {
           offersMotoRef.current?.snapToIndex(0);
@@ -213,10 +274,94 @@ export default function HomeScreen() {
         } else if (type === "truck") {
           offersTruckRef.current?.snapToIndex(0);
         }
-        navigation.setParams({ openOffersFor: undefined, purposeId: undefined });
+        navigation.setParams({
+          openOffersFor: undefined,
+          purposeId: undefined,
+          pickup: undefined,
+          dropoff: undefined,
+        });
       }, 150);
     }
   }, [route.params]);
+
+  // Integração WebSocket: buscar motorista / receber eventos
+  useEffect(() => {
+    let mounted = true;
+
+    const rideId = searchingModal.rideId || currentRideId || undefined;
+
+    if (!searchingModal.visible || !rideId) {
+      return;
+    }
+
+    const onDriverFound = (payload: any) => {
+      // payload esperado: { rideId, driver: {...}, eta }
+      if (!mounted) return;
+      if (payload?.rideId && payload.rideId !== rideId) return;
+
+      setSearchingModal((prev) => ({ ...prev, visible: false }));
+      setIsDriverFound(true);
+      setDriverInfo(payload?.driver || null);
+
+      // ETA pode vir como objeto {value,text} ou string
+      const etaText =
+        payload?.eta?.text ||
+        (typeof payload?.eta === "string" ? payload.eta : undefined);
+      setDriverEtaText(etaText);
+
+      // MVP: ir para tela de tracking assim que encontrar motorista
+      try {
+        (navigation as any).navigate("RideTracking", { rideId });
+      } catch {}
+
+      // Mantém o sheet como fallback/preview caso volte para Home
+      setTimeout(() => {
+        driverFoundRef.current?.snapToIndex(0);
+      }, 250);
+    };
+
+    const onRideCancelled = (payload: any) => {
+      if (!mounted) return;
+      if (payload?.rideId && payload.rideId !== rideId) return;
+      setSearchingModal((prev) => ({ ...prev, visible: false }));
+      setIsDriverFound(false);
+      setDriverLatLng(null);
+      setDriverInfo(null);
+      setDriverEtaText(undefined);
+    };
+
+    const onDriverLocationUpdated = (payload: any) => {
+      if (!mounted) return;
+      if (payload?.rideId && payload.rideId !== rideId) return;
+      const loc = payload?.location;
+      if (loc?.latitude && loc?.longitude) {
+        setDriverLatLng({ latitude: loc.latitude, longitude: loc.longitude });
+      }
+    };
+
+    // Conectar e registrar listeners
+    (async () => {
+      try {
+        await webSocketService.connect();
+        webSocketService.onDriverFound(onDriverFound);
+        webSocketService.onRideCancelled(onRideCancelled);
+        webSocketService.onDriverLocationUpdated(onDriverLocationUpdated);
+
+        // Sinalizar que está aguardando motorista (backend só loga, mas mantém contrato)
+        webSocketService.waitingDriver(rideId);
+      } catch (e) {
+        console.log("Falha ao conectar WebSocket", e);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+      // remover listeners específicos deste ride
+      webSocketService.off("driver-found", onDriverFound);
+      webSocketService.off("ride-cancelled", onRideCancelled);
+      webSocketService.off("driver-location-updated", onDriverLocationUpdated);
+    };
+  }, [searchingModal.visible, searchingModal.rideId, currentRideId]);
 
   const [region, setRegion] = useState<{
     latitude: number;
@@ -245,7 +390,7 @@ export default function HomeScreen() {
         longitudeDelta: 0.01,
       });
       setCurrentAddress(
-        `${address.street}${address.number ? ", " + address.number : ""}`
+        `${address.street}${address.number ? ", " + address.number : ""}`,
       );
       setUserRegion({
         latitude: location.latitude,
@@ -270,7 +415,7 @@ export default function HomeScreen() {
       }, 300);
 
       return () => clearTimeout(timer);
-    }, [searchingModal.visible, isDriverFound])
+    }, [searchingModal.visible, isDriverFound]),
   );
 
   const handleRegionChange = (r: {
@@ -302,7 +447,7 @@ export default function HomeScreen() {
   };
 
   const [currentAddress, setCurrentAddress] = useState<string>(
-    MOCK_DATA.currentLocation.address
+    MOCK_DATA.currentLocation.address,
   );
 
   // Handlers (sem funcionalidade por enquanto)
@@ -339,7 +484,7 @@ export default function HomeScreen() {
     }
     const { location, address } = result;
     setCurrentAddress(
-      `${address.street}${address.number ? ", " + address.number : ""}`
+      `${address.street}${address.number ? ", " + address.number : ""}`,
     );
     // Centraliza no usuário
     if (mapRef.current) {
@@ -350,7 +495,7 @@ export default function HomeScreen() {
           latitudeDelta: 0.01,
           longitudeDelta: 0.01,
         },
-        600
+        600,
       );
     }
     // Não abre o LocationPicker: apenas centraliza no usuário
@@ -419,25 +564,50 @@ export default function HomeScreen() {
     offersMotoRef.current?.close();
 
     // Navegar diretamente para o resumo (sem modal de busca aqui)
+    const q = priceQuote;
     const data: FinalOrderSummaryData = {
-      pickupAddress: currentAddress,
-      pickupNeighborhood: "Centro, São Paulo - SP", // Mock
-      dropoffAddress: destinationAddress || "Av. Paulista, 1000",
-      dropoffNeighborhood: "Bela Vista, São Paulo - SP", // Mock
+      pickupAddress: pickupSelection?.address || currentAddress,
+      pickupNeighborhood: "Centro, São Paulo - SP", // TODO: real
+      pickupLatLng:
+        pickupSelection?.latitude && pickupSelection?.longitude
+          ? {
+              latitude: pickupSelection.latitude,
+              longitude: pickupSelection.longitude,
+            }
+          : userRegion
+            ? { latitude: userRegion.latitude, longitude: userRegion.longitude }
+            : region
+              ? { latitude: region.latitude, longitude: region.longitude }
+              : undefined,
+      dropoffAddress:
+        dropoffSelection?.address || destinationAddress || "Av. Paulista, 1000",
+      dropoffNeighborhood: "Bela Vista, São Paulo - SP", // TODO: real
+      dropoffLatLng:
+        dropoffSelection?.latitude && dropoffSelection?.longitude
+          ? {
+              latitude: dropoffSelection.latitude,
+              longitude: dropoffSelection.longitude,
+            }
+          : dragLatLng
+            ? { latitude: dragLatLng.lat, longitude: dragLatLng.lng }
+            : undefined,
       vehicleType: "moto",
+      serviceMode: serviceMode || "delivery",
+      purposeId: selectedPurposeId || undefined,
       servicePurposeLabel: "Documentos",
-      etaMinutes: 15,
+      etaMinutes: q?.duration?.value ? Math.round(q.duration.value / 60) : 15,
       pricing: {
-        base: 5,
-        distanceKm: 4.2,
-        distancePrice: 8.4,
-        serviceFee: 1.5,
-        total: 14.9,
+        base: q?.pricing?.basePrice ?? 5,
+        distanceKm: q?.distance?.value ? q.distance.value / 1000 : 4.2,
+        distancePrice: q?.pricing?.distancePrice ?? 8.4,
+        serviceFee: q?.pricing?.serviceFee ?? 1.5,
+        total: q?.pricing?.total ?? 14.9,
       },
       paymentSummary: "Visa final 4242",
       itemType: "Caixa pequena",
       helperIncluded: false,
       insuranceLevel: "basic",
+      etaText: q?.duration?.text,
     };
     setFinalSummaryData(data);
     (navigation as any).navigate("FinalOrderSummary", { data });
@@ -454,7 +624,7 @@ export default function HomeScreen() {
         (navigation as any).navigate("ServicePurpose", {
           vehicleType: selectedVehicleType,
         }),
-      150
+      150,
     );
   };
 
@@ -508,15 +678,22 @@ export default function HomeScreen() {
               ))}
 
               {/* Marcador do Motorista (Quando encontrado) */}
-              {isDriverFound && (
+              {isDriverFound && (driverLatLng || userRegion || region) && (
                 <Marker
                   coordinate={{
                     latitude:
-                      MOCK_DATA.currentLocation.coordinates.latitude - 0.002, // Perto do usuário
+                      driverLatLng?.latitude ??
+                      userRegion?.latitude ??
+                      region?.latitude ??
+                      MOCK_DATA.currentLocation.coordinates.latitude,
                     longitude:
-                      MOCK_DATA.currentLocation.coordinates.longitude - 0.002,
+                      driverLatLng?.longitude ??
+                      userRegion?.longitude ??
+                      region?.longitude ??
+                      MOCK_DATA.currentLocation.coordinates.longitude,
                   }}
                   anchor={{ x: 0.5, y: 0.5 }}
+                  tracksViewChanges={false}
                 >
                   <View
                     style={{
@@ -647,6 +824,13 @@ export default function HomeScreen() {
           onConfirm={handleConfirmMotoOffer}
           onClose={() => bottomSheetRef.current?.snapToIndex(1)}
           onBack={handleBackFromOffers}
+          nextPriceText={
+            priceQuote?.pricing?.total != null
+              ? formatBRL(priceQuote.pricing.total)
+              : undefined
+          }
+          nextEtaText={priceQuote?.duration?.text}
+          loadingQuote={priceQuoteLoading}
         />
 
         {/* Offers Car Sheet - Ofertas de carros mockadas */}
@@ -656,31 +840,73 @@ export default function HomeScreen() {
             console.log("Car offer confirmed:", offerId);
             offersCarRef.current?.close();
 
+            const q = priceQuote;
             const data: FinalOrderSummaryData = {
-              pickupAddress: currentAddress,
+              pickupAddress: pickupSelection?.address || currentAddress,
               pickupNeighborhood: "Centro, São Paulo - SP",
-              dropoffAddress: destinationAddress || "Av. Paulista, 1000",
+              pickupLatLng:
+                pickupSelection?.latitude && pickupSelection?.longitude
+                  ? {
+                      latitude: pickupSelection.latitude,
+                      longitude: pickupSelection.longitude,
+                    }
+                  : userRegion
+                    ? {
+                        latitude: userRegion.latitude,
+                        longitude: userRegion.longitude,
+                      }
+                    : region
+                      ? {
+                          latitude: region.latitude,
+                          longitude: region.longitude,
+                        }
+                      : undefined,
+              dropoffAddress:
+                dropoffSelection?.address ||
+                destinationAddress ||
+                "Av. Paulista, 1000",
               dropoffNeighborhood: "Bela Vista, São Paulo - SP",
+              dropoffLatLng:
+                dropoffSelection?.latitude && dropoffSelection?.longitude
+                  ? {
+                      latitude: dropoffSelection.latitude,
+                      longitude: dropoffSelection.longitude,
+                    }
+                  : dragLatLng
+                    ? { latitude: dragLatLng.lat, longitude: dragLatLng.lng }
+                    : undefined,
               vehicleType: "car",
+              serviceMode: serviceMode || "delivery",
+              purposeId: selectedPurposeId || undefined,
               servicePurposeLabel: "Entrega rápida",
-              etaMinutes: 12,
+              etaMinutes: q?.duration?.value
+                ? Math.round(q.duration.value / 60)
+                : 12,
               pricing: {
-                base: 7,
-                distanceKm: 4.2,
-                distancePrice: 10.4,
-                serviceFee: 2.5,
-                total: 19.9,
+                base: q?.pricing?.basePrice ?? 7,
+                distanceKm: q?.distance?.value ? q.distance.value / 1000 : 4.2,
+                distancePrice: q?.pricing?.distancePrice ?? 10.4,
+                serviceFee: q?.pricing?.serviceFee ?? 2.5,
+                total: q?.pricing?.total ?? 19.9,
               },
               paymentSummary: "Pix",
               itemType: "Caixa pequena",
               helperIncluded: false,
               insuranceLevel: "basic",
+              etaText: q?.duration?.text,
             };
             setFinalSummaryData(data);
             (navigation as any).navigate("FinalOrderSummary", { data });
           }}
           onClose={() => bottomSheetRef.current?.snapToIndex(1)}
           onBack={handleBackFromOffers}
+          nextPriceText={
+            priceQuote?.pricing?.total != null
+              ? formatBRL(priceQuote.pricing.total)
+              : undefined
+          }
+          nextEtaText={priceQuote?.duration?.text}
+          loadingQuote={priceQuoteLoading}
         />
 
         {/* Safety Help Sheet - Ajuda e Segurança */}
@@ -692,11 +918,19 @@ export default function HomeScreen() {
           serviceTitle={searchingModal.title}
           price={searchingModal.price}
           etaText={searchingModal.eta}
-          onCancel={() =>
-            setSearchingModal({ ...searchingModal, visible: false })
-          }
+          onCancel={async () => {
+            try {
+              const rideId = searchingModal.rideId || currentRideId;
+              if (rideId)
+                await rideService.cancel(rideId, "cancelled_by_client");
+            } catch (e) {
+              console.log("Falha ao cancelar corrida", e);
+            } finally {
+              setSearchingModal((prev) => ({ ...prev, visible: false }));
+            }
+          }}
           onBack={() =>
-            setSearchingModal({ ...searchingModal, visible: false })
+            setSearchingModal((prev) => ({ ...prev, visible: false }))
           }
           onHelp={handlePressSafety}
         />
@@ -708,31 +942,73 @@ export default function HomeScreen() {
             console.log("Van offer confirmed:", offerId);
             offersVanRef.current?.close();
 
+            const q = priceQuote;
             const data: FinalOrderSummaryData = {
-              pickupAddress: currentAddress,
+              pickupAddress: pickupSelection?.address || currentAddress,
               pickupNeighborhood: "Centro, São Paulo - SP",
-              dropoffAddress: destinationAddress || "Av. Paulista, 1000",
+              pickupLatLng:
+                pickupSelection?.latitude && pickupSelection?.longitude
+                  ? {
+                      latitude: pickupSelection.latitude,
+                      longitude: pickupSelection.longitude,
+                    }
+                  : userRegion
+                    ? {
+                        latitude: userRegion.latitude,
+                        longitude: userRegion.longitude,
+                      }
+                    : region
+                      ? {
+                          latitude: region.latitude,
+                          longitude: region.longitude,
+                        }
+                      : undefined,
+              dropoffAddress:
+                dropoffSelection?.address ||
+                destinationAddress ||
+                "Av. Paulista, 1000",
               dropoffNeighborhood: "Bela Vista, São Paulo - SP",
+              dropoffLatLng:
+                dropoffSelection?.latitude && dropoffSelection?.longitude
+                  ? {
+                      latitude: dropoffSelection.latitude,
+                      longitude: dropoffSelection.longitude,
+                    }
+                  : dragLatLng
+                    ? { latitude: dragLatLng.lat, longitude: dragLatLng.lng }
+                    : undefined,
               vehicleType: "van",
+              serviceMode: serviceMode || "delivery",
+              purposeId: selectedPurposeId || undefined,
               servicePurposeLabel: "Mudança leve",
-              etaMinutes: 18,
+              etaMinutes: q?.duration?.value
+                ? Math.round(q.duration.value / 60)
+                : 18,
               pricing: {
-                base: 12,
-                distanceKm: 4.2,
-                distancePrice: 15.4,
-                serviceFee: 3.5,
-                total: 30.9,
+                base: q?.pricing?.basePrice ?? 12,
+                distanceKm: q?.distance?.value ? q.distance.value / 1000 : 4.2,
+                distancePrice: q?.pricing?.distancePrice ?? 15.4,
+                serviceFee: q?.pricing?.serviceFee ?? 3.5,
+                total: q?.pricing?.total ?? 30.9,
               },
               paymentSummary: "Dinheiro",
               itemType: "Caixa pequena",
               helperIncluded: true,
               insuranceLevel: "basic",
+              etaText: q?.duration?.text,
             };
             setFinalSummaryData(data);
             (navigation as any).navigate("FinalOrderSummary", { data });
           }}
           onClose={() => bottomSheetRef.current?.snapToIndex(1)}
           onBack={handleBackFromOffers}
+          nextPriceText={
+            priceQuote?.pricing?.total != null
+              ? formatBRL(priceQuote.pricing.total)
+              : undefined
+          }
+          nextEtaText={priceQuote?.duration?.text}
+          loadingQuote={priceQuoteLoading}
         />
 
         {/* Offers Truck Sheet - Ofertas de caminhões */}
@@ -742,42 +1018,85 @@ export default function HomeScreen() {
             console.log("Truck offer confirmed:", offerId);
             offersTruckRef.current?.close();
 
+            const q = priceQuote;
             const data: FinalOrderSummaryData = {
-              pickupAddress: currentAddress,
+              pickupAddress: pickupSelection?.address || currentAddress,
               pickupNeighborhood: "Centro, São Paulo - SP",
-              dropoffAddress: destinationAddress || "Av. Paulista, 1000",
+              pickupLatLng:
+                pickupSelection?.latitude && pickupSelection?.longitude
+                  ? {
+                      latitude: pickupSelection.latitude,
+                      longitude: pickupSelection.longitude,
+                    }
+                  : userRegion
+                    ? {
+                        latitude: userRegion.latitude,
+                        longitude: userRegion.longitude,
+                      }
+                    : region
+                      ? {
+                          latitude: region.latitude,
+                          longitude: region.longitude,
+                        }
+                      : undefined,
+              dropoffAddress:
+                dropoffSelection?.address ||
+                destinationAddress ||
+                "Av. Paulista, 1000",
               dropoffNeighborhood: "Bela Vista, São Paulo - SP",
+              dropoffLatLng:
+                dropoffSelection?.latitude && dropoffSelection?.longitude
+                  ? {
+                      latitude: dropoffSelection.latitude,
+                      longitude: dropoffSelection.longitude,
+                    }
+                  : dragLatLng
+                    ? { latitude: dragLatLng.lat, longitude: dragLatLng.lng }
+                    : undefined,
               vehicleType: "truck",
+              serviceMode: serviceMode || "delivery",
+              purposeId: selectedPurposeId || undefined,
               servicePurposeLabel: "Frete",
-              etaMinutes: 22,
+              etaMinutes: q?.duration?.value
+                ? Math.round(q.duration.value / 60)
+                : 22,
               pricing: {
-                base: 20,
-                distanceKm: 4.2,
-                distancePrice: 22.4,
-                serviceFee: 4.5,
-                total: 46.9,
+                base: q?.pricing?.basePrice ?? 20,
+                distanceKm: q?.distance?.value ? q.distance.value / 1000 : 4.2,
+                distancePrice: q?.pricing?.distancePrice ?? 22.4,
+                serviceFee: q?.pricing?.serviceFee ?? 4.5,
+                total: q?.pricing?.total ?? 46.9,
               },
               paymentSummary: "Cartão",
               itemType: "Caixa pequena",
               helperIncluded: true,
               insuranceLevel: "basic",
+              etaText: q?.duration?.text,
             };
             setFinalSummaryData(data);
             (navigation as any).navigate("FinalOrderSummary", { data });
           }}
           onClose={() => bottomSheetRef.current?.snapToIndex(1)}
           onBack={handleBackFromOffers}
+          nextPriceText={
+            priceQuote?.pricing?.total != null
+              ? formatBRL(priceQuote.pricing.total)
+              : undefined
+          }
+          nextEtaText={priceQuote?.duration?.text}
+          loadingQuote={priceQuoteLoading}
         />
         {/* Driver Found Sheet - Tela de Motorista Encontrado */}
         <DriverFoundSheet
           ref={driverFoundRef}
+          driver={driverInfo}
+          etaText={driverEtaText}
           onClose={() => {
-            // Lógica ao fechar, talvez cancelar ou minimizar
             console.log("Fechou driver found sheet");
           }}
           onCall={() => {
-            // Sim número do motorista mockado
-            const phone = "+5511999999999";
+            const phone = driverInfo?.phone;
+            if (!phone) return;
             try {
               Linking.openURL(`tel:${phone}`);
             } catch (e) {
@@ -785,57 +1104,66 @@ export default function HomeScreen() {
             }
           }}
           onChat={() => {
-            // Navegar para Chat
             (navigation as any).navigate("Chat", {
-              driverName: "Carlos Silva",
+              driverName: driverInfo?.name || "Motorista",
             });
           }}
           onShare={async () => {
             try {
-              const message = `Estou em uma corrida com ETA ~6 min. Motorista: Carlos Silva. Acompanhe pelo app.`;
+              const message = `Estou em uma corrida. Motorista: ${
+                driverInfo?.name || "Motorista"
+              }. Acompanhe pelo app.`;
               await Share.share({ message });
             } catch (e) {
               console.log("Falha ao compartilhar", e);
             }
           }}
-          onCancel={() => {
-            // Ir para tela de taxa de cancelamento
-            const total = finalSummaryData?.pricing.total ?? 30.9;
+          onCancel={async () => {
+            const total = finalSummaryData?.pricing.total ?? 0;
+            const rideId = currentRideId;
+
+            try {
+              if (rideId) {
+                await rideService.cancel(rideId, "cancelled_by_client");
+              }
+            } catch (e) {
+              console.log("Falha ao cancelar corrida", e);
+            }
+
             (navigation as any).navigate("CancelFee", { total });
-            // mantém sheet fechada
+
             driverFoundRef.current?.close();
             setIsDriverFound(false);
           }}
           onDetails={() => {
-            // Navegar para detalhes do pedido
             if (finalSummaryData) {
               (navigation as any).navigate("OrderDetails", {
                 data: finalSummaryData,
               });
-            } else {
-              // fallback: construir dados mínimos
-              const data = {
-                pickupAddress: currentAddress,
-                pickupNeighborhood: "Centro, São Paulo - SP",
-                dropoffAddress: destinationAddress || "Av. Paulista, 1000",
-                dropoffNeighborhood: "Bela Vista, São Paulo - SP",
-                vehicleType: "car",
-                servicePurposeLabel: "Entrega",
-                etaMinutes: 6,
-                pricing: {
-                  base: 10,
-                  distanceKm: 4.2,
-                  distancePrice: 12.4,
-                  serviceFee: 3.5,
-                  total: 25.9,
-                },
-                paymentSummary: "Pix",
-                itemType: "Documento",
-                helperIncluded: false,
-                insuranceLevel: "basic",
-              } as any;
-              (navigation as any).navigate("OrderDetails", { data });
+              return;
             }
+
+            const data = {
+              pickupAddress: currentAddress,
+              pickupNeighborhood: "Centro, São Paulo - SP",
+              dropoffAddress: destinationAddress || "Av. Paulista, 1000",
+              dropoffNeighborhood: "Bela Vista, São Paulo - SP",
+              vehicleType: "car",
+              servicePurposeLabel: "Entrega",
+              etaMinutes: 6,
+              pricing: {
+                base: 10,
+                distanceKm: 4.2,
+                distancePrice: 12.4,
+                serviceFee: 3.5,
+                total: 25.9,
+              },
+              paymentSummary: "Pix",
+              itemType: "Documento",
+              helperIncluded: false,
+              insuranceLevel: "basic",
+            } as any;
+            (navigation as any).navigate("OrderDetails", { data });
           }}
         />
 

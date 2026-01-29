@@ -71,16 +71,23 @@ const driverLocationSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+
+    // Tipos de serviço que o motorista aceita
+    serviceTypes: {
+      type: [String],
+      enum: ["ride", "delivery"],
+      default: ["ride", "delivery"],
+    },
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 // Índice geoespacial para busca por proximidade
 driverLocationSchema.index({ location: "2dsphere" });
 driverLocationSchema.index({ driverId: 1 });
-driverLocationSchema.index({ status: 1, vehicleType: 1 });
+driverLocationSchema.index({ status: 1, vehicleType: 1, serviceTypes: 1 });
 
 // Middleware para atualizar lastUpdated
 driverLocationSchema.pre("save", function (next) {
@@ -94,7 +101,8 @@ driverLocationSchema.statics.findNearby = async function (
   longitude,
   maxDistance = 5000, // 5km
   vehicleType,
-  limit = 10
+  limit = 10,
+  serviceType,
 ) {
   return this.find({
     location: {
@@ -109,6 +117,7 @@ driverLocationSchema.statics.findNearby = async function (
     status: "available",
     acceptingRides: true,
     ...(vehicleType && { vehicleType }),
+    ...(serviceType && { serviceTypes: serviceType }),
   }).limit(limit);
 };
 

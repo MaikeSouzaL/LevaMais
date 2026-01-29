@@ -14,10 +14,11 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import theme from "../../../theme";
 import Step1Data from "./Step1Data";
 import Step2Address from "./Step2Address";
+import Step2Vehicle from "./Step2Vehicle";
 import Step3Preferences from "./Step3Preferences";
 import type { RegistrationData } from "../../../types/registration";
 
-type Step = 1 | 2 | 3;
+type Step = 1 | 2 | 3 | 4;
 
 interface CompleteRegistrationParams {
   user: {
@@ -64,7 +65,7 @@ export default function CompleteRegistrationScreen() {
         acceptedTerms: params.user.acceptedTerms,
         city: params.user.city, // Preservar cidade se existir
       };
-    }
+    },
   );
 
   function updateRegistrationData(data: Partial<RegistrationData>) {
@@ -75,8 +76,10 @@ export default function CompleteRegistrationScreen() {
     });
   }
 
+  const maxStep: Step = registrationData.userType === "driver" ? 4 : 3;
+
   function handleNext() {
-    if (currentStep < 3) {
+    if (currentStep < maxStep) {
       setCurrentStep((prev) => {
         const nextStep = (prev + 1) as Step;
         console.log(`Navegando do step ${prev} para o step ${nextStep}`);
@@ -94,6 +97,54 @@ export default function CompleteRegistrationScreen() {
   }
 
   function renderStep() {
+    // Fluxo cliente: 1 dados -> 2 endereço -> 3 preferências
+    // Fluxo motorista: 1 dados -> 2 veículo -> 3 endereço -> 4 preferências
+
+    if (registrationData.userType === "driver") {
+      switch (currentStep) {
+        case 1:
+          return (
+            <Step1Data
+              data={registrationData}
+              onUpdate={updateRegistrationData}
+              onNext={handleNext}
+              onBack={handleBack}
+            />
+          );
+        case 2:
+          return (
+            <Step2Vehicle
+              data={registrationData}
+              onUpdate={updateRegistrationData}
+              onNext={handleNext}
+              onBack={handleBack}
+            />
+          );
+        case 3:
+          return (
+            <Step2Address
+              data={registrationData}
+              onUpdate={updateRegistrationData}
+              onNext={handleNext}
+              onBack={handleBack}
+            />
+          );
+        case 4:
+          return (
+            <Step3Preferences
+              data={registrationData}
+              onUpdate={updateRegistrationData}
+              onFinish={() => {
+                // Step3Preferences salva e atualiza o Zustand
+              }}
+              onBack={handleBack}
+            />
+          );
+        default:
+          return null;
+      }
+    }
+
     switch (currentStep) {
       case 1:
         return (
@@ -119,9 +170,7 @@ export default function CompleteRegistrationScreen() {
             data={registrationData}
             onUpdate={updateRegistrationData}
             onFinish={() => {
-              // O Step3Preferences já salva no banco e atualiza o Zustand
-              // O Routes/index.tsx redireciona automaticamente para DrawerClienteRoutes
-              // quando userType === "client" e isAuthenticated === true
+              // Step3Preferences salva e atualiza o Zustand
             }}
             onBack={handleBack}
           />

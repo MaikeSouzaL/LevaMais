@@ -25,7 +25,7 @@ export const registerUserSchema = z.object({
       },
       {
         message: "Telefone deve ter no mínimo 10 caracteres",
-      }
+      },
     ),
   city: z
     .string()
@@ -41,7 +41,7 @@ export const registerUserSchema = z.object({
       },
       {
         message: "Cidade deve ter no máximo 100 caracteres",
-      }
+      },
     ),
   userType: z
     .enum(["client", "driver", "admin"], {
@@ -76,7 +76,7 @@ export const registerUserSchema = z.object({
         if (!val) return true;
         return z.string().email().safeParse(val).success;
       },
-      { message: "Email da empresa inválido" }
+      { message: "Email da empresa inválido" },
     ),
   companyPhone: z
     .string()
@@ -97,6 +97,17 @@ export const registerUserSchema = z.object({
       longitude: z.number().optional(),
     })
     .optional(),
+  // Driver (opcionais — obrigatórios na UI quando userType=driver)
+  vehicleType: z.enum(["motorcycle", "car", "van", "truck"]).optional(),
+  vehicleInfo: z
+    .object({
+      plate: z.string().optional(),
+      model: z.string().optional(),
+      color: z.string().optional(),
+      year: z.number().optional(),
+    })
+    .optional(),
+
   // Preferências (opcionais)
   preferredPayment: z.enum(["pix", "cash", "card"]).optional(),
   notificationsEnabled: z.boolean().optional(),

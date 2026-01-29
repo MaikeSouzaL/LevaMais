@@ -48,9 +48,11 @@ export default function SelectProfileScreen() {
         userType: selectedProfile,
       });
     } else {
-      // Se for driver, navegar para tela apropriada (a implementar)
-      console.log("Perfil selecionado:", selectedProfile);
-      console.log("Dados do usuário:", user);
+      // Driver: usar o mesmo fluxo de completar cadastro, mas com steps extras (veículo)
+      navigation.navigate("CompleteRegistration", {
+        user,
+        userType: selectedProfile,
+      });
     }
   }
 

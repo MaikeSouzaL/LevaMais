@@ -31,7 +31,7 @@ function initializeWebSocket(server) {
 
   io.on("connection", (socket) => {
     console.log(
-      `✅ WebSocket conectado: ${socket.id} (User: ${socket.userId})`
+      `✅ WebSocket conectado: ${socket.id} (User: ${socket.userId})`,
     );
 
     // Juntar sala específica do usuário
@@ -48,7 +48,7 @@ function initializeWebSocket(server) {
       try {
         const { latitude, longitude, heading, speed } = data;
 
-        const DriverLocation = require("./models/DriverLocation");
+        const DriverLocation = require("../models/DriverLocation");
 
         await DriverLocation.findOneAndUpdate(
           { driverId: socket.userId },
@@ -61,7 +61,7 @@ function initializeWebSocket(server) {
             speed,
             lastUpdated: new Date(),
           },
-          { upsert: true }
+          { upsert: true },
         );
 
         // Se motorista está em corrida, notificar cliente
@@ -70,7 +70,7 @@ function initializeWebSocket(server) {
         });
 
         if (driverLocation && driverLocation.currentRideId) {
-          const Ride = require("./models/Ride");
+          const Ride = require("../models/Ride");
           const ride = await Ride.findById(driverLocation.currentRideId);
 
           if (ride) {
@@ -91,7 +91,7 @@ function initializeWebSocket(server) {
     socket.on("waiting-driver", (data) => {
       const { rideId } = data;
       console.log(
-        `⏳ Cliente ${socket.userId} aguardando motorista (Ride: ${rideId})`
+        `⏳ Cliente ${socket.userId} aguardando motorista (Ride: ${rideId})`,
       );
     });
 
@@ -99,7 +99,7 @@ function initializeWebSocket(server) {
     socket.on("driver-arrived", async (data) => {
       try {
         const { rideId } = data;
-        const Ride = require("./models/Ride");
+        const Ride = require("../models/Ride");
 
         const ride = await Ride.findById(rideId);
         if (ride) {
@@ -117,7 +117,7 @@ function initializeWebSocket(server) {
     socket.on("start-ride", async (data) => {
       try {
         const { rideId } = data;
-        const Ride = require("./models/Ride");
+        const Ride = require("../models/Ride");
 
         const ride = await Ride.findById(rideId);
         if (ride) {

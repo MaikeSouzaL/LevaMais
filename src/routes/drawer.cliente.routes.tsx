@@ -16,6 +16,7 @@ import ChatScreen from "../screens/(authenticated)/Client/HomeScreen/ChatScreen"
 import OrderDetailsScreen from "../screens/(authenticated)/Client/HomeScreen/OrderDetailsScreen";
 import PaymentScreen from "../screens/(authenticated)/Client/HomeScreen/PaymentScreen";
 import SelectVehicleScreen from "../screens/(authenticated)/Client/HomeScreen/SelectVehicleScreen";
+import RideTrackingScreen from "../screens/(authenticated)/Client/RideTrackingScreen";
 import { useAuthStore } from "../context/authStore";
 import ServicePurposeScreen from "../screens/(authenticated)/Client/HomeScreen/ServicePurposeScreen";
 
@@ -239,6 +240,15 @@ export default function DrawerClienteRoutes() {
         options={{
           drawerLabel: () => null,
           title: "Pagamento",
+          drawerItemStyle: { display: "none" },
+        }}
+      />
+      <Screen
+        name="RideTracking"
+        component={RideTrackingScreen}
+        options={{
+          drawerLabel: () => null,
+          title: "Acompanhar corrida",
           drawerItemStyle: { display: "none" },
         }}
       />

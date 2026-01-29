@@ -16,24 +16,109 @@ export interface PurposeItem {
 
 const MOCK_DATA: PurposeItem[] = [
   // Motorcycle
-  { vehicleType: "motorcycle", id: "delivery", title: "Entrega de Delivery", subtitle: "Entregar pacotes e encomendas", icon: "Package", isActive: true },
-  { vehicleType: "motorcycle", id: "documents", title: "Documentos", subtitle: "Envio e retirada de documentos", icon: "FileText", isActive: true },
-  { vehicleType: "motorcycle", id: "market-light", title: "Compras de Supermercado", subtitle: "Itens leves e compras do dia a dia", icon: "ShoppingBasket", isActive: true },
-  { vehicleType: "motorcycle", id: "express", title: "Expresso", subtitle: "Coleta e entrega rápida", icon: "Zap", badges: ["RÁPIDO"], isActive: true },
-  
+  {
+    vehicleType: "motorcycle",
+    id: "delivery",
+    title: "Entrega de Delivery",
+    subtitle: "Entregar pacotes e encomendas",
+    icon: "Package",
+    isActive: true,
+  },
+  {
+    vehicleType: "motorcycle",
+    id: "documents",
+    title: "Documentos",
+    subtitle: "Envio e retirada de documentos",
+    icon: "FileText",
+    isActive: true,
+  },
+  {
+    vehicleType: "motorcycle",
+    id: "market-light",
+    title: "Compras de Supermercado",
+    subtitle: "Itens leves e compras do dia a dia",
+    icon: "ShoppingBasket",
+    isActive: true,
+  },
+  {
+    vehicleType: "motorcycle",
+    id: "express",
+    title: "Expresso",
+    subtitle: "Coleta e entrega rápida",
+    icon: "Zap",
+    badges: ["RÁPIDO"],
+    isActive: true,
+  },
+
   // Car
-  { vehicleType: "car", id: "delivery", title: "Entrega de Delivery", subtitle: "Pacotes médios e encomendas", icon: "Package", isActive: true },
-  { vehicleType: "car", id: "documents", title: "Documentos e Processos", subtitle: "Envio seguro de documentos", icon: "FileText", isActive: true },
-  { vehicleType: "car", id: "market-medium", title: "Compras de Mês", subtitle: "Compras médias de supermercado", icon: "ShoppingCart", isActive: true },
-  { vehicleType: "car", id: "express", title: "Expresso Carro", subtitle: "Entrega rápida com segurança", icon: "Zap", isActive: true },
+  {
+    vehicleType: "car",
+    id: "delivery",
+    title: "Entrega de Delivery",
+    subtitle: "Pacotes médios e encomendas",
+    icon: "Package",
+    isActive: true,
+  },
+  {
+    vehicleType: "car",
+    id: "documents",
+    title: "Documentos e Processos",
+    subtitle: "Envio seguro de documentos",
+    icon: "FileText",
+    isActive: true,
+  },
+  {
+    vehicleType: "car",
+    id: "market-medium",
+    title: "Compras de Mês",
+    subtitle: "Compras médias de supermercado",
+    icon: "ShoppingCart",
+    isActive: true,
+  },
+  {
+    vehicleType: "car",
+    id: "express",
+    title: "Expresso Carro",
+    subtitle: "Entrega rápida com segurança",
+    icon: "Zap",
+    isActive: true,
+  },
 
   // Van
-  { vehicleType: "van", id: "moving-light", title: "Mudança Leve", subtitle: "Pequenos móveis e caixas", icon: "Truck", isActive: true },
-  { vehicleType: "van", id: "market-bulk", title: "Abastecimento", subtitle: "Restaurantes e comércios", icon: "ShoppingBag", isActive: true },
+  {
+    vehicleType: "van",
+    id: "moving-light",
+    title: "Mudança Leve",
+    subtitle: "Pequenos móveis e caixas",
+    icon: "Truck",
+    isActive: true,
+  },
+  {
+    vehicleType: "van",
+    id: "market-bulk",
+    title: "Abastecimento",
+    subtitle: "Restaurantes e comércios",
+    icon: "ShoppingBag",
+    isActive: true,
+  },
 
   // Truck
-  { vehicleType: "truck", id: "moving", title: "Mudança Completa", subtitle: "Residencial ou comercial", icon: "Home", isActive: true },
-  { vehicleType: "truck", id: "commercial-load", title: "Carga Comercial", subtitle: "Paletes e mercadorias", icon: "Container", isActive: true }
+  {
+    vehicleType: "truck",
+    id: "moving",
+    title: "Mudança Completa",
+    subtitle: "Residencial ou comercial",
+    icon: "Home",
+    isActive: true,
+  },
+  {
+    vehicleType: "truck",
+    id: "commercial-load",
+    title: "Carga Comercial",
+    subtitle: "Paletes e mercadorias",
+    icon: "Container",
+    isActive: true,
+  },
 ];
 
 /**
@@ -42,16 +127,15 @@ const MOCK_DATA: PurposeItem[] = [
  * @returns Lista de purposes ativos para o veículo
  */
 export async function getPurposesByVehicleType(
-  vehicleType: VehicleType
+  vehicleType: VehicleType,
 ): Promise<PurposeItem[]> {
   try {
-    const response = await api.get(
-      `/purposes?vehicleType=${vehicleType}&isActive=true`
-    );
+    // Backend documentado expõe GET /api/purposes/:vehicleType
+    const response = await api.get(`/purposes/${vehicleType}`);
     return response.data || [];
   } catch (error) {
     console.error("Error fetching purposes (using mock fallback):", error);
-    return MOCK_DATA.filter(p => p.vehicleType === vehicleType && p.isActive);
+    return MOCK_DATA.filter((p) => p.vehicleType === vehicleType && p.isActive);
   }
 }
 

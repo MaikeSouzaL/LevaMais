@@ -23,13 +23,22 @@ export interface RegistrationData {
     latitude?: number;
     longitude?: number;
   };
+  // Driver (quando userType === "driver")
+  vehicleType?: "motorcycle" | "car" | "van" | "truck";
+  vehicleInfo?: {
+    plate?: string;
+    model?: string;
+    color?: string;
+    year?: number;
+  };
+
   // Preferências
   preferredPayment?: "pix" | "cash" | "card";
   notificationsEnabled?: boolean;
+
   // Outros
   userType: "client" | "driver";
   password: string;
   acceptedTerms: boolean;
   city?: string; // Cidade do usuário (pode vir dos dados anteriores)
 }
-

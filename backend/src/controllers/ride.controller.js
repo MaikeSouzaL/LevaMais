@@ -60,11 +60,12 @@ class RideController {
           pickup.longitude,
           5000, // 5km
           vehicleType,
-          10
+          10,
+          serviceType,
         );
 
         console.log(
-          `🔍 Encontrados ${nearbyDrivers.length} motoristas próximos`
+          `🔍 Encontrados ${nearbyDrivers.length} motoristas próximos`,
         );
 
         // Notificar motoristas disponíveis
@@ -129,7 +130,7 @@ class RideController {
 
       // Verificar se motorista já rejeitou
       const alreadyRejected = ride.rejectedBy.some(
-        (r) => r.driverId.toString() === driverId
+        (r) => r.driverId.toString() === driverId,
       );
 
       if (alreadyRejected) {
@@ -150,7 +151,7 @@ class RideController {
         {
           status: "on_ride",
           currentRideId: ride._id,
-        }
+        },
       );
 
       // Popular dados
@@ -275,7 +276,7 @@ class RideController {
           {
             status: "available",
             currentRideId: null,
-          }
+          },
         );
       }
 
@@ -342,7 +343,7 @@ class RideController {
           {
             status: "available",
             currentRideId: null,
-          }
+          },
         );
       }
 
@@ -480,7 +481,7 @@ class RideController {
         pickup.latitude,
         pickup.longitude,
         dropoff.latitude,
-        dropoff.longitude
+        dropoff.longitude,
       );
 
       const distanceKm = distance / 1000;
@@ -502,7 +503,7 @@ class RideController {
       let extraFeesPercentage = 0;
       const now = new Date();
       const hhmm = `${String(now.getHours()).padStart(2, "0")}:${String(
-        now.getMinutes()
+        now.getMinutes(),
       ).padStart(2, "0")}`;
       const weekday = now.getDay(); // 0-6
 

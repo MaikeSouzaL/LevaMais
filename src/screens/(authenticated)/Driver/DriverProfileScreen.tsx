@@ -1,0 +1,23 @@
+import React from "react";
+import { View, Text } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import DriverHeader from "./components/DriverHeader";
+import { useAuthStore } from "../../../context/authStore";
+
+export default function DriverProfileScreen() {
+  const userData = useAuthStore((s) => s.userData);
+
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#0f231c" }}>
+      <DriverHeader title="Perfil" />
+      <View style={{ padding: 16 }}>
+        <Text style={{ color: "rgba(255,255,255,0.65)", marginTop: 8 }}>
+          {userData?.name || "Motorista"}
+        </Text>
+        <Text style={{ color: "rgba(255,255,255,0.65)", marginTop: 4 }}>
+          {userData?.email}
+        </Text>
+      </View>
+    </SafeAreaView>
+  );
+}

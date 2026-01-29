@@ -97,7 +97,7 @@ export async function getCurrentLocation(): Promise<LocationObjectCoords | null>
  */
 export async function obterEnderecoPorCoordenadas(
   latitude: number,
-  longitude: number
+  longitude: number,
 ): Promise<EnderecoReverso | null> {
   try {
     // Tentar algumas vezes com retry e backoff
@@ -208,7 +208,7 @@ export async function getAddressFromCoordinates(coords: {
   try {
     const endereco = await obterEnderecoPorCoordenadas(
       coords.latitude,
-      coords.longitude
+      coords.longitude,
     );
 
     if (!endereco) {
@@ -299,7 +299,7 @@ export type GeocodingResult = {
 export async function buscarEnderecoPorTexto(
   query: string,
   userCity?: string,
-  userRegion?: string
+  userRegion?: string,
 ): Promise<GeocodingResult[]> {
   try {
     if (!query || query.trim().length < 3) {
@@ -326,8 +326,8 @@ export async function buscarEnderecoPorTexto(
       userCity && userRegion
         ? `${queryNFC}, ${userCity}, ${userRegion}`
         : userCity
-        ? `${queryNFC}, ${userCity}`
-        : queryNFC;
+          ? `${queryNFC}, ${userCity}`
+          : queryNFC;
 
     console.log(`   🎯 Query melhorada: "${enhancedQuery}"`);
     console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -348,20 +348,20 @@ export async function buscarEnderecoPorTexto(
         // Fallbacks sem acentos
         Location.geocodeAsync(`${queryNoAccents}, ${userCity}`).catch(() => []),
         Location.geocodeAsync(`${queryNoAccents}, ${userRegion}`).catch(
-          () => []
-        )
+          () => [],
+        ),
       );
     } else if (userCity) {
       searchPromises.push(
         Location.geocodeAsync(`${queryNFC}, ${userCity}`).catch(() => []),
-        Location.geocodeAsync(`${queryNoAccents}, ${userCity}`).catch(() => [])
+        Location.geocodeAsync(`${queryNoAccents}, ${userCity}`).catch(() => []),
       );
     } else if (userRegion) {
       searchPromises.push(
         Location.geocodeAsync(`${queryNFC}, ${userRegion}`).catch(() => []),
         Location.geocodeAsync(`${queryNoAccents}, ${userRegion}`).catch(
-          () => []
-        )
+          () => [],
+        ),
       );
     }
 
@@ -374,7 +374,7 @@ export async function buscarEnderecoPorTexto(
 
     for (const result of flatResults) {
       const coordKey = `${result.latitude.toFixed(
-        4
+        4,
       )},${result.longitude.toFixed(4)}`;
       if (!coordsSet.has(coordKey)) {
         coordsSet.add(coordKey);
@@ -390,7 +390,7 @@ export async function buscarEnderecoPorTexto(
     }
 
     console.log(
-      `✅ ${allResults.length} resultado(s) encontrado(s) (após remover duplicatas)`
+      `✅ ${allResults.length} resultado(s) encontrado(s) (após remover duplicatas)`,
     );
 
     // Converter resultados para formato mais amigável
@@ -404,7 +404,7 @@ export async function buscarEnderecoPorTexto(
       try {
         const reverseGeo = await obterEnderecoPorCoordenadas(
           result.latitude,
-          result.longitude
+          result.longitude,
         );
 
         const formatted = reverseGeo
@@ -430,7 +430,7 @@ export async function buscarEnderecoPorTexto(
         // Se falhar o reverse, usar apenas as coordenadas
         geocodingResults.push({
           formattedAddress: `${result.latitude.toFixed(
-            6
+            6,
           )}, ${result.longitude.toFixed(6)}`,
           latitude: result.latitude,
           longitude: result.longitude,

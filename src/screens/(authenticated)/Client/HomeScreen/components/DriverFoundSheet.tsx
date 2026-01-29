@@ -3,7 +3,23 @@ import { View, Text, TouchableOpacity, Image } from "react-native";
 import BottomSheet, { BottomSheetView } from "@gorhom/bottom-sheet";
 import { MaterialIcons } from "@expo/vector-icons";
 
+export type DriverFoundInfo = {
+  id?: string;
+  name?: string;
+  phone?: string;
+  profilePhoto?: string;
+  rating?: number;
+  vehicle?: {
+    plate?: string;
+    model?: string;
+    color?: string;
+    year?: number;
+  };
+};
+
 interface DriverFoundSheetProps {
+  driver?: DriverFoundInfo | null;
+  etaText?: string;
   onClose?: () => void;
   onCall?: () => void;
   onChat?: () => void;
@@ -13,8 +29,22 @@ interface DriverFoundSheetProps {
 }
 
 export const DriverFoundSheet = forwardRef<BottomSheet, DriverFoundSheetProps>(
-  ({ onClose, onCall, onChat, onShare, onCancel, onDetails }, ref) => {
+  (
+    { driver, etaText, onClose, onCall, onChat, onShare, onCancel, onDetails },
+    ref,
+  ) => {
     const snapPoints = useMemo(() => ["45%", "85%"], []);
+
+    const driverName = driver?.name || "Motorista";
+    const rating = driver?.rating ?? 4.9;
+    const vehicleModel = driver?.vehicle?.model || "Veículo";
+    const vehicleColor = driver?.vehicle?.color || "";
+    const plate = driver?.vehicle?.plate || "---";
+    const photoUrl =
+      driver?.profilePhoto ||
+      `https://ui-avatars.com/api/?name=${encodeURIComponent(
+        driverName,
+      )}&background=0D8ABC&color=fff&size=128`;
 
     return (
       <BottomSheet
@@ -44,7 +74,7 @@ export const DriverFoundSheet = forwardRef<BottomSheet, DriverFoundSheetProps>(
             {/* Headline ETA */}
             <View>
               <Text className="text-white text-3xl font-bold tracking-tight">
-                Chega em 6 min
+                {etaText ? `Chega em ${etaText}` : "Motorista a caminho"}
               </Text>
               <View className="mt-3 h-1.5 w-full bg-[#2a3833] rounded-full overflow-hidden">
                 <View
@@ -70,21 +100,21 @@ export const DriverFoundSheet = forwardRef<BottomSheet, DriverFoundSheetProps>(
               <View className="relative">
                 <Image
                   source={{
-                    uri: "https://ui-avatars.com/api/?name=Carlos+Silva&background=0D8ABC&color=fff&size=128",
+                    uri: photoUrl,
                   }}
                   className="w-12 h-12 rounded-full border-2 border-[#0bd592]"
                 />
                 <View className="absolute -bottom-1 -right-1 bg-[#111816] rounded-full p-0.5">
                   <View className="flex items-center justify-center bg-yellow-500 w-5 h-5 rounded-full">
                     <Text className="text-black text-[10px] font-bold">
-                      4.9
+                      {String(rating).slice(0, 3)}
                     </Text>
                   </View>
                 </View>
               </View>
               <View className="flex-col">
                 <Text className="text-white font-semibold text-base leading-tight">
-                  Carlos Silva
+                  {driverName}
                 </Text>
                 <Text className="text-[#9cbab0] text-xs">5.203 corridas</Text>
               </View>
@@ -96,13 +126,15 @@ export const DriverFoundSheet = forwardRef<BottomSheet, DriverFoundSheetProps>(
             {/* Right: Vehicle Info */}
             <View className="flex-col items-end">
               <Text className="text-white font-medium text-sm text-right">
-                Toyota Corolla
+                {vehicleModel}
               </Text>
               <View className="flex-row items-center gap-1.5">
-                <Text className="text-[#9cbab0] text-xs">Prata</Text>
+                <Text className="text-[#9cbab0] text-xs">
+                  {vehicleColor || "—"}
+                </Text>
                 <View className="bg-white/90 px-1.5 py-0.5 rounded">
                   <Text className="text-[10px] text-[#111816] font-bold tracking-wider">
-                    ABC-1234
+                    {plate}
                   </Text>
                 </View>
               </View>
@@ -186,5 +218,5 @@ export const DriverFoundSheet = forwardRef<BottomSheet, DriverFoundSheetProps>(
         </BottomSheetView>
       </BottomSheet>
     );
-  }
+  },
 );

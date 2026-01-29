@@ -1,5 +1,11 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, ActivityIndicator, ScrollView } from "react-native";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  ActivityIndicator,
+  ScrollView,
+} from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -48,7 +54,9 @@ export default function ServicePurposeScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#0f231c", paddingTop: insets.top }}>
+    <View
+      style={{ flex: 1, backgroundColor: "#0f231c", paddingTop: insets.top }}
+    >
       <View
         style={{
           paddingTop: 8,
@@ -61,7 +69,10 @@ export default function ServicePurposeScreen() {
           borderBottomColor: "rgba(255,255,255,0.08)",
         }}
       >
-        <TouchableOpacity onPress={handleBack} style={{ padding: 4, marginRight: 8 }}>
+        <TouchableOpacity
+          onPress={handleBack}
+          style={{ padding: 4, marginRight: 8 }}
+        >
           <MaterialIcons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         <View style={{ flex: 1, alignItems: "center" }}>
@@ -83,7 +94,9 @@ export default function ServicePurposeScreen() {
       </View>
 
       {loading ? (
-        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+        <View
+          style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
+        >
           <ActivityIndicator color="#02de95" />
         </View>
       ) : (
@@ -111,7 +124,9 @@ export default function ServicePurposeScreen() {
                 borderColor: "rgba(255,255,255,0.05)",
               }}
             >
-              <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+              <View
+                style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
+              >
                 <View
                   style={{
                     width: 48,
@@ -130,10 +145,14 @@ export default function ServicePurposeScreen() {
                   />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}>
+                  <Text
+                    style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}
+                  >
                     {item.title}
                   </Text>
-                  <Text style={{ color: "#9bbbb0", fontSize: 13 }}>{item.subtitle}</Text>
+                  <Text style={{ color: "#9bbbb0", fontSize: 13 }}>
+                    {item.subtitle}
+                  </Text>
                 </View>
               </View>
               <MaterialIcons name="chevron-right" size={24} color="#9bbbb0" />

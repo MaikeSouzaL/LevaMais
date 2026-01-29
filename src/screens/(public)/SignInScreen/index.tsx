@@ -29,6 +29,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { CLIENTE_WEB_ID } from "@env";
 
 // Configurar Google Sign In
+console.log("DEBUG: CLIENTE_WEB_ID:", CLIENTE_WEB_ID); // LOG DE DEBUG PARA VERIFICAR O ID
 GoogleSignin.configure({
   webClientId: CLIENTE_WEB_ID,
   profileImageSize: 150,
@@ -114,7 +115,7 @@ export default function SignInScreen() {
               googleId: googleId,
               aceitouTermos: acceptedTerms,
             },
-            token
+            token,
           );
 
           Toast.show({
@@ -223,7 +224,7 @@ export default function SignInScreen() {
             googleId: googleId,
             aceitouTermos: acceptedTerms,
           },
-          token
+          token,
         );
 
         Toast.show({

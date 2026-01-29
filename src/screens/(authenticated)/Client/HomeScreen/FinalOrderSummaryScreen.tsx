@@ -5,7 +5,7 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { RouteProp, useRoute, useNavigation } from "@react-navigation/native";
-import type { FinalOrderSummaryData } from "./HomeScreen/components/FinalOrderSummarySheet";
+import type { FinalOrderSummaryData } from "./components/FinalOrderSummarySheet";
 
 type Params = { FinalOrderSummary: { data: FinalOrderSummaryData } };
 
@@ -24,8 +24,11 @@ export default function FinalOrderSummaryScreen() {
   };
 
   const handleConfirm = () => {
+    // Pagamento ainda é simulado, mas agora passamos o pedido completo para que
+    // o PaymentScreen possa criar a corrida no backend e iniciar a busca real.
     (navigation as any).navigate("Payment", {
       amount: data.pricing.total,
+      order: data,
     });
   };
 
@@ -68,10 +71,7 @@ export default function FinalOrderSummaryScreen() {
           justifyContent: "space-between",
         }}
       >
-        <TouchableOpacity
-          onPress={handleBack}
-          style={{ padding: 8 }}
-        >
+        <TouchableOpacity onPress={handleBack} style={{ padding: 8 }}>
           <Text style={{ color: "#9abcb0" }}>‹ Voltar</Text>
         </TouchableOpacity>
         <Text style={{ color: "white", fontSize: 18, fontWeight: "800" }}>

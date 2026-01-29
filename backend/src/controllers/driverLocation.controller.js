@@ -13,6 +13,7 @@ class DriverLocationController {
         status,
         vehicleType,
         vehicle,
+        serviceTypes,
       } = req.body;
 
       if (!latitude || !longitude) {
@@ -34,12 +35,13 @@ class DriverLocationController {
           status: status || "available",
           vehicleType,
           vehicle,
+          ...(serviceTypes && { serviceTypes }),
           lastUpdated: new Date(),
         },
         {
           new: true,
           upsert: true, // Criar se não existir
-        }
+        },
       );
 
       // Broadcast atualização via WebSocket para clientes interessados
@@ -82,7 +84,7 @@ class DriverLocationController {
 
       const location = await DriverLocation.findOne({ driverId }).populate(
         "driverId",
-        "name phone profilePhoto"
+        "name phone profilePhoto",
       );
 
       if (!location) {
@@ -118,7 +120,7 @@ class DriverLocationController {
 
       const locations = await DriverLocation.find(query).populate(
         "driverId",
-        "name phone profilePhoto email"
+        "name phone profilePhoto email",
       );
 
       res.json({
@@ -155,7 +157,7 @@ class DriverLocationController {
         parseFloat(latitude),
         parseFloat(longitude),
         parseInt(maxDistance),
-        vehicleType
+        vehicleType,
       ).populate("driverId", "name phone profilePhoto");
 
       res.json({
@@ -175,15 +177,16 @@ class DriverLocationController {
   async updateStatus(req, res) {
     try {
       const driverId = req.user.id;
-      const { status, acceptingRides } = req.body;
+      const { status, acceptingRides, serviceTypes } = req.body;
 
       const driverLocation = await DriverLocation.findOneAndUpdate(
         { driverId },
         {
           status,
           ...(acceptingRides !== undefined && { acceptingRides }),
+          ...(serviceTypes && { serviceTypes }),
         },
-        { new: true }
+        { new: true },
       );
 
       if (!driverLocation) {
