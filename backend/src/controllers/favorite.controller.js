@@ -2,15 +2,21 @@ const Favorite = require("../models/Favorite");
 
 exports.create = async (req, res) => {
   try {
-    const { userId, label, icon, address, latitude, longitude } = req.body;
+    const {
+      userId: requestedUserId,
+      label,
+      icon,
+      address,
+      latitude,
+      longitude,
+    } = req.body;
 
-    // Verifica se o usuário que está tentando criar é o mesmo do token ou admin
-    // Assumindo que o middleware de auth adiciona req.user
-    // Convertendo para string para garantir a comparação correta
-    if (req.user.id.toString() !== userId && req.user.userType !== 'admin') {
-      console.log('Forbidden: Token User ID:', req.user.id.toString(), 'Request User ID:', userId);
-      return res.status(403).json({ message: "Acesso negado" });
-    }
+    // Por padrão, favorito sempre pertence ao usuário autenticado.
+    // Admin pode criar em nome de outro user (opcional).
+    const userId =
+      req.user.userType === "admin" && requestedUserId
+        ? requestedUserId
+        : req.user.id;
 
     const favorite = await Favorite.create({
       userId,
@@ -28,11 +34,22 @@ exports.create = async (req, res) => {
   }
 };
 
+exports.listMe = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const favorites = await Favorite.find({ userId }).sort({ createdAt: -1 });
+    res.json(favorites);
+  } catch (error) {
+    console.error("Erro ao listar favoritos:", error);
+    res.status(500).json({ message: "Erro ao listar favoritos" });
+  }
+};
+
 exports.listByUser = async (req, res) => {
   try {
     const { userId } = req.params;
 
-    if (req.user.id.toString() !== userId && req.user.userType !== 'admin') {
+    if (req.user.id.toString() !== userId && req.user.userType !== "admin") {
       return res.status(403).json({ message: "Acesso negado" });
     }
 
@@ -54,7 +71,10 @@ exports.delete = async (req, res) => {
       return res.status(404).json({ message: "Favorito não encontrado" });
     }
 
-    if (req.user.id.toString() !== favorite.userId.toString() && req.user.userType !== 'admin') {
+    if (
+      req.user.id.toString() !== favorite.userId.toString() &&
+      req.user.userType !== "admin"
+    ) {
       return res.status(403).json({ message: "Acesso negado" });
     }
 

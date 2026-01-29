@@ -13,6 +13,7 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import {
   login as loginService,
   googleAuth,
+  checkEmailExists,
 } from "../../../services/auth.service";
 import { useAuthStore } from "../../../context/authStore";
 import {
@@ -72,11 +73,49 @@ export default function SignInScreen() {
       const { user } = userInfo.data;
       const { email, id, name, photo } = user;
 
-      // 3. Enviar para API de autenticação Google
+      const normalizedEmail = email.trim().toLowerCase();
+
+      // 3. Antes de autenticar com Google no backend, verifica se o email já existe.
+      // Se existir, entra no app. Se não existir, redireciona para cadastro.
+      const existsRes = await checkEmailExists(normalizedEmail);
+
+      if (!existsRes.success) {
+        Toast.show({
+          type: "error",
+          text1: "Erro ao verificar email",
+          text2: existsRes.message || "Tente novamente.",
+        });
+        return;
+      }
+
+      if (!existsRes.data?.exists) {
+        // Não cria usuário no banco aqui. Apenas segue para completar cadastro.
+        const generatedPassword = `${normalizedEmail}-${id}`;
+
+        navigation.navigate("SelectProfile", {
+          user: {
+            _id: "",
+            name: name || normalizedEmail.split("@")[0],
+            email: normalizedEmail,
+            password: generatedPassword,
+            phone: "",
+            city: "",
+            userType: undefined,
+            googleId: id,
+            profilePhoto: photo || undefined,
+            acceptedTerms: true,
+          },
+          token: "",
+        } as any);
+
+        return;
+      }
+
+      // 4. Email existe: autentica com Google e recebe token
       const response = await googleAuth({
         googleId: id,
-        email: email.trim().toLowerCase(),
-        name: name || email.split("@")[0],
+        email: normalizedEmail,
+        name: name || normalizedEmail.split("@")[0],
         profilePhoto: photo || undefined,
       });
 

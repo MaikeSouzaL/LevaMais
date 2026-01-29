@@ -130,8 +130,10 @@ export async function getPurposesByVehicleType(
   vehicleType: VehicleType,
 ): Promise<PurposeItem[]> {
   try {
-    // Backend documentado expõe GET /api/purposes/:vehicleType
-    const response = await api.get(`/purposes/${vehicleType}`);
+    // Backend expõe GET /api/purposes com filtros via query
+    const response = await api.get(`/purposes`, {
+      params: { vehicleType, isActive: true },
+    });
     return response.data || [];
   } catch (error) {
     console.error("Error fetching purposes (using mock fallback):", error);
@@ -146,8 +148,10 @@ export async function getPurposesByVehicleType(
  */
 export async function getPurposeById(id: string): Promise<PurposeItem | null> {
   try {
-    const response = await api.get(`/purposes/${id}`);
-    return response.data || null;
+    // Backend atual não tem GET /purposes/:id. Então buscamos a lista e filtramos localmente.
+    const response = await api.get(`/purposes`);
+    const list = (response.data || []) as PurposeItem[];
+    return list.find((p) => p.id === id) || null;
   } catch (error) {
     console.error("Error fetching purpose:", error);
     return null;

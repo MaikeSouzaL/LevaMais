@@ -1,45 +1,65 @@
 import io, { Socket } from "socket.io-client";
 import { useAuthStore } from "../context/authStore";
 
-const SOCKET_URL = process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.8:3000";
+const SOCKET_URL = process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.8:3001";
 
 class WebSocketService {
   private socket: Socket | null = null;
+  private connectPromise: Promise<void> | null = null;
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
+  private maxReconnectAttempts = 10;
 
   /**
    * Conectar ao WebSocket
    */
   async connect(): Promise<void> {
     if (this.socket?.connected) {
-      console.log("✅ WebSocket já conectado");
+      // já conectado
       return;
     }
 
-    try {
+    // evita múltiplas conexões concorrentes
+    if (this.connectPromise) {
+      return this.connectPromise;
+    }
+
+    this.connectPromise = (async () => {
       const token = useAuthStore.getState().token;
 
       if (!token) {
+        this.connectPromise = null;
         throw new Error("Token não encontrado");
+      }
+
+      // se existe socket antigo, derruba antes de criar outro
+      if (this.socket) {
+        try {
+          this.socket.removeAllListeners();
+          this.socket.disconnect();
+        } catch {}
+        this.socket = null;
       }
 
       console.log("🔌 Conectando ao WebSocket...", SOCKET_URL);
 
       this.socket = io(SOCKET_URL, {
-        auth: {
-          token,
-        },
+        auth: { token },
         transports: ["websocket"],
         reconnection: true,
         reconnectionDelay: 1000,
+        reconnectionDelayMax: 8000,
+        randomizationFactor: 0.5,
         reconnectionAttempts: this.maxReconnectAttempts,
+        timeout: 20000,
       });
 
       this.setupListeners();
-    } catch (error) {
-      console.error("❌ Erro ao conectar WebSocket:", error);
-      throw error;
+    })();
+
+    try {
+      await this.connectPromise;
+    } finally {
+      this.connectPromise = null;
     }
   }
 
@@ -50,12 +70,29 @@ class WebSocketService {
     if (!this.socket) return;
 
     this.socket.on("connect", () => {
-      console.log("✅ WebSocket conectado:", this.socket?.id);
+      const id = this.socket?.id;
+      if (id) {
+        console.log("✅ WebSocket conectado:", id);
+      } else {
+        console.log("✅ WebSocket conectado");
+      }
       this.reconnectAttempts = 0;
     });
 
     this.socket.on("disconnect", (reason) => {
       console.log("❌ WebSocket desconectado:", reason);
+    });
+
+    this.socket.io.on("reconnect_attempt", (attempt) => {
+      console.log("🔁 Tentando reconectar WebSocket...", attempt);
+    });
+
+    this.socket.io.on("reconnect", (attempt) => {
+      console.log("✅ WebSocket reconectado", attempt);
+    });
+
+    this.socket.io.on("reconnect_failed", () => {
+      console.log("❌ WebSocket falhou ao reconectar");
     });
 
     this.socket.on("connect_error", (error) => {
@@ -95,8 +132,8 @@ class WebSocketService {
    */
   emit(event: string, data?: any): void {
     if (!this.socket?.connected) {
-      console.warn("⚠️ WebSocket não conectado. Tentando reconectar...");
-      this.connect();
+      // tenta reconectar sem spammar logs
+      this.connect().catch(() => {});
       return;
     }
 

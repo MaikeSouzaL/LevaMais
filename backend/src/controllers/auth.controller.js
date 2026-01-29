@@ -6,10 +6,17 @@ const crypto = require("crypto");
 
 class AuthController {
   // Gerar token JWT
-  generateToken(userId) {
-    return jwt.sign({ id: userId }, process.env.JWT_SECRET || "secret", {
-      expiresIn: process.env.JWT_EXPIRE || "7d",
-    });
+  generateToken(user) {
+    const userId = typeof user === "string" ? user : user?._id;
+    const userType = typeof user === "string" ? undefined : user?.userType;
+
+    return jwt.sign(
+      { id: userId, userType },
+      process.env.JWT_SECRET || "secret",
+      {
+        expiresIn: process.env.JWT_EXPIRE || "7d",
+      },
+    );
   }
 
   // Cadastrar usuário com email e senha
@@ -40,6 +47,9 @@ class AuthController {
         // Driver
         vehicleType,
         vehicleInfo,
+        // Google (opcional)
+        googleId,
+        profilePhoto,
       } = req.body;
 
       // Validar campos obrigatórios
@@ -70,6 +80,10 @@ class AuthController {
         userType: userType || "client",
         acceptedTerms: acceptedTerms || false,
       };
+
+      // Google
+      if (googleId) userData.googleId = googleId;
+      if (profilePhoto) userData.profilePhoto = profilePhoto;
 
       // Adicionar campos opcionais apenas se tiverem valor
       if (phone && phone.trim() !== "") userData.phone = phone.trim();
@@ -124,7 +138,7 @@ class AuthController {
       const user = await User.create(userData);
 
       // Gerar token
-      const token = this.generateToken(user._id);
+      const token = this.generateToken(user);
 
       res.status(201).json({
         success: true,
@@ -159,7 +173,7 @@ class AuthController {
 
       // Buscar usuário com senha
       const user = await User.findOne({ email: email.toLowerCase() }).select(
-        "+password"
+        "+password",
       );
 
       if (!user) {
@@ -187,7 +201,7 @@ class AuthController {
       }
 
       // Gerar token
-      const token = this.generateToken(user._id);
+      const token = this.generateToken(user);
 
       res.json({
         success: true,
@@ -202,6 +216,40 @@ class AuthController {
       res.status(500).json({
         success: false,
         message: "Erro ao fazer login",
+        error: error.message,
+      });
+    }
+  }
+
+  // Verificar se email já existe (antes do Google login)
+  async checkEmail(req, res) {
+    try {
+      const { email } = req.body;
+
+      if (!email) {
+        return res.status(400).json({
+          success: false,
+          message: "Email é obrigatório",
+        });
+      }
+
+      const user = await User.findOne({ email: String(email).toLowerCase() })
+        .select("_id email userType isActive")
+        .lean();
+
+      return res.json({
+        success: true,
+        data: {
+          exists: !!user,
+          isActive: user ? !!user.isActive : false,
+          userType: user?.userType,
+        },
+      });
+    } catch (error) {
+      console.error("Erro ao verificar email:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Erro ao verificar email",
         error: error.message,
       });
     }
@@ -246,7 +294,7 @@ class AuthController {
       }
 
       // Gerar token
-      const token = this.generateToken(user._id);
+      const token = this.generateToken(user);
 
       res.json({
         success: true,
@@ -329,7 +377,7 @@ class AuthController {
       // Invalidar códigos anteriores não usados do mesmo email
       await PasswordReset.updateMany(
         { email: email.toLowerCase(), used: false },
-        { used: true }
+        { used: true },
       );
 
       // Salvar código no banco
@@ -342,7 +390,7 @@ class AuthController {
       // Enviar email
       const emailResult = await emailService.sendPasswordResetEmail(
         email.toLowerCase(),
-        code
+        code,
       );
 
       if (!emailResult.success) {
@@ -444,7 +492,7 @@ class AuthController {
 
       // Buscar usuário
       const user = await User.findOne({ email: email.toLowerCase() }).select(
-        "+password"
+        "+password",
       );
 
       if (!user) {

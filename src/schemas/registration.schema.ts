@@ -110,6 +110,11 @@ export const completeRegistrationSchema = step1DataBaseSchema
     password: z.string().min(6, "Senha deve ter no mínimo 6 caracteres"),
     userType: z.enum(["client", "driver"]),
     acceptedTerms: z.boolean(),
+
+    // Google (opcional)
+    googleId: z.string().optional(),
+    profilePhoto: z.string().optional(),
+
     // Driver
     vehicleType: z.enum(["motorcycle", "car", "van", "truck"]).optional(),
     vehicleInfo: z

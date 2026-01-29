@@ -76,7 +76,7 @@ export default function SignUp() {
       "hardwareBackPress",
       () => {
         return true;
-      }
+      },
     );
     return () => backHandler.remove();
   }, []);
@@ -204,7 +204,7 @@ export default function SignUp() {
           () => {
             // Fallback: scroll para o final
             scrollViewRef.current?.scrollToEnd({ animated: true });
-          }
+          },
         );
       }
     }, 300);
@@ -224,79 +224,30 @@ export default function SignUp() {
       const { user } = userInfo.data;
       const { email: userEmail, id, name, photo } = user;
 
-      const response = await googleAuth({
-        googleId: id,
-        email: userEmail.trim().toLowerCase(),
-        name: name || userEmail.split("@")[0],
-        profilePhoto: photo || undefined,
+      const normalizedEmail = userEmail.trim().toLowerCase();
+      const generatedPassword = `${normalizedEmail}-${id}`;
+
+      // NÃO cria usuário no banco aqui. Apenas segue para completar cadastro.
+      navigation.navigate("SelectProfile", {
+        user: {
+          _id: "",
+          name: name || normalizedEmail.split("@")[0],
+          email: normalizedEmail,
+          password: generatedPassword,
+          phone: phone || "",
+          city: city || detectedCity || "",
+          userType: undefined,
+          googleId: id,
+          profilePhoto: photo || undefined,
+          acceptedTerms: true,
+        },
+        token: "",
       });
 
-      if (response.success && response.data) {
-        const { user: userData, token } = response.data;
-        const {
-          _id,
-          name: userName,
-          email: userEmailFromApi,
-          phone: userPhone,
-          userType,
-          profilePhoto,
-          googleId,
-          acceptedTerms,
-          city: userCity,
-        } = userData;
-
-        const hasCompleteData = userPhone && userCity;
-        const needsCompleteRegistration = !hasCompleteData;
-
-        if (needsCompleteRegistration) {
-          const generatedPassword = `${userEmailFromApi}-${id}`;
-
-          navigation.navigate("SelectProfile", {
-            user: {
-              _id,
-              name: userName,
-              email: userEmailFromApi,
-              password: generatedPassword,
-              phone: userPhone || "",
-              city: userCity || detectedCity || "",
-              userType: userType || undefined,
-              googleId,
-              profilePhoto,
-              acceptedTerms,
-            },
-            token,
-          });
-        } else {
-          const cidade = userCity || "";
-
-          useAuthStore.getState().login(
-            userType,
-            {
-              id: _id,
-              cidade: cidade,
-              nome: userName,
-              email: userEmailFromApi,
-              telefone: userPhone || "",
-              fotoPerfil: profilePhoto,
-              googleId: googleId,
-              aceitouTermos: acceptedTerms,
-            },
-            token
-          );
-
-          Toast.show({
-            type: "success",
-            text1: "Login com Google realizado com sucesso!",
-            text2: `Bem-vindo, ${userName}!`,
-          });
-        }
-      } else {
-        Toast.show({
-          type: "error",
-          text1: "Erro ao autenticar com Google",
-          text2: response.message || "Verifique sua conexão e tente novamente",
-        });
-      }
+      Toast.show({
+        type: "success",
+        text1: "Continue para completar seu cadastro",
+      });
     } catch (error: any) {
       console.error("Erro no cadastro com Google:", error);
       if (isErrorWithCode(error)) {

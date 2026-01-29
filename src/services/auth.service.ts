@@ -11,7 +11,7 @@ import {
 
 // Cadastrar usuário manualmente com email e senha
 export async function registerUser(
-  userData: RegisterUserInput
+  userData: RegisterUserInput,
 ): Promise<ApiResponse<AuthResponse>> {
   try {
     // Validar dados com Zod
@@ -19,7 +19,7 @@ export async function registerUser(
 
     const response = await apiPost<ApiResponse<AuthResponse>>(
       "/auth/register",
-      validatedData
+      validatedData,
     );
 
     return response.data;
@@ -51,7 +51,7 @@ export async function registerUser(
 
 // Login com email e senha
 export async function login(
-  loginData: LoginInput
+  loginData: LoginInput,
 ): Promise<ApiResponse<AuthResponse>> {
   try {
     // Validar dados com Zod
@@ -59,7 +59,7 @@ export async function login(
 
     const response = await apiPost<ApiResponse<AuthResponse>>(
       "/auth/login",
-      validatedData
+      validatedData,
     );
 
     return response.data;
@@ -89,9 +89,32 @@ export async function login(
   }
 }
 
+export async function checkEmailExists(
+  email: string,
+): Promise<
+  ApiResponse<{ exists: boolean; isActive: boolean; userType?: string }>
+> {
+  try {
+    const response = await apiPost<
+      ApiResponse<{ exists: boolean; isActive: boolean; userType?: string }>
+    >("/auth/check-email", { email: email.trim().toLowerCase() });
+
+    return response.data;
+  } catch (error: any) {
+    if (error.response?.data) {
+      return error.response.data;
+    }
+    return {
+      success: false,
+      message: error.message || "Erro ao verificar email",
+      error: error.message,
+    };
+  }
+}
+
 // Login ou cadastro com Google
 export async function googleAuth(
-  googleData: GoogleAuthInput
+  googleData: GoogleAuthInput,
 ): Promise<ApiResponse<AuthResponse>> {
   try {
     // Validar dados com Zod
@@ -99,7 +122,7 @@ export async function googleAuth(
 
     const response = await apiPost<ApiResponse<AuthResponse>>(
       "/auth/google",
-      validatedData
+      validatedData,
     );
 
     return response.data;
@@ -158,7 +181,7 @@ export async function requestPasswordReset(data: {
   try {
     const response = await apiPost<ApiResponse<{ message: string }>>(
       "/auth/forgot-password",
-      { email: data.email.trim().toLowerCase() }
+      { email: data.email.trim().toLowerCase() },
     );
 
     return response.data;
@@ -189,7 +212,7 @@ export async function verifyResetCode(data: {
       {
         email: data.email.trim().toLowerCase(),
         code: data.code,
-      }
+      },
     );
 
     return response.data;
@@ -230,7 +253,7 @@ export async function resetPassword(data: {
         email: data.email.trim().toLowerCase(),
         code: data.code,
         newPassword: data.newPassword,
-      }
+      },
     );
 
     return response.data;
@@ -264,7 +287,7 @@ export async function healthCheck(): Promise<boolean> {
 // Salvar push token no backend
 export async function savePushToken(
   pushToken: string,
-  token: string
+  token: string,
 ): Promise<ApiResponse<{ pushToken: string; pushTokenUpdatedAt: Date }>> {
   try {
     if (!pushToken || !token) {
@@ -298,7 +321,7 @@ export async function savePushToken(
 
 // Remover push token no backend (logout ou desativar notificações)
 export async function removePushToken(
-  token: string
+  token: string,
 ): Promise<ApiResponse<{ message: string }>> {
   try {
     if (!token) {
@@ -311,7 +334,7 @@ export async function removePushToken(
 
     const response = await apiDelete<ApiResponse<{ message: string }>>(
       "/auth/push-token",
-      token
+      token,
     );
 
     return response.data;

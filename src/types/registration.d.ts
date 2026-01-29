@@ -41,4 +41,8 @@ export interface RegistrationData {
   password: string;
   acceptedTerms: boolean;
   city?: string; // Cidade do usuário (pode vir dos dados anteriores)
+
+  // Google (opcional)
+  googleId?: string;
+  profilePhoto?: string;
 }

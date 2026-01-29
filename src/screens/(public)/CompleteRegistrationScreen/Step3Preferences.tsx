@@ -104,6 +104,11 @@ export default function Step3Preferences({
         userType: data.userType,
         acceptedTerms: acceptedTerms,
         city: data.address?.city || data.city || "",
+
+        // Google
+        googleId: data.googleId,
+        profilePhoto: data.profilePhoto,
+
         // Driver
         vehicleType: data.vehicleType,
         vehicleInfo: data.vehicleInfo,
@@ -136,6 +141,11 @@ export default function Step3Preferences({
         city: completeData.city,
         userType: completeData.userType,
         acceptedTerms: completeData.acceptedTerms,
+
+        // Google
+        googleId: completeData.googleId,
+        profilePhoto: completeData.profilePhoto,
+
         // Tipo de documento
         documentType: completeData.documentType,
         // Documentos

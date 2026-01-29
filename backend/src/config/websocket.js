@@ -9,6 +9,9 @@ function initializeWebSocket(server) {
       origin: "*", // TODO: Configurar origins permitidas
       methods: ["GET", "POST"],
     },
+    // Reduz falsos "ping timeout" em redes móveis/wi-fi instáveis
+    pingInterval: 25000,
+    pingTimeout: 60000,
   });
 
   io.use(async (socket, next) => {
@@ -19,8 +22,10 @@ function initializeWebSocket(server) {
         return next(new Error("Token não fornecido"));
       }
 
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      socket.userId = decoded.userId;
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || "secret");
+
+      // Token do app (auth.controller) usa { id, userType? }
+      socket.userId = decoded.id || decoded.userId;
       socket.userType = decoded.userType || "client";
 
       next();

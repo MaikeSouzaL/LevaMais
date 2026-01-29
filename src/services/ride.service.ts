@@ -80,10 +80,20 @@ class RideService {
    * Calcular preço da corrida
    */
   async calculatePrice(
-    data: CalculatePriceRequest
+    data: CalculatePriceRequest,
   ): Promise<CalculatePriceResponse> {
-    const response = await api.post("/rides/calculate-price", data);
-    return response.data;
+    try {
+      const response = await api.post("/rides/calculate-price", data);
+      return response.data;
+    } catch (e: any) {
+      // melhora mensagem no app
+      const msg =
+        e?.response?.data?.error ||
+        e?.response?.data?.message ||
+        e?.message ||
+        "Falha ao calcular preço";
+      throw new Error(msg);
+    }
   }
 
   /**

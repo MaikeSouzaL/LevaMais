@@ -5,7 +5,11 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
-import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
+import {
+  MaterialIcons,
+  FontAwesome5,
+  MaterialCommunityIcons,
+} from "@expo/vector-icons";
 
 type PaymentMethod = "credit_card" | "pix" | "cash";
 
@@ -38,8 +42,10 @@ export default function PaymentScreen() {
 
   const handleConfirmPayment = async () => {
     setError(null);
+    // MVP: ainda não processa pagamento.
+    // Por enquanto, ao clicar em "Pagar" apenas cria a corrida (solicitação) e notifica/busca motorista.
     console.log(
-      `Processing payment of ${formatBRL(amount)} via ${selectedMethod}`,
+      `Enviando solicitação de corrida de ${formatBRL(amount)} (método selecionado: ${selectedMethod})`,
     );
 
     if (!order) {
@@ -260,7 +266,11 @@ export default function PaymentScreen() {
 
         {renderMethod(
           "pix",
-          <FontAwesome5 name="pix" size={24} color="#32BCAD" />,
+          <MaterialCommunityIcons
+            name="qrcode-scan"
+            size={24}
+            color="#32BCAD"
+          />,
           "Pix",
           "Aprovação imediata",
         )}
@@ -315,7 +325,7 @@ export default function PaymentScreen() {
           }}
         >
           <Text style={{ color: "#0f231c", fontWeight: "800", fontSize: 18 }}>
-            {loading ? "Processando..." : `Pagar ${formatBRL(amount)}`}
+            {loading ? "Enviando solicitação..." : `Pagar ${formatBRL(amount)}`}
           </Text>
         </TouchableOpacity>
       </View>

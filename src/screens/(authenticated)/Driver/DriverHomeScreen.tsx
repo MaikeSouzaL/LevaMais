@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import * as Location from "expo-location";
+import Constants from "expo-constants";
 import { useNavigation } from "@react-navigation/native";
 
 import GlobalMap from "../../../components/GlobalMap";
@@ -16,7 +17,8 @@ import driverAlertService from "../../../services/driverAlert.service";
 import rideService from "../../../services/ride.service";
 import { DriverBottomSheet } from "./components/DriverBottomSheet";
 import { getCurrentLocationAndAddress } from "../../../utils/location";
-import { Marker, Polyline } from "react-native-maps";
+import MapView, { Marker, Polyline } from "react-native-maps";
+import { decodePolyline, LatLng } from "../../../utils/polyline";
 
 export default function DriverHomeScreen() {
   const navigation = useNavigation();
@@ -31,11 +33,26 @@ export default function DriverHomeScreen() {
   const [useDarkMap, setUseDarkMap] = useState(true);
   const [pendingRequests, setPendingRequests] = useState(0);
   const [incomingRequest, setIncomingRequest] = useState<any>(null);
+  const [routeCoords, setRouteCoords] = useState<LatLng[]>([]);
   const intervalRef = useRef<any>(null);
+  const mapRef = useRef<MapView | null>(null);
 
   const vehicleType = (userData?.vehicleType ||
     "motorcycle") as DriverVehicleType;
   const vehicleInfo = (userData?.vehicleInfo || {}) as any;
+
+  const getGoogleMapsApiKey = () => {
+    // Prefer env (não expõe a key no repo)
+    const envKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
+    if (envKey) return envKey;
+
+    // Fallback: tenta ler do app.json via expo-constants
+    const maybe = (Constants as any)?.expoConfig?.android?.config?.googleMaps
+      ?.apiKey;
+    if (maybe) return maybe as string;
+
+    return "";
+  };
 
   const currentServiceTypes = () => {
     const list: Array<"ride" | "delivery"> = [];
@@ -271,6 +288,7 @@ export default function DriverHomeScreen() {
 
   const clearIncoming = async () => {
     setIncomingRequest(null);
+    setRouteCoords([]);
     setPendingRequests(0);
     await driverAlertService.stop();
   };
@@ -304,6 +322,71 @@ export default function DriverHomeScreen() {
     }
   };
 
+  const loadRealRoute = async (pickup: LatLng, dropoff: LatLng) => {
+    try {
+      const key = getGoogleMapsApiKey();
+      if (!key) {
+        console.log(
+          "Google Maps API key não encontrada. Defina EXPO_PUBLIC_GOOGLE_MAPS_API_KEY",
+        );
+        setRouteCoords([]);
+        return;
+      }
+
+      const origin = `${pickup.latitude},${pickup.longitude}`;
+      const destination = `${dropoff.latitude},${dropoff.longitude}`;
+      const url =
+        `https://maps.googleapis.com/maps/api/directions/json?origin=${encodeURIComponent(
+          origin,
+        )}&destination=${encodeURIComponent(destination)}` +
+        `&mode=driving&key=${encodeURIComponent(key)}`;
+
+      const res = await fetch(url);
+      const data = await res.json();
+
+      const points = data?.routes?.[0]?.overview_polyline?.points;
+      if (!points) {
+        console.log("Directions sem rota", data?.status, data?.error_message);
+        setRouteCoords([]);
+        return;
+      }
+
+      const decoded = decodePolyline(points);
+      setRouteCoords(decoded);
+
+      // Enquadra a rota automaticamente
+      if (decoded.length >= 2 && mapRef.current) {
+        mapRef.current.fitToCoordinates(decoded as any, {
+          edgePadding: { top: 120, right: 60, bottom: 260, left: 60 },
+          animated: true,
+        });
+      }
+    } catch (e) {
+      console.log("Falha ao carregar rota real", e);
+      setRouteCoords([]);
+    }
+  };
+
+  useEffect(() => {
+    const pickup = incomingRequest?.pickup;
+    const dropoff = incomingRequest?.dropoff;
+
+    if (
+      pickup?.latitude &&
+      pickup?.longitude &&
+      dropoff?.latitude &&
+      dropoff?.longitude
+    ) {
+      loadRealRoute(
+        { latitude: pickup.latitude, longitude: pickup.longitude },
+        { latitude: dropoff.latitude, longitude: dropoff.longitude },
+      );
+    } else {
+      setRouteCoords([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [incomingRequest?.rideId]);
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#0f231c" }}>
       <View style={{ flex: 1 }}>
@@ -319,6 +402,9 @@ export default function DriverHomeScreen() {
           region={region ?? undefined}
           showsUserLocation
           useDarkStyle={useDarkMap}
+          onMapRef={(ref) => {
+            mapRef.current = ref;
+          }}
           onRegionChangeComplete={(r) => setRegion(r as any)}
         >
           {!!incomingRequest?.pickup?.latitude &&
@@ -353,16 +439,20 @@ export default function DriverHomeScreen() {
             !!incomingRequest?.dropoff?.latitude &&
             !!incomingRequest?.dropoff?.longitude && (
               <Polyline
-                coordinates={[
-                  {
-                    latitude: incomingRequest.pickup.latitude,
-                    longitude: incomingRequest.pickup.longitude,
-                  },
-                  {
-                    latitude: incomingRequest.dropoff.latitude,
-                    longitude: incomingRequest.dropoff.longitude,
-                  },
-                ]}
+                coordinates={
+                  routeCoords.length >= 2
+                    ? (routeCoords as any)
+                    : ([
+                        {
+                          latitude: incomingRequest.pickup.latitude,
+                          longitude: incomingRequest.pickup.longitude,
+                        },
+                        {
+                          latitude: incomingRequest.dropoff.latitude,
+                          longitude: incomingRequest.dropoff.longitude,
+                        },
+                      ] as any)
+                }
                 strokeWidth={4}
                 strokeColor="#02de95"
               />

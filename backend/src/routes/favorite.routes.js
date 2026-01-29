@@ -7,6 +7,7 @@ const { authenticateToken } = require("../middlewares/auth.middleware");
 router.use(authenticateToken);
 
 router.post("/", favoriteController.create);
+router.get("/me", favoriteController.listMe);
 router.get("/user/:userId", favoriteController.listByUser);
 router.delete("/:id", favoriteController.delete);
 

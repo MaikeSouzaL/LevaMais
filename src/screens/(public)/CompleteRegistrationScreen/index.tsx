@@ -64,6 +64,8 @@ export default function CompleteRegistrationScreen() {
         userType: params.userType || "client",
         acceptedTerms: params.user.acceptedTerms,
         city: params.user.city, // Preservar cidade se existir
+        googleId: params.user.googleId,
+        profilePhoto: params.user.profilePhoto,
       };
     },
   );

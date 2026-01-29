@@ -23,7 +23,11 @@ export interface FavoriteLocation {
 export const favoriteService = {
   create: async (data: CreateFavoriteDTO, token?: string) => {
     try {
-      const response = await apiPost<FavoriteLocation>("/favorites", data, token);
+      const response = await apiPost<FavoriteLocation>(
+        "/favorites",
+        data,
+        token,
+      );
       return response.data;
     } catch (error) {
       throw error;
@@ -32,7 +36,19 @@ export const favoriteService = {
 
   listByUser: async (userId: string, token?: string) => {
     try {
-      const response = await apiGet<FavoriteLocation[]>(`/favorites/user/${userId}`, token);
+      const response = await apiGet<FavoriteLocation[]>(
+        `/favorites/user/${userId}`,
+        token,
+      );
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  listMe: async (token?: string) => {
+    try {
+      const response = await apiGet<FavoriteLocation[]>(`/favorites/me`, token);
       return response.data;
     } catch (error) {
       throw error;

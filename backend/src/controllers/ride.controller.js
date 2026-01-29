@@ -465,8 +465,34 @@ class RideController {
         vehicleCategory: vehicleType,
         active: true,
       };
-      if (cityId) ruleFilter.cityId = cityId;
-      if (purposeId) ruleFilter.purposeId = purposeId;
+      const mongoose = require("mongoose");
+      if (cityId && mongoose.Types.ObjectId.isValid(cityId)) {
+        ruleFilter.cityId = cityId;
+      }
+
+      // purposeId pode vir como ObjectId OU como slug (ex.: "documents") vindo do app.
+      if (purposeId) {
+        if (mongoose.Types.ObjectId.isValid(purposeId)) {
+          ruleFilter.purposeId = purposeId;
+        } else {
+          try {
+            const Purpose = require("../models/Purpose");
+            const purpose = await Purpose.findOne({
+              id: String(purposeId),
+              vehicleType: vehicleType,
+            }).select("_id");
+
+            if (purpose?._id) {
+              ruleFilter.purposeId = purpose._id;
+            }
+          } catch (e) {
+            console.log(
+              "Aviso: não foi possível resolver purposeId",
+              purposeId,
+            );
+          }
+        }
+      }
 
       const rule = await PricingRule.findOne(ruleFilter).sort({ priority: -1 });
       if (!rule) {
@@ -563,14 +589,15 @@ class RideController {
       console.error("Erro ao calcular preço:", error);
       res.status(500).json({
         error: "Erro ao calcular preço",
-        details: error.message,
+        details: error?.message,
+        stack: process.env.NODE_ENV === "production" ? undefined : error?.stack,
       });
     }
   }
 }
 
 // Função auxiliar para calcular distância (Haversine)
-function calculateDistance(lat1, lon1, lat2, lon2) {
+function haversineDistance(lat1, lon1, lat2, lon2) {
   const R = 6371e3; // Raio da Terra em metros
   const φ1 = (lat1 * Math.PI) / 180;
   const φ2 = (lat2 * Math.PI) / 180;
@@ -583,6 +610,38 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
   return R * c;
+}
+
+/**
+ * Checks if a time (HH:mm) is within a range (HH:mm..HH:mm).
+ * Supports overnight ranges (e.g. 22:00 -> 06:00).
+ */
+function isTimeInRange(current, start, end) {
+  try {
+    if (!current || !start || !end) return false;
+
+    const toMinutes = (hhmm) => {
+      const [h, m] = String(hhmm)
+        .split(":")
+        .map((v) => parseInt(v, 10));
+      if (Number.isNaN(h) || Number.isNaN(m)) return null;
+      return h * 60 + m;
+    };
+
+    const c = toMinutes(current);
+    const s = toMinutes(start);
+    const e = toMinutes(end);
+
+    if (c == null || s == null || e == null) return false;
+
+    // normal range
+    if (s <= e) return c >= s && c <= e;
+
+    // overnight (e.g. 22:00-06:00)
+    return c >= s || c <= e;
+  } catch {
+    return false;
+  }
 }
 
 module.exports = new RideController();
