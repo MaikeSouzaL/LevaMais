@@ -66,11 +66,6 @@ const driverLocationSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
-    // Aceita corridas? (pode estar online mas não aceitando)
-    acceptingRides: {
-      type: Boolean,
-      default: true,
-    },
 
     // Tipos de serviço que o motorista aceita
     serviceTypes: {
@@ -114,8 +109,7 @@ driverLocationSchema.statics.findNearby = async function (
         $maxDistance: maxDistance,
       },
     },
-    status: "available",
-    acceptingRides: true,
+    status: "available", // Motorista deve estar online e disponível
     ...(vehicleType && { vehicleType }),
     ...(serviceType && { serviceTypes: serviceType }),
   }).limit(limit);

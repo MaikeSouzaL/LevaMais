@@ -65,7 +65,8 @@ export const OffersVanSheet = forwardRef<
     { onBack, onConfirm, onClose, nextPriceText, nextEtaText, loadingQuote },
     ref,
   ) => {
-    const snapPoints = useMemo(() => ["90%"], []);
+    // Ajustado para 75% - ofertas de van com opções extras
+    const snapPoints = useMemo(() => ["75%"], []);
     const [selectedOffer, setSelectedOffer] = useState<string>(OFFERS[0].id);
     const [payment, setPayment] = useState<Payment>("dinheiro");
 

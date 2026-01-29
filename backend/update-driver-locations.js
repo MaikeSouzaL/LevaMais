@@ -73,7 +73,6 @@ async function updateDriverLocations() {
             color: "Prata",
             year: 2020 + Math.floor(Math.random() * 4),
           },
-          acceptingRides: true,
           lastUpdated: new Date(),
         },
         {

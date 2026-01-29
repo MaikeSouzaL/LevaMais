@@ -15,8 +15,8 @@ interface BottomSheetProps {
 
 export const BottomSheet = forwardRef<GorhomBottomSheet, BottomSheetProps>(
   ({ onPressSearch, onPressRide, onPressDelivery }, ref) => {
-    // Pontos de snap: fechado (10%), médio (35%), aberto (90%)
-    const snapPoints = useMemo(() => ["35%"], []);
+    // Ajustado para 30% - suficiente para barra de busca + 2 cards de serviço
+    const snapPoints = useMemo(() => ["30%"], []);
 
     return (
       <GorhomBottomSheet
@@ -89,5 +89,5 @@ export const BottomSheet = forwardRef<GorhomBottomSheet, BottomSheetProps>(
         </BottomSheetView>
       </GorhomBottomSheet>
     );
-  }
+  },
 );

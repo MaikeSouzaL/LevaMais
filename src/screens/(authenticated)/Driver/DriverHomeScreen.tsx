@@ -24,6 +24,7 @@ import { MapFabButton } from "../../../components/ui/MapFabButton";
 import { MapFabStack } from "../../../components/ui/MapFabStack";
 import { DriverMapMenuButton } from "./components/DriverMapMenuButton";
 import { DriverTopHud } from "./components/DriverTopHud";
+import { LocationLoadingScreen } from "../../../components/ui/LocationLoadingScreen";
 
 export default function DriverHomeScreen() {
   const navigation = useNavigation();
@@ -31,8 +32,10 @@ export default function DriverHomeScreen() {
   const userData = useAuthStore((s) => s.userData);
 
   const [online, setOnline] = useState(false);
-  const [acceptingRides, setAcceptingRides] = useState(true);
-  const [services, setServices] = useState({ ride: true, delivery: true });
+  const [services, setServices] = useState({ 
+    ride: userData?.vehicleType === "car" || userData?.vehicleType === "motorcycle", 
+    delivery: true 
+  });
   const [error, setError] = useState<string | null>(null);
   const [region, setRegion] = useState<any>(null);
   const [isCentering, setIsCentering] = useState(false);
@@ -80,7 +83,6 @@ export default function DriverHomeScreen() {
     try {
       await driverLocationService.setStatus({
         status: "offline",
-        acceptingRides: false,
         serviceTypes: currentServiceTypes(),
       });
     } catch {}
@@ -156,7 +158,6 @@ export default function DriverHomeScreen() {
     try {
       await driverLocationService.setStatus({
         status: "available",
-        acceptingRides: true,
         serviceTypes: currentServiceTypes(),
       });
     } catch {}
@@ -230,9 +231,10 @@ export default function DriverHomeScreen() {
         const types = currentServiceTypes();
         if (!types.length) {
           setError(
-            "Selecione pelo menos 1 tipo de serviço (Corridas ou Entregas)",
+            "⚠️ Você precisa ativar pelo menos 1 tipo de serviço para ficar online",
           );
           setOnline(false); // reverte
+          setIsTogglingOnline(false);
           return;
         }
 
@@ -261,29 +263,33 @@ export default function DriverHomeScreen() {
   };
 
   const toggleService = async (key: "ride" | "delivery") => {
+    // Validar se pode ativar corridas
+    if (key === "ride") {
+      const canDoRides = vehicleType === "car" || vehicleType === "motorcycle";
+      if (!canDoRides) {
+        setError("Corridas de passageiros disponíveis apenas para carros e motos");
+        return;
+      }
+    }
+
+    // Verificar se está tentando desabilitar o último serviço ativo
+    const newValue = !services[key];
+    const otherKey = key === "ride" ? "delivery" : "ride";
+    
+    if (!newValue && !services[otherKey]) {
+      // Tentando desabilitar o último serviço
+      setError("Você precisa ter pelo menos 1 tipo de serviço ativo");
+      return;
+    }
+
     setServices((prev) => ({ ...prev, [key]: !prev[key] }));
+    setError(null); // Limpa erro se a operação foi bem sucedida
 
     // se já estiver online, atualizar preferências no backend
     if (online) {
       try {
         await driverLocationService.setStatus({
           status: "available",
-          acceptingRides,
-          serviceTypes: currentServiceTypes(),
-        });
-      } catch {}
-    }
-  };
-
-  const toggleAccepting = async () => {
-    const next = !acceptingRides;
-    setAcceptingRides(next);
-
-    if (online) {
-      try {
-        await driverLocationService.setStatus({
-          status: next ? "available" : "busy",
-          acceptingRides: next,
           serviceTypes: currentServiceTypes(),
         });
       } catch {}
@@ -469,171 +475,158 @@ export default function DriverHomeScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#0f231c" }}>
       <View style={{ flex: 1 }}>
-        <GlobalMap
-          initialRegion={
-            // enquanto carrega a localização, usa um placeholder neutro
-            // (assim que `region` chega, o mapa passa a ser controlado via prop `region`)
-            (region ?? {
-              latitude: 0,
-              longitude: 0,
-              latitudeDelta: 60,
-              longitudeDelta: 60,
-            }) as any
-          }
-          region={region ?? undefined}
-          showsUserLocation
-          useDarkStyle={useDarkMap}
-          onMapRef={(ref) => {
-            mapRef.current = ref;
-          }}
-          onRegionChangeComplete={(r) => setRegion(r as any)}
-        >
-          {!!incomingRequest?.pickup?.latitude &&
-            !!incomingRequest?.pickup?.longitude && (
-              <Marker
-                coordinate={{
-                  latitude: incomingRequest.pickup.latitude,
-                  longitude: incomingRequest.pickup.longitude,
-                }}
-                title="Coleta"
-                description={incomingRequest.pickup.address}
-                tracksViewChanges={false}
-              />
-            )}
-
-          {!!incomingRequest?.dropoff?.latitude &&
-            !!incomingRequest?.dropoff?.longitude && (
-              <Marker
-                coordinate={{
-                  latitude: incomingRequest.dropoff.latitude,
-                  longitude: incomingRequest.dropoff.longitude,
-                }}
-                title="Destino"
-                description={incomingRequest.dropoff.address}
-                pinColor="#02de95"
-                tracksViewChanges={false}
-              />
-            )}
-
-          {!!incomingRequest?.pickup?.latitude &&
-            !!incomingRequest?.pickup?.longitude &&
-            !!incomingRequest?.dropoff?.latitude &&
-            !!incomingRequest?.dropoff?.longitude && (
-              <Polyline
-                coordinates={
-                  routeCoords.length >= 2
-                    ? (routeCoords as any)
-                    : ([
-                        {
-                          latitude: incomingRequest.pickup.latitude,
-                          longitude: incomingRequest.pickup.longitude,
-                        },
-                        {
-                          latitude: incomingRequest.dropoff.latitude,
-                          longitude: incomingRequest.dropoff.longitude,
-                        },
-                      ] as any)
-                }
-                strokeWidth={4}
-                strokeColor="#02de95"
-              />
-            )}
-        </GlobalMap>
-
-        {/* Botão Menu (Hambúrguer) */}
-        <View style={{ position: "absolute", top: 14, left: 14, zIndex: 60 }}>
-          <DriverMapMenuButton />
-        </View>
-
-        {/* Botões flutuantes (SOS / GPS / Layers) */}
-        <MapFabStack floatingStyle={{ top: "35%", right: 14, zIndex: 60 }}>
-          <MapFabButton
-            icon="sos"
-            onPress={handleSOS}
-            size={48}
-            iconSize={22}
-            backgroundColor="rgba(239,68,68,0.18)"
-            activeBackgroundColor="rgba(239,68,68,0.28)"
-            iconColor="#ef4444"
-            accessibilityLabel="SOS"
-          />
-
-          <MapFabButton
-            icon="my-location"
-            onPress={handleCenterMyLocation}
-            size={48}
-            iconSize={22}
-            backgroundColor="rgba(17,24,22,0.88)"
-            activeBackgroundColor="#1b2723"
-            iconColor="#02de95"
-            disabled={isCentering}
-            accessibilityLabel="Centralizar localização"
-          />
-
-          <MapFabButton
-            icon="layers"
-            onPress={handleToggleMapStyle}
-            size={48}
-            iconSize={22}
-            backgroundColor={
-              isSwitchingMapStyle ? "#02de95" : "rgba(17,24,22,0.88)"
-            }
-            activeBackgroundColor="#1b2723"
-            iconColor={
-              isSwitchingMapStyle
-                ? "#0f231c"
-                : useDarkMap
-                  ? "#02de95"
-                  : "rgba(255,255,255,0.9)"
-            }
-            disabled={isSwitchingMapStyle}
-            accessibilityLabel="Trocar estilo do mapa"
-          />
-        </MapFabStack>
-
-        {/* Top HUD */}
-        <View style={{ position: "absolute", top: 14, left: 74, right: 14 }}>
-          <DriverTopHud
-            driverName={userData?.name}
-            vehicleTypeLabel={vehicleType.toUpperCase()}
-            plate={vehicleInfo?.plate}
-            pendingRequests={pendingRequests}
-            onPressNotifications={handleNotifications}
-            right={
-              <View
-                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
-              >
-                <View
-                  style={{
-                    width: 10,
-                    height: 10,
-                    borderRadius: 999,
-                    backgroundColor: online ? "#02de95" : "#6b7280",
+        {!region ? (
+          <LocationLoadingScreen />
+        ) : (
+          <GlobalMap
+            initialRegion={region as any}
+            region={region ?? undefined}
+            showsUserLocation
+            useDarkStyle={useDarkMap}
+            onMapRef={(ref) => {
+              mapRef.current = ref;
+            }}
+            onRegionChangeComplete={(r) => setRegion(r as any)}
+          >
+            {!!incomingRequest?.pickup?.latitude &&
+              !!incomingRequest?.pickup?.longitude && (
+                <Marker
+                  coordinate={{
+                    latitude: incomingRequest.pickup.latitude,
+                    longitude: incomingRequest.pickup.longitude,
                   }}
+                  title="Coleta"
+                  description={incomingRequest.pickup.address}
+                  tracksViewChanges={false}
                 />
+              )}
+
+            {!!incomingRequest?.dropoff?.latitude &&
+              !!incomingRequest?.dropoff?.longitude && (
+                <Marker
+                  coordinate={{
+                    latitude: incomingRequest.dropoff.latitude,
+                    longitude: incomingRequest.dropoff.longitude,
+                  }}
+                  title="Destino"
+                  description={incomingRequest.dropoff.address}
+                  pinColor="#02de95"
+                  tracksViewChanges={false}
+                />
+              )}
+
+            {!!incomingRequest?.pickup?.latitude &&
+              !!incomingRequest?.pickup?.longitude &&
+              !!incomingRequest?.dropoff?.latitude &&
+              !!incomingRequest?.dropoff?.longitude && (
+                <Polyline
+                  coordinates={
+                    routeCoords.length >= 2
+                      ? (routeCoords as any)
+                      : ([
+                          {
+                            latitude: incomingRequest.pickup.latitude,
+                            longitude: incomingRequest.pickup.longitude,
+                          },
+                          {
+                            latitude: incomingRequest.dropoff.latitude,
+                            longitude: incomingRequest.dropoff.longitude,
+                          },
+                        ] as any)
+                  }
+                  strokeWidth={4}
+                  strokeColor="#02de95"
+                />
+              )}
+          </GlobalMap>
+        )}
+
+        {/* Botão Menu (Hambúrguer) - só aparece quando o mapa carregou */}
+        {!!region && (
+          <>
+            <View
+              style={{ position: "absolute", top: 14, left: 14, zIndex: 60 }}
+            >
+              <DriverMapMenuButton />
+            </View>
+
+            {/* Botões flutuantes (SOS / GPS / Layers) */}
+            <MapFabStack floatingStyle={{ top: "35%", right: 14, zIndex: 60 }}>
+              <MapFabButton
+                icon="sos"
+                onPress={handleSOS}
+                size={48}
+                iconSize={22}
+                backgroundColor="rgba(239,68,68,0.18)"
+                activeBackgroundColor="rgba(239,68,68,0.28)"
+                iconColor="#ef4444"
+                accessibilityLabel="SOS"
+              />
+
+              <MapFabButton
+                icon="my-location"
+                onPress={handleCenterMyLocation}
+                size={48}
+                iconSize={22}
+                backgroundColor="rgba(17,24,22,0.88)"
+                activeBackgroundColor="#1b2723"
+                iconColor="#02de95"
+                disabled={isCentering}
+                accessibilityLabel="Centralizar localização"
+              />
+
+              <MapFabButton
+                icon="layers"
+                onPress={handleToggleMapStyle}
+                size={48}
+                iconSize={22}
+                backgroundColor={
+                  isSwitchingMapStyle ? "#02de95" : "rgba(17,24,22,0.88)"
+                }
+                activeBackgroundColor="#1b2723"
+                iconColor={
+                  isSwitchingMapStyle
+                    ? "#0f231c"
+                    : useDarkMap
+                      ? "#02de95"
+                      : "rgba(255,255,255,0.9)"
+                }
+                disabled={isSwitchingMapStyle}
+                accessibilityLabel="Trocar estilo do mapa"
+              />
+            </MapFabStack>
+
+            {/* Top HUD */}
+            <View
+              style={{ position: "absolute", top: 14, left: 74, right: 14 }}
+            >
+              <DriverTopHud
+                driverName={userData?.name}
+                vehicleTypeLabel={vehicleType.toUpperCase()}
+                plate={vehicleInfo?.plate}
+                pendingRequests={pendingRequests}
+                onPressNotifications={handleNotifications}
+                online={online}
+              />
+
+              {!!error && (
                 <Text
-                  style={{
-                    color: online ? "#02de95" : "rgba(255,255,255,0.7)",
-                    fontWeight: "800",
+                  style={{ 
+                    color: "#fbbf24", 
+                    marginTop: 10, 
+                    fontWeight: "700",
+                    fontSize: 13,
                   }}
                 >
-                  {online ? "Online" : "Offline"}
+                  {error}
                 </Text>
-              </View>
-            }
-          />
+              )}
+            </View>
+          </>
+        )}
 
-          {!!error && (
-            <Text
-              style={{ color: "#fbbf24", marginTop: 10, fontWeight: "700" }}
-            >
-              {error}
-            </Text>
-          )}
-        </View>
-
-        {/* Banner: Nova solicitação */}
-        {pendingRequests > 0 && (
+        {/* Banner: Nova solicitação - só aparece quando o mapa carregou */}
+        {!!region && pendingRequests > 0 && (
           <View
             style={{
               position: "absolute",
@@ -703,8 +696,8 @@ export default function DriverHomeScreen() {
           </View>
         )}
 
-        {/* Card em baixo (preview da solicitação) */}
-        {!!incomingRequest?.rideId && (
+        {/* Card em baixo (preview da solicitação) - só aparece quando o mapa carregou */}
+        {!!region && !!incomingRequest?.rideId && (
           <View
             style={{
               position: "absolute",
@@ -769,15 +762,18 @@ export default function DriverHomeScreen() {
           </View>
         )}
 
-        {/* Bottom Sheet */}
+        {/* Bottom Sheet - sempre visível */}
         <DriverBottomSheet
           online={online}
           services={services}
-          acceptingRides={acceptingRides}
           isTogglingOnline={isTogglingOnline}
           onToggleOnline={toggleOnline}
           onToggleService={toggleService}
-          onToggleAccepting={toggleAccepting}
+          vehicleType={vehicleType}
+          // Controla a altura do sheet. Exemplos:
+          // ["25%"] → altura fixa em 25%
+          // ["20%", "40%"] → mínima 20%, máxima 40% (pode arrastar)
+          snapPoints={["26%"]}
         />
       </View>
     </SafeAreaView>

@@ -73,7 +73,8 @@ export const OffersCarSheet = forwardRef<
     { onConfirm, onClose, onBack, nextPriceText, nextEtaText, loadingQuote },
     ref,
   ) => {
-    const snapPoints = useMemo(() => ["90%"], []);
+    // Ajustado para 70% - adequado para lista de ofertas com cards médios
+    const snapPoints = useMemo(() => ["70%"], []);
     const insets = useSafeAreaInsets();
     const [paymentMethod, setPaymentMethod] = useState<
       "dinheiro" | "pix" | "cartao"

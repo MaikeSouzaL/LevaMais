@@ -86,8 +86,8 @@ export default function IntroScreen() {
 
       // ao desfocar, para
       return () => {
-  stopAndUnload();
-  setMusicPaused(false);
+        stopAndUnload();
+        setMusicPaused(false);
       };
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []),

@@ -18,7 +18,6 @@ process.exit(0);
           status: "available",
           vehicleType,
           vehicle,
-          acceptingRides: true,
         });
 
         await driverLocation.save();

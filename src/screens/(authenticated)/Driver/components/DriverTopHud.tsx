@@ -8,8 +8,8 @@ export type DriverTopHudProps = {
   plate?: string | null;
   pendingRequests?: number;
   onPressNotifications: () => void;
-  /** right side custom content (ex: online toggle) */
-  right?: React.ReactNode;
+  /** Status online/offline */
+  online?: boolean;
 };
 
 export function DriverTopHud({
@@ -18,95 +18,130 @@ export function DriverTopHud({
   plate,
   pendingRequests = 0,
   onPressNotifications,
-  right,
+  online = false,
 }: DriverTopHudProps) {
   return (
     <View
       style={{
-        backgroundColor: "rgba(17,24,22,0.88)",
-        borderRadius: 16,
-        padding: 12,
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.08)",
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 12,
       }}
     >
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 10,
-        }}
-      >
-        <View style={{ flex: 1 }}>
-          <Text style={{ color: "white", fontWeight: "900", fontSize: 16 }}>
-            {driverName ? `Olá, ${driverName}` : "Motorista"}
-          </Text>
+      {/* Nome e Veículo */}
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: "white", fontWeight: "900", fontSize: 18 }}>
+          {driverName ? `Olá, ${driverName}` : "Motorista"}
+        </Text>
 
-          {!!vehicleTypeLabel && (
-            <Text style={{ color: "rgba(255,255,255,0.65)", marginTop: 2 }}>
-              {vehicleTypeLabel}
-              {plate ? `• ${plate}` : ""}
-            </Text>
-          )}
-        </View>
-
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-          <TouchableOpacity
-            onPress={onPressNotifications}
-            activeOpacity={0.85}
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: 12,
-              backgroundColor: "rgba(0,0,0,0.18)",
-              borderWidth: 1,
-              borderColor: "rgba(255,255,255,0.10)",
-              alignItems: "center",
-              justifyContent: "center",
+        {!!vehicleTypeLabel && (
+          <Text 
+            style={{ 
+              color: "rgba(255,255,255,0.7)", 
+              marginTop: 2,
+              fontSize: 14,
+              fontWeight: "600"
             }}
-            accessibilityRole="button"
-            accessibilityLabel="Notificações"
           >
-            <View>
-              <MaterialIcons
-                name="notifications"
-                size={20}
-                color="rgba(255,255,255,0.9)"
-              />
+            {vehicleTypeLabel}
+            {plate ? ` • ${plate}` : ""}
+          </Text>
+        )}
+      </View>
 
-              {pendingRequests > 0 && (
-                <View
+      {/* Notificação e Status */}
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+        {/* Botão de Notificações */}
+        <TouchableOpacity
+          onPress={onPressNotifications}
+          activeOpacity={0.85}
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: 12,
+            backgroundColor: "rgba(17,24,22,0.88)",
+            borderWidth: 1,
+            borderColor: "rgba(255,255,255,0.10)",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+          accessibilityRole="button"
+          accessibilityLabel="Notificações"
+        >
+          <View>
+            <MaterialIcons
+              name="notifications"
+              size={22}
+              color="rgba(255,255,255,0.9)"
+            />
+
+            {pendingRequests > 0 && (
+              <View
+                style={{
+                  position: "absolute",
+                  top: -8,
+                  right: -8,
+                  minWidth: 20,
+                  height: 20,
+                  paddingHorizontal: 5,
+                  borderRadius: 999,
+                  backgroundColor: "#ef4444",
+                  borderWidth: 2,
+                  borderColor: "#0f231c",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Text
                   style={{
-                    position: "absolute",
-                    top: -6,
-                    right: -8,
-                    minWidth: 18,
-                    height: 18,
-                    paddingHorizontal: 5,
-                    borderRadius: 999,
-                    backgroundColor: "#ef4444",
-                    borderWidth: 1,
-                    borderColor: "rgba(17,24,22,0.9)",
-                    alignItems: "center",
-                    justifyContent: "center",
+                    color: "white",
+                    fontSize: 11,
+                    fontWeight: "900",
                   }}
                 >
-                  <Text
-                    style={{
-                      color: "white",
-                      fontSize: 11,
-                      fontWeight: "900",
-                    }}
-                  >
-                    {pendingRequests > 9 ? "9+" : String(pendingRequests)}
-                  </Text>
-                </View>
-              )}
-            </View>
-          </TouchableOpacity>
+                  {pendingRequests > 9 ? "9+" : String(pendingRequests)}
+                </Text>
+              </View>
+            )}
+          </View>
+        </TouchableOpacity>
 
-          {right ? <View>{right}</View> : null}
+        {/* Status Badge */}
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 8,
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+            borderRadius: 12,
+            backgroundColor: online 
+              ? "rgba(2,222,149,0.18)" 
+              : "rgba(107,114,128,0.18)",
+            borderWidth: 1,
+            borderColor: online 
+              ? "rgba(2,222,149,0.35)" 
+              : "rgba(255,255,255,0.10)",
+          }}
+        >
+          <View
+            style={{
+              width: 10,
+              height: 10,
+              borderRadius: 999,
+              backgroundColor: online ? "#02de95" : "#6b7280",
+            }}
+          />
+          <Text
+            style={{
+              color: online ? "#02de95" : "rgba(255,255,255,0.7)",
+              fontWeight: "900",
+              fontSize: 14,
+            }}
+          >
+            {online ? "Online" : "Offline"}
+          </Text>
         </View>
       </View>
     </View>

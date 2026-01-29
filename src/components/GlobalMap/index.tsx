@@ -1,5 +1,11 @@
 import React, { useRef, useEffect } from "react";
-import { StyleSheet, Platform, View, TouchableOpacity } from "react-native";
+import {
+  StyleSheet,
+  Platform,
+  View,
+  TouchableOpacity,
+  Text,
+} from "react-native";
 import MapView, {
   MapViewProps,
   Region,
@@ -90,6 +96,19 @@ export function GlobalMap({
     onMapRef?.(mapRef.current);
   }, [onMapRef]);
 
+  // Log de diagnóstico pro dev verificar se as tiles do Google Maps carregaram
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      console.log(
+        "[GlobalMap] Se o mapa está branco/vazio (só pin de localização), verifique:\n" +
+          "1) Google Maps API Key configurada no AndroidManifest.xml\n" +
+          "2) Maps SDK for Android habilitado no Google Cloud Console\n" +
+          "3) Key sem restrições de package/SHA1 (ou package correto adicionado)",
+      );
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
     <View style={{ flex: 1 }}>
       <MapView
@@ -117,6 +136,12 @@ export function GlobalMap({
         scrollEnabled={true}
         zoomEnabled={true}
         pitchEnabled={false}
+        onMapReady={() => {
+          console.log("[GlobalMap] MapView ready (tiles devem carregar agora)");
+        }}
+        onMapLoaded={() => {
+          console.log("[GlobalMap] MapView loaded completamente");
+        }}
       >
         {children}
       </MapView>

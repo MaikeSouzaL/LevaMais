@@ -203,13 +203,12 @@ class DriverLocationController {
   async updateStatus(req, res) {
     try {
       const driverId = req.user.id;
-      const { status, acceptingRides, serviceTypes } = req.body;
+      const { status, serviceTypes } = req.body;
 
       const driverLocation = await DriverLocation.findOneAndUpdate(
         { driverId },
         {
           status,
-          ...(acceptingRides !== undefined && { acceptingRides }),
           ...(serviceTypes && { serviceTypes }),
         },
         { new: true },
