@@ -80,6 +80,11 @@ export interface ActiveRideResponse {
   ride: Ride | null;
 }
 
+export type RatePayload = {
+  stars: number;
+  comment?: string;
+};
+
 class RideService {
   /**
    * Calcular preço da corrida
@@ -173,6 +178,34 @@ class RideService {
   async updateStatus(rideId: string, status: string): Promise<Ride> {
     const response = await api.patch(`/rides/${rideId}/status`, { status });
     return response.data.ride;
+  }
+
+  /**
+   * Cliente avalia motorista
+   */
+  async rateClientToDriver(rideId: string, payload: RatePayload): Promise<void> {
+    await api.post(`/rides/${rideId}/rate-client`, payload);
+  }
+
+  /**
+   * Motorista avalia cliente
+   */
+  async rateDriverToClient(rideId: string, payload: RatePayload): Promise<void> {
+    await api.post(`/rides/${rideId}/rate-driver`, payload);
+  }
+
+  /**
+   * Prova de coleta (entrega)
+   */
+  async uploadPickupProof(rideId: string, photoBase64: string): Promise<void> {
+    await api.post(`/rides/${rideId}/proof/pickup`, { photoBase64 });
+  }
+
+  /**
+   * Prova de entrega (entrega)
+   */
+  async uploadDeliveryProof(rideId: string, photoBase64: string): Promise<void> {
+    await api.post(`/rides/${rideId}/proof/delivery`, { photoBase64 });
   }
 }
 

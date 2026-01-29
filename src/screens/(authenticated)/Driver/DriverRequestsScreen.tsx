@@ -7,7 +7,9 @@ import DriverHeader from "./components/DriverHeader";
 import webSocketService from "../../../services/websocket.service";
 import driverAlertService from "../../../services/driverAlert.service";
 import rideService from "../../../services/ride.service";
+import driverLocationService from "../../../services/driverLocation.service";
 import { formatBRL } from "../../../utils/mappers";
+import Toast from "react-native-toast-message";
 
 type RideRequestItem = {
   rideId: string;
@@ -24,6 +26,36 @@ export default function DriverRequestsScreen() {
 
   useEffect(() => {
     let mounted = true;
+
+    // Regra estilo Uber/99: só recebe/aceita corridas quando estiver ONLINE.
+    (async () => {
+      try {
+        const me = await driverLocationService.getMe();
+        const isOnline = me?.status === "available" && me?.acceptingRides === true;
+        if (!isOnline) {
+          Toast.show({
+            type: "info",
+            text1: "Fique online para receber solicitações",
+            text2: "Ative o modo online na tela inicial do motorista.",
+          });
+
+          try {
+            (navigation as any).navigate("DriverHome");
+          } catch {}
+          return;
+        }
+      } catch {
+        Toast.show({
+          type: "info",
+          text1: "Atualize sua localização primeiro",
+          text2: "Volte para a tela inicial e ative o modo online.",
+        });
+
+        try {
+          (navigation as any).navigate("DriverHome");
+        } catch {}
+      }
+    })();
 
     const onNewRide = async (payload: any) => {
       if (!mounted) return;
@@ -58,11 +90,20 @@ export default function DriverRequestsScreen() {
       setRequests((prev) => prev.filter((r) => r.rideId !== takenId));
     };
 
+    const onRideExpired = (payload: any) => {
+      if (!mounted) return;
+      const expiredId = payload?.rideId;
+      if (!expiredId) return;
+      // remove da lista se a oferta expirou (backend passou para outro motorista)
+      setRequests((prev) => prev.filter((r) => r.rideId !== expiredId));
+    };
+
     (async () => {
       try {
         await webSocketService.connect();
         webSocketService.on("new-ride-request", onNewRide);
         webSocketService.on("ride-taken", onRideTaken);
+        webSocketService.on("ride-expired", onRideExpired);
       } catch (e) {
         console.log("Falha ao conectar WS", e);
       }
@@ -72,6 +113,7 @@ export default function DriverRequestsScreen() {
       mounted = false;
       webSocketService.off("new-ride-request", onNewRide);
       webSocketService.off("ride-taken", onRideTaken);
+      webSocketService.off("ride-expired", onRideExpired);
       // se sair desta tela, não para o alerta automaticamente (continua até aceitar/rejeitar)
     };
   }, []);
@@ -91,7 +133,21 @@ export default function DriverRequestsScreen() {
       setRequests((prev) => prev.filter((r) => r.rideId !== rideId));
       (navigation as any).navigate("DriverRide", { rideId: ride._id });
     } catch (e: any) {
-      console.log("Falha ao aceitar", e?.message || e);
+      const currentRideId = e?.response?.data?.currentRideId;
+      const msg = e?.response?.data?.error || e?.message;
+
+      console.log("Falha ao aceitar", msg || e);
+
+      // Se o backend indicar que já existe corrida ativa, abre direto
+      if (currentRideId) {
+        try {
+          (navigation as any).navigate("DriverRide", { rideId: currentRideId });
+        } catch {}
+      }
+
+      // remove a solicitação (provavelmente expirou / já foi aceita por outro)
+      setRequests((prev) => prev.filter((r) => r.rideId !== rideId));
+      driverAlertService.stop().catch(() => {});
     }
   };
 

@@ -124,7 +124,19 @@ export default function PaymentScreen() {
         searchData,
       });
     } catch (e: any) {
-      setError(e?.message || "Falha ao confirmar pedido. Tente novamente.");
+      // Se já existe corrida ativa, backend retorna 400 com rideId
+      const rideId = e?.response?.data?.rideId;
+      const message = e?.response?.data?.error || e?.message;
+
+      if (rideId) {
+        setError("Você já possui uma corrida ativa. Abrindo...");
+        try {
+          (navigation as any).navigate("RideTracking", { rideId });
+        } catch {}
+        return;
+      }
+
+      setError(message || "Falha ao confirmar pedido. Tente novamente.");
     } finally {
       setLoading(false);
     }

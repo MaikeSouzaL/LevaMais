@@ -33,6 +33,8 @@ import type { OffersMotoSheetRef } from "./components/OffersMotoSheet";
 import type { OffersCarSheetRef } from "./components/OffersCarSheet";
 // Removido: ServicePurposeSheet foi convertido para Screen
 import { SearchingDriverModal } from "./components/SearchingDriverModal";
+import SearchTimeoutCard from "./components/SearchTimeoutCard";
+import useSearchCountdown from "./useSearchCountdown";
 import { OffersVanSheet } from "./components/OffersVanSheet";
 import type { OffersVanSheetRef } from "./components/OffersVanSheet";
 import { OffersTruckSheet } from "./components/OffersTruckSheet";
@@ -107,7 +109,11 @@ export default function HomeScreen() {
     price: string;
     eta: string;
     rideId?: string;
-  }>({ visible: false, title: "", price: "", eta: "" });
+    secondsLeft?: number;
+  }>({ visible: false, title: "", price: "", eta: "", secondsLeft: undefined });
+
+  const [searchTimeoutCardVisible, setSearchTimeoutCardVisible] =
+    useState(false);
 
   const [currentRideId, setCurrentRideId] = useState<string | null>(null);
 
@@ -156,11 +162,60 @@ export default function HomeScreen() {
   const navigation = useNavigation<DrawerNavigationProp<any>>();
   const route = useRoute<any>();
   const walletBalance = useAuthStore((s) => s.walletBalance || 0);
+  const userType = useAuthStore((s) => s.userType);
 
   const formatBRL = (value: number) => {
     // manter compatibilidade, mas preferir util
     return formatBRLUtil(value);
   };
+
+  useSearchCountdown({
+    visible: searchingModal.visible,
+    seconds: searchingModal.secondsLeft || 0,
+    onTick: function onTick(nextSeconds) {
+      setSearchingModal(function update(prev) {
+        if (!prev.visible) return prev;
+        return { ...prev, secondsLeft: nextSeconds };
+      });
+    },
+    onTimeout: function onTimeout() {
+      setSearchingModal(function update(prev) {
+        return { ...prev, visible: false };
+      });
+      setSearchTimeoutCardVisible(true);
+    },
+  });
+
+  // Se o cliente já tiver corrida ativa, ir direto para a tela de acompanhamento
+  useFocusEffect(
+    useCallback(() => {
+      if (userType !== "client") return;
+
+      let cancelled = false;
+
+      (async () => {
+        try {
+          const res = await rideService.getActive();
+          if (cancelled) return;
+
+          if (res?.active && res.ride?._id) {
+            // Evita interromper o modal de busca (caso esteja no fluxo)
+            if (searchingModal.visible) return;
+
+            (navigation as any).navigate("RideTracking", {
+              rideId: res.ride._id,
+            });
+          }
+        } catch (e) {
+          // silencioso: falha de rede não deve travar a Home
+        }
+      })();
+
+      return () => {
+        cancelled = true;
+      };
+    }, [userType, searchingModal.visible]),
+  );
 
   useEffect(() => {
     // 1. Reabertura de ofertas (vindo de "Voltar" do resumo)
@@ -190,12 +245,15 @@ export default function HomeScreen() {
       setTimeout(() => {
         if (paramRideId) setCurrentRideId(paramRideId);
 
+        setSearchTimeoutCardVisible(false);
+
         setSearchingModal({
           visible: true,
           title: title || "Buscando...",
           price: price || "",
           eta: eta || "",
           rideId: paramRideId,
+          secondsLeft: 30,
         });
 
         // Limpar params
@@ -1014,6 +1072,7 @@ export default function HomeScreen() {
           serviceTitle={searchingModal.title}
           price={searchingModal.price}
           etaText={searchingModal.eta}
+          secondsLeft={searchingModal.secondsLeft}
           onCancel={async () => {
             try {
               const rideId = searchingModal.rideId || currentRideId;
@@ -1369,6 +1428,21 @@ export default function HomeScreen() {
             </View>
           </View>
         )}
+
+        {/* Card de timeout (sem motorista) */}
+        <SearchTimeoutCard
+          visible={searchTimeoutCardVisible}
+          onClose={() => setSearchTimeoutCardVisible(false)}
+          onRetry={() => {
+            setSearchTimeoutCardVisible(false);
+            // reabrir modal de busca com o mesmo rideId (se existir)
+            setSearchingModal((prev) => ({
+              ...prev,
+              visible: true,
+              secondsLeft: 30,
+            }));
+          }}
+        />
 
         {/* Resumo final agora é uma Screen dedicada; sheet não é mais renderizado aqui */}
       </View>

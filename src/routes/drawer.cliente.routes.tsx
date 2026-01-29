@@ -17,10 +17,22 @@ import OrderDetailsScreen from "../screens/(authenticated)/Client/HomeScreen/Ord
 import PaymentScreen from "../screens/(authenticated)/Client/HomeScreen/PaymentScreen";
 import SelectVehicleScreen from "../screens/(authenticated)/Client/HomeScreen/SelectVehicleScreen";
 import RideTrackingScreen from "../screens/(authenticated)/Client/RideTrackingScreen";
+import RideCompletedScreen from "../screens/(authenticated)/Client/RideCompletedScreen";
+import ClientRateDriverScreen from "../screens/(authenticated)/Client/ClientRateDriverScreen";
+import ClientCancelRideScreen from "../screens/(authenticated)/Client/ClientCancelRideScreen";
 import { useAuthStore } from "../context/authStore";
 import ServicePurposeScreen from "../screens/(authenticated)/Client/HomeScreen/ServicePurposeScreen";
+import ClientHistoryScreen from "../screens/(authenticated)/Client/ClientHistoryScreen";
+import ClientWalletScreen from "../screens/(authenticated)/Client/ClientWalletScreen";
+import ClientProfileScreen from "../screens/(authenticated)/Client/ClientProfileScreen";
+import ClientHelpScreen from "../screens/(authenticated)/Client/ClientHelpScreen";
+import ClientSettingsScreen from "../screens/(authenticated)/Client/ClientSettingsScreen";
 
 const Drawer = createDrawerNavigator();
+
+type DrawerClienteRoutesProps = {
+  initialRideId?: string | null;
+};
 const { Navigator, Screen } = Drawer;
 
 function CustomDrawerContent(props: DrawerContentComponentProps) {
@@ -80,12 +92,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
             <TouchableOpacity
               key={item.name}
               onPress={() => {
-                if (item.name === "Home") {
-                  props.navigation.navigate(item.name);
-                } else {
-                  // TODO: Implementar navegação para outras telas
-                  console.log(`Navigate to ${item.name}`);
-                }
+                props.navigation.navigate(item.name);
               }}
               className={`flex-row items-center px-6 py-4 ${
                 isFocused ? "bg-primary/10 border-l-4 border-primary" : ""
@@ -129,9 +136,12 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
   );
 }
 
-export default function DrawerClienteRoutes() {
+export default function DrawerClienteRoutes(props: DrawerClienteRoutesProps) {
+  const initialRoute = props?.initialRideId ? "RideTracking" : "Home";
+
   return (
     <Navigator
+      initialRouteName={initialRoute}
       drawerContent={(props) => <CustomDrawerContent {...props} />}
       screenOptions={{
         headerShown: false, // Esconder header padrão, usar custom
@@ -151,6 +161,46 @@ export default function DrawerClienteRoutes() {
         options={{
           title: "Leva+",
           drawerLabel: "Início",
+        }}
+      />
+      <Screen
+        name="History"
+        component={ClientHistoryScreen}
+        options={{
+          title: "Histórico",
+          drawerLabel: "Histórico",
+        }}
+      />
+      <Screen
+        name="Wallet"
+        component={ClientWalletScreen}
+        options={{
+          title: "Carteira",
+          drawerLabel: "Carteira",
+        }}
+      />
+      <Screen
+        name="Profile"
+        component={ClientProfileScreen}
+        options={{
+          title: "Perfil",
+          drawerLabel: "Perfil",
+        }}
+      />
+      <Screen
+        name="Help"
+        component={ClientHelpScreen}
+        options={{
+          title: "Ajuda",
+          drawerLabel: "Ajuda",
+        }}
+      />
+      <Screen
+        name="Settings"
+        component={ClientSettingsScreen}
+        options={{
+          title: "Configurações",
+          drawerLabel: "Configurações",
         }}
       />
       <Screen
@@ -246,9 +296,39 @@ export default function DrawerClienteRoutes() {
       <Screen
         name="RideTracking"
         component={RideTrackingScreen}
+        initialParams={
+          props?.initialRideId ? { rideId: props.initialRideId } : undefined
+        }
         options={{
           drawerLabel: () => null,
           title: "Acompanhar corrida",
+          drawerItemStyle: { display: "none" },
+        }}
+      />
+      <Screen
+        name="RideCompleted"
+        component={RideCompletedScreen}
+        options={{
+          drawerLabel: () => null,
+          title: "Corrida finalizada",
+          drawerItemStyle: { display: "none" },
+        }}
+      />
+      <Screen
+        name="ClientRateDriver"
+        component={ClientRateDriverScreen}
+        options={{
+          drawerLabel: () => null,
+          title: "Avaliar motorista",
+          drawerItemStyle: { display: "none" },
+        }}
+      />
+      <Screen
+        name="ClientCancelRide"
+        component={ClientCancelRideScreen}
+        options={{
+          drawerLabel: () => null,
+          title: "Cancelar corrida",
           drawerItemStyle: { display: "none" },
         }}
       />

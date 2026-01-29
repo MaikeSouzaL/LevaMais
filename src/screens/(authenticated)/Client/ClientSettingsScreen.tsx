@@ -1,15 +1,17 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { View, Text, Switch } from "react-native";
+import { View, Text, TouchableOpacity, Switch } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
 import Toast from "react-native-toast-message";
 
-import DriverHeader from "./components/DriverHeader";
 import SectionCard from "../../../components/ui/SectionCard";
 import ActionButton from "../../../components/ui/ActionButton";
 import userService from "../../../services/user.service";
 
-export default function DriverSettingsScreen() {
+export default function ClientSettingsScreen() {
+  const navigation = useNavigation();
   const [loading, setLoading] = useState(false);
+
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
   useEffect(() => {
@@ -36,7 +38,11 @@ export default function DriverSettingsScreen() {
       await userService.updateProfile({ notificationsEnabled });
       Toast.show({ type: "success", text1: "Configurações salvas" });
     } catch (e: any) {
-      Toast.show({ type: "error", text1: "Falha ao salvar", text2: e?.message });
+      Toast.show({
+        type: "error",
+        text1: "Não foi possível salvar",
+        text2: e?.message || "Tente novamente",
+      });
     } finally {
       setLoading(false);
     }
@@ -44,7 +50,23 @@ export default function DriverSettingsScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#0f231c" }}>
-      <DriverHeader title="Configurações" />
+      <View
+        style={{
+          padding: 16,
+          borderBottomWidth: 1,
+          borderBottomColor: "rgba(255,255,255,0.08)",
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <Text style={{ color: "#fff", fontWeight: "900", fontSize: 18 }}>
+          Configurações
+        </Text>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Text style={{ color: "#9abcb0", fontWeight: "800" }}>Voltar</Text>
+        </TouchableOpacity>
+      </View>
 
       <View style={{ padding: 16, gap: 12 }}>
         <SectionCard>
@@ -56,9 +78,11 @@ export default function DriverSettingsScreen() {
             }}
           >
             <View style={{ flex: 1, paddingRight: 12 }}>
-              <Text style={{ color: "#fff", fontWeight: "900" }}>Notificações</Text>
+              <Text style={{ color: "#fff", fontWeight: "900" }}>
+                Notificações
+              </Text>
               <Text style={{ color: "rgba(255,255,255,0.65)", marginTop: 4 }}>
-                Receber solicitações e avisos.
+                Receber atualizações da corrida e promoções.
               </Text>
             </View>
             <Switch

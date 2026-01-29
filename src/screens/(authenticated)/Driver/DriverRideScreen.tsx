@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { Marker } from "react-native-maps";
 import * as Location from "expo-location";
+import * as ImagePicker from "expo-image-picker";
 import Toast from "react-native-toast-message";
 
 import DriverHeader from "./components/DriverHeader";
@@ -62,6 +63,32 @@ export default function DriverRideScreen() {
   const canComplete = status === "in_progress";
   const canCancel =
     status === "accepted" || status === "arrived" || status === "in_progress";
+
+  const isDelivery = ride?.serviceType === "delivery";
+
+  async function takePhotoBase64() {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== "granted") {
+      throw new Error("Permissão de câmera negada");
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      quality: 0.6,
+      base64: true,
+    });
+
+    if (result.canceled) {
+      throw new Error("Foto cancelada");
+    }
+
+    const asset = result.assets?.[0];
+    if (!asset?.base64) {
+      throw new Error("Não foi possível ler a foto");
+    }
+
+    // data URL (MVP)
+    return `data:image/jpeg;base64,${asset.base64}`;
+  }
 
   useEffect(() => {
     let mounted = true;
@@ -126,6 +153,18 @@ export default function DriverRideScreen() {
 
     setActionLoading(nextStatus);
     try {
+      // iFood style: para entregas, exigir foto na coleta (antes de iniciar)
+      if (isDelivery && nextStatus === "in_progress") {
+        const photo = await takePhotoBase64();
+        await rideService.uploadPickupProof(rideId, photo);
+      }
+
+      // iFood style: para entregas, exigir foto na entrega (antes de finalizar)
+      if (isDelivery && nextStatus === "completed") {
+        const photo = await takePhotoBase64();
+        await rideService.uploadDeliveryProof(rideId, photo);
+      }
+
       const r = await rideService.updateStatus(rideId, nextStatus);
       setRide(r as any);
       setStatus(r?.status || nextStatus);
@@ -140,18 +179,24 @@ export default function DriverRideScreen() {
       }
       if (nextStatus === "completed") {
         Toast.show({ type: "success", text1: "Entrega finalizada" });
-        // volta para a home do motorista
+        // estilo Uber/99: pedir avaliação
         try {
-          (navigation as any).navigate("DriverHome");
+          (navigation as any).navigate("DriverRateClient", { rideId });
         } catch {
-          navigation.goBack();
+          try {
+            (navigation as any).navigate("DriverHome");
+          } catch {
+            navigation.goBack();
+          }
         }
       }
     } catch (e: any) {
+      // se o motorista cancelou a foto, não tratar como erro grave
+      const msg = e?.message || "Tente novamente";
       Toast.show({
         type: "error",
-        text1: "Não foi possível atualizar o status",
-        text2: e?.message || "Tente novamente",
+        text1: "Não foi possível continuar",
+        text2: msg,
       });
       console.log("Falha ao atualizar status", e);
     } finally {
@@ -163,16 +208,19 @@ export default function DriverRideScreen() {
     if (!rideId) return;
     if (!canCancel) return;
 
+    // usar tela dedicada (estilo Uber/99)
+    try {
+      (navigation as any).navigate("DriverCancelRide", { rideId });
+      return;
+    } catch {}
+
+    // fallback antigo
     setActionLoading("cancel");
     try {
-      // backend já aceita qualquer reason string (salva em cancellationFee.reason)
       await rideService.cancel(rideId, reasonId);
-
       Toast.show({ type: "success", text1: "Entrega cancelada" });
-
       setCancelModalOpen(false);
       setSelectedCancelReason(null);
-
       try {
         (navigation as any).navigate("DriverHome");
       } catch {
@@ -184,7 +232,6 @@ export default function DriverRideScreen() {
         text1: "Não foi possível cancelar",
         text2: e?.message || "Tente novamente",
       });
-      console.log("Falha ao cancelar", e);
     } finally {
       setActionLoading(null);
     }
@@ -205,7 +252,11 @@ export default function DriverRideScreen() {
           <TouchableOpacity
             onPress={() => {
               if (!canCancel) return;
-              setCancelModalOpen(true);
+              try {
+                (navigation as any).navigate("DriverCancelRide", { rideId });
+              } catch {
+                setCancelModalOpen(true);
+              }
             }}
           >
             <Text style={{ color: "#ef4444", fontWeight: "900" }}>

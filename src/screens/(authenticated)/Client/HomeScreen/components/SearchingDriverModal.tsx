@@ -10,6 +10,7 @@ interface SearchingDriverModalProps {
   etaText: string; // e.g., "Chegada em ~5 min"
   distanceText?: string; // e.g., "4.2 km • Sem paradas"
   paymentText?: string; // e.g., "Mastercard •••• 4242"
+  secondsLeft?: number; // countdown (UX)
   onCancel?: () => void;
   onBack?: () => void;
   onHelp?: () => void;
@@ -22,6 +23,7 @@ export function SearchingDriverModal({
   etaText,
   distanceText = "4.2 km • Sem paradas",
   paymentText = "Mastercard •••• 4242",
+  secondsLeft,
   onCancel,
   onBack,
   onHelp,
@@ -303,7 +305,9 @@ export function SearchingDriverModal({
             maxWidth: 260,
           }}
         >
-          Isso pode levar alguns segundos, estamos conectando você.
+          {typeof secondsLeft === "number"
+            ? `Tentando encontrar um motorista... (${secondsLeft}s)`
+            : "Isso pode levar alguns segundos, estamos conectando você."}
         </Text>
       </View>
 

@@ -2,6 +2,9 @@ const Ride = require("../models/Ride");
 const DriverLocation = require("../models/DriverLocation");
 const User = require("../models/User");
 
+// mixins (rating + proofs)
+const ratingProofMixin = require("./ride.ratingProof.mixin");
+
 class RideController {
   // Buscar corrida ativa do usuário autenticado
   async getActive(req, res) {
@@ -101,6 +104,28 @@ class RideController {
         resolvedPurposeId = undefined;
       }
 
+      // Impedir múltiplas corridas ativas para o mesmo cliente (estilo Uber/99)
+      const activeRide = await Ride.findOne({
+        clientId,
+        status: {
+          $nin: [
+            "completed",
+            "cancelled",
+            "cancelled_by_client",
+            "cancelled_by_driver",
+            "cancelled_no_driver",
+          ],
+        },
+      }).select("_id status");
+
+      if (activeRide?._id) {
+        return res.status(400).json({
+          error: "Você já possui uma corrida em andamento",
+          rideId: activeRide._id,
+          status: activeRide.status,
+        });
+      }
+
       // Criar a corrida
       const ride = new Ride({
         clientId,
@@ -142,22 +167,96 @@ class RideController {
           `🔍 Encontrados ${nearbyDrivers.length} motoristas próximos`,
         );
 
-        // Notificar motoristas disponíveis
-        nearbyDrivers.forEach((driverLocation) => {
-          io.to(`driver-${driverLocation.driverId}`).emit("new-ride-request", {
-            rideId: ride._id,
-            pickup: ride.pickup,
-            dropoff: ride.dropoff,
-            pricing: ride.pricing,
-            distance: ride.distance,
-            vehicleType: ride.vehicleType,
+        // Matching simples (MVP): oferece para o motorista mais próximo primeiro.
+        // Evita “spam” em vários motoristas e reduz corrida dupla.
+        const triedDrivers = [];
+
+        async function offerNextDriver() {
+          // Recarrega corrida para garantir estado atual
+          const fresh = await Ride.findById(ride._id);
+          if (!fresh) return;
+
+          // Se já mudou de status, não oferece mais
+          if (!["requesting", "driver_assigned"].includes(fresh.status)) return;
+          if (fresh.status === "accepted") return;
+
+          // Seleciona próximo motorista (lista já vem ordenada por proximidade)
+          const next = nearbyDrivers.find((d) => {
+            const id = String(d.driverId);
+            return !triedDrivers.includes(id);
           });
-        });
+
+          if (!next) return;
+
+          // Se havia um motorista reservado antes, avisa que expirou
+          const previousDriverId = fresh.driverId ? String(fresh.driverId) : null;
+
+          triedDrivers.push(String(next.driverId));
+
+          // Reserva a corrida para esse motorista (aguardando aceitação)
+          fresh.driverId = next.driverId;
+          fresh.status = "driver_assigned";
+          await fresh.save();
+
+          if (previousDriverId && previousDriverId !== String(next.driverId)) {
+            io.to(`driver-${previousDriverId}`).emit("ride-expired", {
+              rideId: fresh._id,
+            });
+          }
+
+          io.to(`driver-${next.driverId}`).emit("new-ride-request", {
+            rideId: fresh._id,
+            pickup: fresh.pickup,
+            dropoff: fresh.dropoff,
+            pricing: fresh.pricing,
+            distance: fresh.distance,
+            vehicleType: fresh.vehicleType,
+          });
+
+          // Se não aceitar em 7s, marca tentativa e passa para o próximo
+          setTimeout(async () => {
+            const check = await Ride.findById(fresh._id);
+            if (!check) return;
+            if (check.status === "accepted") return;
+
+            // Só expira se ainda estiver reservado para o mesmo motorista
+            if (
+              check.status === "driver_assigned" &&
+              check.driverId &&
+              String(check.driverId) === String(next.driverId)
+            ) {
+              // registra como "tentado" (para não oferecer de novo)
+              check.rejectedBy.push({
+                driverId: next.driverId,
+                rejectedAt: new Date(),
+                reason: "timeout",
+              });
+
+              check.status = "requesting";
+              check.driverId = null;
+              await check.save();
+
+              io.to(`driver-${next.driverId}`).emit("ride-expired", {
+                rideId: check._id,
+              });
+
+              await offerNextDriver();
+            }
+          }, 7000);
+        }
+
+        // Começa oferecendo para o primeiro motorista
+        if (nearbyDrivers.length > 0) {
+          offerNextDriver().catch(() => {});
+        }
 
         // Definir timeout de 30s para cancelar se nenhum motorista aceitar
         setTimeout(async () => {
           const updatedRide = await Ride.findById(ride._id);
-          if (updatedRide && updatedRide.status === "requesting") {
+          if (
+            updatedRide &&
+            ["requesting", "driver_assigned"].includes(updatedRide.status)
+          ) {
             updatedRide.status = "cancelled_no_driver";
             updatedRide.cancelledAt = new Date();
             await updatedRide.save();
@@ -190,43 +289,64 @@ class RideController {
       const { rideId } = req.params;
       const driverId = req.user.id;
 
-      const ride = await Ride.findById(rideId);
-
-      if (!ride) {
-        return res.status(404).json({ error: "Corrida não encontrada" });
+      // Impedir aceitar se o motorista já estiver em corrida
+      const driverLocation = await DriverLocation.findOne({ driverId });
+      if (driverLocation?.currentRideId) {
+        return res.status(400).json({
+          error: "Você já possui uma corrida ativa",
+          currentRideId: driverLocation.currentRideId,
+        });
       }
 
-      if (ride.status !== "requesting") {
+      // 1) Tenta “travar” o motorista (evita ele aceitar duas corridas em paralelo)
+      const lockedDriver = await DriverLocation.findOneAndUpdate(
+        {
+          driverId,
+          $or: [{ currentRideId: null }, { currentRideId: { $exists: false } }],
+        },
+        { status: "on_ride", currentRideId: rideId },
+        { new: true },
+      );
+
+      if (!lockedDriver) {
+        return res.status(400).json({
+          error: "Você já possui uma corrida ativa",
+        });
+      }
+
+      // 2) Aceite atômico da corrida (evita dois motoristas aceitarem ao mesmo tempo)
+      const now = new Date();
+      const ride = await Ride.findOneAndUpdate(
+        {
+          _id: rideId,
+          status: { $in: ["requesting", "driver_assigned"] },
+          "rejectedBy.driverId": { $ne: driverId },
+          $or: [
+            // ainda não reservada
+            { status: "requesting", driverId: null },
+            // reservada para este motorista
+            { status: "driver_assigned", driverId: driverId },
+          ],
+        },
+        {
+          driverId,
+          status: "accepted",
+          acceptedAt: now,
+        },
+        { new: true },
+      );
+
+      if (!ride) {
+        // Libera o motorista caso a corrida não esteja mais disponível
+        await DriverLocation.findOneAndUpdate(
+          { driverId, currentRideId: rideId },
+          { status: "available", currentRideId: null },
+        );
+
         return res.status(400).json({
           error: "Corrida não está mais disponível",
         });
       }
-
-      // Verificar se motorista já rejeitou
-      const alreadyRejected = ride.rejectedBy.some(
-        (r) => r.driverId.toString() === driverId,
-      );
-
-      if (alreadyRejected) {
-        return res.status(400).json({
-          error: "Você já rejeitou esta corrida",
-        });
-      }
-
-      // Atribuir motorista
-      ride.driverId = driverId;
-      ride.status = "accepted";
-      ride.acceptedAt = new Date();
-      await ride.save();
-
-      // Atualizar localização do motorista
-      await DriverLocation.findOneAndUpdate(
-        { driverId },
-        {
-          status: "on_ride",
-          currentRideId: ride._id,
-        },
-      );
 
       // Popular dados
       await ride.populate("driverId", "name phone profilePhoto");
@@ -288,7 +408,54 @@ class RideController {
         reason,
       });
 
+      // Se a corrida estava reservada para este motorista, libera e tenta o próximo
+      const isAssignedToMe =
+        ride.status === "driver_assigned" &&
+        ride.driverId &&
+        ride.driverId.toString() === driverId.toString();
+
+      if (isAssignedToMe) {
+        ride.status = "requesting";
+        ride.driverId = null;
+      }
+
       await ride.save();
+
+      // Tenta oferecer para o próximo motorista (MVP)
+      const io = req.app.get("io");
+      if (io && ["requesting", "driver_assigned"].includes(ride.status)) {
+        const nearbyDrivers = await DriverLocation.findNearby(
+          ride.pickup.latitude,
+          ride.pickup.longitude,
+          5000,
+          ride.vehicleType,
+          10,
+          ride.serviceType,
+        );
+
+        const next = nearbyDrivers.find((d) => {
+          const id = String(d.driverId);
+          const rejected = ride.rejectedBy?.some(
+            (r) => String(r.driverId) === id,
+          );
+          return !rejected;
+        });
+
+        if (next) {
+          ride.driverId = next.driverId;
+          ride.status = "driver_assigned";
+          await ride.save();
+
+          io.to(`driver-${next.driverId}`).emit("new-ride-request", {
+            rideId: ride._id,
+            pickup: ride.pickup,
+            dropoff: ride.dropoff,
+            pricing: ride.pricing,
+            distance: ride.distance,
+            vehicleType: ride.vehicleType,
+          });
+        }
+      }
 
       res.json({
         message: "Corrida rejeitada",
@@ -730,5 +897,8 @@ function isTimeInRange(current, start, end) {
     return false;
   }
 }
+
+// attach extra handlers
+ratingProofMixin.attach(RideController, { Ride, DriverLocation });
 
 module.exports = new RideController();

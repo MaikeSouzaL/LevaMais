@@ -343,6 +343,65 @@ class AuthController {
     }
   }
 
+  // Atualizar perfil do usuário autenticado (MVP)
+  async updateProfile(req, res) {
+    try {
+      const userId = req.user.id;
+      const user = await User.findById(userId);
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: "Usuário não encontrado",
+        });
+      }
+
+      const {
+        name,
+        phone,
+        city,
+        profilePhoto,
+        preferredPayment,
+        notificationsEnabled,
+        // driver
+        vehicleType,
+        vehicleInfo,
+      } = req.body || {};
+
+      if (name !== undefined) user.name = String(name);
+      if (phone !== undefined) user.phone = String(phone);
+      if (city !== undefined) user.city = String(city);
+      if (profilePhoto !== undefined) user.profilePhoto = String(profilePhoto);
+
+      if (preferredPayment !== undefined) {
+        user.preferredPayment = preferredPayment;
+      }
+      if (notificationsEnabled !== undefined) {
+        user.notificationsEnabled = !!notificationsEnabled;
+      }
+
+      if (user.userType === "driver") {
+        if (vehicleType !== undefined) user.vehicleType = vehicleType;
+        if (vehicleInfo !== undefined) user.vehicleInfo = vehicleInfo;
+      }
+
+      await user.save();
+
+      return res.json({
+        success: true,
+        message: "Perfil atualizado",
+        data: { user },
+      });
+    } catch (error) {
+      console.error("Erro ao atualizar perfil:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Erro ao atualizar perfil",
+        error: error.message,
+      });
+    }
+  }
+
   // Solicitar reset de senha (envia código por email)
   async forgotPassword(req, res) {
     try {

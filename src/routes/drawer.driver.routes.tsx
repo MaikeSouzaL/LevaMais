@@ -10,6 +10,8 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import DriverHomeScreen from "../screens/(authenticated)/Driver/DriverHomeScreen";
 import DriverRequestsScreen from "../screens/(authenticated)/Driver/DriverRequestsScreen";
 import DriverRideScreen from "../screens/(authenticated)/Driver/DriverRideScreen";
+import DriverRateClientScreen from "../screens/(authenticated)/Driver/DriverRateClientScreen";
+import DriverCancelRideScreen from "../screens/(authenticated)/Driver/DriverCancelRideScreen";
 import DriverEarningsScreen from "../screens/(authenticated)/Driver/DriverEarningsScreen";
 import DriverHistoryScreen from "../screens/(authenticated)/Driver/DriverHistoryScreen";
 import DriverWalletScreen from "../screens/(authenticated)/Driver/DriverWalletScreen";
@@ -189,6 +191,24 @@ export default function DrawerDriverRoutes() {
         options={{
           drawerLabel: () => null,
           title: "Corrida",
+          drawerItemStyle: { display: "none" },
+        }}
+      />
+      <Drawer.Screen
+        name="DriverRateClient"
+        component={DriverRateClientScreen}
+        options={{
+          drawerLabel: () => null,
+          title: "Avaliar cliente",
+          drawerItemStyle: { display: "none" },
+        }}
+      />
+      <Drawer.Screen
+        name="DriverCancelRide"
+        component={DriverCancelRideScreen}
+        options={{
+          drawerLabel: () => null,
+          title: "Cancelar corrida",
           drawerItemStyle: { display: "none" },
         }}
       />

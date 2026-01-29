@@ -24,6 +24,14 @@ router.post("/:rideId/cancel", rideController.cancel);
 // Atualizar status da corrida
 router.patch("/:rideId/status", rideController.updateStatus);
 
+// Avaliações
+router.post("/:rideId/rate-client", rideController.rateClientToDriver);
+router.post("/:rideId/rate-driver", rideController.rateDriverToClient);
+
+// Provas de entrega (fotos)
+router.post("/:rideId/proof/pickup", rideController.uploadPickupProof);
+router.post("/:rideId/proof/delivery", rideController.uploadDeliveryProof);
+
 // Buscar corrida ativa do usuário (principalmente motorista)
 router.get("/active", rideController.getActive);
 

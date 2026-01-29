@@ -176,6 +176,14 @@ const rideSchema = new mongoose.Schema(
         createdAt: Date,
       },
     },
+    // Provas (entregas estilo iFood)
+    proofs: {
+      pickupPhoto: String, // data URL/base64 (MVP)
+      pickupAt: Date,
+      deliveryPhoto: String, // data URL/base64 (MVP)
+      deliveryAt: Date,
+    },
+
     // Pagamento
     payment: {
       method: {

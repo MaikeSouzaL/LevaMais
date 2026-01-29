@@ -27,6 +27,11 @@ router.get(
   authenticateToken,
   authController.getProfile.bind(authController),
 );
+router.patch(
+  "/profile",
+  authenticateToken,
+  authController.updateProfile.bind(authController),
+);
 router.post(
   "/push-token",
   authenticateToken,

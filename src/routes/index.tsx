@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import AuthRoutes from "./auth.routes";
-import DrawerClienteRoutes from "./drawer.cliente.routes";
+import ClientBoot from "./ClientBoot";
 import DrawerDriverRoutes from "./drawer.driver.routes";
 import { useAuthStore } from "../context/authStore";
 
@@ -13,7 +13,7 @@ export default function Routes() {
 
   // Rotas autenticadas
   if (userType === "client") {
-    return <DrawerClienteRoutes />;
+    return <ClientBoot />;
   }
 
   if (userType === "driver") {
