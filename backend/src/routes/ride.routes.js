@@ -24,6 +24,9 @@ router.post("/:rideId/cancel", rideController.cancel);
 // Atualizar status da corrida
 router.patch("/:rideId/status", rideController.updateStatus);
 
+// Buscar corrida ativa do usuário (principalmente motorista)
+router.get("/active", rideController.getActive);
+
 // Buscar corrida por ID
 router.get("/:rideId", rideController.getById);
 

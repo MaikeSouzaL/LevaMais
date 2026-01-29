@@ -15,6 +15,9 @@ router.patch("/status", driverLocationController.updateStatus);
 // Buscar todas as localizações (admin/dashboard)
 router.get("/all", driverLocationController.getAllLocations);
 
+// Buscar localização do motorista autenticado
+router.get("/me", driverLocationController.getMe);
+
 // Buscar localização de um motorista
 router.get("/:driverId", driverLocationController.getLocation);
 

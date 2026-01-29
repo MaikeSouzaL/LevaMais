@@ -3,6 +3,63 @@ const DriverLocation = require("../models/DriverLocation");
 const User = require("../models/User");
 
 class RideController {
+  // Buscar corrida ativa do usuário autenticado
+  async getActive(req, res) {
+    try {
+      const userId = req.user.id;
+      const userType = req.user.userType;
+
+      // Motorista: usa DriverLocation.currentRideId como fonte de verdade
+      if (userType === "driver") {
+        const DriverLocation = require("../models/DriverLocation");
+        const dl = await DriverLocation.findOne({ driverId: userId });
+
+        if (!dl?.currentRideId) {
+          return res.json({ active: false, ride: null });
+        }
+
+        const ride = await Ride.findById(dl.currentRideId)
+          .populate("clientId", "name phone profilePhoto")
+          .populate("driverId", "name phone profilePhoto")
+          .populate("purposeId");
+
+        if (!ride) {
+          return res.json({ active: false, ride: null });
+        }
+
+        // Se já finalizou/cancelou, considera sem corrida ativa
+        if (["completed", "cancelled", "cancelled_by_client", "cancelled_by_driver", "cancelled_no_driver"].includes(ride.status)) {
+          return res.json({ active: false, ride: null });
+        }
+
+        return res.json({ active: true, ride });
+      }
+
+      // Cliente (opcional): pega a última corrida não finalizada
+      if (userType === "client") {
+        const ride = await Ride.findOne({
+          clientId: userId,
+          status: { $nin: ["completed", "cancelled", "cancelled_by_client", "cancelled_by_driver", "cancelled_no_driver"] },
+        })
+          .sort({ createdAt: -1 })
+          .populate("clientId", "name phone profilePhoto")
+          .populate("driverId", "name phone profilePhoto")
+          .populate("purposeId");
+
+        if (!ride) return res.json({ active: false, ride: null });
+        return res.json({ active: true, ride });
+      }
+
+      return res.json({ active: false, ride: null });
+    } catch (error) {
+      console.error("Erro ao buscar corrida ativa:", error);
+      return res.status(500).json({
+        error: "Erro ao buscar corrida ativa",
+        details: error.message,
+      });
+    }
+  }
+
   // Criar uma nova solicitação de corrida
   async create(req, res) {
     try {
@@ -250,6 +307,7 @@ class RideController {
     try {
       const { rideId } = req.params;
       const userId = req.user.id;
+      const userIdStr = String(userId);
       const { reason } = req.body;
 
       const ride = await Ride.findById(rideId);
@@ -265,8 +323,8 @@ class RideController {
       }
 
       // Verificar quem está cancelando
-      const isClient = ride.clientId.toString() === userId;
-      const isDriver = ride.driverId?.toString() === userId;
+      const isClient = ride.clientId?.toString() === userIdStr;
+      const isDriver = ride.driverId?.toString() === userIdStr;
 
       if (!isClient && !isDriver) {
         return res.status(403).json({
@@ -332,6 +390,7 @@ class RideController {
       const { rideId } = req.params;
       const { status } = req.body;
       const driverId = req.user.id;
+      const driverIdStr = String(driverId);
 
       const ride = await Ride.findById(rideId);
 
@@ -339,7 +398,7 @@ class RideController {
         return res.status(404).json({ error: "Corrida não encontrada" });
       }
 
-      if (ride.driverId.toString() !== driverId) {
+      if (ride.driverId?.toString() !== driverIdStr) {
         return res.status(403).json({
           error: "Apenas o motorista pode atualizar o status",
         });
@@ -393,6 +452,7 @@ class RideController {
     try {
       const { rideId } = req.params;
       const userId = req.user.id;
+      const userIdStr = String(userId);
 
       const ride = await Ride.findById(rideId)
         .populate("clientId", "name phone profilePhoto")
@@ -404,8 +464,8 @@ class RideController {
       }
 
       // Verificar permissão
-      const isClient = ride.clientId._id.toString() === userId;
-      const isDriver = ride.driverId?._id.toString() === userId;
+      const isClient = ride.clientId?._id?.toString() === userIdStr;
+      const isDriver = ride.driverId?._id?.toString() === userIdStr;
 
       if (!isClient && !isDriver) {
         return res.status(403).json({

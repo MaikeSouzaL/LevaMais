@@ -77,6 +77,32 @@ class DriverLocationController {
     }
   }
 
+  // Buscar localização do motorista autenticado (para restaurar estado online/offline)
+  async getMe(req, res) {
+    try {
+      const driverId = req.user.id;
+
+      const location = await DriverLocation.findOne({ driverId }).populate(
+        "driverId",
+        "name phone profilePhoto",
+      );
+
+      if (!location) {
+        return res.status(404).json({
+          error: "Localização do motorista não encontrada",
+        });
+      }
+
+      res.json(location);
+    } catch (error) {
+      console.error("Erro ao buscar localização do motorista:", error);
+      res.status(500).json({
+        error: "Erro ao buscar localização do motorista",
+        details: error.message,
+      });
+    }
+  }
+
   // Buscar localização de um motorista específico
   async getLocation(req, res) {
     try {

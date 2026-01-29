@@ -23,6 +23,11 @@ export type UpdateDriverLocationRequest = {
 };
 
 class DriverLocationService {
+  async getMe() {
+    const res = await api.get("/driver-location/me");
+    return res.data;
+  }
+
   async update(data: UpdateDriverLocationRequest) {
     const res = await api.post("/driver-location/update", data);
     return res.data;

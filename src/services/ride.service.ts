@@ -75,6 +75,11 @@ export interface CalculatePriceResponse {
   duration: DistanceDuration;
 }
 
+export interface ActiveRideResponse {
+  active: boolean;
+  ride: Ride | null;
+}
+
 class RideService {
   /**
    * Calcular preço da corrida
@@ -102,6 +107,14 @@ class RideService {
   async create(data: CreateRideRequest): Promise<Ride> {
     const response = await api.post("/rides", data);
     return response.data.ride;
+  }
+
+  /**
+   * Buscar corrida ativa (para retomar ao abrir o app / ficar online)
+   */
+  async getActive(): Promise<ActiveRideResponse> {
+    const response = await api.get("/rides/active");
+    return response.data;
   }
 
   /**

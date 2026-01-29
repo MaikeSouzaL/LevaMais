@@ -152,9 +152,57 @@ export default function DriverHomeScreen() {
     setOnline(true);
   };
 
+  // Ao abrir o app/tela: restaurar estado online/offline salvo no banco e, se houver corrida ativa, retomar
   useEffect(() => {
+    let mounted = true;
+
+    (async () => {
+      try {
+        // 1) Restaurar estado do banco
+        try {
+          const me = await driverLocationService.getMe();
+          if (mounted && me) {
+            // serviços
+            const st: Array<string> = Array.isArray(me.serviceTypes)
+              ? me.serviceTypes
+              : [];
+            setServices({
+              ride: st.includes("ride"),
+              delivery: st.includes("delivery"),
+            });
+
+            setAcceptingRides(me.acceptingRides !== false);
+
+            const shouldBeOnline =
+              me.status === "available" && me.acceptingRides === true;
+
+            if (shouldBeOnline) {
+              // inicia envio de localização/WS (mantém consistência com banco)
+              await startSharing();
+            } else {
+              setOnline(false);
+            }
+          }
+        } catch {
+          // se não existir DriverLocation ainda, fica offline
+          if (mounted) setOnline(false);
+        }
+
+        // 2) Se existir corrida ativa, retoma automaticamente
+        const resp = await rideService.getActive();
+        if (!mounted) return;
+        if (resp?.active && resp.ride?._id) {
+          (navigation as any).navigate("DriverRide", { rideId: resp.ride._id });
+        }
+      } catch {
+        // silêncio: não bloquear a home
+      }
+    })();
+
     return () => {
-      stopSharing();
+      mounted = false;
+      // NÃO deslogar/nem marcar offline ao sair da tela.
+      // Offline é uma ação explícita do motorista.
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -220,6 +268,14 @@ export default function DriverHomeScreen() {
     }
 
     await startSharing();
+
+    // Depois de ficar online, se por acaso já existe corrida ativa, retomar
+    try {
+      const resp = await rideService.getActive();
+      if (resp?.active && resp.ride?._id) {
+        (navigation as any).navigate("DriverRide", { rideId: resp.ride._id });
+      }
+    } catch {}
   };
 
   const toggleService = async (key: "ride" | "delivery") => {
