@@ -44,7 +44,8 @@ class WebSocketService {
 
       this.socket = io(SOCKET_URL, {
         auth: { token },
-        transports: ["websocket"],
+        // Em redes móveis/Wi‑Fi instáveis, permitir fallback ajuda a evitar perder eventos
+        transports: ["websocket", "polling"],
         reconnection: true,
         reconnectionDelay: 1000,
         reconnectionDelayMax: 8000,
@@ -54,6 +55,38 @@ class WebSocketService {
       });
 
       this.setupListeners();
+
+      // IMPORTANTe: aguardar conexão efetiva.
+      // Sem isso, a UI pode registrar listeners e o backend emitir eventos
+      // antes do socket entrar na sala do usuário, causando "perda" do driver-found.
+      await new Promise<void>((resolve, reject) => {
+        if (!this.socket) return reject(new Error("Socket não inicializado"));
+        if (this.socket.connected) return resolve();
+
+        const onConnect = () => {
+          cleanup();
+          resolve();
+        };
+        const onError = (err: any) => {
+          cleanup();
+          reject(err instanceof Error ? err : new Error(err?.message || "Falha ao conectar"));
+        };
+        const timer = setTimeout(() => {
+          cleanup();
+          reject(new Error("Timeout ao conectar WebSocket"));
+        }, 20000);
+
+        const cleanup = () => {
+          clearTimeout(timer);
+          try {
+            this.socket?.off("connect", onConnect);
+            this.socket?.off("connect_error", onError);
+          } catch {}
+        };
+
+        this.socket.once("connect", onConnect);
+        this.socket.once("connect_error", onError);
+      });
     })();
 
     try {

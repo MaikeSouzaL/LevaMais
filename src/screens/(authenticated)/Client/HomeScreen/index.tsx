@@ -122,6 +122,12 @@ export default function HomeScreen() {
     undefined,
   );
 
+  // Card de cancelamento (estilo Uber/99)
+  const [cancelNotice, setCancelNotice] = useState<{
+    visible: boolean;
+    reason?: string;
+  }>({ visible: false });
+
   // Controle de Fluxo
   const [serviceMode, setServiceMode] = useState<"ride" | "delivery" | null>(
     null,
@@ -309,25 +315,51 @@ export default function HomeScreen() {
         (typeof payload?.eta === "string" ? payload.eta : undefined);
       setDriverEtaText(etaText);
 
-      // MVP: ir para tela de tracking assim que encontrar motorista
-      try {
-        (navigation as any).navigate("RideTracking", { rideId });
-      } catch {}
-
-      // Mantém o sheet como fallback/preview caso volte para Home
+      // UX estilo Uber/99: mostrar imediatamente o sheet de "Motorista encontrado"
+      // (com o tempo estimado) sem trocar de tela.
       setTimeout(() => {
         driverFoundRef.current?.snapToIndex(0);
-      }, 250);
+      }, 150);
     };
 
     const onRideCancelled = (payload: any) => {
       if (!mounted) return;
       if (payload?.rideId && payload.rideId !== rideId) return;
+
       setSearchingModal((prev) => ({ ...prev, visible: false }));
       setIsDriverFound(false);
       setDriverLatLng(null);
       setDriverInfo(null);
       setDriverEtaText(undefined);
+
+      // Fechar o card/sheet atual (ex.: "chega em X") e mostrar aviso de cancelamento
+      try {
+        driverFoundRef.current?.close?.();
+      } catch {}
+
+      const cancelledBy = payload?.cancelledBy;
+      const reason = payload?.reason;
+
+      // Card no estilo Uber/99 (não some sozinho)
+      if (cancelledBy === "driver") {
+        setCancelNotice({
+          visible: true,
+          reason: reason ? String(reason) : undefined,
+        });
+      }
+
+      // Toast como complemento (não substitui o card)
+      try {
+        const Toast = require("react-native-toast-message").default;
+        Toast.show({
+          type: "error",
+          text1:
+            cancelledBy === "driver"
+              ? "O motorista cancelou"
+              : "Corrida cancelada",
+          text2: reason ? String(reason) : "Tente novamente.",
+        });
+      } catch {}
     };
 
     const onDriverLocationUpdated = (payload: any) => {
@@ -362,6 +394,70 @@ export default function HomeScreen() {
       webSocketService.off("driver-location-updated", onDriverLocationUpdated);
     };
   }, [searchingModal.visible, searchingModal.rideId, currentRideId]);
+
+  // Listener global da corrida atual (realtime), mesmo quando não está mais "procurando"
+  // Ex.: motorista aceitou e depois cancelou -> cliente precisa ver na hora.
+  useEffect(() => {
+    let mounted = true;
+
+    const rideId = currentRideId || undefined;
+    if (!rideId) return;
+
+    const onRideCancelled = (payload: any) => {
+      if (!mounted) return;
+      if (payload?.rideId && payload.rideId !== rideId) return;
+
+      // limpar UI de corrida/driver
+      setSearchingModal((prev) => ({ ...prev, visible: false }));
+      setIsDriverFound(false);
+      setDriverLatLng(null);
+      setDriverInfo(null);
+      setDriverEtaText(undefined);
+
+      try {
+        driverFoundRef.current?.close?.();
+      } catch {}
+
+      const cancelledBy = payload?.cancelledBy;
+      const reason = payload?.reason;
+
+      // Card estilo Uber/99 (motivo)
+      if (cancelledBy === "driver") {
+        setCancelNotice({
+          visible: true,
+          reason: reason ? String(reason) : undefined,
+        });
+        setTimeout(() => {
+          setCancelNotice({ visible: false });
+        }, 6000);
+      }
+
+      // Toast complementar
+      try {
+        const Toast = require("react-native-toast-message").default;
+        Toast.show({
+          type: "error",
+          text1:
+            cancelledBy === "driver"
+              ? "O motorista cancelou"
+              : "Corrida cancelada",
+          text2: reason ? String(reason) : "Tente novamente.",
+        });
+      } catch {}
+    };
+
+    (async () => {
+      try {
+        await webSocketService.connect();
+        webSocketService.onRideCancelled(onRideCancelled);
+      } catch {}
+    })();
+
+    return () => {
+      mounted = false;
+      webSocketService.off("ride-cancelled", onRideCancelled);
+    };
+  }, [currentRideId]);
 
   const [region, setRegion] = useState<{
     latitude: number;
@@ -1166,6 +1262,113 @@ export default function HomeScreen() {
             (navigation as any).navigate("OrderDetails", { data });
           }}
         />
+
+        {/* Card de cancelamento (estilo Uber/99) */}
+        {cancelNotice.visible && (
+          <View
+            style={{
+              position: "absolute",
+              left: 16,
+              right: 16,
+              bottom: 18,
+              backgroundColor: "rgba(17,24,22,0.96)",
+              borderRadius: 22,
+              padding: 18,
+              borderWidth: 1,
+              borderColor: "rgba(239,68,68,0.32)",
+              shadowColor: "#000",
+              shadowOpacity: 0.5,
+              shadowRadius: 22,
+              shadowOffset: { width: 0, height: 12 },
+              elevation: 16,
+              minHeight: 210,
+            }}
+          >
+            {/* Header */}
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+              <View
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 14,
+                  backgroundColor: "rgba(239,68,68,0.18)",
+                  borderWidth: 1,
+                  borderColor: "rgba(239,68,68,0.28)",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <MaterialIcons name="error-outline" size={22} color="#ef4444" />
+              </View>
+
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: "#fff", fontWeight: "900", fontSize: 16 }}>
+                  Corrida cancelada
+                </Text>
+                <Text style={{ color: "rgba(255,255,255,0.65)", marginTop: 2 }}>
+                  O motorista cancelou esta solicitação
+                </Text>
+              </View>
+            </View>
+
+            {/* Body */}
+            <View
+              style={{
+                marginTop: 12,
+                padding: 12,
+                borderRadius: 14,
+                backgroundColor: "rgba(255,255,255,0.06)",
+                borderWidth: 1,
+                borderColor: "rgba(255,255,255,0.08)",
+              }}
+            >
+              <Text style={{ color: "rgba(255,255,255,0.78)", lineHeight: 19 }}>
+                {cancelNotice.reason || "Motivo não informado."}
+              </Text>
+            </View>
+
+            {/* Actions */}
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 14 }}>
+              <TouchableOpacity
+                onPress={() => setCancelNotice({ visible: false })}
+                style={{
+                  flex: 1,
+                  paddingVertical: 12,
+                  borderRadius: 999,
+                  backgroundColor: "rgba(255,255,255,0.08)",
+                  alignItems: "center",
+                  borderWidth: 1,
+                  borderColor: "rgba(255,255,255,0.10)",
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={{ color: "#fff", fontWeight: "900" }}>Fechar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => {
+                  setCancelNotice({ visible: false });
+                  // Opcional: você pode reabrir o bottom sheet principal aqui
+                  try {
+                    bottomSheetRef.current?.snapToIndex(1);
+                  } catch {}
+                }}
+                style={{
+                  flex: 1,
+                  paddingVertical: 12,
+                  borderRadius: 999,
+                  backgroundColor: "#ef4444",
+                  alignItems: "center",
+                }}
+                activeOpacity={0.9}
+              >
+                <Text style={{ color: "#111816", fontWeight: "900" }}>
+                  Solicitar outra
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
         {/* Resumo final agora é uma Screen dedicada; sheet não é mais renderizado aqui */}
       </View>

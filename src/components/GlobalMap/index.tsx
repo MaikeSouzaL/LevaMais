@@ -93,6 +93,7 @@ export function GlobalMap({
   return (
     <View style={{ flex: 1 }}>
       <MapView
+        key={useDarkStyle ? "map-dark" : "map-light"}
         ref={mapRef}
         provider={
           Platform.OS === "android" ? PROVIDER_GOOGLE : PROVIDER_DEFAULT
@@ -102,7 +103,9 @@ export function GlobalMap({
         region={region}
         onRegionChange={onMapRegionChange}
         onRegionChangeComplete={onRegionChangeComplete}
-        customMapStyle={useDarkStyle ? darkMapStyle : undefined}
+        // Em alguns devices o Google Maps não aplica/remove o style dinamicamente.
+        // Forçamos remount via key e usamos [] para resetar.
+        customMapStyle={useDarkStyle ? darkMapStyle : []}
         showsUserLocation={showsUserLocation}
         showsMyLocationButton={false}
         showsCompass={false}

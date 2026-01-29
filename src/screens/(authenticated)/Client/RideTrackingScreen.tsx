@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { MaterialIcons } from "@expo/vector-icons";
+import Toast from "react-native-toast-message";
 
 import GlobalMap from "../../../components/GlobalMap";
 import rideService, { Ride } from "../../../services/ride.service";
@@ -29,6 +30,7 @@ export default function RideTrackingScreen() {
     "Aguardando motorista...",
   );
   const [driverInfo, setDriverInfo] = useState<any>(null);
+  const [etaText, setEtaText] = useState<string | undefined>(undefined);
 
   const initialRegion = useMemo(() => {
     const lat = ride?.pickup?.latitude ?? -23.5505;
@@ -72,6 +74,8 @@ export default function RideTrackingScreen() {
       if (payload?.rideId && payload.rideId !== rideId) return;
       setStatusText("Motorista encontrado");
       if (payload?.driver) setDriverInfo(payload.driver);
+      const t = payload?.eta?.text || (typeof payload?.eta === "string" ? payload.eta : undefined);
+      if (t) setEtaText(String(t));
     };
 
     const onDriverLocationUpdated = (payload: any) => {
@@ -92,7 +96,28 @@ export default function RideTrackingScreen() {
     const onRideCancelled = (payload: any) => {
       if (!mounted) return;
       if (payload?.rideId && payload.rideId !== rideId) return;
+
+      const cancelledBy = payload?.cancelledBy;
+      const reason = payload?.reason;
+
       setStatusText("Corrida cancelada");
+
+      // UX estilo Uber/99: avisar e sair do tracking
+      Toast.show({
+        type: "error",
+        text1:
+          cancelledBy === "driver"
+            ? "O motorista cancelou"
+            : "Corrida cancelada",
+        text2: reason ? String(reason) : "Você pode solicitar outra corrida.",
+      });
+
+      // Voltar para a Home (mantém o app em estado consistente)
+      setTimeout(() => {
+        try {
+          navigation.goBack();
+        } catch {}
+      }, 700);
     };
 
     (async () => {
@@ -214,6 +239,12 @@ export default function RideTrackingScreen() {
           {!!driverInfo?.name && (
             <Text style={{ color: "rgba(255,255,255,0.8)", marginTop: 6 }}>
               Motorista: {driverInfo.name}
+            </Text>
+          )}
+
+          {!!etaText && (
+            <Text style={{ color: "rgba(255,255,255,0.7)", marginTop: 4 }}>
+              Chega em: {etaText}
             </Text>
           )}
           {!!ride?.pickup?.address && (

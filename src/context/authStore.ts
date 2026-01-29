@@ -7,6 +7,7 @@ export type UserType = "client" | "driver" | "admin" | null | undefined;
 
 export interface UserData {
   id: string;
+  name: string;
   cidade: string;
   nome: string;
   email: string;
@@ -15,6 +16,8 @@ export interface UserData {
   googleId?: string;
   aceitouTermos: boolean;
   expoPushToken?: string;
+  vehicleType?: any;
+  vehicleInfo?: any;
 }
 
 export interface AuthState {
@@ -69,6 +72,6 @@ export const useAuthStore = create<AuthState>()(
     {
       name: "auth-storage",
       storage: createJSONStorage(() => AsyncStorage),
-    }
-  )
+    },
+  ),
 );

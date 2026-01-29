@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, TouchableOpacity } from "react-native";
+import { View, Text, TouchableOpacity, useColorScheme } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import Constants from "expo-constants";
 import { useNavigation } from "@react-navigation/native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import GlobalMap from "../../../components/GlobalMap";
 import { useAuthStore } from "../../../context/authStore";
@@ -22,6 +23,7 @@ import { decodePolyline, LatLng } from "../../../utils/polyline";
 
 export default function DriverHomeScreen() {
   const navigation = useNavigation();
+  const colorScheme = useColorScheme();
   const userData = useAuthStore((s) => s.userData);
 
   const [online, setOnline] = useState(false);
@@ -31,6 +33,9 @@ export default function DriverHomeScreen() {
   const [region, setRegion] = useState<any>(null);
   const [isCentering, setIsCentering] = useState(false);
   const [useDarkMap, setUseDarkMap] = useState(true);
+  const [isSwitchingMapStyle, setIsSwitchingMapStyle] = useState(false);
+  const [showMapStyleHint, setShowMapStyleHint] = useState(false);
+  const [isTogglingOnline, setIsTogglingOnline] = useState(false);
   const [pendingRequests, setPendingRequests] = useState(0);
   const [incomingRequest, setIncomingRequest] = useState<any>(null);
   const [routeCoords, setRouteCoords] = useState<LatLng[]>([]);
@@ -94,6 +99,15 @@ export default function DriverHomeScreen() {
       console.log("Falha ao conectar WS", e);
     }
 
+    // Define status disponível rapidamente (não depende da posição)
+    try {
+      await driverLocationService.setStatus({
+        status: "available",
+        acceptingRides: true,
+        serviceTypes: currentServiceTypes(),
+      });
+    } catch {}
+
     const sendTick = async () => {
       try {
         const pos = await Location.getCurrentPositionAsync({
@@ -135,17 +149,44 @@ export default function DriverHomeScreen() {
       }
     };
 
-    await sendTick();
-
-    intervalRef.current = setInterval(sendTick, 5000);
-
+    // Tenta semear rapidamente com a última posição conhecida
     try {
-      await driverLocationService.setStatus({
-        status: "available",
-        acceptingRides: true,
-        serviceTypes: currentServiceTypes(),
-      });
+      const last = await Location.getLastKnownPositionAsync();
+      if (last) {
+        const payload = {
+          latitude: last.coords.latitude,
+          longitude: last.coords.longitude,
+          heading: last.coords.heading ?? undefined,
+          speed: last.coords.speed ?? undefined,
+          status: "available" as DriverStatus,
+          vehicleType,
+          vehicle: vehicleInfo,
+          serviceTypes: currentServiceTypes(),
+        };
+
+        if (!region) {
+          setRegion({
+            latitude: payload.latitude,
+            longitude: payload.longitude,
+            latitudeDelta: 0.02,
+            longitudeDelta: 0.02,
+          });
+        }
+
+        // Atualiza de forma não-bloqueante
+        driverLocationService.update(payload).catch(() => {});
+        webSocketService.emit("update-location", {
+          latitude: payload.latitude,
+          longitude: payload.longitude,
+          heading: payload.heading,
+          speed: payload.speed,
+        });
+      }
     } catch {}
+
+    // Dispara o primeiro tick sem bloquear a UI
+    sendTick().catch(() => {});
+    intervalRef.current = setInterval(sendTick, 5000);
 
     setAcceptingRides(true);
 
@@ -255,27 +296,50 @@ export default function DriverHomeScreen() {
   }, []);
 
   const toggleOnline = async () => {
-    if (online) {
-      await stopSharing();
-      return;
-    }
+    if (isTogglingOnline) return;
 
-    // exige pelo menos um tipo
-    const types = currentServiceTypes();
-    if (!types.length) {
-      setError("Selecione pelo menos 1 tipo de serviço (Corridas ou Entregas)");
-      return;
-    }
+    const next = !online;
+    // UI otimista: muda imediatamente
+    setOnline(next);
+    setIsTogglingOnline(true);
 
-    await startSharing();
-
-    // Depois de ficar online, se por acaso já existe corrida ativa, retomar
     try {
-      const resp = await rideService.getActive();
-      if (resp?.active && resp.ride?._id) {
-        (navigation as any).navigate("DriverRide", { rideId: resp.ride._id });
+      if (!next) {
+        // indo para offline
+        await stopSharing();
+      } else {
+        // exige pelo menos um tipo
+        const types = currentServiceTypes();
+        if (!types.length) {
+          setError(
+            "Selecione pelo menos 1 tipo de serviço (Corridas ou Entregas)",
+          );
+          setOnline(false); // reverte
+          return;
+        }
+
+        await startSharing();
+        // Libera o loading imediatamente após iniciar compartilhamento
+        setIsTogglingOnline(false);
+        // Consulta de corrida ativa em segundo plano
+        rideService
+          .getActive()
+          .then((resp) => {
+            if (resp?.active && resp.ride?._id) {
+              (navigation as any).navigate("DriverRide", {
+                rideId: resp.ride._id,
+              });
+            }
+          })
+          .catch(() => {});
       }
-    } catch {}
+    } catch (e) {
+      // Em caso de falha, reverte estado e mostra erro genérico
+      setOnline(!next);
+      if (!error) setError("Não foi possível alterar seu status agora.");
+    } finally {
+      setIsTogglingOnline(false);
+    }
   };
 
   const toggleService = async (key: "ride" | "delivery") => {
@@ -344,6 +408,34 @@ export default function DriverHomeScreen() {
       console.log("Falha ao abrir segurança", e);
     }
   };
+
+  const handleToggleMapStyle = () => {
+    if (isSwitchingMapStyle) return;
+    setIsSwitchingMapStyle(true);
+    setUseDarkMap((prev) => {
+      const next = !prev;
+      // persistir preferência
+      AsyncStorage.setItem("mapStylePref", next ? "dark" : "light").catch(
+        () => {},
+      );
+      return next;
+    });
+    setShowMapStyleHint(true);
+    setTimeout(() => setIsSwitchingMapStyle(false), 300);
+    setTimeout(() => setShowMapStyleHint(false), 900);
+  };
+
+  // Carregar preferência de estilo de mapa na montagem
+  useEffect(() => {
+    (async () => {
+      try {
+        const pref = await AsyncStorage.getItem("mapStylePref");
+        if (pref === "dark") setUseDarkMap(true);
+        else if (pref === "light") setUseDarkMap(false);
+        else setUseDarkMap(colorScheme === "dark");
+      } catch {}
+    })();
+  }, []);
 
   const handleNotifications = async () => {
     try {
@@ -549,7 +641,15 @@ export default function DriverHomeScreen() {
         </View>
 
         {/* Botão SOS */}
-        <View style={{ position: "absolute", top: 14, right: 14, zIndex: 60 }}>
+        <View
+          style={{
+            position: "absolute",
+            // mover mais para o meio da tela
+            top: "35%",
+            right: 14,
+            zIndex: 60,
+          }}
+        >
           <TouchableOpacity
             onPress={handleSOS}
             activeOpacity={0.85}
@@ -569,7 +669,15 @@ export default function DriverHomeScreen() {
         </View>
 
         {/* Botão Centralizar Localização */}
-        <View style={{ position: "absolute", top: 72, right: 14, zIndex: 60 }}>
+        <View
+          style={{
+            position: "absolute",
+            // alinhar próximo ao SOS, um pouco abaixo
+            top: "43%",
+            right: 14,
+            zIndex: 60,
+          }}
+        >
           <TouchableOpacity
             onPress={handleCenterMyLocation}
             activeOpacity={0.85}
@@ -625,27 +733,6 @@ export default function DriverHomeScreen() {
             <View
               style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
             >
-              <TouchableOpacity
-                onPress={() => setUseDarkMap((prev) => !prev)}
-                activeOpacity={0.85}
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 12,
-                  backgroundColor: "rgba(0,0,0,0.18)",
-                  borderWidth: 1,
-                  borderColor: "rgba(255,255,255,0.10)",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <MaterialIcons
-                  name="layers"
-                  size={20}
-                  color={useDarkMap ? "#02de95" : "rgba(255,255,255,0.8)"}
-                />
-              </TouchableOpacity>
-
               <TouchableOpacity
                 onPress={handleNotifications}
                 activeOpacity={0.85}
@@ -729,6 +816,47 @@ export default function DriverHomeScreen() {
           )}
         </View>
 
+        {/* Botão Estilo de Mapa (abaixo do GPS) */}
+        <View
+          style={{
+            position: "absolute",
+            top: "51%",
+            right: 14,
+            zIndex: 60,
+          }}
+        >
+          <TouchableOpacity
+            onPress={handleToggleMapStyle}
+            disabled={isSwitchingMapStyle}
+            activeOpacity={0.85}
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: 24,
+              backgroundColor: isSwitchingMapStyle
+                ? "#02de95"
+                : "rgba(17,24,22,0.88)",
+              borderWidth: 1,
+              borderColor: isSwitchingMapStyle
+                ? "#02de95"
+                : "rgba(255,255,255,0.10)",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <MaterialIcons
+              name="layers"
+              size={22}
+              color={
+                isSwitchingMapStyle
+                  ? "#0f231c"
+                  : useDarkMap
+                    ? "#02de95"
+                    : "rgba(255,255,255,0.9)"
+              }
+            />
+          </TouchableOpacity>
+        </View>
         {/* Banner: Nova solicitação */}
         {pendingRequests > 0 && (
           <View
@@ -871,6 +999,7 @@ export default function DriverHomeScreen() {
           online={online}
           services={services}
           acceptingRides={acceptingRides}
+          isTogglingOnline={isTogglingOnline}
           onToggleOnline={toggleOnline}
           onToggleService={toggleService}
           onToggleAccepting={toggleAccepting}
