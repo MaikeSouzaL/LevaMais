@@ -3,7 +3,7 @@ import {
   View,
   Text,
   TouchableOpacity,
-  ScrollView,
+  FlatList,
   ActivityIndicator,
   Alert,
   TextInput,
@@ -17,6 +17,7 @@ import {
   PlaceDetails,
 } from "../../../../services/googlePlaces.service";
 import AddressAutocomplete from "../../../../components/AddressAutocomplete";
+import { Modal } from "../../../../components/Modal";
 
 type Params = {
   AddFavorite: {
@@ -48,6 +49,19 @@ export default function AddFavoriteScreen() {
   const [name, setName] = useState("");
   const [selectedIcon, setSelectedIcon] = useState<string>("home");
   const [loading, setLoading] = useState(false);
+
+  const [modalConfig, setModalConfig] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    type: "success" | "error" | "info" | "warning";
+    onClose?: () => void;
+  }>({
+    visible: false,
+    title: "",
+    message: "",
+    type: "info",
+  });
 
   // Autocomplete
   const [searchQuery, setSearchQuery] = useState(params?.address || "");
@@ -100,14 +114,31 @@ export default function AddFavoriteScreen() {
     setSearchQuery("");
   };
 
+  const handleSearchQueryChange = (text: string) => {
+    // Se o usuário começar a digitar de novo, ele está editando/trocando o endereço
+    // então precisamos liberar o autocomplete.
+    if (selectedAddress) setSelectedAddress(null);
+    setSearchQuery(text);
+  };
+
   const handleSave = async () => {
     if (!name.trim()) {
-      Alert.alert("Atenção", "Por favor, digite um nome para o favorito");
+      setModalConfig({
+        visible: true,
+        type: "warning",
+        title: "Atenção",
+        message: "Por favor, digite um nome para o favorito.",
+      });
       return;
     }
 
     if (!selectedAddress?.latitude || !selectedAddress?.longitude) {
-      Alert.alert("Erro", "Por favor, selecione um endereço válido");
+      setModalConfig({
+        visible: true,
+        type: "error",
+        title: "Erro",
+        message: "Por favor, selecione um endereço válido.",
+      });
       return;
     }
 
@@ -130,16 +161,25 @@ export default function AddFavoriteScreen() {
         longitude: selectedAddress.longitude,
       });
 
-      Alert.alert("Sucesso", "Favorito salvo com sucesso!", [
-        {
-          text: "OK",
-          onPress: () => navigation.goBack(),
+      setModalConfig({
+        visible: true,
+        type: "success",
+        title: "Sucesso",
+        message: "Favorito salvo com sucesso!",
+        onClose: () => {
+          setModalConfig((prev) => ({ ...prev, visible: false }));
+          navigation.goBack();
         },
-      ]);
+      });
     } catch (error: any) {
       const message =
         error?.response?.data?.error || "Erro ao salvar favorito";
-      Alert.alert("Erro", message);
+      setModalConfig({
+        visible: true,
+        type: "error",
+        title: "Erro",
+        message,
+      });
     } finally {
       setLoading(false);
     }
@@ -147,6 +187,17 @@ export default function AddFavoriteScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#0f231c" }}>
+      <Modal
+        visible={modalConfig.visible}
+        title={modalConfig.title}
+        message={modalConfig.message}
+        type={modalConfig.type}
+        onClose={() => {
+          if (modalConfig.onClose) return modalConfig.onClose();
+          setModalConfig((prev) => ({ ...prev, visible: false }));
+        }}
+      />
+
       {/* Header */}
       <View
         style={{
@@ -174,65 +225,126 @@ export default function AddFavoriteScreen() {
         </View>
       </View>
 
-      <ScrollView
+      <FlatList
+        data={[]}
+        keyExtractor={(_, i) => String(i)}
+        renderItem={null as any}
         style={{ flex: 1 }}
-        contentContainerStyle={{ padding: 24 }}
+        contentContainerStyle={{ padding: 24, paddingBottom: 24 }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
-      >
-        {/* Campo de busca com autocomplete (reutilizável) */}
-        <AddressAutocomplete
-          label="Buscar endereço"
-          placeholder="Digite o endereço..."
-          query={searchQuery}
-          setQuery={setSearchQuery}
-          disabled={!!selectedAddress}
-          onSelect={handleSelectAddress}
-        />
-
-        {/* Endereço selecionado */}
-        {selectedAddress && (
+        ListHeaderComponent={
           <>
-            <View
-              style={{
-                backgroundColor: "#162e25",
-                borderWidth: 1,
-                borderColor: "#02de95",
-                borderRadius: 12,
-                padding: 16,
-                marginBottom: 16,
-              }}
-            >
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  marginBottom: 8,
-                }}
-              >
-                <MaterialIcons
-                  name="check-circle"
-                  size={20}
-                  color="#02de95"
-                  style={{ marginRight: 8 }}
-                />
-                <Text
+            {/* Campo de busca com autocomplete (reutilizável) */}
+            <AddressAutocomplete
+              label="Buscar endereço"
+              placeholder="Digite o endereço..."
+              query={searchQuery}
+              setQuery={handleSearchQueryChange}
+              // Não travar o campo após selecionar: o usuário pode editar/trocar o endereço.
+              disabled={false}
+              onSelect={handleSelectAddress}
+            />
+
+            {/* Endereço selecionado */}
+            {selectedAddress && (
+              <>
+                <View
                   style={{
-                    color: "#02de95",
-                    fontSize: 11,
-                    fontWeight: "700",
-                    textTransform: "uppercase",
+                    backgroundColor: "#162e25",
+                    borderWidth: 1,
+                    borderColor: "#02de95",
+                    borderRadius: 12,
+                    padding: 16,
+                    marginBottom: 16,
                   }}
                 >
-                  Endereço Selecionado
-                </Text>
-              </View>
-              <Text style={{ color: "white", fontSize: 16, fontWeight: "600" }}>
-                {selectedAddress.address}
-              </Text>
-            </View>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      marginBottom: 8,
+                    }}
+                  >
+                    <MaterialIcons
+                      name="check-circle"
+                      size={20}
+                      color="#02de95"
+                      style={{ marginRight: 8 }}
+                    />
+                    <Text
+                      style={{
+                        color: "#02de95",
+                        fontSize: 11,
+                        fontWeight: "700",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      Endereço Selecionado
+                    </Text>
+                  </View>
+                  <Text
+                    style={{ color: "white", fontSize: 16, fontWeight: "600" }}
+                  >
+                    {selectedAddress.address}
+                  </Text>
+                </View>
 
-            {/* Campo para editar número */}
+                {/* Campo para editar número */}
+                <View style={{ marginBottom: 24 }}>
+                  <Text
+                    style={{
+                      color: "#9abcb0",
+                      fontSize: 13,
+                      fontWeight: "700",
+                      marginBottom: 8,
+                    }}
+                  >
+                    Número (opcional - corrija se necessário)
+                  </Text>
+                  <TextInput
+                    value={selectedAddress.streetNumber || ""}
+                    onChangeText={(text) => {
+                      setSelectedAddress({
+                        ...selectedAddress,
+                        streetNumber: text,
+                        // Atualizar também o formattedAddress
+                        formattedAddress: selectedAddress.street
+                          ? `${selectedAddress.street}, ${text} - ${selectedAddress.neighborhood || ""} - ${selectedAddress.state || ""}`
+                          : selectedAddress.formattedAddress,
+                      });
+                    }}
+                    placeholder="Ex: 295, 123A, S/N"
+                    placeholderTextColor="rgba(255,255,255,0.3)"
+                    keyboardType="default"
+                    style={{
+                      backgroundColor: "#162e25",
+                      borderWidth: 1,
+                      borderColor: selectedAddress.streetNumber
+                        ? "#02de95"
+                        : "rgba(255,255,255,0.08)",
+                      borderRadius: 12,
+                      padding: 16,
+                      color: "white",
+                      fontSize: 16,
+                    }}
+                  />
+                  <Text
+                    style={{
+                      color: "#9abcb0",
+                      fontSize: 11,
+                      marginTop: 6,
+                      marginLeft: 4,
+                      opacity: 0.7,
+                    }}
+                  >
+                    💡 Se o número do autocomplete estiver errado, corrija aqui
+                  </Text>
+                </View>
+              </>
+            )}
+
+            {/* Nome do favorito */}
             <View style={{ marginBottom: 24 }}>
               <Text
                 style={{
@@ -242,141 +354,89 @@ export default function AddFavoriteScreen() {
                   marginBottom: 8,
                 }}
               >
-                Número (opcional - corrija se necessário)
+                Nome do favorito
               </Text>
               <TextInput
-                value={selectedAddress.streetNumber || ""}
-                onChangeText={(text) => {
-                  setSelectedAddress({
-                    ...selectedAddress,
-                    streetNumber: text,
-                    // Atualizar também o formattedAddress
-                    formattedAddress: selectedAddress.street
-                      ? `${selectedAddress.street}, ${text} - ${selectedAddress.neighborhood || ""} - ${selectedAddress.state || ""}`
-                      : selectedAddress.formattedAddress,
-                  });
-                }}
-                placeholder="Ex: 295, 123A, S/N"
+                value={name}
+                onChangeText={setName}
+                placeholder="Ex: Casa, Trabalho, Academia..."
                 placeholderTextColor="rgba(255,255,255,0.3)"
-                keyboardType="default"
                 style={{
                   backgroundColor: "#162e25",
                   borderWidth: 1,
-                  borderColor: selectedAddress.streetNumber
-                    ? "#02de95"
-                    : "rgba(255,255,255,0.08)",
+                  borderColor: name ? "#02de95" : "rgba(255,255,255,0.08)",
                   borderRadius: 12,
                   padding: 16,
                   color: "white",
                   fontSize: 16,
                 }}
               />
+            </View>
+
+            {/* Seleção de ícone */}
+            <View style={{ marginBottom: 24 }}>
               <Text
                 style={{
                   color: "#9abcb0",
-                  fontSize: 11,
-                  marginTop: 6,
-                  marginLeft: 4,
-                  opacity: 0.7,
+                  fontSize: 13,
+                  fontWeight: "700",
+                  marginBottom: 12,
                 }}
               >
-                💡 Se o número do autocomplete estiver errado, corrija aqui
+                Escolha um ícone:
               </Text>
+              <View
+                style={{
+                  flexDirection: "row",
+                  flexWrap: "wrap",
+                  gap: 12,
+                }}
+              >
+                {ICON_OPTIONS.map((option) => {
+                  const isSelected = selectedIcon === option.id;
+                  return (
+                    <TouchableOpacity
+                      key={option.id}
+                      onPress={() => setSelectedIcon(option.id)}
+                      style={{
+                        width: 72,
+                        height: 72,
+                        backgroundColor: isSelected
+                          ? "rgba(2,222,149,0.15)"
+                          : "#162e25",
+                        borderWidth: 2,
+                        borderColor: isSelected
+                          ? "#02de95"
+                          : "rgba(255,255,255,0.05)",
+                        borderRadius: 12,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <MaterialIcons
+                        name={option.icon as any}
+                        size={28}
+                        color={isSelected ? "#02de95" : "#9abcb0"}
+                      />
+                      <Text
+                        style={{
+                          color: isSelected ? "#02de95" : "#9abcb0",
+                          fontSize: 10,
+                          marginTop: 4,
+                          fontWeight: isSelected ? "700" : "400",
+                        }}
+                      >
+                        {option.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
             </View>
           </>
-        )}
-
-        {/* Nome do favorito */}
-        <View style={{ marginBottom: 24 }}>
-          <Text
-            style={{
-              color: "#9abcb0",
-              fontSize: 13,
-              fontWeight: "700",
-              marginBottom: 8,
-            }}
-          >
-            Nome do favorito
-          </Text>
-          <TextInput
-            value={name}
-            onChangeText={setName}
-            placeholder="Ex: Casa, Trabalho, Academia..."
-            placeholderTextColor="rgba(255,255,255,0.3)"
-            style={{
-              backgroundColor: "#162e25",
-              borderWidth: 1,
-              borderColor: name ? "#02de95" : "rgba(255,255,255,0.08)",
-              borderRadius: 12,
-              padding: 16,
-              color: "white",
-              fontSize: 16,
-            }}
-          />
-        </View>
-
-        {/* Seleção de ícone */}
-        <View style={{ marginBottom: 24 }}>
-          <Text
-            style={{
-              color: "#9abcb0",
-              fontSize: 13,
-              fontWeight: "700",
-              marginBottom: 12,
-            }}
-          >
-            Escolha um ícone:
-          </Text>
-          <View
-            style={{
-              flexDirection: "row",
-              flexWrap: "wrap",
-              gap: 12,
-            }}
-          >
-            {ICON_OPTIONS.map((option) => {
-              const isSelected = selectedIcon === option.id;
-              return (
-                <TouchableOpacity
-                  key={option.id}
-                  onPress={() => setSelectedIcon(option.id)}
-                  style={{
-                    width: 72,
-                    height: 72,
-                    backgroundColor: isSelected
-                      ? "rgba(2,222,149,0.15)"
-                      : "#162e25",
-                    borderWidth: 2,
-                    borderColor: isSelected
-                      ? "#02de95"
-                      : "rgba(255,255,255,0.05)",
-                    borderRadius: 12,
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <MaterialIcons
-                    name={option.icon as any}
-                    size={28}
-                    color={isSelected ? "#02de95" : "#9abcb0"}
-                  />
-                  <Text
-                    style={{
-                      color: isSelected ? "#02de95" : "#9abcb0",
-                      fontSize: 10,
-                      marginTop: 4,
-                      fontWeight: isSelected ? "700" : "400",
-                    }}
-                  >
-                    {option.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-      </ScrollView>
+        }
+      />
 
       {/* Footer com botão salvar */}
       <View
