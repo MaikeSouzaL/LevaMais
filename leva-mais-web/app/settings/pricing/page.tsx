@@ -25,6 +25,10 @@ import {
   CancellationFee,
   PlatformSettings,
 } from "@/services/pricingService";
+import { pricingRulesService, type PricingRule } from "@/services/pricingRulesService";
+import { citiesService, type City } from "@/services/citiesService";
+import { purposesService } from "@/services/purposesService";
+import type { PurposeItem, VehicleType } from "@/types";
 import { useToast } from "@/components/ui/Toast";
 import { parseCurrency } from "@/lib/formatters";
 
@@ -56,8 +60,28 @@ export default function PricingPage() {
   const [config, setConfig] = useState<PricingConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  // Pricing rules por cidade
+  const [cities, setCities] = useState<City[]>([]);
+  const [rules, setRules] = useState<PricingRule[]>([]);
+  const [rulesLoading, setRulesLoading] = useState(false);
+  const [selectedCityId, setSelectedCityId] = useState<string>("");
+  const [selectedVehicle, setSelectedVehicle] = useState<VehicleType>("motorcycle");
+  const [purposes, setPurposes] = useState<PurposeItem[]>([]);
+
+  const [ruleFormOpen, setRuleFormOpen] = useState(false);
+  const [editingRule, setEditingRule] = useState<PricingRule | null>(null);
+  const [ruleForm, setRuleForm] = useState({
+    name: "",
+    purposeId: "",
+    pricePerKm: 0,
+    minimumKm: 0,
+    minimumFee: 0,
+    active: true,
+    priority: 0,
+  });
   const [activeTab, setActiveTab] = useState<
-    "vehicles" | "peak" | "cancellation" | "platform"
+    "vehicles" | "peak" | "cancellation" | "platform" | "rules"
   >("vehicles");
 
   const { showToast, ToastContainer } = useToast();
@@ -81,6 +105,56 @@ export default function PricingPage() {
   useEffect(() => {
     loadConfig();
   }, [loadConfig]);
+
+  const loadRulesDeps = useCallback(async () => {
+    try {
+      const list = await citiesService.getAll();
+      setCities(list || []);
+      if (!selectedCityId && list?.[0]?._id) {
+        setSelectedCityId(list[0]._id);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, [selectedCityId]);
+
+  const loadPurposes = useCallback(async () => {
+    try {
+      const items = await purposesService.getAll(selectedVehicle);
+      setPurposes(items || []);
+    } catch (e) {
+      setPurposes([]);
+    }
+  }, [selectedVehicle]);
+
+  const loadRules = useCallback(async () => {
+    if (!selectedCityId) return;
+    try {
+      setRulesLoading(true);
+      const list = await pricingRulesService.list({
+        cityId: selectedCityId,
+        vehicleCategory: selectedVehicle,
+      });
+      setRules(list || []);
+    } catch (e: any) {
+      showToast(e?.message || "Erro ao carregar regras", "error");
+      setRules([]);
+    } finally {
+      setRulesLoading(false);
+    }
+  }, [selectedCityId, selectedVehicle, showToast]);
+
+  useEffect(() => {
+    loadRulesDeps();
+  }, [loadRulesDeps]);
+
+  useEffect(() => {
+    loadPurposes();
+  }, [loadPurposes]);
+
+  useEffect(() => {
+    if (activeTab === "rules") loadRules();
+  }, [activeTab, loadRules]);
 
   // Salvar configuração
   const handleSave = async () => {
@@ -297,6 +371,12 @@ export default function PricingPage() {
               icon={Settings}
               label="Configurações Gerais"
             />
+            <TabButton
+              active={activeTab === "rules"}
+              onClick={() => setActiveTab("rules")}
+              icon={DollarSign}
+              label="Regras por Cidade"
+            />
           </nav>
         </div>
 
@@ -330,6 +410,327 @@ export default function PricingPage() {
               settings={config.platformSettings}
               onUpdate={updatePlatformSettings}
             />
+          )}
+
+          {activeTab === "rules" && (
+            <div className="space-y-6">
+              <div className="flex flex-col md:flex-row gap-3 md:items-end">
+                <div className="flex-1">
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Cidade</label>
+                  <select
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    value={selectedCityId}
+                    onChange={(e) => setSelectedCityId(e.target.value)}
+                  >
+                    {cities.map((c) => (
+                      <option key={c._id} value={c._id}>
+                        {c.name} - {c.state}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="w-full md:w-56">
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Veículo</label>
+                  <select
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    value={selectedVehicle}
+                    onChange={(e) => setSelectedVehicle(e.target.value as VehicleType)}
+                  >
+                    <option value="motorcycle">Moto</option>
+                    <option value="car">Carro</option>
+                    <option value="van">Van</option>
+                    <option value="truck">Caminhão</option>
+                  </select>
+                </div>
+
+                <div className="md:ml-auto">
+                  <button
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                    onClick={() => {
+                      setEditingRule(null);
+                      setRuleForm({
+                        name: "",
+                        purposeId: "",
+                        pricePerKm: 0,
+                        minimumKm: 0,
+                        minimumFee: 0,
+                        active: true,
+                        priority: 0,
+                      });
+                      setRuleFormOpen(true);
+                    }}
+                  >
+                    + Nova regra
+                  </button>
+                </div>
+              </div>
+
+              {/* Form */}
+              {ruleFormOpen && (
+                <div className="border border-gray-200 rounded-xl p-4 bg-gray-50">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <h3 className="font-bold text-gray-900">
+                        {editingRule ? "Editar regra" : "Nova regra"}
+                      </h3>
+                      <p className="text-xs text-gray-600">
+                        Regras são por cidade + veículo + (opcional) finalidade.
+                      </p>
+                    </div>
+                    <button
+                      className="text-gray-600 hover:text-gray-900"
+                      onClick={() => {
+                        setRuleFormOpen(false);
+                        setEditingRule(null);
+                      }}
+                    >
+                      Fechar
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Nome</label>
+                      <input
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                        value={ruleForm.name}
+                        onChange={(e) => setRuleForm((p) => ({ ...p, name: e.target.value }))}
+                        placeholder="Ex: Moto - Porto Velho (Documentos)"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Prioridade</label>
+                      <input
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                        type="number"
+                        value={ruleForm.priority}
+                        onChange={(e) => setRuleForm((p) => ({ ...p, priority: Number(e.target.value || 0) }))}
+                      />
+                    </div>
+
+                    <div className="md:col-span-3">
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Finalidade (opcional)</label>
+                      <select
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                        value={ruleForm.purposeId}
+                        onChange={(e) => setRuleForm((p) => ({ ...p, purposeId: e.target.value }))}
+                      >
+                        <option value="">(Regra genérica para o veículo)</option>
+                        {purposes.map((p) => (
+                          <option key={p._id || p.id} value={p._id || ""}>
+                            {p.title} ({p.id})
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-gray-600 mt-1">
+                        Importante: para regra por finalidade, o backend espera o Mongo _id do Purpose.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Preço por KM</label>
+                      <input
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                        value={ruleForm.pricePerKm}
+                        onChange={(e) => setRuleForm((p) => ({ ...p, pricePerKm: parseCurrency(e.target.value) }))}
+                        placeholder="0,00"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">KM mínimo</label>
+                      <input
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                        value={ruleForm.minimumKm}
+                        onChange={(e) => setRuleForm((p) => ({ ...p, minimumKm: parseCurrency(e.target.value) }))}
+                        placeholder="0,00"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Taxa mínima (R$)</label>
+                      <input
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                        value={ruleForm.minimumFee}
+                        onChange={(e) => setRuleForm((p) => ({ ...p, minimumFee: parseCurrency(e.target.value) }))}
+                        placeholder="0,00"
+                      />
+                    </div>
+
+                    <div className="md:col-span-3 flex items-center gap-3">
+                      <label className="inline-flex items-center gap-2 text-sm font-semibold text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={ruleForm.active}
+                          onChange={(e) => setRuleForm((p) => ({ ...p, active: e.target.checked }))}
+                        />
+                        Ativa
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex gap-2">
+                    <button
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                      onClick={async () => {
+                        if (!selectedCityId) return showToast("Selecione uma cidade", "error");
+                        if (!ruleForm.name.trim()) return showToast("Informe um nome", "error");
+                        if (ruleForm.pricePerKm <= 0) return showToast("Preço/km inválido", "error");
+
+                        try {
+                          if (editingRule?._id) {
+                            await pricingRulesService.update(editingRule._id, {
+                              name: ruleForm.name.trim(),
+                              cityId: selectedCityId,
+                              vehicleCategory: selectedVehicle,
+                              purposeId: ruleForm.purposeId || null,
+                              pricing: {
+                                pricePerKm: ruleForm.pricePerKm,
+                                minimumKm: ruleForm.minimumKm,
+                                minimumFee: ruleForm.minimumFee,
+                              },
+                              active: ruleForm.active,
+                              priority: ruleForm.priority,
+                            });
+                            showToast("Regra atualizada", "success");
+                          } else {
+                            await pricingRulesService.create({
+                              name: ruleForm.name.trim(),
+                              cityId: selectedCityId,
+                              vehicleCategory: selectedVehicle,
+                              purposeId: ruleForm.purposeId || null,
+                              pricing: {
+                                pricePerKm: ruleForm.pricePerKm,
+                                minimumKm: ruleForm.minimumKm,
+                                minimumFee: ruleForm.minimumFee,
+                              },
+                              active: ruleForm.active,
+                              priority: ruleForm.priority,
+                            });
+                            showToast("Regra criada", "success");
+                          }
+
+                          setRuleFormOpen(false);
+                          setEditingRule(null);
+                          await loadRules();
+                        } catch (e: any) {
+                          showToast(e?.message || "Erro ao salvar regra", "error");
+                        }
+                      }}
+                    >
+                      Salvar
+                    </button>
+
+                    <button
+                      className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-white"
+                      onClick={() => {
+                        setRuleFormOpen(false);
+                        setEditingRule(null);
+                      }}
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* List */}
+              <div className="border border-gray-200 rounded-xl overflow-hidden">
+                <div className="p-4 bg-white flex items-center justify-between">
+                  <div>
+                    <h3 className="font-bold text-gray-900">Regras cadastradas</h3>
+                    <p className="text-xs text-gray-600">
+                      Cidade + veículo. A regra com finalidade (purpose) tem prioridade sobre a genérica.
+                    </p>
+                  </div>
+                  <button
+                    className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                    onClick={loadRules}
+                  >
+                    Recarregar
+                  </button>
+                </div>
+
+                {rulesLoading ? (
+                  <div className="p-6 text-center text-gray-600">Carregando...</div>
+                ) : rules.length === 0 ? (
+                  <div className="p-6 text-center text-gray-600">
+                    Nenhuma regra para esta cidade/veículo.
+                  </div>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr className="text-left">
+                        <th className="p-3">Nome</th>
+                        <th className="p-3">Finalidade</th>
+                        <th className="p-3">Preço/KM</th>
+                        <th className="p-3">KM mín</th>
+                        <th className="p-3">Taxa mín</th>
+                        <th className="p-3">Ativa</th>
+                        <th className="p-3">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rules.map((r) => (
+                        <tr key={r._id} className="border-t">
+                          <td className="p-3 font-semibold">{r.name}</td>
+                          <td className="p-3">
+                            {typeof r.purposeId === "object" && r.purposeId
+                              ? (r.purposeId as any).title || (r.purposeId as any).name
+                              : r.purposeId
+                                ? "(Purpose)"
+                                : "Genérica"}
+                          </td>
+                          <td className="p-3">R$ {Number(r.pricing?.pricePerKm || 0).toFixed(2)}</td>
+                          <td className="p-3">{Number(r.pricing?.minimumKm || 0).toFixed(2)} km</td>
+                          <td className="p-3">R$ {Number(r.pricing?.minimumFee || 0).toFixed(2)}</td>
+                          <td className="p-3">{r.active ? "Sim" : "Não"}</td>
+                          <td className="p-3">
+                            <div className="flex gap-2">
+                              <button
+                                className="px-3 py-1 border rounded-lg hover:bg-gray-50"
+                                onClick={() => {
+                                  setEditingRule(r);
+                                  const purposeVal =
+                                    typeof r.purposeId === "string" ? r.purposeId : "";
+                                  setRuleForm({
+                                    name: r.name || "",
+                                    purposeId: purposeVal || "",
+                                    pricePerKm: Number(r.pricing?.pricePerKm || 0),
+                                    minimumKm: Number(r.pricing?.minimumKm || 0),
+                                    minimumFee: Number(r.pricing?.minimumFee || 0),
+                                    active: r.active !== false,
+                                    priority: Number(r.priority || 0),
+                                  });
+                                  setRuleFormOpen(true);
+                                }}
+                              >
+                                Editar
+                              </button>
+                              <button
+                                className="px-3 py-1 border border-red-300 text-red-700 rounded-lg hover:bg-red-50"
+                                onClick={async () => {
+                                  if (!confirm("Excluir esta regra?")) return;
+                                  try {
+                                    await pricingRulesService.remove(r._id);
+                                    showToast("Regra excluída", "success");
+                                    await loadRules();
+                                  } catch (e: any) {
+                                    showToast(e?.message || "Erro ao excluir", "error");
+                                  }
+                                }}
+                              >
+                                Excluir
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
           )}
         </div>
       </div>
