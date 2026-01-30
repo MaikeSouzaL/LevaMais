@@ -43,75 +43,30 @@ const citySchema = new mongoose.Schema(
         default: "23:59",
       },
     },
-    // Representante da cidade
-    representative: {
-      name: {
-        type: String,
-        trim: true,
-      },
-      email: {
-        type: String,
-        trim: true,
-        lowercase: true,
-      },
-      phone: {
-        type: String,
-        trim: true,
-      },
+    // Referência ao Representante (Novo Modelo)
+    representativeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Representative",
+      default: null
     },
-    // Divisão de receita
+    // Divisão de receita (Opcional, se quiser override do padrão global)
+    // Se null, usa padrão (50/50)
     revenueSharing: {
-      representativePercentage: {
-        type: Number,
-        default: 50,
-        min: 0,
-        max: 100,
-      },
-      platformPercentage: {
-        type: Number,
-        default: 50,
-        min: 0,
-        max: 100,
-      },
-      minimumMonthlyFee: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-      paymentDay: {
-        type: Number,
-        default: 5,
-        min: 1,
-        max: 31,
-      },
+      representativePercentage: { type: Number, default: 50 }, 
+      platformPercentage: { type: Number, default: 50 }
     },
     // Estatísticas
     stats: {
-      totalDrivers: {
-        type: Number,
-        default: 0,
-      },
-      activeDrivers: {
-        type: Number,
-        default: 0,
-      },
-      totalClients: {
-        type: Number,
-        default: 0,
-      },
-      totalRides: {
-        type: Number,
-        default: 0,
-      },
+      totalDrivers: { type: Number, default: 0 },
+      activeDrivers: { type: Number, default: 0 },
+      totalClients: { type: Number, default: 0 },
+      totalRides: { type: Number, default: 0 },
+      monthlyRevenue: { type: Number, default: 0 }
     },
     // Coordenadas para o centro da cidade
     coordinates: {
-      latitude: {
-        type: Number,
-      },
-      longitude: {
-        type: Number,
-      },
+      latitude: Number,
+      longitude: Number,
     },
   },
   {
@@ -119,18 +74,6 @@ const citySchema = new mongoose.Schema(
   }
 );
 
-// Validação: soma das porcentagens deve ser 100%
-citySchema.pre("save", function (next) {
-  const rep = this.revenueSharing?.representativePercentage ?? 0;
-  const platform = this.revenueSharing?.platformPercentage ?? 0;
-  const total = rep + platform;
-  if (total !== 100) {
-    return next(new Error("A soma das porcentagens de divisão deve ser 100%"));
-  }
-  next();
-});
-
-// Índices
 citySchema.index({ name: 1, state: 1 }, { unique: true });
 citySchema.index({ isActive: 1 });
 

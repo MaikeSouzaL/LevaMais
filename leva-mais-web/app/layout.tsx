@@ -31,7 +31,10 @@ export default function RootLayout({
               isSidebarCollapsed ? "lg:ml-20" : "lg:ml-64"
             }`}
           >
-            <Topbar onMenuClick={() => setIsSidebarOpen(true)} />
+            <Topbar
+              onMenuClick={() => setIsSidebarOpen(true)}
+              isSidebarCollapsed={isSidebarCollapsed}
+            />
             <main className="mt-16 p-4 sm:p-6 lg:p-8 min-h-[calc(100vh-64px)] bg-slate-50">
               {children}
             </main>

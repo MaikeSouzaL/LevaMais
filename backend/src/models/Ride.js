@@ -14,6 +14,12 @@ const rideSchema = new mongoose.Schema(
       ref: "User",
       default: null,
     },
+    // Cidade da corrida (importante para relatórios por região)
+    cityId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "City",
+      default: null
+    },
     // Tipo de serviço
     serviceType: {
       type: String,
@@ -103,6 +109,14 @@ const rideSchema = new mongoose.Schema(
         type: Number,
         default: 0,
       },
+    },
+    // Detalhes da divisão de lucro (Split) - NOVO
+    splitDetails: {
+      platformConfigUsed: Number, // % usada (ex: 15%)
+      totalAppFee: Number, // Valor total retido (ex: R$ 3,00)
+      platformShare: Number, // Parte da plataforma (ex: R$ 1,50)
+      representativeShare: Number, // Parte do rep (ex: R$ 1,50)
+      representativeId: { type: mongoose.Schema.Types.ObjectId, ref: "Representative" }
     },
     // Distância e tempo estimado
     distance: {
@@ -236,6 +250,7 @@ rideSchema.index({ clientId: 1, createdAt: -1 });
 rideSchema.index({ driverId: 1, createdAt: -1 });
 rideSchema.index({ status: 1 });
 rideSchema.index({ "pickup.latitude": 1, "pickup.longitude": 1 });
+rideSchema.index({ cityId: 1 }); // Importante para filtros de admin
 
 // Middleware para adicionar ao histórico de status
 rideSchema.pre("save", function (next) {

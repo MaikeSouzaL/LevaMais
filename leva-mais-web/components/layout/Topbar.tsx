@@ -2,14 +2,21 @@
 
 import React from "react";
 import { Search, Bell, Menu } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface TopbarProps {
   onMenuClick: () => void;
+  isSidebarCollapsed: boolean;
 }
 
-export function Topbar({ onMenuClick }: TopbarProps) {
+export function Topbar({ onMenuClick, isSidebarCollapsed }: TopbarProps) {
   return (
-    <header className="h-16 border-b border-slate-200 bg-white/80 backdrop-blur-md flex items-center justify-between px-4 sm:px-6 fixed top-0 right-0 left-0 lg:left-64 z-20 transition-all duration-300">
+    <header 
+      className={cn(
+        "h-16 border-b border-slate-200 bg-white/80 backdrop-blur-md flex items-center justify-between px-4 sm:px-6 fixed top-0 right-0 left-0 z-20 transition-all duration-300",
+        isSidebarCollapsed ? "lg:left-20" : "lg:left-64"
+      )}
+    >
       {/* Mobile Menu Button + Logo */}
       <div className="flex items-center gap-3">
         <button

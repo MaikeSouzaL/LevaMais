@@ -37,12 +37,19 @@ const MENU_ITEMS = [
     badge: 3, // Número de motoristas pendentes
   },
   { label: "Clientes", icon: Users, href: "/clients", active: true },
-  { label: "Cidades", icon: MapPin, href: "/cities", active: true },
+  { label: "Representantes", icon: UserCheck, href: "/representatives", active: true },
+  { label: "Áreas de Atuação", icon: MapPin, href: "/cities", active: true },
   { label: "Corridas", icon: Map, href: "/rides", disabled: true },
   { label: "Ganhos", icon: DollarSign, href: "/earnings", disabled: true },
 ];
 
 const CONFIG_ITEMS = [
+  {
+    label: "Geral & Taxas",
+    icon: Settings,
+    href: "/settings/general",
+    active: true,
+  },
   {
     label: "Tipos de Serviço",
     icon: Box,
@@ -54,12 +61,6 @@ const CONFIG_ITEMS = [
     icon: Truck,
     href: "/settings/vehicles",
     disabled: true,
-  },
-  {
-    label: "Preços & Regras",
-    icon: DollarSign,
-    href: "/settings/pricing",
-    active: true,
   },
 ];
 
