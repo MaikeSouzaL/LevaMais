@@ -12,6 +12,8 @@ export interface PricingCalculation {
   serviceFee: number;
   total: number;
   currency: string;
+  platformFee?: number;
+  driverValue?: number;
 }
 
 export interface DistanceDuration {
@@ -36,6 +38,11 @@ export interface CreateRideRequest {
   distance: DistanceDuration;
   duration: DistanceDuration;
   details?: RideDetails;
+  payment?: {
+    method?: {
+      type?: "credit_card" | "pix" | "cash";
+    };
+  };
 }
 
 export interface Ride {
@@ -58,6 +65,11 @@ export interface Ride {
   startedAt?: string;
   completedAt?: string;
   cancelledAt?: string;
+  payment?: { 
+      method?: { 
+          type?: string 
+      } 
+  };
   createdAt: string;
   updatedAt: string;
 }
@@ -84,6 +96,13 @@ export type RatePayload = {
   stars: number;
   comment?: string;
 };
+
+export interface DriverStats {
+  earnings: number;
+  rides: number;
+  goal: number;
+  bonus: number;
+}
 
 class RideService {
   /**
@@ -206,6 +225,24 @@ class RideService {
    */
   async uploadDeliveryProof(rideId: string, photoBase64: string): Promise<void> {
     await api.post(`/rides/${rideId}/proof/delivery`, { photoBase64 });
+  }
+
+  /**
+   * Estatísticas do motorista (dashboard)
+   */
+  async getDriverStats(): Promise<DriverStats> {
+    const response = await api.get("/rides/stats");
+    return response.data;
+  }
+
+  /**
+   * Histórico de ganhos (gráfico)
+   */
+  async getEarningsHistory(period: 'day' | 'week' | 'month' = 'week'): Promise<{ label: string; value: number; count?: number }[]> {
+    const response = await api.get("/rides/earnings-history", {
+        params: { period }
+    });
+    return response.data;
   }
 }
 

@@ -74,6 +74,32 @@ const userSchema = new mongoose.Schema(
       latitude: { type: Number },
       longitude: { type: Number },
     },
+    // Endereços favoritos
+    favoriteAddresses: [
+      {
+        name: { type: String, required: true, trim: true }, // ex: "Casa", "Trabalho", "Academia"
+        icon: { type: String, default: "home" }, // home, work, favorite, shopping-cart, school, restaurant, gym
+        
+        // Endereço completo formatado
+        formattedAddress: { type: String, trim: true },
+        
+        // Componentes do endereço
+        street: { type: String, trim: true },
+        streetNumber: { type: String, trim: true },
+        address: { type: String, required: true, trim: true },
+        neighborhood: { type: String, trim: true },
+        city: { type: String, trim: true },
+        state: { type: String, trim: true },
+        region: { type: String, trim: true }, 
+        postalCode: { type: String, trim: true },
+        
+        // Coordenadas
+        latitude: { type: Number, required: true },
+        longitude: { type: Number, required: true },
+        
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
     // Preferências
     preferredPayment: {
       type: String,

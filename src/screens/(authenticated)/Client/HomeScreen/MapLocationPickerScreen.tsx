@@ -15,12 +15,15 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import {
-  buscarEnderecoPorTexto,
   obterEnderecoPorCoordenadas,
   getCurrentLocation,
   formatarEndereco,
-  type GeocodingResult,
 } from "../../../../utils/location";
+import {
+  buscarPredicoesEnderecoGoogle,
+  obterDetalhesEnderecoGoogle,
+  type PlacesPrediction,
+} from "../../../../utils/googlePlaces";
 
 export default function MapLocationPickerScreen() {
   const insets = useSafeAreaInsets();
@@ -102,7 +105,7 @@ export default function MapLocationPickerScreen() {
 
   const [address, setAddress] = useState("Buscando endereço...");
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<GeocodingResult[]>([]);
+  const [searchResults, setSearchResults] = useState<PlacesPrediction[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [isGeocodingLoading, setIsGeocodingLoading] = useState(false);
@@ -156,14 +159,14 @@ export default function MapLocationPickerScreen() {
         setIsSearching(true);
         setShowResults(true);
         try {
-          const results = await buscarEnderecoPorTexto(
-            searchQuery,
-            userCity,
-            userRegion
-          );
+          const results = await buscarPredicoesEnderecoGoogle(searchQuery, {
+            latitude: region?.latitude,
+            longitude: region?.longitude,
+            radiusMeters: 50000,
+          });
           setSearchResults(results);
         } catch (error) {
-          console.error("Erro na busca:", error);
+          console.error("Erro na busca (Google Places):", error);
           setSearchResults([]);
         } finally {
           setIsSearching(false);
@@ -172,9 +175,9 @@ export default function MapLocationPickerScreen() {
         setSearchResults([]);
         setShowResults(false);
       }
-    }, 500);
+    }, 400);
     return () => clearTimeout(timer);
-  }, [searchQuery, userCity, userRegion]);
+  }, [searchQuery, region?.latitude, region?.longitude]);
 
   const handleRegionChangeComplete = async (newRegion: {
     latitude: number;
@@ -200,20 +203,33 @@ export default function MapLocationPickerScreen() {
     }
   };
 
-  const handleSelectResult = (result: GeocodingResult) => {
+  const handleSelectResult = async (result: PlacesPrediction) => {
     setSearchQuery("");
     setShowResults(false);
     setSearchResults([]);
-    setAddress(result.formattedAddress);
 
-    const newRegion = {
-      latitude: result.latitude,
-      longitude: result.longitude,
-      latitudeDelta: 0.01,
-      longitudeDelta: 0.01,
-    };
-    setRegion(newRegion);
-    mapRef.current?.animateToRegion(newRegion, 500);
+    try {
+      const details = await obterDetalhesEnderecoGoogle(result.placeId);
+      if (!details) {
+        setAddress(result.description);
+        return;
+      }
+
+      setAddress(details.formattedAddress);
+
+      const newRegion = {
+        latitude: details.latitude,
+        longitude: details.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      };
+
+      setRegion(newRegion);
+      mapRef.current?.animateToRegion(newRegion, 500);
+    } catch (error) {
+      console.error("Erro ao obter detalhes do lugar:", error);
+      setAddress(result.description);
+    }
   };
 
   const handleConfirm = () => {
@@ -418,9 +434,7 @@ export default function MapLocationPickerScreen() {
                 >
                   <FlatList
                     data={searchResults}
-                    keyExtractor={(item, index) =>
-                      `${item.latitude}-${item.longitude}-${index}`
-                    }
+                    keyExtractor={(item) => item.placeId}
                     renderItem={({ item }) => (
                       <TouchableOpacity
                         onPress={() => handleSelectResult(item)}
@@ -460,11 +474,7 @@ export default function MapLocationPickerScreen() {
                             }}
                             numberOfLines={1}
                           >
-                            {(item.street ||
-                              item.formattedAddress.split(" - ")[0]) +
-                              (item.streetNumber
-                                ? `, ${item.streetNumber}`
-                                : "")}
+                            {item.primaryText || item.description}
                           </Text>
                           <Text
                             style={{
@@ -474,9 +484,7 @@ export default function MapLocationPickerScreen() {
                             }}
                             numberOfLines={1}
                           >
-                            {item.city && item.region
-                              ? `${item.city} - ${item.region}`
-                              : item.formattedAddress}
+                            {item.secondaryText || ""}
                           </Text>
                         </View>
                         <MaterialIcons

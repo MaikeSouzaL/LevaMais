@@ -18,11 +18,30 @@ import DriverWalletScreen from "../screens/(authenticated)/Driver/DriverWalletSc
 import DriverProfileScreen from "../screens/(authenticated)/Driver/DriverProfileScreen";
 import DriverVehicleScreen from "../screens/(authenticated)/Driver/DriverVehicleScreen";
 import DriverSettingsScreen from "../screens/(authenticated)/Driver/DriverSettingsScreen";
+import DriverWithdrawScreen from "../screens/(authenticated)/Driver/DriverWithdrawScreen";
+import DriverStatementScreen from "../screens/(authenticated)/Driver/DriverStatementScreen";
+import DriverRideDetailsScreen from "../screens/(authenticated)/Driver/DriverRideDetailsScreen";
 import DriverHelpScreen from "../screens/(authenticated)/Driver/DriverHelpScreen";
+
+
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import DriverSafetyScreen from "../screens/(authenticated)/Driver/DriverSafetyScreen";
 import { useAuthStore } from "../context/authStore";
 
 const Drawer = createDrawerNavigator();
+const Stack = createNativeStackNavigator();
+
+function DriverFinanceGroup() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false, animation: "slide_from_right" }}>
+      <Stack.Screen name="DriverEarnings" component={DriverEarningsScreen} />
+      <Stack.Screen name="DriverWithdraw" component={DriverWithdrawScreen} />
+      <Stack.Screen name="DriverStatement" component={DriverStatementScreen} />
+      <Stack.Screen name="DriverRideDetails" component={DriverRideDetailsScreen} />
+      <Stack.Screen name="DriverEarningsDetails" component={DriverStatementScreen} />
+    </Stack.Navigator>
+  );
+}
 
 function CustomDrawerContent(props: DrawerContentComponentProps) {
   const { logout, userData } = useAuthStore();
@@ -30,10 +49,10 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
   const menuItems = [
     { name: "DriverHome", label: "Mapa", icon: "map" },
     { name: "DriverRequests", label: "Solicitações", icon: "car" },
-    { name: "DriverEarnings", label: "Ganhos", icon: "cash" },
+    { name: "DriverFinance", label: "Ganhos/Carteira", icon: "cash" }, // Updated to point to Finance Group
     { name: "DriverHistory", label: "Histórico", icon: "history" },
-    { name: "DriverWallet", label: "Carteira", icon: "wallet" },
     { name: "DriverVehicle", label: "Veículo", icon: "car-info" },
+    // Wallet removido pois agora está dentro de Ganhos/Carteira
     { name: "DriverProfile", label: "Perfil", icon: "account" },
     { name: "DriverSafety", label: "Segurança", icon: "shield" },
     { name: "DriverHelp", label: "Ajuda", icon: "help-circle" },
@@ -124,6 +143,8 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
   );
 }
 
+
+
 export default function DrawerDriverRoutes() {
   return (
     <Drawer.Navigator
@@ -145,20 +166,29 @@ export default function DrawerDriverRoutes() {
         component={DriverRequestsScreen}
         options={{ title: "Solicitações" }}
       />
+      
+      {/* Substitui Earnings direto pela Stack */}
       <Drawer.Screen
-        name="DriverEarnings"
-        component={DriverEarningsScreen}
-        options={{ title: "Ganhos" }}
+        name="DriverFinance"
+        component={DriverFinanceGroup}
+        options={{ title: "Ganhos / Carteira" }} 
       />
+
       <Drawer.Screen
         name="DriverHistory"
         component={DriverHistoryScreen}
         options={{ title: "Histórico" }}
       />
+      {/* Wallet screen antiga (DriverWalletScreen) - deprecated ou manter como atalho? 
+          Vamos redirecionar DriverWallet para a nova stack tb ou manter escondida.
+      */}
       <Drawer.Screen
         name="DriverWallet"
         component={DriverWalletScreen}
-        options={{ title: "Carteira" }}
+        options={{ 
+            title: "Carteira (Antiga)",
+            drawerItemStyle: { display: "none" } // Esconde a antiga
+        }}
       />
       <Drawer.Screen
         name="DriverVehicle"

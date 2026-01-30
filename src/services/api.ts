@@ -11,6 +11,12 @@ const RAW_BASE =
 
 const API_BASE_URL = RAW_BASE.replace(/\/$/, "") + "/api";
 
+console.log("🌐 API Configuration:");
+console.log("  - RAW_BASE:", RAW_BASE);
+console.log("  - API_BASE_URL:", API_BASE_URL);
+console.log("  - EXPO_PUBLIC_API_URL:", process.env.EXPO_PUBLIC_API_URL);
+console.log("  - __DEV__:", __DEV__);
+
 // Criar instância do axios
 function createApiInstance(): AxiosInstance {
   const instance = axios.create({

@@ -14,6 +14,8 @@ export type DriverServicePrefs = {
   delivery: boolean;
 };
 
+import type { DriverStats } from "../../../../services/ride.service";
+
 type Props = {
   online: boolean;
   services: DriverServicePrefs;
@@ -22,6 +24,7 @@ type Props = {
   onToggleService: (key: keyof DriverServicePrefs) => void;
   snapPoints?: Array<string | number>;
   vehicleType?: string; // Para validar se pode fazer corridas
+  stats?: DriverStats; // [NEW] Optional stats prop
 };
 
 function Chip({
@@ -86,11 +89,18 @@ export function DriverBottomSheet({
   onToggleService,
   snapPoints = ["35%", "60%"],
   vehicleType,
+  stats = { earnings: 0, rides: 0, goal: 10, bonus: 0 }, // [NEW] Default stats
 }: Props) {
+  const [showFilters, setShowFilters] = React.useState(false);
+
   // Só carros e motos podem fazer corridas (passageiros)
   const canDoRides = vehicleType === "car" || vehicleType === "motorcycle";
   // Todos os veículos podem fazer entregas
   const canDoDeliveries = true;
+
+  // Calculate progress
+  const progressPercent = Math.min((stats.rides / stats.goal) * 100, 100);
+
   return (
     <AppBottomSheet
       index={0}
@@ -102,6 +112,47 @@ export function DriverBottomSheet({
       contentPaddingHorizontal={16}
       contentPaddingTop={8}
     >
+      <View>
+      <View>
+          <View style={{ marginBottom: 20, marginTop: 4 }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" }}>
+              <View>
+                <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 13, fontWeight: "600", letterSpacing: 0.5 }}>
+                  GANHOS DE HOJE
+                </Text>
+                <Text style={{ color: "#02de95", fontSize: 36, fontWeight: "900", letterSpacing: -1 }}>
+                  R$ {stats.earnings.toFixed(2).replace(".", ",")}
+                </Text>
+              </View>
+              {/* Mini chart visual or badge */}
+              <View style={{ backgroundColor: "rgba(2,222,149,0.15)", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 }}>
+                 <Text style={{ color: "#02de95", fontWeight: "900", fontSize: 12 }}>
+                   {stats.bonus > 0 ? `+ R$ ${stats.bonus} BÔNUS` : `Meta: R$ 20 BÔNUS`}
+                 </Text>
+              </View>
+            </View>
+
+            {/* Daily Goal Progress */}
+            <View style={{ marginTop: 16, backgroundColor: "rgba(255,255,255,0.05)", padding: 12, borderRadius: 12 }}>
+               <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 8 }}>
+                  <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}>Meta Diária ({stats.goal} corridas)</Text>
+                  <Text style={{ color: "rgba(255,255,255,0.8)", fontWeight: "600" }}>{stats.rides}/{stats.goal}</Text>
+               </View>
+               <View style={{ height: 6, backgroundColor: "rgba(0,0,0,0.3)", borderRadius: 3, overflow: "hidden" }}>
+                  <View style={{ width: `${progressPercent}%`, height: "100%", backgroundColor: "#02de95" }} />
+               </View>
+               <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, marginTop: 6 }}>
+                  {stats.rides >= stats.goal 
+                    ? "Parabéns! Você atingiu a meta diária."
+                    : `Faça mais ${stats.goal - stats.rides} corridas para ganhar o bônus extra.`}
+               </Text>
+            </View>
+
+            <View style={{ height: 1, backgroundColor: "rgba(255,255,255,0.08)", marginVertical: 20 }} />
+          </View>
+      </View>
+      </View>
+
       <View
         style={{
           flexDirection: "row",
@@ -110,20 +161,35 @@ export function DriverBottomSheet({
           gap: 12,
         }}
       >
-        <View style={{ flex: 1, minWidth: 220 }}>
+        <TouchableOpacity
+            style={{
+                width: 44,
+                height: 44,
+                borderRadius: 12,
+                backgroundColor: showFilters ? "#02de95" : "rgba(255,255,255,0.1)",
+                alignItems: "center",
+                justifyContent: "center",
+                marginRight: 4
+            }}
+            onPress={() => setShowFilters(!showFilters)}
+        >
+            <MaterialIcons name="tune" size={24} color={showFilters ? "#000" : "#fff"} />
+        </TouchableOpacity>
+
+        <View style={{ flex: 1, minWidth: 160 }}>
           <Text style={{ color: "white", fontSize: 18, fontWeight: "900" }}>
             {online 
               ? (services.ride && services.delivery 
-                  ? "Procurando corridas e entregas..."
+                  ? "Procurando tudo..."
                   : services.ride 
-                    ? "Procurando corridas..."
-                    : "Procurando entregas...")
+                    ? "Só corridas..."
+                    : "Só entregas...")
               : "Você está offline"}
           </Text>
-          <Text style={{ color: "rgba(255,255,255,0.65)", marginTop: 4 }}>
+          <Text style={{ color: "rgba(255,255,255,0.65)", marginTop: 4, fontSize: 13 }}>
             {online
-              ? "Aguarde, te avisaremos quando surgir uma nova solicitação."
-              : "Ative para começar a receber corridas"}
+              ? "Aguardando solicitações..."
+              : "Toque para ficar online"}
           </Text>
         </View>
 
@@ -134,52 +200,55 @@ export function DriverBottomSheet({
         />
       </View>
 
-      <View
-        style={{
-          height: 1,
-          backgroundColor: "rgba(255,255,255,0.06)",
-          marginVertical: 14,
-        }}
-      />
+      {/* FILTERS SECTION (Collapsible) */}
+      {showFilters && (
+        <View style={{ marginTop: 24 }}>
+          <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, fontWeight: "700", marginBottom: 12, textTransform: 'uppercase', letterSpacing: 1 }}>
+            Preferências de Trabalho
+          </Text>
+          <View style={{ flexDirection: "row", gap: 10 }}>
+             <TouchableOpacity
+                onPress={() => canDoRides && onToggleService("ride")}
+                disabled={!canDoRides}
+                activeOpacity={0.7}
+                style={{
+                    backgroundColor: services.ride ? "#02de95" : "transparent",
+                    borderWidth: 1,
+                    borderColor: services.ride ? "#02de95" : "rgba(255,255,255,0.2)",
+                    paddingHorizontal: 16,
+                    paddingVertical: 10,
+                    borderRadius: 99,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 8
+                }}
+             >
+                <MaterialIcons name="directions-car" size={20} color={services.ride ? "#000" : "#fff"} />
+                <Text style={{ color: services.ride ? "#000" : "#fff", fontWeight: "700" }}>Corridas</Text>
+             </TouchableOpacity>
 
-      <Text
-        style={{
-          color: "rgba(255,255,255,0.8)",
-          fontWeight: "900",
-          marginBottom: 12,
-          fontSize: 15,
-        }}
-      >
-        O que você quer fazer?
-      </Text>
-
-      <View style={{ flexDirection: "row", gap: 12 }}>
-        <Chip
-          label="Corridas"
-          active={services.ride}
-          onPress={() => canDoRides && onToggleService("ride")}
-          icon="directions-car"
-          disabled={!canDoRides}
-        />
-        <Chip
-          label="Entregas"
-          active={services.delivery}
-          onPress={() => onToggleService("delivery")}
-          icon="local-shipping"
-        />
-      </View>
-
-      {!canDoRides && (
-        <Text style={{ color: "rgba(255,255,255,0.5)", marginTop: 10, fontSize: 13 }}>
-          💡 Corridas de passageiros disponíveis apenas para carros e motos
-        </Text>
+             <TouchableOpacity
+                onPress={() => onToggleService("delivery")}
+                activeOpacity={0.7}
+                style={{
+                    backgroundColor: services.delivery ? "#02de95" : "transparent",
+                    borderWidth: 1,
+                    borderColor: services.delivery ? "#02de95" : "rgba(255,255,255,0.2)",
+                    paddingHorizontal: 16,
+                    paddingVertical: 10,
+                    borderRadius: 99,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 8
+                }}
+             >
+                <MaterialIcons name="local-shipping" size={20} color={services.delivery ? "#000" : "#fff"} />
+                <Text style={{ color: services.delivery ? "#000" : "#fff", fontWeight: "700" }}>Entregas</Text>
+             </TouchableOpacity>
+          </View>
+        </View>
       )}
 
-      {!services.ride && !services.delivery && (
-        <Text style={{ color: "#fbbf24", marginTop: 12, fontWeight: "700" }}>
-          ⚠️ Selecione pelo menos 1 tipo de serviço para ficar online
-        </Text>
-      )}
     </AppBottomSheet>
   );
 }

@@ -109,6 +109,11 @@ export default function PaymentScreen() {
           needsHelper: order.helperIncluded,
           insurance: (order.insuranceLevel as any) || "none",
         },
+        payment: {
+          method: {
+            type: order.paymentMethodRaw || selectedMethod,
+          },
+        },
       });
 
       const searchData = {

@@ -35,6 +35,7 @@ export type FinalOrderSummaryData = {
     total: number;
   };
   paymentSummary: string; // e.g., "Visa final 4242" / "Dinheiro" / "Pix"
+  paymentMethodRaw?: "credit_card" | "pix" | "cash";
   itemType?: string; // e.g., "Caixa pequena"
   helperIncluded?: boolean; // Ajudante
   insuranceLevel?: "none" | "basic" | "premium";

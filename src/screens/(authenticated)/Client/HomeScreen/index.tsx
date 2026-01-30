@@ -696,26 +696,24 @@ export default function HomeScreen() {
     bottomSheetRef.current?.snapToIndex(1);
   };
 
-  const handlePressRide = () => {
-    console.log("Pressed ride service");
-    setServiceMode("ride");
-    bottomSheetRef.current?.close();
-    (navigation as any).navigate("LocationPicker");
-  };
-
-  const handlePressDelivery = () => {
-    console.log("Pressed delivery service");
-    setServiceMode("delivery");
-    // Fecha outros sheets e navega para seletor de local
-    bottomSheetRef.current?.close();
-    (navigation as any).navigate("LocationPicker");
-  };
-
   // Removido: handleSelectVehicle (seleção ocorre na SelectVehicleScreen)
+  // Removido: handlePressRide e handlePressDelivery (serviço selecionado via LocationPicker)
 
-  const handleConfirmMotoOffer = (offerId: string) => {
-    console.log("Moto offer confirmed:", offerId);
+
+  const handleConfirmMotoOffer = (offerId: string, paymentMethod?: string) => {
+    console.log("Moto offer confirmed:", offerId, paymentMethod);
     offersMotoRef.current?.close();
+
+    let paymentRaw: "credit_card" | "pix" | "cash" = "credit_card";
+    let paymentText = "Visa final 4242";
+
+    if (paymentMethod === "dinheiro") {
+      paymentRaw = "cash";
+      paymentText = "Dinheiro";
+    } else if (paymentMethod === "pix") {
+      paymentRaw = "pix";
+      paymentText = "Pix";
+    }
 
     // Navegar diretamente para o resumo (sem modal de busca aqui)
     const q = priceQuote;
@@ -757,7 +755,8 @@ export default function HomeScreen() {
         serviceFee: q?.pricing?.serviceFee ?? 1.5,
         total: q?.pricing?.total ?? 14.9,
       },
-      paymentSummary: "Visa final 4242",
+      paymentSummary: paymentText,
+      paymentMethodRaw: paymentRaw,
       itemType: "Caixa pequena",
       helperIncluded: false,
       insuranceLevel: "basic",
@@ -963,8 +962,6 @@ export default function HomeScreen() {
           <BottomSheet
             ref={bottomSheetRef}
             onPressSearch={handlePressSearch}
-            onPressRide={handlePressRide}
-            onPressDelivery={handlePressDelivery}
           />
         </>
 

@@ -9,6 +9,7 @@ import {
   Platform,
   ScrollView,
   Animated,
+  Alert,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -25,10 +26,9 @@ import {
   type GeocodingResult,
 } from "../../../../utils/location";
 import { useAuthStore } from "../../../../context/authStore";
-import {
-  favoriteService,
-  FavoriteLocation,
-} from "../../../../services/favorite.service";
+import favoriteAddressService, {
+  FavoriteAddress,
+} from "../../../../services/favoriteAddress.service";
 
 export default function LocationPickerScreen() {
   const navigation = useNavigation();
@@ -59,29 +59,58 @@ export default function LocationPickerScreen() {
 
   const [selectedAddress, setSelectedAddress] =
     useState<GeocodingResult | null>(null);
-  const [favorites, setFavorites] = useState<FavoriteLocation[]>([]);
+  const [favorites, setFavorites] = useState<FavoriteAddress[]>([]);
   const [isLoadingFavorites, setIsLoadingFavorites] = useState(false);
+
+  // Função para carregar favoritos
+  const loadFavorites = async () => {
+    if (userData?.id && token) {
+      setIsLoadingFavorites(true);
+      try {
+        const userFavorites = await favoriteAddressService.list();
+        setFavorites(userFavorites);
+      } catch (error) {
+        console.error("Erro ao carregar favoritos:", error);
+      } finally {
+        setIsLoadingFavorites(false);
+      }
+    }
+  };
+
+  // Função para deletar favorito
+  const handleDeleteFavorite = async (favoriteId: string, favoriteName: string) => {
+    Alert.alert(
+      "Deletar Favorito",
+      `Tem certeza que deseja deletar "${favoriteName}"?`,
+      [
+        {
+          text: "Cancelar",
+          style: "cancel",
+        },
+        {
+          text: "Deletar",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await favoriteAddressService.delete(favoriteId);
+              // Recarregar lista
+              await loadFavorites();
+              Alert.alert("Sucesso", "Favorito deletado com sucesso!");
+            } catch (error) {
+              console.error("Erro ao deletar favorito:", error);
+              Alert.alert("Erro", "Não foi possível deletar o favorito");
+            }
+          },
+        },
+      ]
+    );
+  };
 
   // Carregar favoritos quando a tela estiver em foco
   useEffect(() => {
-    const loadFavorites = async () => {
-      if (isFocused && userData?.id && token) {
-        setIsLoadingFavorites(true);
-        try {
-          const userFavorites = await favoriteService.listByUser(
-            userData.id,
-            token,
-          );
-          setFavorites(userFavorites);
-        } catch (error) {
-          console.error("Erro ao carregar favoritos:", error);
-        } finally {
-          setIsLoadingFavorites(false);
-        }
-      }
-    };
-
-    loadFavorites();
+    if (isFocused) {
+      loadFavorites();
+    }
   }, [isFocused, userData?.id, token]);
 
   const recents = [
@@ -346,41 +375,57 @@ export default function LocationPickerScreen() {
                     <ActivityIndicator size="small" color="#02de95" />
                   ) : favorites.length > 0 ? (
                     favorites.map((item) => (
-                      <TouchableOpacity
-                        key={item.id || item.id || Math.random().toString()}
-                        className="flex-row items-center p-3 rounded-xl active:bg-white/5"
-                        onPress={() =>
-                          handleSelectResult({
-                            formattedAddress: item.address,
-                            latitude: item.latitude,
-                            longitude: item.longitude,
-                          } as any)
-                        }
+                      <View
+                        key={item._id || Math.random().toString()}
+                        className="flex-row items-center rounded-xl"
                       >
-                        <View className="h-10 w-10 rounded-full bg-white/10 items-center justify-center mr-4">
+                        <TouchableOpacity
+                          className="flex-1 flex-row items-center p-3 active:bg-white/5"
+                          onPress={() =>
+                            handleSelectResult({
+                              formattedAddress: item.address,
+                              latitude: item.latitude,
+                              longitude: item.longitude,
+                            } as any)
+                          }
+                        >
+                          <View className="h-10 w-10 rounded-full bg-white/10 items-center justify-center mr-4">
+                            <MaterialIcons
+                              name={item.icon as any}
+                              size={20}
+                              color="#D1D5DB"
+                            />
+                          </View>
+                          <View className="flex-1">
+                            <Text className="text-sm font-medium text-white">
+                              {item.name}
+                            </Text>
+                            <Text
+                              className="text-xs text-gray-400"
+                              numberOfLines={1}
+                            >
+                              {item.address}
+                            </Text>
+                          </View>
                           <MaterialIcons
-                            name={item.icon as any}
-                            size={20}
-                            color="#D1D5DB"
+                            name="chevron-right"
+                            size={18}
+                            color="#9CA3AF"
                           />
-                        </View>
-                        <View className="flex-1">
-                          <Text className="text-sm font-medium text-white">
-                            {item.label}
-                          </Text>
-                          <Text
-                            className="text-xs text-gray-400"
-                            numberOfLines={1}
-                          >
-                            {item.address}
-                          </Text>
-                        </View>
-                        <MaterialIcons
-                          name="chevron-right"
-                          size={18}
-                          color="#9CA3AF"
-                        />
-                      </TouchableOpacity>
+                        </TouchableOpacity>
+                        
+                        {/* Delete Button */}
+                        <TouchableOpacity
+                          className="p-3 active:bg-red-500/10 rounded-xl"
+                          onPress={() => handleDeleteFavorite(item._id, item.name)}
+                        >
+                          <MaterialIcons
+                            name="delete-outline"
+                            size={20}
+                            color="#EF4444"
+                          />
+                        </TouchableOpacity>
+                      </View>
                     ))
                   ) : (
                     <Text className="text-gray-500 text-sm pl-3 mb-2">
@@ -391,9 +436,7 @@ export default function LocationPickerScreen() {
                   {/* Add Favorite */}
                   <TouchableOpacity
                     className="flex-row items-center p-3 rounded-xl active:bg-white/5"
-                    onPress={() =>
-                      (navigation as any).navigate("AddFavoriteLocation")
-                    }
+                    onPress={() => (navigation as any).navigate("AddFavorite")}
                   >
                     <View className="h-10 w-10 rounded-full border border-dashed border-gray-500 items-center justify-center mr-4">
                       <MaterialIcons name="add" size={20} color="#9CA3AF" />
@@ -568,6 +611,47 @@ export default function LocationPickerScreen() {
                   style={{ flex: 1, color: "#fff", fontSize: 14, padding: 0 }}
                 />
               </View>
+
+              {/* Botão Salvar como Favorito */}
+              <TouchableOpacity
+                onPress={() => {
+                  if (selectedAddress) {
+                    const parts = selectedAddress.formattedAddress.split(" - ");
+                    const address = parts[0] || selectedAddress.formattedAddress;
+                    const neighborhood = parts[1];
+                    const cityState = parts[2];
+                    
+                    (navigation as any).navigate("AddFavorite", {
+                      address: selectedAddress.formattedAddress,
+                      neighborhood,
+                      city: cityState?.split(",")[0]?.trim(),
+                      state: cityState?.split("-")[1]?.trim(),
+                      latitude: selectedAddress.latitude,
+                      longitude: selectedAddress.longitude,
+                    });
+                  }
+                }}
+                activeOpacity={0.8}
+                style={{
+                  width: "100%",
+                  height: 48,
+                  backgroundColor: "rgba(2,222,149,0.1)",
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: "#02de95",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                }}
+              >
+                <MaterialIcons name="bookmark-border" size={20} color="#02de95" />
+                <Text
+                  style={{ color: "#02de95", fontSize: 14, fontWeight: "700" }}
+                >
+                  Salvar como Favorito
+                </Text>
+              </TouchableOpacity>
 
               <TouchableOpacity
                 onPress={handleConfirmLocation}

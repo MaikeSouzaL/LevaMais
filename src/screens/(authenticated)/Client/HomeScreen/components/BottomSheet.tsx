@@ -1,93 +1,171 @@
-import React, { forwardRef, useMemo } from "react";
-import { View, Text } from "react-native";
-import GorhomBottomSheet, {
-  BottomSheetBackdrop,
-  BottomSheetView,
-} from "@gorhom/bottom-sheet";
+import React, { forwardRef, useEffect, useState } from "react";
+import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
+import { MaterialIcons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
 import { SearchBar } from "./SearchBar";
-import { ServiceCard } from "./ServiceCard";
+import { AppBottomSheet, AppBottomSheetRef } from "../../../../../components/ui/AppBottomSheet";
+import favoriteAddressService, { FavoriteAddress } from "../../../../../services/favoriteAddress.service";
 
 interface BottomSheetProps {
   onPressSearch?: () => void;
-  onPressRide?: () => void;
-  onPressDelivery?: () => void;
+  onSelectFavorite?: (favorite: FavoriteAddress) => void;
 }
 
-export const BottomSheet = forwardRef<GorhomBottomSheet, BottomSheetProps>(
-  ({ onPressSearch, onPressRide, onPressDelivery }, ref) => {
-    // Ajustado para 30% - suficiente para barra de busca + 2 cards de serviço
-    const snapPoints = useMemo(() => ["30%"], []);
+export const BottomSheet = forwardRef<AppBottomSheetRef, BottomSheetProps>(
+  ({ onPressSearch, onSelectFavorite }, ref) => {
+    const navigation = useNavigation();
+    const [favorites, setFavorites] = useState<FavoriteAddress[]>([]);
+    const [loadingFavorites, setLoadingFavorites] = useState(true);
+
+    useEffect(() => {
+      loadFavorites();
+    }, []);
+
+    const loadFavorites = async () => {
+      try {
+        setLoadingFavorites(true);
+        const favorites = await favoriteAddressService.list();
+        // Pegar apenas os 2 primeiros
+        setFavorites(favorites.slice(0, 2));
+      } catch (error) {
+        console.error("Erro ao carregar favoritos:", error);
+        setFavorites([]);
+      } finally {
+        setLoadingFavorites(false);
+      }
+    };
+
+    const handleFavoritePress = (favorite: FavoriteAddress) => {
+      if (onSelectFavorite) {
+        onSelectFavorite(favorite);
+      }
+    };
 
     return (
-      <GorhomBottomSheet
+      <AppBottomSheet
         ref={ref}
-        index={0} // Inicia no ponto (35%)
-        snapPoints={snapPoints}
-        enablePanDownToClose={false} // Não fecha completamente
-        handleIndicatorStyle={{
-          backgroundColor: "rgba(156, 163, 175, 0.5)",
-          width: 48,
-          height: 4,
-        }}
-        backgroundStyle={{
-          backgroundColor: "#0f231c",
-        }}
+        index={0}
+        snapPoints={favorites.length > 0 ? ["32%"] : ["20%"]}
+        enablePanDownToClose={false}
+        backgroundColor="#0f231c"
+        handleIndicatorColor="rgba(156, 163, 175, 0.3)"
+        contentPaddingHorizontal={24}
+        contentPaddingTop={16}
         style={{
-          // Removidas margens laterais para ocupar toda a largura
-          marginBottom: -6,
-          borderTopLeftRadius: 24,
-          borderTopRightRadius: 24,
-          overflow: "hidden",
           shadowColor: "#000",
-          shadowOffset: {
-            width: 0,
-            height: -4,
-          },
+          shadowOffset: { width: 0, height: -4 },
           shadowOpacity: 0.5,
           shadowRadius: 12,
           elevation: 10,
         }}
       >
-        <BottomSheetView style={{ flex: 1, paddingBottom: 24 }}>
-          {/* Conteúdo */}
-          <View className="px-6 pt-2">
-            {/* Barra de busca */}
-            <SearchBar onPress={onPressSearch} />
+        <SearchBar onPress={onPressSearch} />
 
+        {/* Favoritos */}
+        {loadingFavorites ? (
+          <View style={{ marginTop: 16, alignItems: "center" }}>
+            <ActivityIndicator color="#02de95" size="small" />
+          </View>
+        ) : favorites.length > 0 ? (
+          <View style={{ marginTop: 16 }}>
             <Text
               style={{
                 color: "#9bbbb0",
-                fontSize: 14,
-                fontWeight: "600",
+                fontSize: 11,
+                fontWeight: "700",
                 marginBottom: 12,
                 marginLeft: 4,
+                textTransform: "uppercase",
+                letterSpacing: 0.5,
               }}
             >
-              Nossos serviços
+              Favoritos
             </Text>
+            {favorites.map((favorite) => (
+              <TouchableOpacity
+                key={favorite._id}
+                onPress={() => handleFavoritePress(favorite)}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  backgroundColor: "#162e25",
+                  borderRadius: 12,
+                  padding: 12,
+                  marginBottom: 8,
+                  borderWidth: 1,
+                  borderColor: "rgba(2,222,149,0.1)",
+                }}
+                activeOpacity={0.7}
+              >
+                {/* Ícone */}
+                <View
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 20,
+                    backgroundColor: "rgba(2,222,149,0.15)",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginRight: 12,
+                  }}
+                >
+                  <MaterialIcons
+                    name={favorite.icon as any}
+                    size={20}
+                    color="#02de95"
+                  />
+                </View>
 
-            {/* Cards de serviços - grid 2 colunas */}
-            <View className="flex-row gap-4">
-              <View className="flex-1">
-                <ServiceCard
-                  icon="local-taxi"
-                  title="Corrida"
-                  subtitle="Carro ou Moto"
-                  onPress={onPressRide}
+                {/* Informações */}
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      color: "#ffffff",
+                      fontSize: 14,
+                      fontWeight: "700",
+                      marginBottom: 2,
+                    }}
+                    numberOfLines={1}
+                  >
+                    {favorite.name}
+                  </Text>
+                  <Text
+                    style={{
+                      color: "#9bbbb0",
+                      fontSize: 12,
+                    }}
+                    numberOfLines={1}
+                  >
+                    {favorite.formattedAddress || favorite.address}
+                  </Text>
+                </View>
+
+                {/* Seta */}
+                <MaterialIcons
+                  name="chevron-right"
+                  size={20}
+                  color="#9bbbb0"
                 />
-              </View>
-              <View className="flex-1">
-                <ServiceCard
-                  icon="local-shipping"
-                  title="Entrega"
-                  subtitle="Enviar itens"
-                  onPress={onPressDelivery}
-                />
-              </View>
-            </View>
+              </TouchableOpacity>
+            ))}
           </View>
-        </BottomSheetView>
-      </GorhomBottomSheet>
+        ) : (
+          <Text
+            style={{
+              color: "#9bbbb0",
+              fontSize: 11,
+              fontWeight: "600",
+              marginTop: 16,
+              marginBottom: 8,
+              marginLeft: 4,
+              textAlign: "center",
+              opacity: 0.7,
+            }}
+          >
+            Toque na barra de busca para escolher seu destino
+          </Text>
+        )}
+      </AppBottomSheet>
     );
   },
 );

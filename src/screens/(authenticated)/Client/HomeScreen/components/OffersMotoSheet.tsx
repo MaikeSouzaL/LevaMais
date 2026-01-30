@@ -22,7 +22,7 @@ interface OfferItem {
 }
 
 interface OffersMotoSheetProps {
-  onConfirm?: (offerId: string) => void;
+  onConfirm?: (offerId: string, paymentMethod: string) => void;
   onClose?: () => void;
   onBack?: () => void;
   nextPriceText?: string;
@@ -396,7 +396,7 @@ export const OffersMotoSheet = forwardRef<
                 paddingHorizontal: 16,
                 borderRadius: 12,
               }}
-              onPress={() => onConfirm?.(offers[0]?.id || "default")}
+              onPress={() => onConfirm?.(offers[0]?.id || "default", paymentMethod)}
             >
               <View style={{ flex: 1 }}>
                 <Text

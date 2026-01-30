@@ -11,6 +11,21 @@ export function DriverHeader({
   right?: React.ReactNode;
 }) {
   const navigation = useNavigation();
+  const canGoBack = (navigation as any).canGoBack();
+  // Se estiver numa stack e não for a rota inicial da history, mostra voltar.
+  // Porém, como estamos num drawer, às vezes canGoBack() retorna true mas não queremos mostrar
+  // se for a tela raiz do Drawer. Mas aqui vamos assumir que as telas internas serão Stacks.
+  
+  // Melhor abordagem: verificar se existe um parent stack ou flag explicita
+  // Para simplificar: se passarmos "showBack" ou se canGoBack for true E não for openDrawer.
+  
+  const handlePressConfig = () => {
+    if (canGoBack) {
+        navigation.goBack();
+    } else {
+        (navigation as any).openDrawer?.();
+    }
+  };
 
   return (
     <View
@@ -27,7 +42,7 @@ export function DriverHeader({
     >
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
         <TouchableOpacity
-          onPress={() => (navigation as any).openDrawer?.()}
+          onPress={handlePressConfig}
           activeOpacity={0.85}
           style={{
             width: 42,
@@ -40,7 +55,11 @@ export function DriverHeader({
             justifyContent: "center",
           }}
         >
-          <MaterialIcons name="menu" size={22} color="#02de95" />
+          <MaterialIcons 
+            name={canGoBack ? "arrow-back" : "menu"} 
+            size={22} 
+            color={canGoBack ? "#fff" : "#02de95"} 
+          />
         </TouchableOpacity>
 
         <Text style={{ color: "white", fontWeight: "900", fontSize: 18 }}>

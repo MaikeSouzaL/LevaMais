@@ -7,10 +7,12 @@ const { initializeWebSocket } = require("./src/config/websocket");
 const authRoutes = require("./src/routes/auth.routes");
 const purposeRoutes = require("./src/routes/purpose.routes");
 const favoriteRoutes = require("./src/routes/favorite.routes");
+const favoriteAddressRoutes = require("./src/routes/favoriteAddress.routes");
 const rideRoutes = require("./src/routes/ride.routes");
 const driverLocationRoutes = require("./src/routes/driverLocation.routes");
 const cityRoutes = require("./src/routes/city.routes");
 const pricingRoutes = require("./src/routes/pricing.routes");
+const walletRoutes = require("./src/routes/wallet.routes");
 
 class Server {
   constructor() {
@@ -41,10 +43,12 @@ class Server {
     this.app.use("/api/auth", authRoutes);
     this.app.use("/api/purposes", purposeRoutes);
     this.app.use("/api/favorites", favoriteRoutes);
+    this.app.use("/api/favorite-addresses", favoriteAddressRoutes);
     this.app.use("/api/rides", rideRoutes);
     this.app.use("/api/driver-location", driverLocationRoutes);
     this.app.use("/api/cities", cityRoutes);
     this.app.use("/api/pricing", pricingRoutes);
+    this.app.use("/api/wallet", walletRoutes);
 
     // Rota de teste
     this.app.get("/api/health", (req, res) => {

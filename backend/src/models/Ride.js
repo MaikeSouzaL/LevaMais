@@ -93,6 +93,16 @@ const rideSchema = new mongoose.Schema(
         type: String,
         default: "BRL",
       },
+      // Taxa da plataforma (valor retido)
+      platformFee: {
+        type: Number,
+        default: 0,
+      },
+      // Valor líquido do motorista
+      driverValue: {
+        type: Number,
+        default: 0,
+      },
     },
     // Distância e tempo estimado
     distance: {
@@ -252,6 +262,8 @@ rideSchema.methods.canBeCancelled = function () {
     "driver_assigned",
     "accepted",
     "driver_arriving",
+    "arrived",
+    "in_progress",
   ];
   return cancellableStatuses.includes(this.status);
 };

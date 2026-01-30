@@ -4,6 +4,7 @@ const User = require("../models/User");
 
 // mixins (rating + proofs)
 const ratingProofMixin = require("./ride.ratingProof.mixin");
+const mongoose = require("mongoose");
 
 class RideController {
   // Buscar corrida ativa do usuário autenticado
@@ -127,14 +128,30 @@ class RideController {
       }
 
       // Criar a corrida
+const PricingConfig = require("../models/PricingConfig"); // Import model
+
+// ... inside create method ...
+      
+      // Busca configuração de preço vigente
+      const config = await PricingConfig.findOne().sort({ createdAt: -1 });
+      const platformFeePercentage = config?.platformSettings?.platformFeePercentage || 20; // Default 20% if no config
+
+      const total = pricing.total;
+      const platformFee = total * (platformFeePercentage / 100);
+      const driverValue = total - platformFee;
+
+      // Adiciona calculos ao objeto de pricing
+      pricing.platformFee = platformFee;
+      pricing.driverValue = driverValue;
+
       const ride = new Ride({
-        clientId,
+        clientId: req.user.id,
         serviceType,
         vehicleType,
         purposeId: resolvedPurposeId,
         pickup,
         dropoff,
-        pricing,
+        pricing, // pricing agora inclui platformFee e driverValue
         distance,
         duration,
         details,
@@ -656,8 +673,11 @@ class RideController {
       const userId = req.user.id;
       const { status, limit = 20, page = 1 } = req.query;
 
+      // Force cast to ObjectId for $or queries to ensure safety
+      const userObjectId = new mongoose.Types.ObjectId(userId);
+
       const query = {
-        $or: [{ clientId: userId }, { driverId: userId }],
+        $or: [{ clientId: userObjectId }, { driverId: userObjectId }],
       };
 
       if (status) {
@@ -689,6 +709,163 @@ class RideController {
         error: "Erro ao buscar histórico",
         details: error.message,
       });
+    }
+  }
+
+  // Estatísticas do motorista (Ganhos de hoje, Meta)
+  async getDriverStats(req, res) {
+    try {
+      const driverId = req.user.id;
+      const { startOfDay, endOfDay } = require("date-fns");
+      
+      const now = new Date();
+      // Considerando fuso horário local simples (ideal seria receber timezone do client)
+      const todayStart = startOfDay(now);
+      const todayEnd = endOfDay(now);
+
+      const stats = await Ride.aggregate([
+        {
+          $match: {
+            driverId: new mongoose.Types.ObjectId(driverId),
+            status: "completed",
+            completedAt: { $gte: todayStart, $lte: todayEnd },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            totalEarnings: { $sum: "$pricing.total" },
+            ridesCount: { $sum: 1 },
+          },
+        },
+      ]);
+
+      const result = stats[0] || { totalEarnings: 0, ridesCount: 0 };
+
+      // Meta diária hardcoded por enquanto (gamification MVP)
+      const dailyGoal = 10;
+      
+      // Simular um bônus de R$ 20 se atingir a meta
+      const bonusAmount = result.ridesCount >= dailyGoal ? 20 : 0;
+      
+      // Deduzir taxa do app (ex: 20%) para mostrar lucro líquido estimado
+      // (ajuste conforme regra real. Aqui assumindo que pricing.total é o valor BRUTO e motorista fica com 80%)
+      const driverShare = result.totalEarnings * 0.8; 
+
+      res.json({
+        earnings: driverShare,
+        rides: result.ridesCount,
+        goal: dailyGoal,
+        bonus: bonusAmount,
+      });
+    } catch (error) {
+      console.error("Erro ao buscar estatísticas:", error);
+      res.status(500).json({
+         earnings: 0,
+         rides: 0,
+         goal: 10,
+         bonus: 0
+      });
+    }
+  }
+
+  // Histórico de ganhos (últimos 7 dias)
+  async getEarningsHistory(req, res) {
+    try {
+      const driverId = req.user.id;
+      const { period = "week" } = req.query; // 'day', 'week', 'month'
+      const driverObjectId = new mongoose.Types.ObjectId(driverId);
+      
+      let startDate = new Date();
+      let groupByFormat = ""; // Format for $dateToString
+      
+      // Configure Date Range and Grouping
+      if (period === "day") {
+        startDate.setHours(0, 0, 0, 0); // Start of today
+        groupByFormat = "%H:00"; // Group by Hour
+      } else if (period === "month") {
+        startDate.setDate(1); // Start of current month
+        startDate.setHours(0, 0, 0, 0);
+        groupByFormat = "%Y-%m-%d"; // Group by Day
+      } else {
+        // Default: Week
+        startDate.setDate(startDate.getDate() - 6); // Last 7 days
+        startDate.setHours(0, 0, 0, 0);
+        groupByFormat = "%Y-%m-%d"; // Group by Day
+      }
+
+      const stats = await Ride.aggregate([
+        {
+          $match: {
+            driverId: driverObjectId,
+            status: "completed",
+            completedAt: { $gte: startDate },
+          },
+        },
+        {
+          $project: {
+            // Adjust timzone MVP Fix: UTC-3 hardcoded
+            localDate: { $subtract: ["$completedAt", 1000 * 60 * 60 * 3] }, 
+            // Use valor salvo ou calcula 80% fallback para legados
+            val: { $ifNull: ["$pricing.driverValue", { $multiply: ["$pricing.total", 0.8] }] }
+          }
+        },
+        {
+          $group: {
+            _id: { $dateToString: { format: groupByFormat, date: "$localDate" } },
+            total: { $sum: "$val" },
+            count: { $sum: 1 },
+          },
+        },
+        { $sort: { _id: 1 } },
+      ]);
+
+      // Fill missing slots (Gap Filling)
+      const result = [];
+      const now = new Date();
+      const current = new Date(startDate);
+
+      if (period === "day") {
+          // 00:00 to 23:00
+          for (let i = 0; i < 24; i++) {
+              const hourLabel = `${String(i).padStart(2, '0')}:00`;
+              const match = stats.find(s => s._id === hourLabel);
+              result.push({
+                  label: hourLabel,
+                  value: match ? match.total : 0, // Valor já é liquido do motorista
+                  count: match ? match.count : 0
+              });
+          }
+      } else if (period === "week" || period === "month") {
+          // Fill days until today
+          while (current <= now) {
+              const dateKey = current.toISOString().split("T")[0]; // YYYY-MM-DD
+              const match = stats.find(s => s._id === dateKey);
+              
+              // Format Label
+              let label = "";
+              if (period === "week") {
+                 const days = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+                 label = days[current.getDay()];
+              } else {
+                 label = `${current.getDate()}/${current.getMonth() + 1}`;
+              }
+
+              result.push({
+                  label: label, 
+                  fullDate: dateKey,
+                  value: match ? match.total : 0, // Valor já é liquido
+                  count: match ? match.count : 0
+              });
+              
+              current.setDate(current.getDate() + 1);
+          }
+      }
+
+      res.json(result);
+    } catch (error) {
+      console.error("Erro ao buscar histórico de ganhos:", error);
+      res.status(500).json({ error: "Erro interno ao buscar dados" });
     }
   }
 
@@ -826,6 +1003,7 @@ class RideController {
           distancePrice: parseFloat(distancePrice.toFixed(2)),
           timePrice: parseFloat(timePrice.toFixed(2)),
           extraFees: parseFloat(extraFees.toFixed(2)),
+          serviceFee: parseFloat(extraFees.toFixed(2)), // Alias for Frontend consistency
           subtotal: parseFloat(subtotal.toFixed(2)),
           total: parseFloat(total.toFixed(2)),
           currency: "BRL",
