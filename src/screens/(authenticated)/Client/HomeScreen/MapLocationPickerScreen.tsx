@@ -3,12 +3,11 @@ import {
   View,
   Text,
   TouchableOpacity,
-  TextInput,
   Dimensions,
   Platform,
   ActivityIndicator,
-  FlatList,
   KeyboardAvoidingView,
+  TextInput,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -19,11 +18,9 @@ import {
   getCurrentLocation,
   formatarEndereco,
 } from "../../../../utils/location";
-import {
-  buscarPredicoesEnderecoGoogle,
-  obterDetalhesEnderecoGoogle,
-  type PlacesPrediction,
-} from "../../../../utils/googlePlaces";
+import { type PlaceAutocompleteResult } from "../../../../services/googlePlaces.service";
+import AddressAutocomplete from "../../../../components/AddressAutocomplete";
+import { useRideDraftStore } from "../../../../context/rideDraftStore";
 
 export default function MapLocationPickerScreen() {
   const insets = useSafeAreaInsets();
@@ -105,10 +102,14 @@ export default function MapLocationPickerScreen() {
 
   const [address, setAddress] = useState("Buscando endereço...");
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<PlacesPrediction[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [showResults, setShowResults] = useState(false);
   const [isGeocodingLoading, setIsGeocodingLoading] = useState(false);
+  const [suppressNextReverseGeocode, setSuppressNextReverseGeocode] =
+    useState(false);
+
+  const setPickup = useRideDraftStore((s) => s.setPickup);
+  const setDropoff = useRideDraftStore((s) => s.setDropoff);
+
+  const [lastSelectedPlace, setLastSelectedPlace] = useState<any>(null);
 
   const [userCity, setUserCity] = useState<string>("");
   const [userRegion, setUserRegion] = useState<string>("");
@@ -153,31 +154,7 @@ export default function MapLocationPickerScreen() {
     detectUserLocation();
   }, []);
 
-  useEffect(() => {
-    const timer = setTimeout(async () => {
-      if (searchQuery.trim().length >= 3) {
-        setIsSearching(true);
-        setShowResults(true);
-        try {
-          const results = await buscarPredicoesEnderecoGoogle(searchQuery, {
-            latitude: region?.latitude,
-            longitude: region?.longitude,
-            radiusMeters: 50000,
-          });
-          setSearchResults(results);
-        } catch (error) {
-          console.error("Erro na busca (Google Places):", error);
-          setSearchResults([]);
-        } finally {
-          setIsSearching(false);
-        }
-      } else {
-        setSearchResults([]);
-        setShowResults(false);
-      }
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [searchQuery, region?.latitude, region?.longitude]);
+  // A busca/autocomplete foi extraída para o componente reutilizável <AddressAutocomplete />
 
   const handleRegionChangeComplete = async (newRegion: {
     latitude: number;
@@ -185,6 +162,18 @@ export default function MapLocationPickerScreen() {
     latitudeDelta: number;
     longitudeDelta: number;
   }) => {
+    // Quando o usuário escolhe um endereço pelo autocomplete, nós já temos
+    // o endereço (com número) correto. O reverse geocode pode retornar um
+    // número diferente (ex.: 305 vs 295), então pulamos 1 atualização.
+    if (suppressNextReverseGeocode) {
+      setSuppressNextReverseGeocode(false);
+      return;
+    }
+
+    // Se o usuário moveu o mapa manualmente, o endereço passa a ser do reverse geocode.
+    // Então o último lugar selecionado pelo autocomplete pode não valer mais.
+    setLastSelectedPlace(null);
+
     setIsGeocodingLoading(true);
     setAddress("Localizando...");
     try {
@@ -203,45 +192,72 @@ export default function MapLocationPickerScreen() {
     }
   };
 
-  const handleSelectResult = async (result: PlacesPrediction) => {
-    setSearchQuery("");
-    setShowResults(false);
-    setSearchResults([]);
+  const handleSelectResult = async (
+    details: any,
+    raw: PlaceAutocompleteResult,
+  ) => {
+    // Mantém exatamente o endereço escolhido no autocomplete (inclui número).
+    setAddress(details.formattedAddress);
+    setLastSelectedPlace({ ...details, placeId: raw.placeId });
 
-    try {
-      const details = await obterDetalhesEnderecoGoogle(result.placeId);
-      if (!details) {
-        setAddress(result.description);
-        return;
-      }
+    // Evita que o onRegionChangeComplete sobrescreva o número com um reverse geocode diferente.
+    setSuppressNextReverseGeocode(true);
 
-      setAddress(details.formattedAddress);
+    const newRegion = {
+      latitude: details.latitude,
+      longitude: details.longitude,
+      latitudeDelta: 0.01,
+      longitudeDelta: 0.01,
+    };
 
-      const newRegion = {
-        latitude: details.latitude,
-        longitude: details.longitude,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      };
-
-      setRegion(newRegion);
-      mapRef.current?.animateToRegion(newRegion, 500);
-    } catch (error) {
-      console.error("Erro ao obter detalhes do lugar:", error);
-      setAddress(result.description);
-    }
+    setRegion(newRegion);
+    mapRef.current?.animateToRegion(newRegion, 500);
   };
 
   const handleConfirm = () => {
     console.log("📍 Local confirmado:", address);
+
+    const latitude = region?.latitude;
+    const longitude = region?.longitude;
+    if (latitude == null || longitude == null) {
+      return;
+    }
+
+    const payload = lastSelectedPlace
+      ? {
+          formattedAddress: lastSelectedPlace.formattedAddress,
+          latitude: lastSelectedPlace.latitude,
+          longitude: lastSelectedPlace.longitude,
+          placeId: lastSelectedPlace.placeId,
+          street: lastSelectedPlace.street,
+          streetNumber: lastSelectedPlace.streetNumber,
+          neighborhood: lastSelectedPlace.neighborhood,
+          city: lastSelectedPlace.city,
+          state: lastSelectedPlace.state,
+          stateCode: lastSelectedPlace.stateCode,
+          postalCode: lastSelectedPlace.postalCode,
+          country: lastSelectedPlace.country,
+        }
+      : {
+          formattedAddress: address,
+          latitude,
+          longitude,
+        };
+
+    if (selectionMode === "currentLocation") {
+      setPickup(payload);
+    } else {
+      setDropoff(payload);
+    }
+
     if (returnScreen === "LocationPicker") {
       navigation.navigate({
         name: "LocationPicker",
         params: {
           selectedLocation: {
-            formattedAddress: address,
-            latitude: region?.latitude,
-            longitude: region?.longitude,
+            formattedAddress: payload.formattedAddress,
+            latitude: payload.latitude,
+            longitude: payload.longitude,
           },
           selectionMode: selectionMode,
         },
@@ -354,149 +370,18 @@ export default function MapLocationPickerScreen() {
             </TouchableOpacity>
 
             <View style={{ width: "100%" }}>
-              <View
-                style={{
-                  height: 48,
-                  borderRadius: 12,
-                  backgroundColor: "#1c2727",
-                  flexDirection: "row",
-                  alignItems: "center",
-                  paddingHorizontal: 16,
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.3,
-                  shadowRadius: 12,
-                  elevation: 8,
-                }}
-              >
-                <MaterialIcons
-                  name="search"
-                  size={20}
-                  color="#9db9b9"
-                  style={{ marginRight: 8 }}
-                />
-                <TextInput
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                  placeholder={
-                    userCity
-                      ? `Buscar em ${userCity}${
-                          userRegion ? ` - ${userRegion}` : ""
-                        }`
-                      : "Buscar endereço"
-                  }
-                  placeholderTextColor="#9db9b9"
-                  style={{
-                    flex: 1,
-                    color: "#fff",
-                    fontSize: 16,
-                    height: "100%",
-                  }}
-                />
-                {isSearching && (
-                  <ActivityIndicator
-                    size="small"
-                    color="#02de95"
-                    style={{ marginLeft: 8 }}
-                  />
-                )}
-                {searchQuery.length > 0 && !isSearching && (
-                  <TouchableOpacity
-                    onPress={() => {
-                      setSearchQuery("");
-                      setShowResults(false);
-                      setSearchResults([]);
-                    }}
-                  >
-                    <MaterialIcons name="close" size={20} color="#9db9b9" />
-                  </TouchableOpacity>
-                )}
-              </View>
-
-              {/* Autocomplete Results */}
-              {showResults && searchResults.length > 0 && (
-                <View
-                  style={{
-                    position: "absolute",
-                    top: 56,
-                    left: 0,
-                    right: 0,
-                    maxHeight: 300,
-                    backgroundColor: "#1c2727",
-                    borderRadius: 12,
-                    shadowColor: "#000",
-                    shadowOffset: { width: 0, height: 4 },
-                    shadowOpacity: 0.3,
-                    shadowRadius: 12,
-                    elevation: 8,
-                    overflow: "hidden",
-                  }}
-                >
-                  <FlatList
-                    data={searchResults}
-                    keyExtractor={(item) => item.placeId}
-                    renderItem={({ item }) => (
-                      <TouchableOpacity
-                        onPress={() => handleSelectResult(item)}
-                        style={{
-                          paddingHorizontal: 16,
-                          paddingVertical: 12,
-                          borderBottomWidth: 1,
-                          borderBottomColor: "rgba(255,255,255,0.05)",
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: 12,
-                        }}
-                        activeOpacity={0.7}
-                      >
-                        <View
-                          style={{
-                            width: 32,
-                            height: 32,
-                            borderRadius: 16,
-                            backgroundColor: "rgba(2, 222, 149, 0.1)",
-                            alignItems: "center",
-                            justifyContent: "center",
-                          }}
-                        >
-                          <MaterialIcons
-                            name="location-on"
-                            size={18}
-                            color="#02de95"
-                          />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text
-                            style={{
-                              color: "#fff",
-                              fontSize: 15,
-                              fontWeight: "600",
-                            }}
-                            numberOfLines={1}
-                          >
-                            {item.primaryText || item.description}
-                          </Text>
-                          <Text
-                            style={{
-                              color: "#9db9b9",
-                              fontSize: 13,
-                              marginTop: 2,
-                            }}
-                            numberOfLines={1}
-                          >
-                            {item.secondaryText || ""}
-                          </Text>
-                        </View>
-                        <MaterialIcons
-                          name="north-west"
-                          size={16}
-                          color="#9db9b9"
-                        />
-                      </TouchableOpacity>
-                    )}
-                  />
-                </View>
-              )}
+              <AddressAutocomplete
+                label=""
+                placeholder={
+                  userCity
+                    ? `Buscar em ${userCity}${userRegion ? ` - ${userRegion}` : ""}`
+                    : "Buscar endereço"
+                }
+                query={searchQuery}
+                setQuery={setSearchQuery}
+                onSelect={handleSelectResult}
+                containerStyle={{ marginBottom: 0, zIndex: 50 }}
+              />
             </View>
           </View>
 
@@ -627,7 +512,7 @@ export default function MapLocationPickerScreen() {
               >
                 <MaterialIcons name="edit" size={20} color="#02de95" />
                 <TextInput
-                  placeholder="Adicionar ponto de referência (opcional)"
+                  placeholder="Adicionar referência (opcional)"
                   placeholderTextColor="#9db9b9"
                   style={{ flex: 1, color: "#fff", fontSize: 14, padding: 0 }}
                 />

@@ -2,22 +2,21 @@ import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
   Alert,
-  FlatList,
-  Keyboard,
+  TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { MaterialIcons } from "@expo/vector-icons";
 import favoriteAddressService from "../../../../services/favoriteAddress.service";
-import googlePlacesService, {
+import {
   PlaceAutocompleteResult,
   PlaceDetails,
 } from "../../../../services/googlePlaces.service";
+import AddressAutocomplete from "../../../../components/AddressAutocomplete";
 
 type Params = {
   AddFavorite: {
@@ -50,11 +49,8 @@ export default function AddFavoriteScreen() {
   const [selectedIcon, setSelectedIcon] = useState<string>("home");
   const [loading, setLoading] = useState(false);
 
-  // Autocomplete states
+  // Autocomplete
   const [searchQuery, setSearchQuery] = useState(params?.address || "");
-  const [searchResults, setSearchResults] = useState<PlaceAutocompleteResult[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [showResults, setShowResults] = useState(false);
   const [selectedAddress, setSelectedAddress] = useState<{
     formattedAddress?: string;
     street?: string;
@@ -80,83 +76,28 @@ export default function AddFavoriteScreen() {
       : null
   );
 
-  // Autocomplete search with Google Places
-  useEffect(() => {
-    const timer = setTimeout(async () => {
-      if (searchQuery.trim().length >= 3 && !selectedAddress) {
-        setIsSearching(true);
-        setShowResults(true);
-        try {
-          console.log("🔍 Buscando endereço:", searchQuery);
-          const results = await googlePlacesService.searchPlaces(searchQuery);
-          console.log("✅ Resultados encontrados:", results.length);
-          console.log("📋 Resultados:", results);
-          setSearchResults(results);
-        } catch (error) {
-          console.error("Erro na busca:", error);
-          setSearchResults([]);
-        } finally {
-          setIsSearching(false);
-        }
-      } else {
-        setSearchResults([]);
-        setShowResults(false);
-      }
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [searchQuery, selectedAddress]);
-
-  const handleSelectAddress = async (result: PlaceAutocompleteResult) => {
-    try {
-      setIsSearching(true);
-      console.log("📍 Buscando detalhes do lugar:", result.placeId);
-      
-      const details = await googlePlacesService.getPlaceDetails(result.placeId);
-      
-      if (!details) {
-        Alert.alert("Erro", "Não foi possível obter os detalhes do endereço");
-        return;
-      }
-
-      console.log("✅ Detalhes completos recebidos:");
-      console.log("   - Endereço formatado:", details.formattedAddress);
-      console.log("   - Rua:", details.street);
-      console.log("   - Número:", details.streetNumber);
-      console.log("   - Bairro:", details.neighborhood);
-      console.log("   - Cidade:", details.city);
-      console.log("   - Estado:", details.state, `(${details.stateCode})`);
-      console.log("   - CEP:", details.postalCode);
-      console.log("   - Coordenadas:", details.latitude, details.longitude);
-
-      setSelectedAddress({
-        formattedAddress: details.formattedAddress,
-        street: details.street,
-        streetNumber: details.streetNumber,
-        address: details.formattedAddress,
-        neighborhood: details.neighborhood,
-        city: details.city,
-        state: details.stateCode || details.state,
-        region: details.state,
-        postalCode: details.postalCode,
-        latitude: details.latitude,
-        longitude: details.longitude,
-      });
-      
-      setSearchQuery(details.formattedAddress);
-      setShowResults(false);
-      Keyboard.dismiss();
-    } catch (error) {
-      console.error("Erro ao obter detalhes:", error);
-      Alert.alert("Erro", "Não foi possível obter os detalhes do endereço");
-    } finally {
-      setIsSearching(false);
-    }
+  const handleSelectAddress = async (
+    details: PlaceDetails,
+    _raw: PlaceAutocompleteResult,
+  ) => {
+    setSelectedAddress({
+      formattedAddress: details.formattedAddress,
+      street: details.street,
+      streetNumber: details.streetNumber,
+      address: details.formattedAddress,
+      neighborhood: details.neighborhood,
+      city: details.city,
+      state: details.stateCode || details.state,
+      region: details.state,
+      postalCode: details.postalCode,
+      latitude: details.latitude,
+      longitude: details.longitude,
+    });
   };
 
   const handleClearAddress = () => {
     setSelectedAddress(null);
     setSearchQuery("");
-    setShowResults(false);
   };
 
   const handleSave = async () => {
@@ -239,161 +180,15 @@ export default function AddFavoriteScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Campo de busca com autocomplete */}
-        <View style={{ marginBottom: 24, zIndex: 10 }}>
-          <Text
-            style={{
-              color: "#9abcb0",
-              fontSize: 13,
-              fontWeight: "700",
-              marginBottom: 8,
-            }}
-          >
-            Buscar endereço
-          </Text>
-          <View style={{ position: "relative" }}>
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                backgroundColor: "#162e25",
-                borderWidth: 1,
-                borderColor: selectedAddress
-                  ? "#02de95"
-                  : "rgba(255,255,255,0.08)",
-                borderRadius: 12,
-                paddingHorizontal: 16,
-                paddingVertical: 12,
-              }}
-            >
-              <MaterialIcons
-                name="search"
-                size={20}
-                color="#9abcb0"
-                style={{ marginRight: 8 }}
-              />
-              <TextInput
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                placeholder="Digite o endereço..."
-                placeholderTextColor="rgba(255,255,255,0.3)"
-                style={{
-                  flex: 1,
-                  color: "white",
-                  fontSize: 16,
-                }}
-                editable={!selectedAddress}
-              />
-              {(isSearching || selectedAddress) && (
-                <TouchableOpacity
-                  onPress={handleClearAddress}
-                  style={{ padding: 4 }}
-                >
-                  <MaterialIcons
-                    name={isSearching ? "hourglass-empty" : "close"}
-                    size={20}
-                    color="#9abcb0"
-                  />
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {/* Autocomplete Results */}
-            {showResults && searchResults.length > 0 && (
-              <View
-                style={{
-                  position: "absolute",
-                  top: "100%",
-                  left: 0,
-                  right: 0,
-                  backgroundColor: "#1a3830",
-                  borderRadius: 16,
-                  marginTop: 8,
-                  maxHeight: 600,
-                  borderWidth: 2,
-                  borderColor: "#02de95",
-                  shadowColor: "#02de95",
-                  shadowOffset: { width: 0, height: 8 },
-                  shadowOpacity: 0.3,
-                  shadowRadius: 16,
-                  elevation: 10,
-                  overflow: "hidden",
-                }}
-              >
-                <FlatList
-                  data={searchResults}
-                  keyExtractor={(item, index) => index.toString()}
-                  renderItem={({ item, index }) => (
-                    <TouchableOpacity
-                      onPress={() => handleSelectAddress(item)}
-                      style={{
-                        padding: 16,
-                        paddingVertical: 16,
-                        borderBottomWidth: index < searchResults.length - 1 ? 1 : 0,
-                        borderBottomColor: "rgba(2,222,149,0.15)",
-                        backgroundColor: "transparent",
-                      }}
-                      activeOpacity={0.7}
-                    >
-                      <View style={{ flexDirection: "row", alignItems: "flex-start" }}>
-                        <View
-                          style={{
-                            width: 40,
-                            height: 40,
-                            borderRadius: 20,
-                            backgroundColor: "rgba(2,222,149,0.15)",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            marginRight: 14,
-                          }}
-                        >
-                          <MaterialIcons
-                            name="place"
-                            size={24}
-                            color="#02de95"
-                          />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text
-                            style={{
-                              color: "#ffffff",
-                              fontSize: 16,
-                              fontWeight: "700",
-                              marginBottom: 4,
-                              lineHeight: 22,
-                            }}
-                            numberOfLines={2}
-                          >
-                            {item.mainText}
-                          </Text>
-                          <Text
-                            style={{
-                              color: "#9abcb0",
-                              fontSize: 14,
-                              lineHeight: 20,
-                            }}
-                            numberOfLines={2}
-                          >
-                            {item.secondaryText}
-                          </Text>
-                        </View>
-                        <MaterialIcons
-                          name="chevron-right"
-                          size={24}
-                          color="#02de95"
-                          style={{ marginLeft: 8 }}
-                        />
-                      </View>
-                    </TouchableOpacity>
-                  )}
-                  nestedScrollEnabled
-                  showsVerticalScrollIndicator={true}
-                  indicatorStyle="white"
-                />
-              </View>
-            )}
-          </View>
-        </View>
+        {/* Campo de busca com autocomplete (reutilizável) */}
+        <AddressAutocomplete
+          label="Buscar endereço"
+          placeholder="Digite o endereço..."
+          query={searchQuery}
+          setQuery={setSearchQuery}
+          disabled={!!selectedAddress}
+          onSelect={handleSelectAddress}
+        />
 
         {/* Endereço selecionado */}
         {selectedAddress && (

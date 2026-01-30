@@ -26,6 +26,7 @@ import {
   type GeocodingResult,
 } from "../../../../utils/location";
 import { useAuthStore } from "../../../../context/authStore";
+import { useRideDraftStore } from "../../../../context/rideDraftStore";
 import favoriteAddressService, {
   FavoriteAddress,
 } from "../../../../services/favoriteAddress.service";
@@ -36,6 +37,8 @@ export default function LocationPickerScreen() {
   const insets = useSafeAreaInsets();
   const isFocused = useIsFocused();
   const { userData, token } = useAuthStore();
+  const setPickup = useRideDraftStore((s) => s.setPickup);
+  const setDropoff = useRideDraftStore((s) => s.setDropoff);
 
   // Animação do bottom sheet
   const slideAnim = useRef(new Animated.Value(400)).current; // Começa fora da tela (400px abaixo)
@@ -203,6 +206,11 @@ export default function LocationPickerScreen() {
         setCurrentLocation(streetPart);
         if (latitude && longitude) {
           setCurrentCoords({ latitude, longitude });
+          setPickup({
+            formattedAddress,
+            latitude,
+            longitude,
+          });
         }
 
         if (cityPart) {
@@ -212,6 +220,18 @@ export default function LocationPickerScreen() {
         }
       } else if (params.selectionMode === "destination") {
         setSelectedAddress(params.selectedLocation);
+
+        if (
+          params.selectedLocation?.latitude &&
+          params.selectedLocation?.longitude &&
+          params.selectedLocation?.formattedAddress
+        ) {
+          setDropoff({
+            formattedAddress: params.selectedLocation.formattedAddress,
+            latitude: params.selectedLocation.latitude,
+            longitude: params.selectedLocation.longitude,
+          });
+        }
       }
 
       // Limpar params para evitar loop ou atualizações indesejadas
@@ -232,6 +252,17 @@ export default function LocationPickerScreen() {
   const handleSelectResult = (result: GeocodingResult) => {
     console.log("📍 Destino selecionado:", result.formattedAddress);
     setSelectedAddress(result);
+
+    setDropoff({
+      formattedAddress: result.formattedAddress,
+      latitude: result.latitude,
+      longitude: result.longitude,
+      street: result.street,
+      streetNumber: result.streetNumber,
+      city: result.city,
+      stateCode: result.region,
+      postalCode: result.postalCode,
+    });
   };
 
   const handleConfirmLocation = () => {
