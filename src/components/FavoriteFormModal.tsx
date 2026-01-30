@@ -77,6 +77,8 @@ export default function FavoriteFormModal({ visible, onClose, onSave }: Props) {
     try {
       await onSave({ name: name.trim(), icon });
       onClose();
+    } catch {
+      // erro é tratado pelo caller (modal de erro), então só mantém aberto
     } finally {
       setSaving(false);
     }

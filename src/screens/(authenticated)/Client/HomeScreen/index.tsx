@@ -19,7 +19,6 @@ import {
 import { DrawerNavigationProp } from "@react-navigation/drawer";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import GorhomBottomSheet from "@gorhom/bottom-sheet";
-import { LocationHeader } from "../../../../components/LocationHeader";
 import { VehicleMarker } from "./components/VehicleMarker";
 import { BottomSheet } from "./components/BottomSheet";
 import {
@@ -660,8 +659,48 @@ export default function HomeScreen() {
     setServiceMode("ride"); // Default para corrida
     // Fecha o BottomSheet principal
     bottomSheetRef.current?.close();
-    // Navega para a tela LocationPicker
+    // Navega para a tela LocationPicker (agora é a tela unificada)
     (navigation as any).navigate("LocationPicker");
+  };
+
+  const handleSelectFavorite = async (favorite: any) => {
+    try {
+      setServiceMode("ride");
+      bottomSheetRef.current?.close();
+
+      const dropAddr = favorite.formattedAddress || favorite.address;
+      setDestinationAddress(dropAddr);
+      setDropoffSelection({
+        address: dropAddr,
+        latitude: favorite.latitude,
+        longitude: favorite.longitude,
+      });
+
+      // pickup: usa o endereço atual (já exibido na Home)
+      const pickup = {
+        address: currentAddress,
+        latitude:
+          pickupSelection?.latitude ||
+          userRegion?.latitude ||
+          region?.latitude ||
+          undefined,
+        longitude:
+          pickupSelection?.longitude ||
+          userRegion?.longitude ||
+          region?.longitude ||
+          undefined,
+      };
+
+      const dropoff = {
+        address: dropAddr,
+        latitude: favorite.latitude,
+        longitude: favorite.longitude,
+      };
+
+      (navigation as any).navigate("SelectVehicle", { pickup, dropoff });
+    } catch (e) {
+      console.error("Erro ao selecionar favorito:", e);
+    }
   };
 
   const handleChooseOnMap = () => {
@@ -867,33 +906,11 @@ export default function HomeScreen() {
                       color="black"
                     />
                   </View>
+
                 </Marker>
               )}
             </GlobalMap>
           </View>
-
-          {/* Gradiente superior - escurece o topo */}
-          <View
-            className="absolute top-0 left-0 right-0 h-40 pointer-events-none z-10"
-            style={{
-              backgroundColor: "transparent",
-            }}
-          >
-            <View
-              className="w-full h-full"
-              style={{
-                backgroundColor: "rgba(0, 0, 0, 0.5)",
-              }}
-            />
-          </View>
-
-          {/* Gradiente inferior - escurece a base */}
-          <View
-            className="absolute bottom-0 left-0 right-0 h-24 pointer-events-none z-10"
-            style={{
-              backgroundColor: "rgba(15, 35, 28, 0.3)",
-            }}
-          />
 
           {/* Botão Menu Hambúrguer - separado, canto superior esquerdo */}
           <View className="absolute top-14 left-4 z-20">
@@ -905,16 +922,6 @@ export default function HomeScreen() {
               <MaterialIcons name="menu" size={24} color="#02de95" />
             </TouchableOpacity>
           </View>
-
-          {/* Header com localização - abaixo do menu */}
-          <View className="absolute top-28 left-4 right-4 z-20">
-            <LocationHeader
-              currentAddress={MOCK_DATA.currentLocation.address}
-              userPhotoUrl={MOCK_DATA.user.photoUrl}
-              onPressLocation={handlePressLocation}
-            />
-          </View>
-
           {/* Botão More Options (3 pontos) - canto superior direito + badge de carteira */}
           <View className="absolute top-14 right-4 z-20 flex-row items-center gap-2">
             {/* Badge de carteira (CashLeva) */}
@@ -962,6 +969,24 @@ export default function HomeScreen() {
           <BottomSheet
             ref={bottomSheetRef}
             onPressSearch={handlePressSearch}
+            onSelectFavorite={handleSelectFavorite as any}
+            onPressSeeAll={() => {
+              const pickup = {
+                address: currentAddress,
+                latitude:
+                  pickupSelection?.latitude ||
+                  userRegion?.latitude ||
+                  region?.latitude ||
+                  undefined,
+                longitude:
+                  pickupSelection?.longitude ||
+                  userRegion?.longitude ||
+                  region?.longitude ||
+                  undefined,
+              };
+              bottomSheetRef.current?.close();
+              (navigation as any).navigate("Favorites", { pickup });
+            }}
           />
         </>
 

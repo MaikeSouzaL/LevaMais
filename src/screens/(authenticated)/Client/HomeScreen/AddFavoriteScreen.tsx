@@ -123,22 +123,12 @@ export default function AddFavoriteScreen() {
 
   const handleSave = async () => {
     if (!name.trim()) {
-      setModalConfig({
-        visible: true,
-        type: "warning",
-        title: "Atenção",
-        message: "Por favor, digite um nome para o favorito.",
-      });
+      Alert.alert("Atenção", "Por favor, digite um nome para o favorito");
       return;
     }
 
     if (!selectedAddress?.latitude || !selectedAddress?.longitude) {
-      setModalConfig({
-        visible: true,
-        type: "error",
-        title: "Erro",
-        message: "Por favor, selecione um endereço válido.",
-      });
+      Alert.alert("Erro", "Por favor, selecione um endereço válido");
       return;
     }
 
@@ -161,25 +151,16 @@ export default function AddFavoriteScreen() {
         longitude: selectedAddress.longitude,
       });
 
-      setModalConfig({
-        visible: true,
-        type: "success",
-        title: "Sucesso",
-        message: "Favorito salvo com sucesso!",
-        onClose: () => {
-          setModalConfig((prev) => ({ ...prev, visible: false }));
-          navigation.goBack();
+      Alert.alert("Sucesso", "Favorito salvo com sucesso!", [
+        {
+          text: "OK",
+          onPress: () => navigation.goBack(),
         },
-      });
+      ]);
     } catch (error: any) {
       const message =
         error?.response?.data?.error || "Erro ao salvar favorito";
-      setModalConfig({
-        visible: true,
-        type: "error",
-        title: "Erro",
-        message,
-      });
+      Alert.alert("Erro", message);
     } finally {
       setLoading(false);
     }
@@ -187,17 +168,6 @@ export default function AddFavoriteScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#0f231c" }}>
-      <Modal
-        visible={modalConfig.visible}
-        title={modalConfig.title}
-        message={modalConfig.message}
-        type={modalConfig.type}
-        onClose={() => {
-          if (modalConfig.onClose) return modalConfig.onClose();
-          setModalConfig((prev) => ({ ...prev, visible: false }));
-        }}
-      />
-
       {/* Header */}
       <View
         style={{
@@ -241,7 +211,6 @@ export default function AddFavoriteScreen() {
               placeholder="Digite o endereço..."
               query={searchQuery}
               setQuery={handleSearchQueryChange}
-              // Não travar o campo após selecionar: o usuário pode editar/trocar o endereço.
               disabled={false}
               onSelect={handleSelectAddress}
             />

@@ -21,7 +21,7 @@ export function SearchBar({ onPress }: SearchBarProps) {
       {/* Barra de busca */}
       <View className="w-full bg-primary h-14 rounded-full flex-row items-center pl-14 shadow-lg">
         <Text className="text-background-dark font-bold text-lg">
-          Para onde você quer ir?
+          Selecionar destino
         </Text>
       </View>
     </TouchableOpacity>

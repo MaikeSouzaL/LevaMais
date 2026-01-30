@@ -1,5 +1,5 @@
 import React, { forwardRef, useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, Text, TouchableOpacity, ActivityIndicator, Alert } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { SearchBar } from "./SearchBar";
@@ -9,10 +9,11 @@ import favoriteAddressService, { FavoriteAddress } from "../../../../../services
 interface BottomSheetProps {
   onPressSearch?: () => void;
   onSelectFavorite?: (favorite: FavoriteAddress) => void;
+  onPressSeeAll?: () => void;
 }
 
 export const BottomSheet = forwardRef<AppBottomSheetRef, BottomSheetProps>(
-  ({ onPressSearch, onSelectFavorite }, ref) => {
+  ({ onPressSearch, onSelectFavorite, onPressSeeAll }, ref) => {
     const navigation = useNavigation();
     const [favorites, setFavorites] = useState<FavoriteAddress[]>([]);
     const [loadingFavorites, setLoadingFavorites] = useState(true);
@@ -39,6 +40,28 @@ export const BottomSheet = forwardRef<AppBottomSheetRef, BottomSheetProps>(
       if (onSelectFavorite) {
         onSelectFavorite(favorite);
       }
+    };
+
+    const handleDeleteFavorite = (favorite: FavoriteAddress) => {
+      Alert.alert(
+        "Excluir favorito",
+        `Deseja excluir \"${favorite.name}\"?`,
+        [
+          { text: "Cancelar", style: "cancel" },
+          {
+            text: "Excluir",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                await favoriteAddressService.delete(favorite._id);
+                await loadFavorites();
+              } catch (e) {
+                console.error("Erro ao excluir favorito:", e);
+              }
+            },
+          },
+        ],
+      );
     };
 
     return (
@@ -68,85 +91,104 @@ export const BottomSheet = forwardRef<AppBottomSheetRef, BottomSheetProps>(
           </View>
         ) : favorites.length > 0 ? (
           <View style={{ marginTop: 16 }}>
-            <Text
+            <View
               style={{
-                color: "#9bbbb0",
-                fontSize: 11,
-                fontWeight: "700",
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
                 marginBottom: 12,
                 marginLeft: 4,
-                textTransform: "uppercase",
-                letterSpacing: 0.5,
               }}
             >
-              Favoritos
-            </Text>
+              <Text
+                style={{
+                  color: "#9bbbb0",
+                  fontSize: 11,
+                  fontWeight: "700",
+                  textTransform: "uppercase",
+                  letterSpacing: 0.5,
+                }}
+              >
+                Favoritos
+              </Text>
+
+              {!!onPressSeeAll && (
+                <TouchableOpacity onPress={onPressSeeAll} activeOpacity={0.8}>
+                  <Text style={{ color: "#02de95", fontSize: 12, fontWeight: "800" }}>
+                    Ver todos
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
             {favorites.map((favorite) => (
-              <TouchableOpacity
+              <View
                 key={favorite._id}
-                onPress={() => handleFavoritePress(favorite)}
                 style={{
                   flexDirection: "row",
                   alignItems: "center",
                   backgroundColor: "#162e25",
                   borderRadius: 12,
-                  padding: 12,
                   marginBottom: 8,
                   borderWidth: 1,
                   borderColor: "rgba(2,222,149,0.1)",
+                  overflow: "hidden",
                 }}
-                activeOpacity={0.7}
               >
-                {/* Ícone */}
-                <View
+                <TouchableOpacity
+                  onPress={() => handleFavoritePress(favorite)}
                   style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 20,
-                    backgroundColor: "rgba(2,222,149,0.15)",
+                    flex: 1,
+                    flexDirection: "row",
                     alignItems: "center",
-                    justifyContent: "center",
-                    marginRight: 12,
+                    padding: 12,
                   }}
+                  activeOpacity={0.7}
                 >
-                  <MaterialIcons
-                    name={favorite.icon as any}
-                    size={20}
-                    color="#02de95"
-                  />
-                </View>
-
-                {/* Informações */}
-                <View style={{ flex: 1 }}>
-                  <Text
+                  {/* Ícone */}
+                  <View
                     style={{
-                      color: "#ffffff",
-                      fontSize: 14,
-                      fontWeight: "700",
-                      marginBottom: 2,
+                      width: 40,
+                      height: 40,
+                      borderRadius: 20,
+                      backgroundColor: "rgba(2,222,149,0.15)",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      marginRight: 12,
                     }}
-                    numberOfLines={1}
                   >
-                    {favorite.name}
-                  </Text>
-                  <Text
-                    style={{
-                      color: "#9bbbb0",
-                      fontSize: 12,
-                    }}
-                    numberOfLines={1}
-                  >
-                    {favorite.formattedAddress || favorite.address}
-                  </Text>
-                </View>
+                    <MaterialIcons name={favorite.icon as any} size={20} color="#02de95" />
+                  </View>
 
-                {/* Seta */}
-                <MaterialIcons
-                  name="chevron-right"
-                  size={20}
-                  color="#9bbbb0"
-                />
-              </TouchableOpacity>
+                  {/* Informações */}
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={{
+                        color: "#ffffff",
+                        fontSize: 14,
+                        fontWeight: "700",
+                        marginBottom: 2,
+                      }}
+                      numberOfLines={1}
+                    >
+                      {favorite.name}
+                    </Text>
+                    <Text style={{ color: "#9bbbb0", fontSize: 12 }} numberOfLines={1}>
+                      {favorite.formattedAddress || favorite.address}
+                    </Text>
+                  </View>
+
+                  <MaterialIcons name="chevron-right" size={20} color="#9bbbb0" />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => handleDeleteFavorite(favorite)}
+                  style={{ paddingHorizontal: 12, paddingVertical: 14 }}
+                  activeOpacity={0.8}
+                >
+                  <MaterialIcons name="delete-outline" size={20} color="#EF4444" />
+                </TouchableOpacity>
+              </View>
             ))}
           </View>
         ) : (

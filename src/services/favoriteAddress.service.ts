@@ -68,7 +68,11 @@ class FavoriteAddressService {
       const response = await api.post("/favorite-addresses", data);
       return response.data.favorite;
     } catch (error: any) {
-      console.error("Erro ao adicionar favorito:", error);
+      console.error("Erro ao adicionar favorito:", {
+        message: error?.message,
+        status: error?.response?.status,
+        data: error?.response?.data,
+      });
       throw error;
     }
   }

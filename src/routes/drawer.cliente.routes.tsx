@@ -7,10 +7,8 @@ import {
 } from "@react-navigation/drawer";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import HomeScreen from "../screens/(authenticated)/Client/HomeScreen/index";
-import LocationPickerScreen from "../screens/(authenticated)/Client/HomeScreen/LocationPickerScreen";
-import MapLocationPickerScreen from "../screens/(authenticated)/Client/HomeScreen/MapLocationPickerScreen";
-import AddFavoriteLocationScreen from "../screens/(authenticated)/Client/HomeScreen/AddFavoriteLocationScreen";
-import AddFavoriteScreen from "../screens/(authenticated)/Client/HomeScreen/AddFavoriteScreen";
+import MapLocationPickerScreen from "../screens/(authenticated)/Client/HomeScreen/AddressPickerScreen";
+// (removido) telas antigas de favorito — agora é tudo via AddressPickerScreen
 import FinalOrderSummaryScreen from "../screens/(authenticated)/Client/HomeScreen/FinalOrderSummaryScreen";
 import CancelFeeScreen from "../screens/(authenticated)/Client/HomeScreen/CancelFeeScreen";
 import ChatScreen from "../screens/(authenticated)/Client/HomeScreen/ChatScreen";
@@ -206,7 +204,7 @@ export default function DrawerClienteRoutes(props: DrawerClienteRoutesProps) {
       />
       <Screen
         name="LocationPicker"
-        component={LocationPickerScreen}
+        component={MapLocationPickerScreen}
         options={{
           drawerLabel: () => null,
           title: "Selecionar Destino",
@@ -219,6 +217,15 @@ export default function DrawerClienteRoutes(props: DrawerClienteRoutesProps) {
         options={{
           drawerLabel: () => null,
           title: "Escolher no Mapa",
+          drawerItemStyle: { display: "none" },
+        }}
+      />
+      <Screen
+        name="Favorites"
+        component={require("../screens/(authenticated)/Client/HomeScreen/FavoritesScreen").default}
+        options={{
+          drawerLabel: () => null,
+          title: "Favoritos",
           drawerItemStyle: { display: "none" },
         }}
       />
@@ -240,24 +247,7 @@ export default function DrawerClienteRoutes(props: DrawerClienteRoutesProps) {
           drawerItemStyle: { display: "none" },
         }}
       />
-      <Screen
-        name="AddFavoriteLocation"
-        component={AddFavoriteLocationScreen}
-        options={{
-          drawerLabel: () => null,
-          title: "Adicionar Favorito",
-          drawerItemStyle: { display: "none" },
-        }}
-      />
-      <Screen
-        name="AddFavorite"
-        component={AddFavoriteScreen}
-        options={{
-          drawerLabel: () => null,
-          title: "Adicionar Favorito",
-          drawerItemStyle: { display: "none" },
-        }}
-      />
+      {/* Favoritos agora são salvos dentro da tela unificada (MapLocationPicker/AddressPickerScreen). */}
       <Screen
         name="FinalOrderSummary"
         component={FinalOrderSummaryScreen}
