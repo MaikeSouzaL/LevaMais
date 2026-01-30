@@ -10,10 +10,12 @@ interface BottomSheetProps {
   onPressSearch?: () => void;
   onSelectFavorite?: (favorite: FavoriteAddress) => void;
   onPressSeeAll?: () => void;
+  onPressEditPickup?: () => void;
+  pickupLabel?: string;
 }
 
 export const BottomSheet = forwardRef<AppBottomSheetRef, BottomSheetProps>(
-  ({ onPressSearch, onSelectFavorite, onPressSeeAll }, ref) => {
+  ({ onPressSearch, onSelectFavorite, onPressSeeAll, onPressEditPickup, pickupLabel }, ref) => {
     const navigation = useNavigation();
     const [favorites, setFavorites] = useState<FavoriteAddress[]>([]);
     const [loadingFavorites, setLoadingFavorites] = useState(true);
@@ -83,6 +85,50 @@ export const BottomSheet = forwardRef<AppBottomSheetRef, BottomSheetProps>(
         }}
       >
         <SearchBar onPress={onPressSearch} />
+
+        {/* Local atual (pickup) */}
+        <View style={{ marginTop: 4 }}>
+          <Text
+            style={{
+              color: "#9bbbb0",
+              fontSize: 11,
+              fontWeight: "700",
+              marginBottom: 10,
+              marginLeft: 4,
+              textTransform: "uppercase",
+              letterSpacing: 0.5,
+            }}
+          >
+            Local atual
+          </Text>
+
+          <TouchableOpacity
+            onPress={onPressEditPickup}
+            activeOpacity={0.8}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              backgroundColor: "rgba(255,255,255,0.06)",
+              borderRadius: 14,
+              paddingHorizontal: 14,
+              paddingVertical: 12,
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.06)",
+            }}
+          >
+            <View style={{ flex: 1, paddingRight: 12 }}>
+              <Text style={{ color: "#fff", fontSize: 14, fontWeight: "800" }} numberOfLines={1}>
+                {pickupLabel || "Definir local atual"}
+              </Text>
+              <Text style={{ color: "#9abcb0", fontSize: 12, marginTop: 2 }} numberOfLines={1}>
+                Toque para editar
+              </Text>
+            </View>
+
+            <MaterialIcons name="edit" size={18} color="#02de95" />
+          </TouchableOpacity>
+        </View>
 
         {/* Favoritos */}
         {loadingFavorites ? (

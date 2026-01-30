@@ -14,7 +14,7 @@ export default function SelectVehicleScreen() {
     if ((navigation as any).canGoBack()) {
       (navigation as any).goBack();
     } else {
-      (navigation as any).navigate("LocationPicker");
+      (navigation as any).navigate("Home");
     }
   };
 
@@ -53,10 +53,10 @@ export default function SelectVehicleScreen() {
               marginBottom: 4,
             }}
           >
-            Qual o tamanho?
+            Qual o veiculo ideal?
           </Text>
           <Text style={{ color: "#9bbbb0", fontSize: 13, textAlign: "center" }}>
-            Selecione o veículo ideal
+            Selecione o veículo ideal para sua entrega
           </Text>
         </View>
         <View style={{ width: 32 }} />

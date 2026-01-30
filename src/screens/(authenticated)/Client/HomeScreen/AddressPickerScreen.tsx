@@ -36,6 +36,8 @@ export default function AddressPickerScreen() {
     (route.params as any) || {};
   const isPickupMode = selectionMode === "currentLocation";
 
+  const pickupDraft = useRideDraftStore((s) => s.pickup);
+  const dropoffDraft = useRideDraftStore((s) => s.dropoff);
   const setPickup = useRideDraftStore((s) => s.setPickup);
   const setDropoff = useRideDraftStore((s) => s.setDropoff);
 
@@ -129,6 +131,7 @@ export default function AddressPickerScreen() {
 
   const [favoriteModalOpen, setFavoriteModalOpen] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [isReferenceFocused, setIsReferenceFocused] = useState(false);
 
   const [modalConfig, setModalConfig] = useState<{
     visible: boolean;
@@ -315,25 +318,33 @@ export default function AddressPickerScreen() {
           referencePoint: referencePoint.trim() || undefined,
         };
 
-    if (selectionMode === "currentLocation") setPickup(payload);
+    const isPickup = selectionMode === "currentLocation";
+
+    if (isPickup) setPickup(payload);
     else setDropoff(payload);
 
-    if (returnScreen === "LocationPicker") {
-      navigation.navigate({
-        name: "LocationPicker",
-        params: {
-          selectedLocation: {
-            formattedAddress: payload.formattedAddress,
-            latitude: payload.latitude,
-            longitude: payload.longitude,
-          },
-          selectionMode: selectionMode,
-        },
-        merge: true,
-      } as any);
-    } else {
-      (navigation as any).navigate("Home", { reopenBottomSheet: true });
+    // Fluxo desejado:
+    // - Home -> AddressPicker(dropoff) -> Confirmar -> SelectVehicle
+    // - Editar local atual -> AddressPicker(pickup) -> Confirmar -> Home (ou SelectVehicle se dropoff já existir)
+    if (!isPickup) {
+      const pickup = pickupDraft;
+      (navigation as any).navigate("SelectVehicle", {
+        pickup,
+        dropoff: payload,
+      });
+      return;
     }
+
+    // pickup confirmado
+    if (dropoffDraft) {
+      (navigation as any).navigate("SelectVehicle", {
+        pickup: payload,
+        dropoff: dropoffDraft,
+      });
+      return;
+    }
+
+    (navigation as any).navigate("Home", { reopenBottomSheet: true });
   };
 
   const handleBack = () => {
@@ -606,7 +617,7 @@ export default function AddressPickerScreen() {
               position: "absolute",
               left: 0,
               right: 0,
-              bottom: keyboardHeight,
+              bottom: isReferenceFocused ? keyboardHeight : 0,
               zIndex: 30,
             }}
           >
@@ -704,6 +715,8 @@ export default function AddressPickerScreen() {
                     <TextInput
                       value={referencePoint}
                       onChangeText={setReferencePoint}
+                      onFocus={() => setIsReferenceFocused(true)}
+                      onBlur={() => setIsReferenceFocused(false)}
                       placeholder="Adicionar ponto de referência (opcional)"
                       placeholderTextColor="#9db9b9"
                       style={{ flex: 1, color: "#fff", fontSize: 14, padding: 0 }}

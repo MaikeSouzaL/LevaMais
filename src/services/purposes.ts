@@ -14,7 +14,9 @@ export interface PurposeItem {
   updatedAt?: string;
 }
 
-const MOCK_DATA: PurposeItem[] = [
+// OBS: não usamos mais dados mockados. As finalidades devem vir do backend.
+// Se o backend falhar, mostramos erro no app (quem chama decide como lidar).
+const MOCK_DATA_DISABLED: PurposeItem[] = [
   // Motorcycle
   {
     vehicleType: "motorcycle",
@@ -136,8 +138,8 @@ export async function getPurposesByVehicleType(
     });
     return response.data || [];
   } catch (error) {
-    console.error("Error fetching purposes (using mock fallback):", error);
-    return MOCK_DATA.filter((p) => p.vehicleType === vehicleType && p.isActive);
+    console.error("Error fetching purposes:", error);
+    throw error;
   }
 }
 

@@ -56,6 +56,7 @@ import {
   DriverFoundInfo,
 } from "./components/DriverFoundSheet";
 import { useAuthStore } from "../../../../context/authStore";
+import { useRideDraftStore } from "../../../../context/rideDraftStore";
 import rideService from "../../../../services/ride.service";
 import webSocketService from "../../../../services/websocket.service";
 import { formatBRL as formatBRLUtil } from "../../../../utils/mappers";
@@ -162,6 +163,11 @@ export default function HomeScreen() {
   const route = useRoute<any>();
   const walletBalance = useAuthStore((s) => s.walletBalance || 0);
   const userType = useAuthStore((s) => s.userType);
+
+  const draftPickup = useRideDraftStore((s) => s.pickup);
+  const draftDropoff = useRideDraftStore((s) => s.dropoff);
+  const setDraftPickup = useRideDraftStore((s) => s.setPickup);
+  const setDraftDropoff = useRideDraftStore((s) => s.setDropoff);
 
   const formatBRL = (value: number) => {
     // manter compatibilidade, mas preferir util
@@ -657,10 +663,46 @@ export default function HomeScreen() {
   const handlePressSearch = () => {
     console.log("Pressed search bar - Opening location picker");
     setServiceMode("ride"); // Default para corrida
+
+    // garante pickup no draft (local atual)
+    const lat = region?.latitude || userRegion?.latitude;
+    const lng = region?.longitude || userRegion?.longitude;
+    if (lat != null && lng != null) {
+      setDraftPickup({
+        formattedAddress: currentAddress,
+        latitude: lat,
+        longitude: lng,
+      });
+    }
+
     // Fecha o BottomSheet principal
     bottomSheetRef.current?.close();
-    // Navega para a tela LocationPicker (agora é a tela unificada)
-    (navigation as any).navigate("LocationPicker");
+
+    // Home -> AddressPicker (dropoff)
+    (navigation as any).navigate("LocationPicker", {
+      selectionMode: "dropoff",
+      returnScreen: "Home",
+    });
+  };
+
+  const handleEditPickup = () => {
+    // Editar local atual -> AddressPicker (pickup)
+    const initial = draftPickup
+      ? {
+          formattedAddress: draftPickup.formattedAddress,
+          latitude: draftPickup.latitude,
+          longitude: draftPickup.longitude,
+        }
+      : region
+        ? { formattedAddress: currentAddress, latitude: region.latitude, longitude: region.longitude }
+        : null;
+
+    bottomSheetRef.current?.close();
+    (navigation as any).navigate("LocationPicker", {
+      selectionMode: "currentLocation",
+      returnScreen: "Home",
+      initialLocation: initial,
+    });
   };
 
   const handleSelectFavorite = async (favorite: any) => {
@@ -669,33 +711,35 @@ export default function HomeScreen() {
       bottomSheetRef.current?.close();
 
       const dropAddr = favorite.formattedAddress || favorite.address;
+
+      // pickup: usa o endereço atual (já exibido na Home)
+      const lat = region?.latitude || userRegion?.latitude;
+      const lng = region?.longitude || userRegion?.longitude;
+      const pickup =
+        lat != null && lng != null
+          ? {
+              formattedAddress: currentAddress,
+              latitude: lat,
+              longitude: lng,
+            }
+          : draftPickup;
+
+      const dropoff = {
+        formattedAddress: dropAddr,
+        latitude: favorite.latitude,
+        longitude: favorite.longitude,
+      };
+
+      // mantém no draft também
+      if (pickup) setDraftPickup(pickup);
+      setDraftDropoff(dropoff);
+
       setDestinationAddress(dropAddr);
       setDropoffSelection({
         address: dropAddr,
         latitude: favorite.latitude,
         longitude: favorite.longitude,
       });
-
-      // pickup: usa o endereço atual (já exibido na Home)
-      const pickup = {
-        address: currentAddress,
-        latitude:
-          pickupSelection?.latitude ||
-          userRegion?.latitude ||
-          region?.latitude ||
-          undefined,
-        longitude:
-          pickupSelection?.longitude ||
-          userRegion?.longitude ||
-          region?.longitude ||
-          undefined,
-      };
-
-      const dropoff = {
-        address: dropAddr,
-        latitude: favorite.latitude,
-        longitude: favorite.longitude,
-      };
 
       (navigation as any).navigate("SelectVehicle", { pickup, dropoff });
     } catch (e) {
@@ -970,20 +1014,20 @@ export default function HomeScreen() {
             ref={bottomSheetRef}
             onPressSearch={handlePressSearch}
             onSelectFavorite={handleSelectFavorite as any}
+            pickupLabel={draftPickup?.formattedAddress || currentAddress}
+            onPressEditPickup={handleEditPickup}
             onPressSeeAll={() => {
-              const pickup = {
-                address: currentAddress,
-                latitude:
-                  pickupSelection?.latitude ||
-                  userRegion?.latitude ||
-                  region?.latitude ||
-                  undefined,
-                longitude:
-                  pickupSelection?.longitude ||
-                  userRegion?.longitude ||
-                  region?.longitude ||
-                  undefined,
-              };
+              const lat = region?.latitude || userRegion?.latitude;
+              const lng = region?.longitude || userRegion?.longitude;
+              const pickup =
+                lat != null && lng != null
+                  ? {
+                      formattedAddress: currentAddress,
+                      latitude: lat,
+                      longitude: lng,
+                    }
+                  : draftPickup;
+
               bottomSheetRef.current?.close();
               (navigation as any).navigate("Favorites", { pickup });
             }}

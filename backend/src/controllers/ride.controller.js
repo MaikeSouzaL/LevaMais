@@ -880,58 +880,7 @@ const PricingConfig = require("../models/PricingConfig"); // Import model
         });
       }
 
-      // Buscar regra de preço no MongoDB
-      const PricingRule = require("../models/PricingRule");
-      const ruleFilter = {
-        vehicleCategory: vehicleType,
-        active: true,
-      };
       const mongoose = require("mongoose");
-      if (cityId && mongoose.Types.ObjectId.isValid(cityId)) {
-        ruleFilter.cityId = cityId;
-      }
-
-      // purposeId pode vir como ObjectId OU como slug (ex.: "documents") vindo do app.
-      if (purposeId) {
-        if (mongoose.Types.ObjectId.isValid(purposeId)) {
-          ruleFilter.purposeId = purposeId;
-        } else {
-          try {
-            const Purpose = require("../models/Purpose");
-            const purpose = await Purpose.findOne({
-              id: String(purposeId),
-              vehicleType: vehicleType,
-            }).select("_id");
-
-            if (purpose?._id) {
-              ruleFilter.purposeId = purpose._id;
-            }
-          } catch (e) {
-            console.log(
-              "Aviso: não foi possível resolver purposeId",
-              purposeId,
-            );
-          }
-        }
-      }
-
-      // 1) Tenta regra mais específica (com purposeId, se vier)
-      let rule = await PricingRule.findOne(ruleFilter).sort({ priority: -1 });
-
-      // 2) Fallback: se veio purposeId mas não existe regra por purpose,
-      // tenta a regra genérica (sem purposeId).
-      if (!rule && ruleFilter.purposeId) {
-        const fallbackFilter = { ...ruleFilter };
-        delete fallbackFilter.purposeId;
-        rule = await PricingRule.findOne(fallbackFilter).sort({ priority: -1 });
-      }
-
-      if (!rule) {
-        return res.status(400).json({
-          error:
-            "Nenhuma regra de preço ativa encontrada para os parâmetros informados",
-        });
-      }
 
       // Distância Haversine em metros
       const distance = haversineDistance(
@@ -940,77 +889,176 @@ const PricingConfig = require("../models/PricingConfig"); // Import model
         dropoff.latitude,
         dropoff.longitude,
       );
-
       const distanceKm = distance / 1000;
-      const basePrice = rule.pricing.basePrice;
-      const distancePrice = distanceKm * rule.pricing.pricePerKm;
 
-      // Estimar duração: velocidade média 30 km/h
-      const durationMinutes = Math.max(1, Math.ceil((distanceKm / 30) * 60));
-      const timePrice = durationMinutes * rule.pricing.pricePerMinute;
+      // 1) Preferir PricingConfig (o que o admin edita no leva-mais-web)
+      //    -> vehiclePricing + peakHours + purposePricing
+      const PricingConfig = require("../models/PricingConfig");
+      const Purpose = require("../models/Purpose");
 
-      let subtotal = basePrice + distancePrice + timePrice;
+      const config = await PricingConfig.findOne().sort({ updatedAt: -1 });
 
-      // Aplicar preço mínimo
-      if (subtotal < rule.pricing.minimumPrice) {
-        subtotal = rule.pricing.minimumPrice;
+      // Resolver purpose (aceita ObjectId OU slug)
+      let purposeDoc = null;
+      if (purposeId) {
+        if (mongoose.Types.ObjectId.isValid(purposeId)) {
+          purposeDoc = await Purpose.findById(purposeId).select("_id id title");
+        } else {
+          purposeDoc = await Purpose.findOne({
+            id: String(purposeId),
+            vehicleType: vehicleType,
+          }).select("_id id title");
+        }
       }
 
-      // Aplicar taxas adicionais habilitadas (percentuais sobre subtotal)
-      let extraFeesPercentage = 0;
+      // helpers
+      const isTimeInRangeSimple = (current, start, end) =>
+        isTimeInRange(current, start, end);
+
       const now = new Date();
       const hhmm = `${String(now.getHours()).padStart(2, "0")}:${String(
         now.getMinutes(),
       ).padStart(2, "0")}`;
-      const weekday = now.getDay(); // 0-6
+      const weekday = now.getDay();
 
-      const { fees } = rule;
-      if (fees?.nightFee?.enabled) {
-        if (
-          isTimeInRange(hhmm, fees.nightFee.startTime, fees.nightFee.endTime)
-        ) {
-          extraFeesPercentage += fees.nightFee.percentage || 0;
+      if (config && Array.isArray(config.vehiclePricing)) {
+        const vp = config.vehiclePricing.find(
+          (v) => v.vehicleType === vehicleType && v.enabled !== false,
+        );
+
+        if (!vp) {
+          return res.status(400).json({
+            error:
+              "Nenhuma configuração de preço ativa encontrada para este tipo de veículo",
+          });
         }
-      }
-      if (
-        fees?.peakHourFee?.enabled &&
-        Array.isArray(fees.peakHourFee.periods)
-      ) {
-        for (const p of fees.peakHourFee.periods) {
-          if (
-            Array.isArray(p.days) &&
-            p.days.includes(weekday) &&
-            isTimeInRange(hhmm, p.startTime, p.endTime)
-          ) {
-            extraFeesPercentage += fees.peakHourFee.percentage || 0;
-            break;
+
+        const pricePerKm = Number(vp.pricePerKm || 0);
+        const minimumKm = Number(vp.minimumKm || 0);
+        const minimumFee = Number(vp.minimumFee || 0);
+
+        const durationMinutes = Math.max(1, Math.ceil((distanceKm / 30) * 60));
+
+        // Regra solicitada:
+        // - Se distância <= km mínimo → cobra apenas a taxa mínima
+        // - Se exceder → taxa mínima + excedente * preço/km
+        const exceedKm = Math.max(distanceKm - minimumKm, 0);
+        const distancePrice = exceedKm * pricePerKm;
+        let subtotal = minimumFee + distancePrice;
+
+        // 2) Ajuste por purpose (se configurado)
+        let purposeFixed = 0;
+        let purposePct = 0;
+        if (
+          purposeDoc?._id &&
+          Array.isArray(config.purposePricing) &&
+          config.purposePricing.length > 0
+        ) {
+          const pp = config.purposePricing.find((p) => {
+            if (!p?.enabled) return false;
+            // compara ObjectId string
+            return String(p.purposeId) === String(purposeDoc._id);
+          });
+          if (pp) {
+            purposeFixed = Number(pp.additionalFixed || 0);
+            purposePct = Number(pp.additionalPercentage || 0);
           }
         }
-      }
-      if (fees?.weatherFee?.enabled) {
-        extraFeesPercentage += fees.weatherFee.percentage || 0;
-      }
-      if (fees?.holidayFee?.enabled) {
-        extraFeesPercentage += fees.holidayFee.percentage || 0;
+
+        if (purposeFixed) subtotal += purposeFixed;
+        if (purposePct) subtotal += (subtotal * purposePct) / 100;
+
+        // 3) Peak hour multiplier (se existir)
+        let peakMultiplier = 1;
+        if (Array.isArray(config.peakHours)) {
+          const match = config.peakHours.find(
+            (p) =>
+              p.enabled &&
+              Array.isArray(p.dayOfWeek) &&
+              p.dayOfWeek.includes(weekday) &&
+              isTimeInRangeSimple(hhmm, p.startTime, p.endTime),
+          );
+          if (match?.multiplier) peakMultiplier = Number(match.multiplier) || 1;
+        }
+
+        const total = subtotal * peakMultiplier;
+
+        return res.json({
+          pricing: {
+            basePrice: 0,
+            distancePrice: parseFloat(distancePrice.toFixed(2)),
+            serviceFee: 0,
+            total: parseFloat(total.toFixed(2)),
+            currency: "BRL",
+            // extras úteis pro app/debug
+            breakdown: {
+              minimumFee: parseFloat(minimumFee.toFixed(2)),
+              minimumKm,
+              exceedKm: parseFloat(exceedKm.toFixed(3)),
+              purposeFixed: parseFloat(purposeFixed.toFixed(2)),
+              purposePct,
+              peakMultiplier,
+            },
+          },
+          distance: {
+            value: Math.round(distance * 1000) / 1000,
+            text: `${distanceKm.toFixed(1)} km`,
+          },
+          duration: {
+            value: durationMinutes * 60,
+            text: `${durationMinutes} min`,
+          },
+          purpose: purposeDoc
+            ? { id: purposeDoc.id, title: purposeDoc.title }
+            : undefined,
+        });
       }
 
-      const extraFees = (subtotal * extraFeesPercentage) / 100;
-      const total = subtotal + extraFees;
+      // 4) Fallback: PricingRule (legado)
+      const PricingRule = require("../models/PricingRule");
+      const ruleFilter = {
+        vehicleCategory: vehicleType,
+        active: true,
+      };
+      if (cityId && mongoose.Types.ObjectId.isValid(cityId)) {
+        ruleFilter.cityId = cityId;
+      }
+      if (purposeDoc?._id) {
+        ruleFilter.purposeId = purposeDoc._id;
+      }
+
+      let rule = await PricingRule.findOne(ruleFilter).sort({ priority: -1 });
+      if (!rule && ruleFilter.purposeId) {
+        const fallbackFilter = { ...ruleFilter };
+        delete fallbackFilter.purposeId;
+        rule = await PricingRule.findOne(fallbackFilter).sort({ priority: -1 });
+      }
+      if (!rule) {
+        return res.status(400).json({
+          error:
+            "Nenhuma regra de preço ativa encontrada para os parâmetros informados",
+        });
+      }
+
+      const minimumKm = Number(rule.pricing.minimumKm || 0);
+      const minimumFee = Number(rule.pricing.minimumFee || 0);
+      const pricePerKm = Number(rule.pricing.pricePerKm || 0);
+
+      const exceedKm = Math.max(distanceKm - minimumKm, 0);
+      const distancePrice = exceedKm * pricePerKm;
+      const subtotal = minimumFee + distancePrice;
 
       res.json({
         pricing: {
-          basePrice: parseFloat(basePrice.toFixed(2)),
+          basePrice: 0,
           distancePrice: parseFloat(distancePrice.toFixed(2)),
-          timePrice: parseFloat(timePrice.toFixed(2)),
-          extraFees: parseFloat(extraFees.toFixed(2)),
-          serviceFee: parseFloat(extraFees.toFixed(2)), // Alias for Frontend consistency
-          subtotal: parseFloat(subtotal.toFixed(2)),
-          total: parseFloat(total.toFixed(2)),
+          serviceFee: 0,
+          total: parseFloat(subtotal.toFixed(2)),
           currency: "BRL",
         },
         distance: {
           value: Math.round(distance),
-          text: `${(distance / 1000).toFixed(1)} km`,
+          text: `${distanceKm.toFixed(1)} km`,
         },
         duration: {
           value: durationMinutes * 60,
