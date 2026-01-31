@@ -26,6 +26,7 @@ import ClientWalletScreen from "../screens/(authenticated)/Client/ClientWalletSc
 import ClientProfileScreen from "../screens/(authenticated)/Client/ClientProfileScreen";
 import ClientHelpScreen from "../screens/(authenticated)/Client/ClientHelpScreen";
 import ClientSettingsScreen from "../screens/(authenticated)/Client/ClientSettingsScreen";
+import ClientCityScreen from "../screens/(authenticated)/Client/ClientCityScreen";
 
 const Drawer = createDrawerNavigator();
 
@@ -203,6 +204,15 @@ export default function DrawerClienteRoutes(props: DrawerClienteRoutesProps) {
         }}
       />
       <Screen
+        name="ClientCity"
+        component={ClientCityScreen}
+        options={{
+          drawerLabel: () => null,
+          title: "Cidade",
+          drawerItemStyle: { display: "none" },
+        }}
+      />
+      <Screen
         name="LocationPicker"
         component={MapLocationPickerScreen}
         options={{
@@ -222,7 +232,10 @@ export default function DrawerClienteRoutes(props: DrawerClienteRoutesProps) {
       />
       <Screen
         name="Favorites"
-        component={require("../screens/(authenticated)/Client/HomeScreen/FavoritesScreen").default}
+        component={
+          require("../screens/(authenticated)/Client/HomeScreen/FavoritesScreen")
+            .default
+        }
         options={{
           drawerLabel: () => null,
           title: "Favoritos",

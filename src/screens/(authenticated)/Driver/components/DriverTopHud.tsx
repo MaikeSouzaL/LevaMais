@@ -36,12 +36,12 @@ export function DriverTopHud({
         </Text>
 
         {!!vehicleTypeLabel && (
-          <Text 
-            style={{ 
-              color: "rgba(255,255,255,0.7)", 
+          <Text
+            style={{
+              color: "rgba(255,255,255,0.7)",
               marginTop: 2,
               fontSize: 14,
-              fontWeight: "600"
+              fontWeight: "600",
             }}
           >
             {vehicleTypeLabel}
@@ -116,12 +116,12 @@ export function DriverTopHud({
             paddingHorizontal: 12,
             paddingVertical: 10,
             borderRadius: 12,
-            backgroundColor: online 
-              ? "rgba(2,222,149,0.18)" 
+            backgroundColor: online
+              ? "rgba(2,222,149,0.18)"
               : "rgba(107,114,128,0.18)",
             borderWidth: 1,
-            borderColor: online 
-              ? "rgba(2,222,149,0.35)" 
+            borderColor: online
+              ? "rgba(2,222,149,0.35)"
               : "rgba(255,255,255,0.10)",
           }}
         >

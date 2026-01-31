@@ -5,6 +5,7 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { useClientCityStore } from "../../../../context/clientCityStore";
 import {
   MaterialIcons,
   FontAwesome5,
@@ -31,6 +32,7 @@ type Params = {
 export default function PaymentScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
+  const detectedCity = useClientCityStore((s) => s.city);
   const route = useRoute<RouteProp<Params, "Payment">>();
   const amount = route.params?.amount || 0;
   const order = route.params?.order;
@@ -78,6 +80,7 @@ export default function PaymentScreen() {
       const ride = await rideService.create({
         serviceType: apiServiceType,
         vehicleType: apiVehicle,
+        cityId: detectedCity?.cityId,
         purposeId: order.purposeId,
         pickup: {
           address: order.pickupAddress,

@@ -148,125 +148,41 @@ class PricingController {
   // Calcular preço de uma corrida
   async calculate(req, res) {
     try {
-      const { cityId, vehicleCategory, purposeId, distance, duration } =
-        req.body;
-      if (!cityId || !vehicleCategory || !distance || !duration) {
+      // DEPRECIADO: este endpoint existia com uma lógica própria.
+      // Fonte da verdade agora é /rides/calculate-price (mesma regra que o app cliente usa).
+
+      const { cityId, vehicleCategory, purposeId, pickup, dropoff } = req.body;
+
+      if (
+        !pickup?.latitude ||
+        !pickup?.longitude ||
+        !dropoff?.latitude ||
+        !dropoff?.longitude
+      ) {
         return res.status(400).json({
-          error:
-            "Cidade, categoria do veículo, distância e duração são obrigatórios",
+          error: "pickup e dropoff (com latitude/longitude) são obrigatórios",
         });
       }
 
-      // Buscar regra de preço aplicável
-      const filter = {
+      if (!vehicleCategory) {
+        return res.status(400).json({
+          error: "vehicleCategory é obrigatório",
+        });
+      }
+
+      const rideController = require("./ride.controller");
+
+      // Reaproveita a mesma assinatura do ride.calculatePrice
+      req.body = {
+        pickup,
+        dropoff,
+        vehicleType: vehicleCategory,
+        purposeId,
         cityId,
-        vehicleCategory,
-        active: true,
       };
 
-      if (purposeId) {
-        filter.purposeId = purposeId;
-      }
-
-      const pricingRule = await PricingRule.findOne(filter).sort({
-        priority: -1,
-      });
-      const minKm = pricingRule.pricing.minimumKm || 0;
-      const minFee = pricingRule.pricing.minimumFee || 0;
-      const pricePerKm = pricingRule.pricing.pricePerKm || 0;
-
-      if (!pricingRule) {
-        return res.status(404).json({
-          error: "Nenhuma regra de preço encontrada para estes parâmetros",
-        });
-      }
-
-      // Calcular preço base
-      let totalPrice = 0;
-      if (distance <= minKm) {
-        // Se a distância for menor ou igual ao km mínimo, aplica taxa mínima fixa
-        totalPrice = minFee;
-      } else {
-        // Se maior, soma taxa mínima + excedente multiplicado por preço/km
-        const exceedKm = distance - minKm;
-        totalPrice = minFee + exceedKm * pricePerKm;
-      }
-
-      // Verificar taxas adicionais
-      const now = new Date();
-      const currentHour = now.getHours();
-      const currentDay = now.getDay();
-
-      let fees = [];
-      let feeMultiplier = 1;
-
-      // Taxa noturna
-      if (pricingRule.fees.nightFee.enabled) {
-        const startHour = parseInt(
-          pricingRule.fees.nightFee.startTime.split(":")[0]
-        );
-        const endHour = parseInt(
-          pricingRule.fees.nightFee.endTime.split(":")[0]
-        );
-
-        if (currentHour >= startHour || currentHour < endHour) {
-          const nightFeeAmount =
-            (totalPrice * pricingRule.fees.nightFee.percentage) / 100;
-          feeMultiplier += pricingRule.fees.nightFee.percentage / 100;
-          fees.push({
-            type: "night",
-            name: "Taxa Noturna",
-            percentage: pricingRule.fees.nightFee.percentage,
-            amount: nightFeeAmount,
-          });
-        }
-      }
-
-      // Taxa de horário de pico
-      if (
-        pricingRule.fees.peakHourFee.enabled &&
-        pricingRule.fees.peakHourFee.periods.length > 0
-      ) {
-        for (const period of pricingRule.fees.peakHourFee.periods) {
-          if (period.days.includes(currentDay)) {
-            const startHour = parseInt(period.startTime.split(":")[0]);
-            const endHour = parseInt(period.endTime.split(":")[0]);
-
-            if (currentHour >= startHour && currentHour < endHour) {
-              const peakFeeAmount =
-                (totalPrice * pricingRule.fees.peakHourFee.percentage) / 100;
-              feeMultiplier += pricingRule.fees.peakHourFee.percentage / 100;
-              fees.push({
-                type: "peak",
-                name: "Taxa de Horário de Pico",
-                percentage: pricingRule.fees.peakHourFee.percentage,
-                amount: peakFeeAmount,
-              });
-              break;
-            }
-          }
-        }
-      }
-
-      // Aplicar multiplicador de taxas
-      const finalPrice = totalPrice * feeMultiplier;
-
-      return res.json({
-        basePrice: 0,
-        distancePrice: Math.max(distance - minKm, 0) * pricePerKm,
-        durationPrice: 0,
-        minimums: {
-          minimumKm: minKm,
-          minimumFee: minFee,
-        },
-        subtotal: totalPrice,
-        fees,
-        totalPrice: finalPrice,
-        distance,
-        duration,
-        vehicleCategory,
-        pricingRuleId: pricingRule._id,
-      });
+      // Retorna exatamente o mesmo formato do endpoint oficial
+      return rideController.calculatePrice(req, res);
     } catch (error) {
       console.error("Erro ao calcular preço:", error);
       return res.status(500).json({

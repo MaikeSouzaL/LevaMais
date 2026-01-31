@@ -3,7 +3,7 @@ export interface RegistrationData {
   name: string;
   email: string;
   phone: string;
-  documentType: "cpf" | "cnpj";
+  documentType: String; 
   cpf?: string;
   cnpj?: string;
   // Campos da empresa (se CNPJ)
@@ -32,17 +32,21 @@ export interface RegistrationData {
     year?: number;
   };
 
+  driverLocation?: {
+    region?: string;
+    state?: string;
+    city?: string;
+  };
+
   // Preferências
   preferredPayment?: "pix" | "cash" | "card";
   notificationsEnabled?: boolean;
 
   // Outros
-  userType: "client" | "driver";
+  userType: string
   password: string;
   acceptedTerms: boolean;
-  city?: string; // Cidade do usuário (pode vir dos dados anteriores)
-
-  // Google (opcional)
+  city?: string;
   googleId?: string;
   profilePhoto?: string;
 }

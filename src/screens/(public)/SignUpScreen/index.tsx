@@ -36,12 +36,6 @@ interface IsignUpParams {
   city: string;
 }
 
-GoogleSignin.configure({
-  webClientId: CLIENTE_WEB_ID,
-  profileImageSize: 150,
-  offlineAccess: true,
-});
-
 export default function SignUp() {
   const route = useRoute();
   const navigation = useNavigation();
@@ -63,6 +57,24 @@ export default function SignUp() {
   const [showPermissionScreen, setShowPermissionScreen] = useState(false);
   const [hasCheckedPermission, setHasCheckedPermission] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
+
+  const googleConfiguredRef = useRef(false);
+
+  useEffect(() => {
+    // Configure dentro do lifecycle do React para garantir Activity pronta no Android.
+    // E evita configurar mais de uma vez durante hot-reload/troca de telas.
+    if (googleConfiguredRef.current) return;
+    googleConfiguredRef.current = true;
+
+    console.log("[GoogleSignIn][SignUp] configure", {
+      hasWebClientId: !!CLIENTE_WEB_ID,
+    });
+    GoogleSignin.configure({
+      webClientId: CLIENTE_WEB_ID,
+      profileImageSize: 150,
+      offlineAccess: true,
+    });
+  }, []);
 
   // Refs para inputs e scroll
   const scrollViewRef = useRef<ScrollView>(null);

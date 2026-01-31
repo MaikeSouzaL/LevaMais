@@ -38,6 +38,7 @@ import { OffersVanSheet } from "./components/OffersVanSheet";
 import type { OffersVanSheetRef } from "./components/OffersVanSheet";
 import { OffersTruckSheet } from "./components/OffersTruckSheet";
 import { pinGeocode } from "../../../../utils/pinGeocode";
+import { useClientCityStore } from "../../../../context/clientCityStore";
 import FinalOrderSummarySheet, {
   FinalOrderSummaryData,
 } from "./components/FinalOrderSummarySheet";
@@ -102,6 +103,8 @@ export default function HomeScreen() {
   const offersVanRef = useRef<OffersVanSheetRef>(null);
   const offersTruckRef = useRef<OffersTruckSheetRef>(null);
   const driverFoundRef = useRef<any>(null); // Ref para o novo sheet
+
+  const detectedCity = useClientCityStore((s) => s.city);
 
   const [searchingModal, setSearchingModal] = useState<{
     visible: boolean;
@@ -322,6 +325,7 @@ export default function HomeScreen() {
               longitude: dropoff.longitude,
             },
             vehicleType: type as any,
+            cityId: detectedCity?.cityId,
             purposeId,
           });
           setPriceQuote(resp);
@@ -694,7 +698,11 @@ export default function HomeScreen() {
           longitude: draftPickup.longitude,
         }
       : region
-        ? { formattedAddress: currentAddress, latitude: region.latitude, longitude: region.longitude }
+        ? {
+            formattedAddress: currentAddress,
+            latitude: region.latitude,
+            longitude: region.longitude,
+          }
         : null;
 
     bottomSheetRef.current?.close();
@@ -782,7 +790,6 @@ export default function HomeScreen() {
   // Removido: handleSelectVehicle (seleção ocorre na SelectVehicleScreen)
   // Removido: handlePressRide e handlePressDelivery (serviço selecionado via LocationPicker)
 
-
   const handleConfirmMotoOffer = (offerId: string, paymentMethod?: string) => {
     console.log("Moto offer confirmed:", offerId, paymentMethod);
     offersMotoRef.current?.close();
@@ -800,6 +807,8 @@ export default function HomeScreen() {
 
     // Navegar diretamente para o resumo (sem modal de busca aqui)
     const q = priceQuote;
+    const backendTotal = q?.pricing?.total;
+    const backendDistancePrice = q?.pricing?.distancePrice ?? backendTotal;
     const data: FinalOrderSummaryData = {
       pickupAddress: pickupSelection?.address || currentAddress,
       pickupNeighborhood: "Centro, São Paulo - SP", // TODO: real
@@ -832,11 +841,12 @@ export default function HomeScreen() {
       servicePurposeLabel: "Documentos",
       etaMinutes: q?.duration?.value ? Math.round(q.duration.value / 60) : 15,
       pricing: {
-        base: q?.pricing?.basePrice ?? 5,
+        // Fonte da verdade: backend. Evita fallbacks que mascaram regra cadastrada.
+        base: q?.pricing?.basePrice ?? 0,
         distanceKm: q?.distance?.value ? q.distance.value / 1000 : 4.2,
-        distancePrice: q?.pricing?.distancePrice ?? 8.4,
-        serviceFee: q?.pricing?.serviceFee ?? 1.5,
-        total: q?.pricing?.total ?? 14.9,
+        distancePrice: backendDistancePrice ?? 0,
+        serviceFee: q?.pricing?.serviceFee ?? 0,
+        total: backendTotal ?? 0,
       },
       paymentSummary: paymentText,
       paymentMethodRaw: paymentRaw,
@@ -950,7 +960,6 @@ export default function HomeScreen() {
                       color="black"
                     />
                   </View>
-
                 </Marker>
               )}
             </GlobalMap>
@@ -1103,11 +1112,12 @@ export default function HomeScreen() {
                 ? Math.round(q.duration.value / 60)
                 : 12,
               pricing: {
-                base: q?.pricing?.basePrice ?? 7,
+                base: q?.pricing?.basePrice ?? 0,
                 distanceKm: q?.distance?.value ? q.distance.value / 1000 : 4.2,
-                distancePrice: q?.pricing?.distancePrice ?? 10.4,
-                serviceFee: q?.pricing?.serviceFee ?? 2.5,
-                total: q?.pricing?.total ?? 19.9,
+                distancePrice:
+                  q?.pricing?.distancePrice ?? q?.pricing?.total ?? 0,
+                serviceFee: q?.pricing?.serviceFee ?? 0,
+                total: q?.pricing?.total ?? 0,
               },
               paymentSummary: "Pix",
               itemType: "Caixa pequena",
@@ -1206,11 +1216,12 @@ export default function HomeScreen() {
                 ? Math.round(q.duration.value / 60)
                 : 18,
               pricing: {
-                base: q?.pricing?.basePrice ?? 12,
+                base: q?.pricing?.basePrice ?? 0,
                 distanceKm: q?.distance?.value ? q.distance.value / 1000 : 4.2,
-                distancePrice: q?.pricing?.distancePrice ?? 15.4,
-                serviceFee: q?.pricing?.serviceFee ?? 3.5,
-                total: q?.pricing?.total ?? 30.9,
+                distancePrice:
+                  q?.pricing?.distancePrice ?? q?.pricing?.total ?? 0,
+                serviceFee: q?.pricing?.serviceFee ?? 0,
+                total: q?.pricing?.total ?? 0,
               },
               paymentSummary: "Dinheiro",
               itemType: "Caixa pequena",
@@ -1282,11 +1293,12 @@ export default function HomeScreen() {
                 ? Math.round(q.duration.value / 60)
                 : 22,
               pricing: {
-                base: q?.pricing?.basePrice ?? 20,
+                base: q?.pricing?.basePrice ?? 0,
                 distanceKm: q?.distance?.value ? q.distance.value / 1000 : 4.2,
-                distancePrice: q?.pricing?.distancePrice ?? 22.4,
-                serviceFee: q?.pricing?.serviceFee ?? 4.5,
-                total: q?.pricing?.total ?? 46.9,
+                distancePrice:
+                  q?.pricing?.distancePrice ?? q?.pricing?.total ?? 0,
+                serviceFee: q?.pricing?.serviceFee ?? 0,
+                total: q?.pricing?.total ?? 0,
               },
               paymentSummary: "Cartão",
               itemType: "Caixa pequena",
@@ -1410,7 +1422,9 @@ export default function HomeScreen() {
             }}
           >
             {/* Header */}
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
+            >
               <View
                 style={{
                   width: 44,
@@ -1427,7 +1441,9 @@ export default function HomeScreen() {
               </View>
 
               <View style={{ flex: 1 }}>
-                <Text style={{ color: "#fff", fontWeight: "900", fontSize: 16 }}>
+                <Text
+                  style={{ color: "#fff", fontWeight: "900", fontSize: 16 }}
+                >
                   Corrida cancelada
                 </Text>
                 <Text style={{ color: "rgba(255,255,255,0.65)", marginTop: 2 }}>

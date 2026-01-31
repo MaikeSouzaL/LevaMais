@@ -13,6 +13,8 @@ const driverLocationRoutes = require("./src/routes/driverLocation.routes");
 const cityRoutes = require("./src/routes/city.routes");
 const pricingRoutes = require("./src/routes/pricing.routes");
 const walletRoutes = require("./src/routes/wallet.routes");
+const representativeRoutes = require("./src/routes/representative.routes");
+const platformConfigRoutes = require("./src/routes/platformConfig.routes");
 
 class Server {
   constructor() {
@@ -49,6 +51,8 @@ class Server {
     this.app.use("/api/cities", cityRoutes);
     this.app.use("/api/pricing", pricingRoutes);
     this.app.use("/api/wallet", walletRoutes);
+    this.app.use("/api/representatives", representativeRoutes);
+    this.app.use("/api/platform-config", platformConfigRoutes);
 
     // Rota de teste
     this.app.get("/api/health", (req, res) => {

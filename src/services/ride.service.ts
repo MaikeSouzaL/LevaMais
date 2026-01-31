@@ -31,6 +31,7 @@ export interface RideDetails {
 export interface CreateRideRequest {
   serviceType: "ride" | "delivery";
   vehicleType: "motorcycle" | "car" | "van" | "truck";
+  cityId?: string;
   purposeId?: string;
   pickup: Location;
   dropoff: Location;
@@ -65,10 +66,10 @@ export interface Ride {
   startedAt?: string;
   completedAt?: string;
   cancelledAt?: string;
-  payment?: { 
-      method?: { 
-          type?: string 
-      } 
+  payment?: {
+    method?: {
+      type?: string;
+    };
   };
   createdAt: string;
   updatedAt: string;
@@ -78,6 +79,7 @@ export interface CalculatePriceRequest {
   pickup: Location;
   dropoff: Location;
   vehicleType: "motorcycle" | "car" | "van" | "truck";
+  cityId?: string;
   purposeId?: string;
 }
 
@@ -202,14 +204,20 @@ class RideService {
   /**
    * Cliente avalia motorista
    */
-  async rateClientToDriver(rideId: string, payload: RatePayload): Promise<void> {
+  async rateClientToDriver(
+    rideId: string,
+    payload: RatePayload,
+  ): Promise<void> {
     await api.post(`/rides/${rideId}/rate-client`, payload);
   }
 
   /**
    * Motorista avalia cliente
    */
-  async rateDriverToClient(rideId: string, payload: RatePayload): Promise<void> {
+  async rateDriverToClient(
+    rideId: string,
+    payload: RatePayload,
+  ): Promise<void> {
     await api.post(`/rides/${rideId}/rate-driver`, payload);
   }
 
@@ -223,7 +231,10 @@ class RideService {
   /**
    * Prova de entrega (entrega)
    */
-  async uploadDeliveryProof(rideId: string, photoBase64: string): Promise<void> {
+  async uploadDeliveryProof(
+    rideId: string,
+    photoBase64: string,
+  ): Promise<void> {
     await api.post(`/rides/${rideId}/proof/delivery`, { photoBase64 });
   }
 
@@ -238,9 +249,11 @@ class RideService {
   /**
    * Histórico de ganhos (gráfico)
    */
-  async getEarningsHistory(period: 'day' | 'week' | 'month' = 'week'): Promise<{ label: string; value: number; count?: number }[]> {
+  async getEarningsHistory(
+    period: "day" | "week" | "month" = "week",
+  ): Promise<{ label: string; value: number; count?: number }[]> {
     const response = await api.get("/rides/earnings-history", {
-        params: { period }
+      params: { period },
     });
     return response.data;
   }

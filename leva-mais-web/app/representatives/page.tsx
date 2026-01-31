@@ -18,9 +18,7 @@ export default function RepresentativesPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      // Mock data temporarily if backend route is not ready
-      // const data = await representativesService.getAll();
-      const data: Representative[] = []; // Empty for now until backend route exists
+      const data = await representativesService.getAll();
       setReps(data);
     } catch (error) {
       showToast("Erro ao carregar representantes", "error");

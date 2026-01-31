@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -29,14 +29,6 @@ import { getCidadeUsuario } from "./getCidadeUsuario";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CLIENTE_WEB_ID } from "@env";
 
-// Configurar Google Sign In
-console.log("DEBUG: CLIENTE_WEB_ID:", CLIENTE_WEB_ID); // LOG DE DEBUG PARA VERIFICAR O ID
-GoogleSignin.configure({
-  webClientId: CLIENTE_WEB_ID,
-  profileImageSize: 150,
-  offlineAccess: true,
-});
-
 export default function SignInScreen() {
   const navigation = useNavigation();
   const route = useRoute();
@@ -52,6 +44,25 @@ export default function SignInScreen() {
   const [phoneError, setPhoneError] = useState<string>("");
   const passwordInputRef = React.useRef<TextInput>(null);
 
+  const googleConfiguredRef = useRef(false);
+
+  useEffect(() => {
+    // Configure dentro do lifecycle do React para garantir Activity pronta no Android.
+    // E evita configurar mais de uma vez durante hot-reload/troca de telas.
+    if (googleConfiguredRef.current) return;
+    googleConfiguredRef.current = true;
+
+    console.log("[GoogleSignIn][SignIn] configure", {
+      hasWebClientId: !!CLIENTE_WEB_ID,
+    });
+
+    GoogleSignin.configure({
+      webClientId: CLIENTE_WEB_ID,
+      profileImageSize: 150,
+      offlineAccess: true,
+    });
+  }, []);
+
   function handleNavigateToSignUp() {
     // animações: "default" | "fade" | "slide_from_right" | "slide_from_left" | "slide_from_bottom" | "none"
     navigation.navigate("SignUp");
@@ -61,7 +72,9 @@ export default function SignInScreen() {
     setGoogleLoading(true);
     try {
       // 1. Autenticar com o Google
-      await GoogleSignin.hasPlayServices();
+      await GoogleSignin.hasPlayServices({
+        showPlayServicesUpdateDialog: true,
+      });
       const userInfo = await GoogleSignin.signIn();
 
       if (!isSuccessResponse(userInfo)) {

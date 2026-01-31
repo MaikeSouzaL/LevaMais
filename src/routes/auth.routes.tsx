@@ -7,7 +7,8 @@ import IntroScreen from "../screens/(public)/IntroScreen";
 import SingnIn from "../screens/(public)/SignInScreen";
 import SingnUp from "../screens/(public)/SignUpScreen";
 import SelectProfileScreen from "../screens/(public)/SelectProfileScreen";
-import CompleteRegistrationScreen from "../screens/(public)/CompleteRegistrationScreen";
+import ClientCompleteRegistrationScreen from "../screens/(public)/CompleteRegistrationScreen/ClientCompleteRegistrationScreen";
+import DriverCompleteRegistrationScreen from "../screens/(public)/CompleteRegistrationScreen/DriverCompleteRegistrationScreen";
 import ForgotPasswordScreen from "../screens/(public)/ForgotPasswordScreen";
 import VerifyCodeScreen from "../screens/(public)/VerifyCodeScreen";
 import NewPasswordScreen from "../screens/(public)/NewPasswordScreen";
@@ -32,7 +33,7 @@ export default function AuthRoutes() {
     async function checkIntroStatus() {
       try {
         const introViewed = await AsyncStorage.getItem(
-          "@leva_mais:intro_viewed"
+          "@leva_mais:intro_viewed",
         );
         if (introViewed === "true") {
           setHasViewedIntro(true);
@@ -77,8 +78,12 @@ export default function AuthRoutes() {
       <Screen name="SignUp" component={SingnUp} />
       <Screen name="SelectProfile" component={SelectProfileScreen} />
       <Screen
-        name="CompleteRegistration"
-        component={CompleteRegistrationScreen}
+        name="CompleteRegistrationClient"
+        component={ClientCompleteRegistrationScreen}
+      />
+      <Screen
+        name="CompleteRegistrationDriver"
+        component={DriverCompleteRegistrationScreen}
       />
       <Screen name="ForgotPassword" component={ForgotPasswordScreen} />
       <Screen name="VerifyCode" component={VerifyCodeScreen} />

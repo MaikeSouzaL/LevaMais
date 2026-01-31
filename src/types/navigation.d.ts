@@ -19,7 +19,9 @@ export declare global {
         };
         token?: string;
       };
-      CompleteRegistration: {
+      /** @deprecated Rota antiga (cadastro unificado). Mantida só para não quebrar builds antigos. */
+      CompleteRegistration?: never;
+      CompleteRegistrationClient: {
         user: {
           _id?: string;
           name: string;
@@ -32,7 +34,24 @@ export declare global {
           profilePhoto?: string;
           acceptedTerms: boolean;
         };
-        userType: "client" | "driver";
+        token?: string;
+      };
+
+      CompleteRegistrationDriver: {
+        user: {
+          _id?: string;
+          name: string;
+          email: string;
+          password: string;
+          phone?: string;
+          city?: string;
+          userType?: string;
+          googleId?: string;
+          profilePhoto?: string;
+          acceptedTerms: boolean;
+        };
+        token?: string;
+        selectedProfile: "client" | "driver";
       };
       ForgotPassword: undefined;
       VerifyCode: {

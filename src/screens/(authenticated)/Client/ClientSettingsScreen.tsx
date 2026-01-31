@@ -2,14 +2,17 @@ import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, TouchableOpacity, Switch } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
 
 import SectionCard from "../../../components/ui/SectionCard";
 import ActionButton from "../../../components/ui/ActionButton";
 import userService from "../../../services/user.service";
+import { useClientCityStore } from "../../../context/clientCityStore";
 
 export default function ClientSettingsScreen() {
   const navigation = useNavigation();
+  const city = useClientCityStore((s) => s.city);
   const [loading, setLoading] = useState(false);
 
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
@@ -69,6 +72,48 @@ export default function ClientSettingsScreen() {
       </View>
 
       <View style={{ padding: 16, gap: 12 }}>
+        <SectionCard>
+          <TouchableOpacity
+            onPress={() => (navigation as any).navigate("ClientCity")}
+            activeOpacity={0.85}
+            style={{ flexDirection: "row", alignItems: "center" }}
+          >
+            <View
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 14,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "rgba(2,222,149,0.10)",
+                borderWidth: 1,
+                borderColor: "rgba(2,222,149,0.25)",
+              }}
+            >
+              <MaterialCommunityIcons
+                name="map-marker"
+                size={22}
+                color="#02de95"
+              />
+            </View>
+
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={{ color: "#fff", fontWeight: "900" }}>Cidade</Text>
+              <Text style={{ color: "rgba(255,255,255,0.65)", marginTop: 4 }}>
+                {city
+                  ? `${city.name}/${city.state} (${city.source === "gps" ? "GPS" : "Manual"})`
+                  : "Defina sua cidade para calcular o preço corretamente"}
+              </Text>
+            </View>
+
+            <MaterialCommunityIcons
+              name="chevron-right"
+              size={22}
+              color="rgba(255,255,255,0.55)"
+            />
+          </TouchableOpacity>
+        </SectionCard>
+
         <SectionCard>
           <View
             style={{

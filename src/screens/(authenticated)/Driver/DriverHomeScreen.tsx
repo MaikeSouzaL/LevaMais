@@ -32,9 +32,10 @@ export default function DriverHomeScreen() {
   const userData = useAuthStore((s) => s.userData);
 
   const [online, setOnline] = useState(false);
-  const [services, setServices] = useState({ 
-    ride: userData?.vehicleType === "car" || userData?.vehicleType === "motorcycle", 
-    delivery: true 
+  const [services, setServices] = useState({
+    ride:
+      userData?.vehicleType === "car" || userData?.vehicleType === "motorcycle",
+    delivery: true,
   });
   const [error, setError] = useState<string | null>(null);
   const [region, setRegion] = useState<any>(null);
@@ -46,7 +47,6 @@ export default function DriverHomeScreen() {
   const [pendingRequests, setPendingRequests] = useState(0);
   const [incomingRequest, setIncomingRequest] = useState<any>(null);
   const [routeCoords, setRouteCoords] = useState<LatLng[]>([]);
-  const [stats, setStats] = useState({ earnings: 0, rides: 0, goal: 10, bonus: 0 }); // [NEW] Stats state
   const intervalRef = useRef<any>(null);
   const mapRef = useRef<MapView | null>(null);
   const didSetInitialRegionRef = useRef(false);
@@ -54,27 +54,6 @@ export default function DriverHomeScreen() {
   const vehicleType = (userData?.vehicleType ||
     "motorcycle") as DriverVehicleType;
   const vehicleInfo = (userData?.vehicleInfo || {}) as any;
-
-  // [NEW] Fetch stats helper
-  const fetchStats = async () => {
-    try {
-      const data = await rideService.getDriverStats();
-      setStats(data);
-    } catch (e) {
-      console.log("Falha ao buscar stats", e);
-    }
-  };
-
-  useEffect(() => {
-    // Busca inicial
-    fetchStats();
-    
-    // Atualiza a cada 60s se estiver online, para manter sincronizado
-    const interval = setInterval(() => {
-        fetchStats();
-    }, 60000);
-    return () => clearInterval(interval);
-  }, []);
 
   const getGoogleMapsApiKey = () => {
     // Prefer env (não expõe a key no repo)
@@ -114,45 +93,26 @@ export default function DriverHomeScreen() {
 
   // Região inicial do mapa deve ser sempre a localização do usuário.
   // Faz isso uma única vez na montagem (não re-centraliza quando o usuário move o mapa).
-  // IMPORTANTE: se a permissão de localização for negada/der erro, ainda assim setamos
-  // uma região padrão para o mapa renderizar (senão fica preso no loading e “parece que o mapa sumiu”).
   useEffect(() => {
     let mounted = true;
-
-    const DEFAULT_REGION = {
-      // São Paulo (fallback visual)
-      latitude: -23.5505,
-      longitude: -46.6333,
-      latitudeDelta: 0.08,
-      longitudeDelta: 0.08,
-    };
 
     (async () => {
       if (didSetInitialRegionRef.current) return;
 
-      const seed = async (latitude: number, longitude: number) => {
-        if (!mounted || didSetInitialRegionRef.current) return;
-        didSetInitialRegionRef.current = true;
-        setRegion({
-          latitude,
-          longitude,
-          latitudeDelta: 0.02,
-          longitudeDelta: 0.02,
-        });
-      };
-
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") return;
 
-        if (status !== "granted") {
-          // Deixa o mapa aparecer mesmo sem localização
-          setError(
-            "Permissão de localização negada. Ative a localização para ver sua posição no mapa.",
-          );
-          // não marca didSetInitialRegionRef, assim o usuário pode tentar centralizar depois
-          setRegion(DEFAULT_REGION as any);
-          return;
-        }
+        const seed = async (latitude: number, longitude: number) => {
+          if (!mounted || didSetInitialRegionRef.current) return;
+          didSetInitialRegionRef.current = true;
+          setRegion({
+            latitude,
+            longitude,
+            latitudeDelta: 0.02,
+            longitudeDelta: 0.02,
+          });
+        };
 
         // 1) tenta última posição conhecida (rápida)
         const last = await Location.getLastKnownPositionAsync();
@@ -167,15 +127,9 @@ export default function DriverHomeScreen() {
         });
         if (cur?.coords?.latitude && cur?.coords?.longitude) {
           await seed(cur.coords.latitude, cur.coords.longitude);
-          return;
         }
-
-        // 3) se não conseguiu pegar coordenadas, ainda renderiza o mapa
-        setRegion(DEFAULT_REGION as any);
-      } catch (e) {
-        console.log("Falha ao obter região inicial", e);
-        setError("Não foi possível carregar sua localização agora.");
-        setRegion(DEFAULT_REGION as any);
+      } catch {
+        // silêncio: se falhar, o map ainda renderiza e o usuário pode centralizar pelo botão.
       }
     })();
 
@@ -314,7 +268,9 @@ export default function DriverHomeScreen() {
     if (key === "ride") {
       const canDoRides = vehicleType === "car" || vehicleType === "motorcycle";
       if (!canDoRides) {
-        setError("Corridas de passageiros disponíveis apenas para carros e motos");
+        setError(
+          "Corridas de passageiros disponíveis apenas para carros e motos",
+        );
         return;
       }
     }
@@ -322,7 +278,7 @@ export default function DriverHomeScreen() {
     // Verificar se está tentando desabilitar o último serviço ativo
     const newValue = !services[key];
     const otherKey = key === "ride" ? "delivery" : "ride";
-    
+
     if (!newValue && !services[otherKey]) {
       // Tentando desabilitar o último serviço
       setError("Você precisa ter pelo menos 1 tipo de serviço ativo");
@@ -658,9 +614,9 @@ export default function DriverHomeScreen() {
 
               {!!error && (
                 <Text
-                  style={{ 
-                    color: "#fbbf24", 
-                    marginTop: 10, 
+                  style={{
+                    color: "#fbbf24",
+                    marginTop: 10,
                     fontWeight: "700",
                     fontSize: 13,
                   }}
@@ -817,8 +773,10 @@ export default function DriverHomeScreen() {
           onToggleOnline={toggleOnline}
           onToggleService={toggleService}
           vehicleType={vehicleType}
-          snapPoints={["55%"]}
-          stats={stats} // [NEW]
+          // Controla a altura do sheet. Exemplos:
+          // ["25%"] → altura fixa em 25%
+          // ["20%", "40%"] → mínima 20%, máxima 40% (pode arrastar)
+          snapPoints={["26%"]}
         />
       </View>
     </SafeAreaView>

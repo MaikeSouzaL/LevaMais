@@ -67,7 +67,7 @@ async function updateDriverLocations() {
           vehicleType: vehicleType,
           vehicle: {
             plate: `${vehicleType.toUpperCase()}-${Math.floor(
-              1000 + Math.random() * 9000
+              1000 + Math.random() * 9000,
             )}`,
             model: getDefaultVehicleModel(vehicleType),
             color: "Prata",
@@ -78,12 +78,12 @@ async function updateDriverLocations() {
         {
           new: true,
           upsert: true,
-        }
+        },
       );
 
       console.log(`✅ ${user.name}:`);
       console.log(
-        `   📍 ${location.latitude}, ${location.longitude} (${vehicleType})`
+        `   📍 ${location.latitude}, ${location.longitude} (${vehicleType})`,
       );
       console.log(`   🚗 ${driverLocation.vehicle.model}`);
       console.log(`   📋 ${driverLocation.vehicle.plate}`);

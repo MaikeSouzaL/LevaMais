@@ -27,13 +27,8 @@ interface SelectProfileParams {
 export default function SelectProfileScreen() {
   const navigation = useNavigation();
   const route = useRoute();
-  const { login } = useAuthStore();
+  const { user, token } = route.params as SelectProfileParams;
   const [selectedProfile, setSelectedProfile] = useState<ProfileType>("client");
-
-  const { user, token } = (route.params as SelectProfileParams) || {
-    user: null,
-    token: null,
-  };
 
   function handleContinue() {
     if (!user) {
@@ -41,23 +36,19 @@ export default function SelectProfileScreen() {
       return;
     }
 
-    // Se for cliente, navegar para tela de completar cadastro
     if (selectedProfile === "client") {
-      navigation.navigate("CompleteRegistration", {
-        user,
-        userType: selectedProfile,
-      });
+      navigation.navigate("CompleteRegistrationClient", { user, token });
+      return;
     } else {
-      // Driver: usar o mesmo fluxo de completar cadastro, mas com steps extras (veículo)
-      navigation.navigate("CompleteRegistration", {
+      navigation.navigate("CompleteRegistrationDriver", {
+        selectedProfile,
         user,
-        userType: selectedProfile,
+        token,
       });
     }
   }
 
   function handleGoBack() {
-    // Voltar para a tela anterior mantendo os dados preenchidos
     navigation.goBack();
   }
 
@@ -70,16 +61,36 @@ export default function SelectProfileScreen() {
       >
         <View className="flex-1 px-6 py-8">
           {/* Ícone do Caminhão */}
-          <View className="items-center mb-8 mt-4">
-            <View
-              className="w-20 h-20 rounded-2xl items-center justify-center"
-              style={{ backgroundColor: theme.COLORS.BRAND_LIGHT }}
+          <View className="mb-8 mt-4" style={{ height: 80 }}>
+            {/* Seta fixa no topo à esquerda */}
+            <TouchableOpacity
+              onPress={handleGoBack}
+              activeOpacity={0.7}
+              style={{ position: "absolute", left: 0, top: 0, padding: 8 }}
             >
-              <MaterialCommunityIcons
-                name="truck-delivery"
-                size={48}
-                color={theme.COLORS.WHITE}
-              />
+              <Feather name="arrow-left" size={18} color={theme.COLORS.WHITE} />
+            </TouchableOpacity>
+
+            {/* Ícone centralizado */}
+            <View
+              style={{
+                position: "absolute",
+                left: 0,
+                right: 0,
+                top: 0,
+                alignItems: "center",
+              }}
+            >
+              <View
+                className="w-20 h-20 rounded-2xl items-center justify-center"
+                style={{ backgroundColor: theme.COLORS.BRAND_LIGHT }}
+              >
+                <MaterialCommunityIcons
+                  name="truck-delivery"
+                  size={48}
+                  color={theme.COLORS.WHITE}
+                />
+              </View>
             </View>
           </View>
 
@@ -321,23 +332,6 @@ export default function SelectProfileScreen() {
             activeOpacity={0.8}
           >
             <Text className="text-brand-dark font-bold text-lg">Continuar</Text>
-          </TouchableOpacity>
-
-          {/* Link Voltar/Cancelar */}
-          <TouchableOpacity
-            onPress={handleGoBack}
-            className="items-center py-3"
-            activeOpacity={0.7}
-          >
-            <View className="flex-row items-center">
-              <Feather
-                name="arrow-left"
-                size={18}
-                color={theme.COLORS.WHITE}
-                style={{ marginRight: 8 }}
-              />
-              <Text className="text-white text-base">Voltar</Text>
-            </View>
           </TouchableOpacity>
         </View>
       </ScrollView>

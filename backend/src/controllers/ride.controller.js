@@ -32,7 +32,15 @@ class RideController {
         }
 
         // Se já finalizou/cancelou, considera sem corrida ativa
-        if (["completed", "cancelled", "cancelled_by_client", "cancelled_by_driver", "cancelled_no_driver"].includes(ride.status)) {
+        if (
+          [
+            "completed",
+            "cancelled",
+            "cancelled_by_client",
+            "cancelled_by_driver",
+            "cancelled_no_driver",
+          ].includes(ride.status)
+        ) {
           return res.json({ active: false, ride: null });
         }
 
@@ -43,7 +51,15 @@ class RideController {
       if (userType === "client") {
         const ride = await Ride.findOne({
           clientId: userId,
-          status: { $nin: ["completed", "cancelled", "cancelled_by_client", "cancelled_by_driver", "cancelled_no_driver"] },
+          status: {
+            $nin: [
+              "completed",
+              "cancelled",
+              "cancelled_by_client",
+              "cancelled_by_driver",
+              "cancelled_no_driver",
+            ],
+          },
         })
           .sort({ createdAt: -1 })
           .populate("clientId", "name phone profilePhoto")
@@ -71,6 +87,7 @@ class RideController {
         serviceType,
         vehicleType,
         purposeId,
+        cityId,
         pickup,
         dropoff,
         pricing,
@@ -92,7 +109,10 @@ class RideController {
       let resolvedPurposeId = purposeId;
       try {
         const mongoose = require("mongoose");
-        if (resolvedPurposeId && !mongoose.Types.ObjectId.isValid(resolvedPurposeId)) {
+        if (
+          resolvedPurposeId &&
+          !mongoose.Types.ObjectId.isValid(resolvedPurposeId)
+        ) {
           const Purpose = require("../models/Purpose");
           const purpose = await Purpose.findOne({
             id: String(resolvedPurposeId),
@@ -134,10 +154,10 @@ class RideController {
       // 1. Busca configurações globais (App Fee %)
       let config = await PlatformConfig.findOne().sort({ createdAt: -1 });
       if (!config) {
-          // Cria default se não existir
-          config = await PlatformConfig.create({ appFeePercentage: 20 });
+        // Cria default se não existir
+        config = await PlatformConfig.create({ appFeePercentage: 20 });
       }
-      const appFeePercentage = config.appFeePercentage || 20; 
+      const appFeePercentage = config.appFeePercentage || 20;
 
       // 2. Calcula Taxa da Plataforma (Valor Bruto que sai do motorista)
       const total = pricing.total;
@@ -150,27 +170,27 @@ class RideController {
       let representativeId = null;
 
       if (cityId) {
-          const city = await City.findById(cityId);
-          if (city && city.representativeId) {
-               representativeId = city.representativeId;
-               // Padrão 50/50 ou override da cidade
-               const repPct = city.revenueSharing?.representativePercentage || 50;
-               representativeShare = platformFee * (repPct / 100);
-               platformShare = platformFee - representativeShare;
-          }
+        const city = await City.findById(cityId);
+        if (city && city.representativeId) {
+          representativeId = city.representativeId;
+          // Padrão 50/50 ou override da cidade
+          const repPct = city.revenueSharing?.representativePercentage || 50;
+          representativeShare = platformFee * (repPct / 100);
+          platformShare = platformFee - representativeShare;
+        }
       }
 
       // Adiciona calculos ao objeto de pricing
       pricing.platformFee = platformFee;
       pricing.driverValue = driverValue;
-      
+
       // Salva detalhe do split no objeto da corrida (para relatórios futuros)
       const splitDetails = {
-          platformConfigUsed: appFeePercentage,
-          totalAppFee: platformFee,
-          platformShare: parseFloat(platformShare.toFixed(2)),
-          representativeShare: parseFloat(representativeShare.toFixed(2)),
-          representativeId: representativeId
+        platformConfigUsed: appFeePercentage,
+        totalAppFee: platformFee,
+        platformShare: parseFloat(platformShare.toFixed(2)),
+        representativeShare: parseFloat(representativeShare.toFixed(2)),
+        representativeId: representativeId,
       };
 
       const ride = new Ride({
@@ -180,14 +200,14 @@ class RideController {
         purposeId: resolvedPurposeId,
         pickup,
         dropoff,
-        pricing, 
+        pricing,
         splitDetails, // Novo campo
         distance,
         duration,
         details,
         status: "requesting",
         requestedAt: new Date(),
-        cityId: cityId // Importante salvar a cidade
+        cityId: cityId, // Importante salvar a cidade
       });
 
       // Calcular total
@@ -237,7 +257,9 @@ class RideController {
           if (!next) return;
 
           // Se havia um motorista reservado antes, avisa que expirou
-          const previousDriverId = fresh.driverId ? String(fresh.driverId) : null;
+          const previousDriverId = fresh.driverId
+            ? String(fresh.driverId)
+            : null;
 
           triedDrivers.push(String(next.driverId));
 
@@ -748,7 +770,7 @@ class RideController {
     try {
       const driverId = req.user.id;
       const { startOfDay, endOfDay } = require("date-fns");
-      
+
       const now = new Date();
       // Considerando fuso horário local simples (ideal seria receber timezone do client)
       const todayStart = startOfDay(now);
@@ -775,13 +797,13 @@ class RideController {
 
       // Meta diária hardcoded por enquanto (gamification MVP)
       const dailyGoal = 10;
-      
+
       // Simular um bônus de R$ 20 se atingir a meta
       const bonusAmount = result.ridesCount >= dailyGoal ? 20 : 0;
-      
+
       // Deduzir taxa do app (ex: 20%) para mostrar lucro líquido estimado
       // (ajuste conforme regra real. Aqui assumindo que pricing.total é o valor BRUTO e motorista fica com 80%)
-      const driverShare = result.totalEarnings * 0.8; 
+      const driverShare = result.totalEarnings * 0.8;
 
       res.json({
         earnings: driverShare,
@@ -792,10 +814,10 @@ class RideController {
     } catch (error) {
       console.error("Erro ao buscar estatísticas:", error);
       res.status(500).json({
-         earnings: 0,
-         rides: 0,
-         goal: 10,
-         bonus: 0
+        earnings: 0,
+        rides: 0,
+        goal: 10,
+        bonus: 0,
       });
     }
   }
@@ -806,10 +828,10 @@ class RideController {
       const driverId = req.user.id;
       const { period = "week" } = req.query; // 'day', 'week', 'month'
       const driverObjectId = new mongoose.Types.ObjectId(driverId);
-      
+
       let startDate = new Date();
       let groupByFormat = ""; // Format for $dateToString
-      
+
       // Configure Date Range and Grouping
       if (period === "day") {
         startDate.setHours(0, 0, 0, 0); // Start of today
@@ -836,14 +858,21 @@ class RideController {
         {
           $project: {
             // Adjust timzone MVP Fix: UTC-3 hardcoded
-            localDate: { $subtract: ["$completedAt", 1000 * 60 * 60 * 3] }, 
+            localDate: { $subtract: ["$completedAt", 1000 * 60 * 60 * 3] },
             // Use valor salvo ou calcula 80% fallback para legados
-            val: { $ifNull: ["$pricing.driverValue", { $multiply: ["$pricing.total", 0.8] }] }
-          }
+            val: {
+              $ifNull: [
+                "$pricing.driverValue",
+                { $multiply: ["$pricing.total", 0.8] },
+              ],
+            },
+          },
         },
         {
           $group: {
-            _id: { $dateToString: { format: groupByFormat, date: "$localDate" } },
+            _id: {
+              $dateToString: { format: groupByFormat, date: "$localDate" },
+            },
             total: { $sum: "$val" },
             count: { $sum: 1 },
           },
@@ -857,40 +886,40 @@ class RideController {
       const current = new Date(startDate);
 
       if (period === "day") {
-          // 00:00 to 23:00
-          for (let i = 0; i < 24; i++) {
-              const hourLabel = `${String(i).padStart(2, '0')}:00`;
-              const match = stats.find(s => s._id === hourLabel);
-              result.push({
-                  label: hourLabel,
-                  value: match ? match.total : 0, // Valor já é liquido do motorista
-                  count: match ? match.count : 0
-              });
-          }
+        // 00:00 to 23:00
+        for (let i = 0; i < 24; i++) {
+          const hourLabel = `${String(i).padStart(2, "0")}:00`;
+          const match = stats.find((s) => s._id === hourLabel);
+          result.push({
+            label: hourLabel,
+            value: match ? match.total : 0, // Valor já é liquido do motorista
+            count: match ? match.count : 0,
+          });
+        }
       } else if (period === "week" || period === "month") {
-          // Fill days until today
-          while (current <= now) {
-              const dateKey = current.toISOString().split("T")[0]; // YYYY-MM-DD
-              const match = stats.find(s => s._id === dateKey);
-              
-              // Format Label
-              let label = "";
-              if (period === "week") {
-                 const days = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-                 label = days[current.getDay()];
-              } else {
-                 label = `${current.getDate()}/${current.getMonth() + 1}`;
-              }
+        // Fill days until today
+        while (current <= now) {
+          const dateKey = current.toISOString().split("T")[0]; // YYYY-MM-DD
+          const match = stats.find((s) => s._id === dateKey);
 
-              result.push({
-                  label: label, 
-                  fullDate: dateKey,
-                  value: match ? match.total : 0, // Valor já é liquido
-                  count: match ? match.count : 0
-              });
-              
-              current.setDate(current.getDate() + 1);
+          // Format Label
+          let label = "";
+          if (period === "week") {
+            const days = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+            label = days[current.getDay()];
+          } else {
+            label = `${current.getDate()}/${current.getMonth() + 1}`;
           }
+
+          result.push({
+            label: label,
+            fullDate: dateKey,
+            value: match ? match.total : 0, // Valor já é liquido
+            count: match ? match.count : 0,
+          });
+
+          current.setDate(current.getDate() + 1);
+        }
       }
 
       res.json(result);
@@ -914,10 +943,10 @@ class RideController {
       // Validar se cityId foi enviado (agora é obrigatório para preço preciso)
       // Se o app antigo não mandar, tentamos inferir (geo) ou usar regra global (se existir)
       // Por enquanto, vamos assumir que o app PRECISA mandar ou a gente geocodifica no back.
-      // Como o usuário disse "pegamos a localização... buscamos configurações da cidade", 
+      // Como o usuário disse "pegamos a localização... buscamos configurações da cidade",
       // o ideal seria o backend resolver a cidade via lat/long se o app não mandar.
       // MVP: App manda ou Backend resolve. Vamos focar na lógica de preço primeiro.
-      
+
       const mongoose = require("mongoose");
       const PricingRule = require("../models/PricingRule");
       const Purpose = require("../models/Purpose");
@@ -949,52 +978,59 @@ class RideController {
       // ==============================================================================
 
       let rule = null;
-      
+
       if (cityId) {
         // 1. Tenta regra ESPECÍFICA: Cidade + Veículo + Serviço
         if (purposeDoc?._id) {
-           rule = await PricingRule.findOne({
-             cityId,
-             vehicleCategory: vehicleType,
-             purposeId: purposeDoc._id,
-             active: true
-           });
+          rule = await PricingRule.findOne({
+            cityId,
+            vehicleCategory: vehicleType,
+            purposeId: purposeDoc._id,
+            active: true,
+          });
         }
 
         // 2. Se não achar, tenta regra BASE da Cidade: Cidade + Veículo (sem serviço)
         if (!rule) {
-           rule = await PricingRule.findOne({
-             cityId,
-             vehicleCategory: vehicleType,
-             purposeId: null, // Regra base explicitamente
-             active: true
-           });
+          rule = await PricingRule.findOne({
+            cityId,
+            vehicleCategory: vehicleType,
+            purposeId: null, // Regra base explicitamente
+            active: true,
+          });
         }
       }
 
       // 3. Fallback (Opcional): Regra Global (sem cidade)
       // Se não achou na cidade (ou cityId não veio), tenta regra global
       if (!rule) {
-         const globalFilter = {
-             cityId: null, 
-             vehicleCategory: vehicleType,
-             active: true
-         };
-         
-         // Global Específica
-         if (purposeDoc?._id) {
-             rule = await PricingRule.findOne({ ...globalFilter, purposeId: purposeDoc._id });
-         }
-         // Global Base
-         if (!rule) {
-             rule = await PricingRule.findOne({ ...globalFilter, purposeId: null });
-         }
+        const globalFilter = {
+          cityId: null,
+          vehicleCategory: vehicleType,
+          active: true,
+        };
+
+        // Global Específica
+        if (purposeDoc?._id) {
+          rule = await PricingRule.findOne({
+            ...globalFilter,
+            purposeId: purposeDoc._id,
+          });
+        }
+        // Global Base
+        if (!rule) {
+          rule = await PricingRule.findOne({
+            ...globalFilter,
+            purposeId: null,
+          });
+        }
       }
 
       if (!rule) {
         return res.status(400).json({
-          error: "Serviço não disponível ou sem preço configurado nesta região.",
-          details: "Nenhuma regra de preço encontrada (PricingRule)."
+          error:
+            "Serviço não disponível ou sem preço configurado nesta região.",
+          details: "Nenhuma regra de preço encontrada (PricingRule).",
         });
       }
 
@@ -1008,20 +1044,26 @@ class RideController {
       // Regra comum: (Base) + (Km Excedente * PreçoKm)
       // Mas a regra do usuário foi: "KM mínimo que irá se basear na taxa mínima"
       // Interpretação: Até X km, paga Y. Acima disso, paga Y + (Km - X)*Z.
-      
+
       let finalPrice = 0;
       let breakdown = {};
 
       if (distanceKm <= minimumKm) {
-          finalPrice = minimumFee;
-          breakdown = { method: "minimum_fee", minimumFee, distanceKm };
+        finalPrice = minimumFee;
+        breakdown = { method: "minimum_fee", minimumFee, distanceKm };
       } else {
-          const exceedKm = distanceKm - minimumKm;
-          const distancePrice = exceedKm * pricePerKm;
-          finalPrice = minimumFee + distancePrice;
-          breakdown = { method: "distance_calc", minimumFee, exceedKm, pricePerKm, distancePrice };
+        const exceedKm = distanceKm - minimumKm;
+        const distancePrice = exceedKm * pricePerKm;
+        finalPrice = minimumFee + distancePrice;
+        breakdown = {
+          method: "distance_calc",
+          minimumFee,
+          exceedKm,
+          pricePerKm,
+          distancePrice,
+        };
       }
-      
+
       // Ajuste de duração (opcional, se configurado)
       // if (rule.pricing.pricePerMinute) ...
 
@@ -1036,7 +1078,7 @@ class RideController {
           total: parseFloat(finalPrice.toFixed(2)),
           currency: "BRL",
           breakdown,
-          ruleUsed: rule.name
+          ruleUsed: rule.name,
         },
         distance: {
           value: Math.round(distance * 1000) / 1000,
@@ -1047,10 +1089,9 @@ class RideController {
           text: `${durationMinutes} min`,
         },
         purpose: purposeDoc
-            ? { id: purposeDoc.id, title: purposeDoc.title }
-            : undefined,
+          ? { id: purposeDoc.id, title: purposeDoc.title }
+          : undefined,
       });
-
     } catch (error) {
       console.error("Erro ao calcular preço:", error);
       res.status(500).json({
