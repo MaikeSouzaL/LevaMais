@@ -1096,6 +1096,12 @@ class RideController {
       if (distanceKm <= minimumKm) {
         finalPrice = minimumFee;
         breakdown = { method: "minimum_fee", minimumFee, distanceKm };
+        console.log("[calculatePrice] 💰 Cálculo (Taxa Mínima):", {
+          distanceKm,
+          minimumKm,
+          minimumFee,
+          finalPrice,
+        });
       } else {
         const exceedKm = distanceKm - minimumKm;
         const distancePrice = exceedKm * pricePerKm;
@@ -1107,6 +1113,15 @@ class RideController {
           pricePerKm,
           distancePrice,
         };
+        console.log("[calculatePrice] 💰 Cálculo (Distância):", {
+          distanceKm,
+          minimumKm,
+          exceedKm,
+          pricePerKm,
+          minimumFee,
+          distancePrice,
+          finalPrice: `R$ ${finalPrice.toFixed(2)}`,
+        });
       }
 
       // Ajuste de duração (opcional, se configurado)

@@ -867,11 +867,65 @@ function CreateCityModal({ onClose, onSuccess }: any) {
   });
   const { showToast } = useToast();
 
+  // Mapa de estados brasileiros (nome completo → sigla)
+  const estadosParaSigla: Record<string, string> = {
+    "acre": "AC",
+    "alagoas": "AL",
+    "amapá": "AP",
+    "amapa": "AP",
+    "amazonas": "AM",
+    "bahia": "BA",
+    "ceará": "CE",
+    "ceara": "CE",
+    "distrito federal": "DF",
+    "espírito santo": "ES",
+    "espirito santo": "ES",
+    "goiás": "GO",
+    "goias": "GO",
+    "maranhão": "MA",
+    "maranhao": "MA",
+    "mato grosso": "MT",
+    "mato grosso do sul": "MS",
+    "minas gerais": "MG",
+    "pará": "PA",
+    "para": "PA",
+    "paraíba": "PB",
+    "paraiba": "PB",
+    "paraná": "PR",
+    "parana": "PR",
+    "pernambuco": "PE",
+    "piauí": "PI",
+    "piaui": "PI",
+    "rio de janeiro": "RJ",
+    "rio grande do norte": "RN",
+    "rio grande do sul": "RS",
+    "rondônia": "RO",
+    "rondonia": "RO",
+    "roraima": "RR",
+    "santa catarina": "SC",
+    "são paulo": "SP",
+    "sao paulo": "SP",
+    "sergipe": "SE",
+    "tocantins": "TO",
+  };
+
   const handleSubmit = async (e: any) => {
     e.preventDefault();
     try {
+        // Converter estado (aceita nome completo ou sigla)
+        let stateCode = formData.state.trim();
+        
+        // Se tiver mais de 2 caracteres, é nome completo - converter para sigla
+        if (stateCode.length > 2) {
+          const normalized = stateCode.toLowerCase();
+          stateCode = estadosParaSigla[normalized] || stateCode.toUpperCase();
+        } else {
+          stateCode = stateCode.toUpperCase();
+        }
+
         await citiesService.create({
             ...formData,
+            state: stateCode, // Salva sempre em sigla (ex: "RO")
             region: formData.region as any,
             revenueSharing: { representativePercentage: 50, platformPercentage: 50, paymentDay: 5 }
         });
@@ -886,13 +940,26 @@ function CreateCityModal({ onClose, onSuccess }: any) {
     <Modal isOpen={true} onClose={onClose} title="Nova Cidade">
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-           <label className="block text-sm font-medium mb-1">Nome</label>
-           <input className="w-full border rounded p-2" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required />
+           <label className="block text-sm font-medium mb-1">Nome da Cidade</label>
+           <input 
+             className="w-full border rounded p-2" 
+             placeholder="Ex: Pimenta Bueno"
+             value={formData.name} 
+             onChange={e => setFormData({...formData, name: e.target.value})} 
+             required 
+           />
         </div>
         <div className="grid grid-cols-2 gap-4">
            <div>
              <label className="block text-sm font-medium mb-1">Estado</label>
-             <input className="w-full border rounded p-2" value={formData.state} onChange={e => setFormData({...formData, state: e.target.value})} required maxLength={2} />
+             <input 
+               className="w-full border rounded p-2" 
+               placeholder="Ex: Rondônia ou RO"
+               value={formData.state} 
+               onChange={e => setFormData({...formData, state: e.target.value})} 
+               required 
+             />
+             <p className="text-xs text-gray-500 mt-1">Digite o nome completo ou sigla</p>
            </div>
            <div>
              <label className="block text-sm font-medium mb-1">Região</label>
