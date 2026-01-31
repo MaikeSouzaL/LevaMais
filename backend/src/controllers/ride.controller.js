@@ -977,6 +977,14 @@ class RideController {
       // NOVA LÓGICA DE PRECIFICAÇÃO (Prioridade: Cidade/Veículo/Serviço)
       // ==============================================================================
 
+      console.log("[calculatePrice] Parâmetros recebidos:", {
+        cityId,
+        vehicleType,
+        purposeId,
+        purposeDocId: purposeDoc?._id,
+        distanceKm,
+      });
+
       let rule = null;
 
       if (cityId) {
@@ -988,6 +996,10 @@ class RideController {
             purposeId: purposeDoc._id,
             active: true,
           });
+          console.log(
+            "[calculatePrice] Busca específica (Cidade+Veículo+Serviço):",
+            rule ? `Encontrada: ${rule.name}` : "Não encontrada",
+          );
         }
 
         // 2. Se não achar, tenta regra BASE da Cidade: Cidade + Veículo (sem serviço)
@@ -998,12 +1010,21 @@ class RideController {
             purposeId: null, // Regra base explicitamente
             active: true,
           });
+          console.log(
+            "[calculatePrice] Busca base (Cidade+Veículo):",
+            rule ? `Encontrada: ${rule.name}` : "Não encontrada",
+          );
         }
+      } else {
+        console.log("[calculatePrice] ⚠️ cityId NÃO foi enviado pelo cliente!");
       }
 
       // 3. Fallback (Opcional): Regra Global (sem cidade)
       // Se não achou na cidade (ou cityId não veio), tenta regra global
       if (!rule) {
+        console.log(
+          "[calculatePrice] Tentando fallback para regra global (sem cityId)...",
+        );
         const globalFilter = {
           cityId: null,
           vehicleCategory: vehicleType,
@@ -1016,6 +1037,10 @@ class RideController {
             ...globalFilter,
             purposeId: purposeDoc._id,
           });
+          console.log(
+            "[calculatePrice] Busca global específica:",
+            rule ? `Encontrada: ${rule.name}` : "Não encontrada",
+          );
         }
         // Global Base
         if (!rule) {
@@ -1023,16 +1048,36 @@ class RideController {
             ...globalFilter,
             purposeId: null,
           });
+          console.log(
+            "[calculatePrice] Busca global base:",
+            rule ? `Encontrada: ${rule.name}` : "Não encontrada",
+          );
         }
       }
 
       if (!rule) {
+        console.log(
+          "[calculatePrice] ❌ ERRO: Nenhuma regra encontrada!",
+          {
+            cityId,
+            vehicleType,
+            purposeId,
+          },
+        );
         return res.status(400).json({
           error:
             "Serviço não disponível ou sem preço configurado nesta região.",
           details: "Nenhuma regra de preço encontrada (PricingRule).",
         });
       }
+
+      console.log("[calculatePrice] ✅ Regra encontrada:", {
+        name: rule.name,
+        cityId: rule.cityId,
+        vehicleCategory: rule.vehicleCategory,
+        purposeId: rule.purposeId,
+        pricing: rule.pricing,
+      });
 
       // Extrair valores da regra encontrada
       const minimumKm = Number(rule.pricing.minimumKm || 0);
