@@ -160,6 +160,7 @@ export default function HomeScreen() {
     useState(false);
   const [finalSummaryData, setFinalSummaryData] =
     useState<FinalOrderSummaryData | null>(null);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [destinationAddress, setDestinationAddress] = useState<string>("");
   const [pickupDisplayAddress, setPickupDisplayAddress] = useState<string>(""); // Endereço de partida manual
 
@@ -851,9 +852,29 @@ export default function HomeScreen() {
           onCancel={handleCancelOrder}
           onConfirm={async (method) => {
             try {
-              finalSummaryRef.current?.dismiss();
-
               const mappedMethod = method === "card" ? "credit_card" : method;
+
+              // Fluxo de pagamento simulado para Pix e Cartão
+              if (mappedMethod === "pix" || mappedMethod === "credit_card") {
+                setIsProcessingPayment(true);
+                Toast.show({
+                  type: "info",
+                  text1: "Pagamento",
+                  text2: "Gerando link de pagamento...",
+                });
+
+                // Simulação de espera do Stripe
+                await new Promise((resolve) => setTimeout(resolve, 3000));
+                
+                Toast.show({
+                  type: "success",
+                  text1: "Pagamento",
+                  text2: "Simulação de pagamento aprovada! Criando pedido...",
+                });
+                setIsProcessingPayment(false);
+              }
+
+              finalSummaryRef.current?.dismiss();
 
               // 1. Criar a corrida no backend
               const newRide = await rideService.create({
@@ -890,6 +911,7 @@ export default function HomeScreen() {
               });
               setDashboardRefreshTrigger((prev) => prev + 1);
             } catch (error: any) {
+              setIsProcessingPayment(false);
               console.error("Erro ao criar corrida:", error);
               Toast.show({
                 type: "error",

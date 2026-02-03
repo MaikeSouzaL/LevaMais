@@ -73,8 +73,8 @@ export function SearchingDriverModal({
         right: 0,
         top: 0,
         bottom: 0,
-        // Transparent to show map behind
-        backgroundColor: "transparent",
+        // Darkened background to show radar better
+        backgroundColor: "rgba(9, 26, 47, 0.7)",
         zIndex: 60,
       }}
     >
