@@ -12,6 +12,8 @@ interface SearchingDriverModalProps {
   distanceText?: string; // e.g., "4.2 km • Sem paradas"
   paymentText?: string; // e.g., "Mastercard •••• 4242"
   secondsLeft?: number; // countdown (UX)
+  activeDriversCount?: number; // Motoristas ativos na região
+  vehicleType?: "motorcycle" | "car" | "van" | "truck";
   onCancel?: () => void;
   onBack?: () => void;
   onHelp?: () => void;
@@ -25,6 +27,8 @@ export function SearchingDriverModal({
   distanceText = "4.2 km • Sem paradas",
   paymentText = "Mastercard •••• 4242",
   secondsLeft,
+  activeDriversCount,
+  vehicleType,
   onCancel,
   onBack,
   onHelp,
@@ -311,6 +315,40 @@ export function SearchingDriverModal({
             ? `Tentando encontrar um motorista... (${secondsLeft}s)`
             : "Isso pode levar alguns segundos, estamos conectando você."}
         </Text>
+
+        {/* Contador de motoristas ativos */}
+        {typeof activeDriversCount === "number" && (
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              marginTop: 16,
+              backgroundColor: "rgba(6,219,148,0.15)",
+              paddingHorizontal: 16,
+              paddingVertical: 8,
+              borderRadius: 20,
+              borderWidth: 1,
+              borderColor: "rgba(6,219,148,0.3)",
+            }}
+          >
+            <MaterialIcons
+              name={vehicleType === "motorcycle" ? "two-wheeler" : vehicleType === "car" ? "directions-car" : "local-shipping"}
+              size={18}
+              color="#06db94"
+              style={{ marginRight: 8 }}
+            />
+            <Text
+              style={{
+                color: "#06db94",
+                fontSize: 14,
+                fontWeight: "700",
+              }}
+            >
+              {activeDriversCount} motorista{activeDriversCount !== 1 ? "s" : ""} ativo{activeDriversCount !== 1 ? "s" : ""} na região
+            </Text>
+          </View>
+        )}
       </View>
 
       {/* Bottom card */}

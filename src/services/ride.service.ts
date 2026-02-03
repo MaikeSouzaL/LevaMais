@@ -133,7 +133,8 @@ class RideService {
   async getNearbyDrivers(
     latitude: number,
     longitude: number,
-    radius: number = 5000 // 5km radius
+    radius: number = 5000, // 5km radius (fallback)
+    cityId?: string // Para usar raio configurado da cidade
   ): Promise<Array<{
     id: string;
     latitude: number;
@@ -142,7 +143,7 @@ class RideService {
     rotation: number;
   }>> {
     const response = await api.get("/rides/nearby-drivers", {
-      params: { latitude, longitude, radius }
+      params: { latitude, longitude, radius, cityId }
     });
     return response.data;
   }

@@ -1179,7 +1179,7 @@ class RideController {
   // Buscar motoristas próximos (para exibir no mapa)
   async getNearbyDrivers(req, res) {
     try {
-      const { latitude, longitude, radius, vehicleType, limit } = req.query;
+      const { latitude, longitude, radius, vehicleType, limit, cityId } = req.query;
 
       if (!latitude || !longitude) {
         return res
@@ -1187,11 +1187,24 @@ class RideController {
           .json({ error: "Latitude e Longitude são obrigatórios" });
       }
 
+      // Buscar raio configurado na cidade (prioridade)
+      let searchRadius = parseInt(radius) || 5000;
+      try {
+        if (cityId) {
+          const city = await City.findById(cityId).select("searchRadius");
+          if (city?.searchRadius) {
+            searchRadius = city.searchRadius;
+          }
+        }
+      } catch (e) {
+        // Usa fallback se não conseguir buscar a cidade
+      }
+
       const DriverLocation = require("../models/DriverLocation");
       const drivers = await DriverLocation.findNearby(
         parseFloat(latitude),
         parseFloat(longitude),
-        parseInt(radius) || 5000,
+        searchRadius,
         vehicleType,
         parseInt(limit) || 10
       );

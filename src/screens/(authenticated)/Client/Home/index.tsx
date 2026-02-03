@@ -167,6 +167,9 @@ export default function HomeScreen() {
   // Veículos próximos (Dados Reais do Backend)
   const [visibleVehicles, setVisibleVehicles] = useState<any[]>([]);
 
+  // Cidade do cliente (para usar raio dinâmico)
+  const clientCity = useClientCityStore((s) => s.city);
+
   // Buscar motoristas próximos periodicamente
   React.useEffect(() => {
     // Só busca se tiver localização
@@ -178,6 +181,8 @@ export default function HomeScreen() {
         const drivers = await rideService.getNearbyDrivers(
           mapLocation.region!.latitude,
           mapLocation.region!.longitude,
+          5000, // fallback (será sobrescrito pelo backend se cityId for passado)
+          clientCity?.cityId
         );
         if (drivers && Array.isArray(drivers)) {
           setVisibleVehicles(drivers);
@@ -191,7 +196,7 @@ export default function HomeScreen() {
     fetchDrivers();
     const interval = setInterval(fetchDrivers, 10000);
     return () => clearInterval(interval);
-  }, [mapLocation.region?.latitude, mapLocation.region?.longitude]);
+  }, [mapLocation.region?.latitude, mapLocation.region?.longitude, clientCity?.cityId]);
 
   // ========================================
   // COUNTDOWN TIMER
@@ -814,6 +819,10 @@ export default function HomeScreen() {
             price: driverSearch.searchingState.price,
             eta: driverSearch.searchingState.eta,
             secondsLeft: driverSearch.searchingState.secondsLeft,
+            vehicleType: rideFlow.selectedVehicleType as any,
+            activeDriversCount: visibleVehicles.filter(
+              (v) => v.type === rideFlow.selectedVehicleType
+            ).length,
             onCancel: () => driverSearch.stopSearch(),
           } as any)}
         />
