@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import {
   AppBottomSheetModal,
   type AppBottomSheetModalRef,
@@ -55,12 +56,6 @@ export const FinalOrderSummarySheet = forwardRef<AppBottomSheetModalRef, Props>(
     const insets = useSafeAreaInsets();
     const snapPoints = useMemo(() => [100, "85%"], []);
 
-    const vehicleIconName = {
-      moto: "🛵",
-      car: "🚗",
-      van: "🚐",
-      truck: "🚚",
-    }[data.vehicleType];
 
     return (
       <AppBottomSheetModal
@@ -217,28 +212,43 @@ export const FinalOrderSummarySheet = forwardRef<AppBottomSheetModalRef, Props>(
             {/* Selected service card */}
             <View
               style={{
-                backgroundColor: "#11253E",
+                backgroundColor: "rgba(255,255,255,0.03)",
                 borderWidth: 1,
-                borderColor: "rgba(255,255,255,0.05)",
-                borderRadius: 12,
-                padding: 16,
+                borderColor: "rgba(2,222,149,0.15)",
+                borderRadius: 20,
+                padding: 20,
                 flexDirection: "row",
                 alignItems: "center",
-                columnGap: 12,
-                marginBottom: 16,
+                columnGap: 16,
+                marginBottom: 20,
+                shadowColor: "#02de95",
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.1,
+                shadowRadius: 12,
+                elevation: 5,
               }}
             >
               <View
                 style={{
-                  height: 48,
-                  width: 48,
-                  borderRadius: 12,
-                  backgroundColor: "#1e3b32",
+                  height: 64,
+                  width: 64,
+                  borderRadius: 16,
+                  backgroundColor: "rgba(2,222,149,0.1)",
                   alignItems: "center",
                   justifyContent: "center",
+                  borderWidth: 1,
+                  borderColor: "rgba(2,222,149,0.2)",
                 }}
               >
-                <Text style={{ fontSize: 24 }}>{vehicleIconName}</Text>
+                <MaterialCommunityIcons 
+                   name={
+                     (data.vehicleType === "moto" || data.vehicleType as string === "motorcycle") ? "motorbike" :
+                     data.vehicleType === "car" ? "car" :
+                     data.vehicleType === "van" ? "van-utility" : "truck"
+                   } 
+                   size={36} 
+                   color="#02de95" 
+                />
               </View>
               <View style={{ flex: 1 }}>
                 <View
@@ -246,31 +256,29 @@ export const FinalOrderSummarySheet = forwardRef<AppBottomSheetModalRef, Props>(
                     flexDirection: "row",
                     alignItems: "center",
                     justifyContent: "space-between",
-                    marginBottom: 4,
+                    marginBottom: 6,
                   }}
                 >
                   <Text
-                    style={{ color: "white", fontSize: 18, fontWeight: "700" }}
+                    style={{ color: "white", fontSize: 18, fontWeight: "800", letterSpacing: 0.3 }}
                   >
                     Entrega • {labelForVehicle(data.vehicleType)}
                   </Text>
                   {!!data.etaMinutes && (
                     <View
                       style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 4,
-                        backgroundColor: "rgba(2,222,149,0.1)",
-                        paddingHorizontal: 8,
-                        paddingVertical: 2,
-                        borderRadius: 6,
+                        backgroundColor: "#02de95",
+                        paddingHorizontal: 10,
+                        paddingVertical: 4,
+                        borderRadius: 8,
                       }}
                     >
                       <Text
                         style={{
-                          color: "#02de95",
-                          fontSize: 12,
-                          fontWeight: "700",
+                          color: "#091A2F",
+                          fontSize: 10,
+                          fontWeight: "900",
+                          textTransform: "uppercase",
                         }}
                       >
                         Rápido
@@ -278,23 +286,25 @@ export const FinalOrderSummarySheet = forwardRef<AppBottomSheetModalRef, Props>(
                     </View>
                   )}
                 </View>
-                {!!data.etaMinutes && (
-                  <Text style={{ color: "#9abcb0", fontSize: 13 }}>
-                    Chegada estimada:{" "}
-                    <Text style={{ color: "white", fontWeight: "600" }}>
-                      {data.etaMinutes} min
-                    </Text>
-                  </Text>
-                )}
                 {!!data.servicePurposeLabel && (
-                  <Text
-                    style={{ color: "#9abcb0", fontSize: 12, marginTop: 2 }}
-                  >
-                    Finalidade:{" "}
-                    <Text style={{ color: "white" }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6 }}>
+                    <MaterialCommunityIcons 
+                      name="tag-outline" 
+                      size={14} 
+                      color="#9abcb0" 
+                      style={{ marginTop: 2 }} 
+                    />
+                    <Text
+                      style={{ 
+                        color: "#9abcb0", 
+                        fontSize: 13, 
+                        fontWeight: "500", 
+                        flex: 1 
+                      }}
+                    >
                       {data.servicePurposeLabel}
                     </Text>
-                  </Text>
+                  </View>
                 )}
               </View>
             </View>
@@ -321,11 +331,6 @@ export const FinalOrderSummarySheet = forwardRef<AppBottomSheetModalRef, Props>(
                   value={data.helperIncluded ? "Incluído" : "Não incluso"}
                 />
               )}
-              <Row
-                label="Seguro"
-                value={insuranceLabel(data.insuranceLevel)}
-                highlight={data.insuranceLevel !== "none"}
-              />
             </View>
 
             <View
@@ -355,6 +360,13 @@ export const FinalOrderSummarySheet = forwardRef<AppBottomSheetModalRef, Props>(
                 value={formatBRL(data.pricing.distancePrice)}
                 muted
               />
+              {!!data.etaMinutes && (
+                <Row
+                  label="Tempo estimado"
+                  value={`${data.etaMinutes} min`}
+                  muted
+                />
+              )}
               <View
                 style={{
                   borderBottomWidth: 1,
