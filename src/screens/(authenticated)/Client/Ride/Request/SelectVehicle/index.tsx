@@ -3,20 +3,26 @@
  * Usa VehicleCard compartilhado e design system
  */
 
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import React from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+} from "react-native";
+import { MaterialIcons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavigation, useRoute } from "@react-navigation/native";
 
 // Design System
-import { colors, spacing, fontSize, borderRadius } from '@/theme';
+import { colors, spacing, fontSize, borderRadius } from "@/theme";
 
 // Componentes Compartilhados
-import { VehicleCard } from '../../../Shared/components';
+import { VehicleCard } from "../../../Shared/components";
 
 // Tipos
-import type { VehicleType } from '../../../types';
+import type { VehicleType } from "../../../types";
 
 type RouteParams = {
   pickup?: {
@@ -40,31 +46,31 @@ const VEHICLES: Array<{
   badgeColor?: string;
 }> = [
   {
-    type: 'motorcycle',
-    title: 'Moto',
-    description: 'Pequenos pacotes e documentos até 20kg',
-    icon: 'two-wheeler',
-    badge: 'Mais rápido',
+    type: "motorcycle",
+    title: "Moto",
+    description: "Pequenos pacotes e documentos até 20kg",
+    icon: "two-wheeler",
+    badge: "Mais rápido",
     badgeColor: colors.primary[500],
   },
   {
-    type: 'car',
-    title: 'Carro',
-    description: 'Compras de mercado ou caixas médias',
-    icon: 'directions-car',
+    type: "car",
+    title: "Carro",
+    description: "Compras de mercado ou caixas médias",
+    icon: "directions-car",
   },
   {
-    type: 'van',
-    title: 'Van',
-    description: 'Móveis pequenos ou muitas caixas',
-    icon: 'airport-shuttle',
+    type: "van",
+    title: "Van",
+    description: "Móveis pequenos ou muitas caixas",
+    icon: "airport-shuttle",
   },
   {
-    type: 'truck',
-    title: 'Caminhão',
-    description: 'Mudanças e grandes cargas comerciais',
-    icon: 'local-shipping',
-    badge: 'Grandes volumes',
+    type: "truck",
+    title: "Caminhão",
+    description: "Mudanças e grandes cargas comerciais",
+    icon: "local-shipping",
+    badge: "Grandes volumes",
     badgeColor: colors.text.tertiary,
   },
 ];
@@ -75,16 +81,22 @@ export default function SelectVehicleScreen() {
   const route = useRoute();
   const params = route.params as RouteParams;
 
+  // LOG: Verificar se pickup e dropoff chegaram
+  console.log("[SelectVehicle] Params recebidos:", {
+    pickup: params?.pickup,
+    dropoff: params?.dropoff,
+  });
+
   const handleBack = () => {
     if ((navigation as any).canGoBack()) {
       (navigation as any).goBack();
     } else {
-      (navigation as any).navigate('Home');
+      (navigation as any).navigate("Home");
     }
   };
 
   const handleSelect = (type: VehicleType) => {
-    (navigation as any).navigate('ServicePurpose', {
+    (navigation as any).navigate("ServicePurpose", {
       vehicleType: type,
       pickup: params?.pickup,
       dropoff: params?.dropoff,
@@ -96,16 +108,20 @@ export default function SelectVehicleScreen() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-          <MaterialIcons name="arrow-back" size={24} color={colors.text.primary} />
+          <MaterialIcons
+            name="arrow-back"
+            size={24}
+            color={colors.text.primary}
+          />
         </TouchableOpacity>
-        
+
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>Qual o veículo ideal?</Text>
           <Text style={styles.headerSubtitle}>
             Selecione o veículo ideal para sua entrega
           </Text>
         </View>
-        
+
         <View style={styles.headerSpacer} />
       </View>
 
@@ -145,9 +161,9 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,
     paddingHorizontal: spacing.xl,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     borderBottomWidth: 1,
     borderBottomColor: colors.border.light,
   },
@@ -157,19 +173,19 @@ const styles = StyleSheet.create({
   },
   headerContent: {
     flex: 1,
-    alignItems: 'center',
+    alignItems: "center",
   },
   headerTitle: {
     color: colors.text.primary,
     fontSize: fontSize.xl,
-    fontWeight: '700',
-    textAlign: 'center',
+    fontWeight: "700",
+    textAlign: "center",
     marginBottom: spacing.xs,
   },
   headerSubtitle: {
     color: colors.text.secondary,
     fontSize: fontSize.sm,
-    textAlign: 'center',
+    textAlign: "center",
   },
   headerSpacer: {
     width: 32,

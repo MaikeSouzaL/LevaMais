@@ -46,13 +46,14 @@ export type FinalOrderSummaryData = {
 type Props = {
   data: FinalOrderSummaryData;
   onConfirm: () => void;
+  onCancel?: () => void;
 };
 
 // This sheet mimics the provided HTML layout while using RN primitives
 export const FinalOrderSummarySheet = forwardRef<AppBottomSheetModalRef, Props>(
-  ({ data, onConfirm }, ref) => {
+  ({ data, onConfirm, onCancel }, ref) => {
     const insets = useSafeAreaInsets();
-    const snapPoints = useMemo(() => ["85%"], []);
+    const snapPoints = useMemo(() => [100, "85%"], []);
 
     const vehicleIconName = {
       moto: "🛵",
@@ -65,7 +66,7 @@ export const FinalOrderSummarySheet = forwardRef<AppBottomSheetModalRef, Props>(
       <AppBottomSheetModal
         ref={ref}
         snapPoints={snapPoints}
-        enablePanDownToClose
+        enablePanDownToClose={false}
         handleIndicatorColor="rgba(255,255,255,0.2)"
         backgroundColor="#091A2F"
         style={{ overflow: "hidden" }}
@@ -109,7 +110,7 @@ export const FinalOrderSummarySheet = forwardRef<AppBottomSheetModalRef, Props>(
             style={{ flex: 1 }}
             contentContainerStyle={{
               paddingHorizontal: 24,
-              paddingBottom: Math.max(insets.bottom, 24) + 96,
+              paddingBottom: Math.max(insets.bottom, 24) + 150, // More padding for bottom buttons
             }}
           >
             {/* Route timeline */}
@@ -443,31 +444,53 @@ export const FinalOrderSummarySheet = forwardRef<AppBottomSheetModalRef, Props>(
               right: 0,
               padding: 16,
               paddingBottom: Math.max(insets.bottom, 16) + 16,
-              backgroundColor: "rgba(15,35,28,0.95)",
+              backgroundColor: "#091A2F", // Darker background for footer
               borderTopWidth: 1,
               borderTopColor: "rgba(255,255,255,0.05)",
             }}
           >
-            <TouchableOpacity
-              onPress={onConfirm}
-              activeOpacity={0.9}
-              style={{
-                height: 56,
-                borderRadius: 12,
-                backgroundColor: "#02de95",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
-                <Text
-                  style={{ color: "#091A2F", fontWeight: "800", fontSize: 18 }}
-                >
-                  Confirmar Pedido
+            <View style={{ flexDirection: "row", gap: 12 }}>
+              <TouchableOpacity
+                onPress={onCancel}
+                activeOpacity={0.8}
+                style={{
+                  flex: 1,
+                  height: 56,
+                  borderRadius: 12,
+                  backgroundColor: "rgba(255,255,255,0.05)",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderWidth: 1,
+                  borderColor: "rgba(255,255,255,0.1)",
+                }}
+              >
+                <Text style={{ color: "#ff4b4b", fontWeight: "700", fontSize: 16 }}>
+                  Cancelar
                 </Text>
-                <Text style={{ marginLeft: 8, color: "#091A2F" }}>→</Text>
-              </View>
-            </TouchableOpacity>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={onConfirm}
+                activeOpacity={0.9}
+                style={{
+                  flex: 2,
+                  height: 56,
+                  borderRadius: 12,
+                  backgroundColor: "#02de95",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <Text
+                    style={{ color: "#091A2F", fontWeight: "800", fontSize: 18 }}
+                  >
+                    Confirmar
+                  </Text>
+                  <Text style={{ marginLeft: 8, color: "#091A2F" }}>→</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
             <Text
               style={{
                 textAlign: "center",
@@ -476,7 +499,7 @@ export const FinalOrderSummarySheet = forwardRef<AppBottomSheetModalRef, Props>(
                 marginTop: 8,
               }}
             >
-              Ao confirmar, buscaremos um motorista próximo a você.
+              Ao confirmar, buscaremos um motorista próximo.
             </Text>
           </View>
         </View>
@@ -485,9 +508,10 @@ export const FinalOrderSummarySheet = forwardRef<AppBottomSheetModalRef, Props>(
   },
 );
 
-function labelForVehicle(v: FinalOrderSummaryData["vehicleType"]) {
+function labelForVehicle(v: FinalOrderSummaryData["vehicleType"] | string) {
   switch (v) {
     case "moto":
+    case "motorcycle":
       return "Moto";
     case "car":
       return "Carro";

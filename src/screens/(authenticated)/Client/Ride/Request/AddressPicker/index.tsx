@@ -153,13 +153,25 @@ export default function AddressPickerScreen() {
     }
 
     const center = mapLocation.region;
-    if (!center) return;
+    
+    // Prioriza as coordenadas do addressDetails se disponíveis (ex: selecionou no autocomplete)
+    // caso contrário usa o centro do mapa (ex: arrastou e soltou)
+    const finalLat = addressDetails?.latitude || addressDetails?.geometry?.location?.lat || center?.latitude;
+    const finalLng = addressDetails?.longitude || addressDetails?.geometry?.location?.lng || center?.longitude;
+
+    if (!finalLat || !finalLng) {
+        Alert.alert('Erro', 'Não foi possível determinar a localização. Tente mover o mapa.');
+        return;
+    }
+
+    console.log(`[AddressPicker] Confirmando ${selectionMode}:`, selectedAddress, finalLat, finalLng);
 
     (navigation as any).navigate(returnScreen || 'Home', {
       [selectionMode]: {
         address: selectedAddress || 'Local selecionado no mapa',
-        latitude: center.latitude,
-        longitude: center.longitude,
+        latitude: Number(finalLat),
+        longitude: Number(finalLng),
+        formattedAddress: selectedAddress,
       },
       initialVehicle,
       initialService

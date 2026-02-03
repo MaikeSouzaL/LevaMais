@@ -104,6 +104,7 @@ export function useMapLocation() {
 
   // Handler de mudança de região completa
   const handleRegionChangeComplete = (r: MapRegion) => {
+    setRegion(r); // CRITICAL: Atualiza a região atual
     setDragLatLng({ lat: r.latitude, lng: r.longitude });
 
     if (!userRegion) return;
