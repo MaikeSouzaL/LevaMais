@@ -1,5 +1,6 @@
 import React, { useMemo, useState, forwardRef } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 
 export type OffersTruckSheetRef = BottomSheet;
@@ -62,6 +63,7 @@ export const OffersTruckSheet = forwardRef<
   ) => {
     // Ajustado para 75% - ofertas de caminhão com opções extras
     const snapPoints = useMemo(() => ["75%"], []);
+    const insets = useSafeAreaInsets();
     const [selectedOffer, setSelectedOffer] = useState<string>(OFFERS[0].id);
     const [payment, setPayment] = useState<Payment>("dinheiro");
 
@@ -94,7 +96,11 @@ export const OffersTruckSheet = forwardRef<
         handleIndicatorStyle={{ backgroundColor: "rgba(255,255,255,0.2)" }}
       >
         <BottomSheetScrollView
-          contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
+          contentContainerStyle={{ 
+            paddingHorizontal: 16, 
+            paddingTop: Math.max(insets.top, 16),
+            paddingBottom: insets.bottom + 24 
+          }}
         >
           <Text
             style={{

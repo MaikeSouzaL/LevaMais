@@ -40,6 +40,7 @@ export default function AddressPickerScreen() {
 
   // Referência para evitar loop de geocoding quando seleciona via autocomplete
   const isSelectingRef = useRef(false);
+  const hasInitialZoomRef = useRef(false); // NOVO: Controla se já fizemos o zoom inicial
 
   // Estados para Favoritar
   const [modalVisible, setModalVisible] = useState(false);
@@ -54,7 +55,8 @@ export default function AddressPickerScreen() {
     if (isEditMode && !favoriteData) {
         favoriteAddressService.list().then(favs => {
             const fav = favs.find(f => f._id === favoriteId);
-            if (fav) {
+            if (fav && !hasInitialZoomRef.current) {
+                hasInitialZoomRef.current = true;
                 setFavName(fav.name);
                 setSelectedAddress(fav.address);
                 setAddressDetails(fav);
@@ -72,12 +74,13 @@ export default function AddressPickerScreen() {
 
   // Efeito para centrar no initialLocation se vier
   useEffect(() => {
-    if (initialLocation && mapLocation.mapRef.current) {
+    if (initialLocation && mapLocation.mapRef.current && !hasInitialZoomRef.current) {
+       hasInitialZoomRef.current = true;
        mapLocation.mapRef.current.animateCamera({
          center: {
             latitude: initialLocation.latitude,
             longitude: initialLocation.longitude,
-         },
+          },
          pitch: 45, // Inclinação 3D
          heading: 0,
          zoom: 18, 
@@ -87,7 +90,9 @@ export default function AddressPickerScreen() {
 
   // Efeito para aproximar zoom quando GPS detecta localização inicial
   useEffect(() => {
-    if (!initialLocation && !favoriteData && mapLocation.region && mapLocation.mapRef.current) {
+    // SÓ executa se não houver local inicial passado via parâmetro e se ainda não fizemos o zoom
+    if (!initialLocation && !favoriteData && mapLocation.region && mapLocation.mapRef.current && !hasInitialZoomRef.current) {
+        hasInitialZoomRef.current = true;
         mapLocation.mapRef.current.animateCamera({
             center: {
                 latitude: mapLocation.region.latitude,

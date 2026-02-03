@@ -80,7 +80,8 @@ export const FinalOrderSummarySheet = forwardRef<AppBottomSheetModalRef, Props>(
           <View
             style={{
               paddingHorizontal: 24,
-              paddingVertical: 16,
+              paddingTop: Math.max(insets.top, 20),
+              paddingBottom: 16,
               borderBottomWidth: 1,
               borderBottomColor: "rgba(255,255,255,0.05)",
             }}

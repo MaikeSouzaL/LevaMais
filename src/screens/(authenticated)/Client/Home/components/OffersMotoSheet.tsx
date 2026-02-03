@@ -115,7 +115,11 @@ export const OffersMotoSheet = forwardRef<
       >
         {/* Header */}
         <View
-          style={{ paddingTop: 8, paddingBottom: 12, paddingHorizontal: 20 }}
+          style={{ 
+            paddingTop: Math.max(insets.top, 8), 
+            paddingBottom: 12, 
+            paddingHorizontal: 20 
+          }}
         >
           <Text style={{ color: "#fff", fontSize: 18, fontWeight: "700" }}>
             Moto • Opções disponíveis

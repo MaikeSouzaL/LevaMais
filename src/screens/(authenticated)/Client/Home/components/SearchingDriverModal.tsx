@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from "react";
 import { View, Text, TouchableOpacity, Animated, Easing } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface SearchingDriverModalProps {
   visible: boolean;
@@ -28,6 +29,7 @@ export function SearchingDriverModal({
   onBack,
   onHelp,
 }: SearchingDriverModalProps) {
+  const insets = useSafeAreaInsets();
   // Animated radar setup (hooks must be unconditional)
   const rotateAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -79,7 +81,7 @@ export function SearchingDriverModal({
       {/* Top bar */}
       <View
         style={{
-          paddingTop: 16,
+          paddingTop: Math.max(insets.top, 16),
           paddingHorizontal: 12,
           paddingBottom: 12,
           // semi-transparent top bar
