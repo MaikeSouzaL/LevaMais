@@ -1,6 +1,7 @@
 const User = require("../models/User");
 
 class FavoriteAddressController {
+  
   // Listar endereços favoritos do usuário
   async list(req, res) {
     try {
@@ -27,7 +28,21 @@ class FavoriteAddressController {
   async create(req, res) {
     try {
       const userId = req.user.id;
-      const { name, icon, address, neighborhood, city, state, latitude, longitude } = req.body;
+      const { 
+        name, 
+        icon, 
+        address, 
+        formattedAddress,
+        street,
+        streetNumber,
+        neighborhood, 
+        city, 
+        state, 
+        region,
+        postalCode,
+        latitude, 
+        longitude 
+      } = req.body;
 
       // Validações
       if (!name || !address || !latitude || !longitude) {
@@ -57,9 +72,14 @@ class FavoriteAddressController {
         name,
         icon: icon || "home",
         address,
+        formattedAddress: formattedAddress || address,
+        street,
+        streetNumber,
         neighborhood,
         city,
         state,
+        region,
+        postalCode,
         latitude,
         longitude,
         createdAt: new Date(),

@@ -113,6 +113,7 @@ export default function HomeScreen() {
   // Controle de Fluxo (Dashboard vs Mapa)
   const [flowStep, setFlowStep] = useState<'dashboard' | 'map'>('dashboard');
   const [selectedFlow, setSelectedFlow] = useState<{ vehicleId?: string, serviceId?: string }>({});
+  const [dashboardRefreshTrigger, setDashboardRefreshTrigger] = useState(0);
 
   const handleSelectFlow = (vehicleId: string, serviceId: string) => {
       setSelectedFlow({ vehicleId, serviceId });
@@ -155,9 +156,11 @@ export default function HomeScreen() {
   useFocusEffect(
       useCallback(() => {
           const params = route.params as any || {};
-          if (params.dropoff || params.pickup) {
-              setFlowStep('map');
-          }
+          // REMOVIDO: Não mudamos para 'map' automaticamente aqui para permitir 
+          // que o usuário selecione o veículo na dashboard conforme solicitado.
+          
+          // Sempre que a tela ganhar foco, incrementamos o trigger para atualizar dados da dashboard
+          setDashboardRefreshTrigger(prev => prev + 1);
       }, [route.params])
   );
 
@@ -334,33 +337,33 @@ export default function HomeScreen() {
       setPickupDisplayAddress(loc.address);
     }
 
-    // 6. Atualizar Dropoff manualmente (vindo do Dashboard - home_dropoff)
-    if (route.params?.home_dropoff) {
-       const loc = route.params.home_dropoff;
+    // 6. Atualizar Dropoff manualmente (vindo do Dashboard - dropoff ou home_dropoff)
+    if (route.params?.home_dropoff || route.params?.dropoff) {
+       const loc = route.params?.home_dropoff || route.params?.dropoff;
        setDestinationAddress(loc.address);
        rideFlow.setDraftDropoff({
            formattedAddress: loc.address,
            latitude: loc.latitude,
            longitude: loc.longitude
        });
-       navigation.setParams({ home_dropoff: undefined });
+
+       // Se já tínhamos um veículo selecionado (fluxo iniciado via card de veículo)
+       // podemos prosseguir para a seleção de serviço ou ofertas
+       if (route.params?.initialVehicle) {
+           const vehicle = { id: route.params.initialVehicle }; // Objeto mínimo esperado
+           navigation.navigate('ServiceSelection', { vehicle });
+       }
+
+       navigation.setParams({ home_dropoff: undefined, dropoff: undefined, initialVehicle: undefined, initialService: undefined });
     }
 
 
-    // 7. Retorno de Novo Favorito
+    // 7. Retorno de Novo Favorito (Apenas limpa e ativa refresh)
     if (route.params?.favorite_creation) {
-         const loc = route.params.favorite_creation;
-         // Salvar favorito
-         favoriteAddressService.create({
-             name: loc.address.split(',')[0], 
-             address: loc.address,
-             latitude: loc.latitude,
-             longitude: loc.longitude,
-         }).then(() => {
-             console.log('Favorito criado');
-             // TODO: Disparar refresh na Dashboard
-         }).catch(err => console.error('Erro ao salvar fav', err));
-         
+         // O salvamento agora ocorre diretamente na tela de AddressPicker via botão "+"
+         // ou pode ser feito aqui se o fluxo for apenas de "Confirmar", mas para evitar
+         // duplicidade e garantir UX, mantemos a navegação e o refresh cuidará do resto.
+         setDashboardRefreshTrigger(prev => prev + 1);
          navigation.setParams({ favorite_creation: undefined });
     }
   }, [route.params]);
@@ -510,7 +513,7 @@ export default function HomeScreen() {
   }
 
   // Dashboard View (Fluxo Inicial)
-  if (flowStep === 'dashboard' && !destinationAddress) {
+  if (flowStep === 'dashboard') {
       return (
           <DashboardView 
               userAddress={pickupDisplayAddress}
@@ -523,6 +526,7 @@ export default function HomeScreen() {
               onSelectFavorite={handleDashboardSelectFavorite}
               onDefaultAddressFound={handleDefaultAddressFound}
               cityId={(detectedCity as any)?._id || (detectedCity as any)?.id}
+              refreshTrigger={dashboardRefreshTrigger}
           />
       );
   }

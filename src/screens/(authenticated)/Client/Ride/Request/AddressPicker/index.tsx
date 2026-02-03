@@ -21,20 +21,21 @@ import favoriteAddressService from '@/services/favoriteAddress.service';
 export default function AddressPickerScreen() {
   const navigation = useNavigation();
   const route = useRoute();
-  const { selectionMode, returnScreen, initialLocation } = (route.params as any) || {};
+  const { selectionMode, returnScreen, initialLocation, favoriteId, favoriteData, initialVehicle, initialService } = (route.params as any) || {};
+  const isEditMode = !!favoriteId;
   
   const mapLocation = useMapLocation();
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
   
   // O endereço texto exibido no input
-  const [selectedAddress, setSelectedAddress] = useState(initialLocation?.formattedAddress || '');
+  const [selectedAddress, setSelectedAddress] = useState(favoriteData?.address || initialLocation?.formattedAddress || '');
   
   // Coordenada central atual
-  const initialRegion = initialLocation ? {
-       latitude: initialLocation.latitude,
-       longitude: initialLocation.longitude,
-       latitudeDelta: 0.005,
-       longitudeDelta: 0.005,
+  const initialRegion = (favoriteData || initialLocation) ? {
+       latitude: favoriteData?.latitude || initialLocation.latitude,
+       longitude: favoriteData?.longitude || initialLocation.longitude,
+       latitudeDelta: 0.002,
+       longitudeDelta: 0.002,
   } : mapLocation.region;
 
   // Referência para evitar loop de geocoding quando seleciona via autocomplete
@@ -42,11 +43,32 @@ export default function AddressPickerScreen() {
 
   // Estados para Favoritar
   const [modalVisible, setModalVisible] = useState(false);
-  const [favName, setFavName] = useState('');
+  const [favName, setFavName] = useState(favoriteData?.name || '');
   const [savingFav, setSavingFav] = useState(false);
   
   // Estado para detalhes completos do endereço (para enviar ao backend com riqueza)
-  const [addressDetails, setAddressDetails] = useState<any>(initialLocation || null);
+  const [addressDetails, setAddressDetails] = useState<any>(favoriteData || initialLocation || null);
+
+  // Efeito para carregar dados se for edição (caso não tenham vindo via params completos)
+  useEffect(() => {
+    if (isEditMode && !favoriteData) {
+        favoriteAddressService.list().then(favs => {
+            const fav = favs.find(f => f._id === favoriteId);
+            if (fav) {
+                setFavName(fav.name);
+                setSelectedAddress(fav.address);
+                setAddressDetails(fav);
+                
+                if (mapLocation.mapRef.current) {
+                    mapLocation.mapRef.current.animateCamera({
+                        center: { latitude: fav.latitude, longitude: fav.longitude },
+                        zoom: 18
+                    });
+                }
+            }
+        });
+    }
+  }, [favoriteId]);
 
   // Efeito para centrar no initialLocation se vier
   useEffect(() => {
@@ -58,10 +80,25 @@ export default function AddressPickerScreen() {
          },
          pitch: 45, // Inclinação 3D
          heading: 0,
-         zoom: 17, // Zoom próximo para ver prédios
+         zoom: 18, 
        }, { duration: 1000 });
     }
   }, [initialLocation]);
+
+  // Efeito para aproximar zoom quando GPS detecta localização inicial
+  useEffect(() => {
+    if (!initialLocation && !favoriteData && mapLocation.region && mapLocation.mapRef.current) {
+        mapLocation.mapRef.current.animateCamera({
+            center: {
+                latitude: mapLocation.region.latitude,
+                longitude: mapLocation.region.longitude,
+            },
+            pitch: 45,
+            heading: 0,
+            zoom: 18,
+        }, { duration: 1200 });
+    }
+  }, [mapLocation.region?.latitude]); 
 
   const handleSelectAddress = (details: any) => {
     isSelectingRef.current = true;
@@ -110,6 +147,11 @@ export default function AddressPickerScreen() {
   };
 
   const handleConfirm = () => {
+    if (isEditMode) {
+        setModalVisible(true);
+        return;
+    }
+
     const center = mapLocation.region;
     if (!center) return;
 
@@ -119,6 +161,8 @@ export default function AddressPickerScreen() {
         latitude: center.latitude,
         longitude: center.longitude,
       },
+      initialVehicle,
+      initialService
     });
   };
 
@@ -142,26 +186,50 @@ export default function AddressPickerScreen() {
       try {
           setSavingFav(true);
           
-          await favoriteAddressService.create({
-              name: favName,
-              address: selectedAddress,
-              formattedAddress: selectedAddress,
-              street: addressDetails?.street,
-              streetNumber: addressDetails?.streetNumber,
-              neighborhood: addressDetails?.neighborhood,
-              city: addressDetails?.city,
-              state: addressDetails?.state,
-              postalCode: addressDetails?.postalCode,
-              latitude: center.latitude,
-              longitude: center.longitude,
-              icon: 'place', 
-          });
+          if (isEditMode) {
+              await favoriteAddressService.update(favoriteId, {
+                  name: favName,
+                  address: selectedAddress,
+                  formattedAddress: selectedAddress,
+                  street: addressDetails?.street,
+                  streetNumber: addressDetails?.streetNumber,
+                  neighborhood: addressDetails?.neighborhood,
+                  city: addressDetails?.city,
+                  state: addressDetails?.state,
+                  postalCode: addressDetails?.postalCode,
+                  latitude: center.latitude,
+                  longitude: center.longitude,
+              });
+          } else {
+              await favoriteAddressService.create({
+                  name: favName,
+                  address: selectedAddress,
+                  formattedAddress: selectedAddress,
+                  street: addressDetails?.street,
+                  streetNumber: addressDetails?.streetNumber,
+                  neighborhood: addressDetails?.neighborhood,
+                  city: addressDetails?.city,
+                  state: addressDetails?.state,
+                  postalCode: addressDetails?.postalCode,
+                  latitude: center.latitude,
+                  longitude: center.longitude,
+                  icon: 'place', 
+              });
+          }
           
           setModalVisible(false);
-          Alert.alert('Sucesso', 'Endereço salvo nos favoritos!');
+          
+          if (selectionMode === 'favorite_creation' || isEditMode) {
+              // Se o fluxo era apenas criar/editar favorito, voltamos direto
+              navigation.navigate(returnScreen || 'Home' as any, { 
+                  favorite_creation: true 
+              });
+          } else {
+              Alert.alert('Sucesso', 'Endereço salvo nos favoritos!');
+          }
       } catch (error: any) {
           console.log(error); 
-          const errorMessage = error?.response?.data?.message || error?.message || 'Erro desconhecido';
+          const errorMessage = error?.response?.data?.error || error?.response?.data?.message || error?.message || 'Erro desconhecido';
           Alert.alert('Erro ao Salvar', `O servidor retornou: ${errorMessage}`);
       } finally {
           setSavingFav(false);
@@ -245,14 +313,17 @@ export default function AddressPickerScreen() {
 
             <View style={{ marginTop: 24 }}>
                 <LoadingButton
-                    title="Confirmar Localização"
+                    title={
+                        isEditMode 
+                            ? "Atualizar Endereço" 
+                            : (selectionMode?.includes('dropoff') ? "Confirmar Destino" : "Confirmar Localização")
+                    }
                     onPress={handleConfirm}
                     variant="primary"
                 />
             </View>
         </View>
 
-        {/* Modal de Salvar Favorito */}
         <Modal
             visible={modalVisible}
             transparent={true}
@@ -265,7 +336,7 @@ export default function AddressPickerScreen() {
             >
                 <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
                     <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>Salvar Favorito</Text>
+                        <Text style={styles.modalTitle}>{isEditMode ? 'Editar Favorito' : 'Salvar Favorito'}</Text>
                         <Text style={styles.modalSubtitle}>Dê um nome para este local:</Text>
                         
                         <TextInput 

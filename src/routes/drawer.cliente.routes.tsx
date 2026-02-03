@@ -199,6 +199,11 @@ export default function DrawerClienteRoutes(props: DrawerClienteRoutesProps) {
         options={{ drawerLabel: () => null, drawerItemStyle: { display: "none" } }}
       />
       <Screen
+        name="EditFavorite"
+        component={AddressPickerScreen}
+        options={{ drawerLabel: () => null, drawerItemStyle: { display: "none" } }}
+      />
+      <Screen
         name="MapLocationPicker"
         component={AddressPickerScreen}
         options={{ drawerLabel: () => null, drawerItemStyle: { display: "none" } }}

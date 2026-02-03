@@ -175,6 +175,7 @@ export const DashboardView = ({ userAddress, destinationAddress, onPressAddress,
     };
 
     const handleVehiclePress = (vehicle: any) => {
+        if (vehicle.services.length === 0) return;
         navigation.navigate('ServiceSelection', { vehicle });
     };
 
@@ -237,26 +238,35 @@ export const DashboardView = ({ userAddress, destinationAddress, onPressAddress,
                     </View>
                 ) : (
                     <View style={styles.grid}>
-                        {vehiclesData.map((vehicle) => (
-                            <TouchableOpacity 
-                                key={vehicle.id} 
-                                style={styles.card}
-                                activeOpacity={0.8}
-                                onPress={() => handleVehiclePress(vehicle)}
-                            >
-                                <View style={styles.iconCircle}>
-                                    <vehicle.iconLib name={vehicle.icon as any} size={32} color="#fff" />
-                                </View>
-                                <Text style={styles.vehicleLabel}>{vehicle.label}</Text>
-                                <Text style={styles.vehicleDesc}>{vehicle.description}</Text>
-                                {/* Badge de Qtd Serviços */}
-                                {vehicle.services.length > 0 && (
-                                    <View style={styles.badgeCount}>
-                                        <Text style={styles.badgeText}>{vehicle.services.length} opções</Text>
+                        {vehiclesData.map((vehicle) => {
+                            const hasServices = vehicle.services.length > 0;
+                            return (
+                                <TouchableOpacity 
+                                    key={vehicle.id} 
+                                    style={[styles.card, !hasServices && styles.cardDisabled]}
+                                    activeOpacity={hasServices ? 0.8 : 1}
+                                    onPress={() => handleVehiclePress(vehicle)}
+                                    disabled={!hasServices}
+                                >
+                                    <View style={[styles.iconCircle, !hasServices && { backgroundColor: '#444' }]}>
+                                        <vehicle.iconLib name={vehicle.icon as any} size={32} color={hasServices ? "#fff" : "#888"} />
                                     </View>
-                                )}
-                            </TouchableOpacity>
-                        ))}
+                                    <Text style={[styles.vehicleLabel, !hasServices && { color: '#666' }]}>{vehicle.label}</Text>
+                                    <Text style={[styles.vehicleDesc, !hasServices && { color: '#444' }]}>{vehicle.description}</Text>
+                                    {/* Badge de Qtd Serviços */}
+                                    {hasServices && (
+                                        <View style={styles.badgeCount}>
+                                            <Text style={styles.badgeText}>{vehicle.services.length} opções</Text>
+                                        </View>
+                                    )}
+                                    {!hasServices && (
+                                        <View style={[styles.badgeCount, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
+                                            <Text style={[styles.badgeText, { color: '#ef4444' }]}>Indisponível</Text>
+                                        </View>
+                                    )}
+                                </TouchableOpacity>
+                            );
+                        })}
                     </View>
                 )}
 
@@ -305,8 +315,11 @@ export const DashboardView = ({ userAddress, destinationAddress, onPressAddress,
                                         <TouchableOpacity 
                                             style={styles.favActionBtn}
                                             onPress={() => {
-                                                // Navegar para edição
-                                                navigation.navigate('EditFavorite', { favoriteId: fav._id });
+                                                // Navegar para edição passando os dados já carregados
+                                                navigation.navigate('EditFavorite', { 
+                                                    favoriteId: fav._id,
+                                                    favoriteData: fav 
+                                                });
                                             }}
                                         >
                                             <MaterialIcons name="edit" size={20} color="#888" />
@@ -427,6 +440,10 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(2,222,149,0.1)',
         alignItems: 'flex-start',
         elevation: 4
+    },
+    cardDisabled: {
+        opacity: 0.5,
+        borderColor: 'rgba(255,255,255,0.05)',
     },
     iconCircle: {
         width: 48, height: 48, borderRadius: 24, 
