@@ -22,6 +22,8 @@ import pricingService, { PricingRule } from "@/services/pricing.service";
 import rideService, { Ride } from "@/services/ride.service";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import StatusBadge from "../../Shared/components/StatusBadge";
+import { mapRideStatusToText } from "../../Shared/utils/mappers";
 
 // Tipos de Veículos Base (Hardcoded para estrutura visual, mas serviços virão do Backend)
 const INITIAL_VEHICLES = [
@@ -545,10 +547,8 @@ export const DashboardView = ({
                       </Text>
                       <Text style={styles.historyDate}>
                         {date} •{" "}
-                        {ride.status === "completed"
-                          ? "Concluída"
-                          : ride.status}
                       </Text>
+                      <StatusBadge status={ride.status as any} size="small" />
                     </View>
                     <Text style={styles.historyPrice}>
                       R$ {ride.pricing?.total?.toFixed(2).replace(".", ",")}

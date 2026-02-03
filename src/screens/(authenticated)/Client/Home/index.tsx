@@ -614,8 +614,39 @@ export default function HomeScreen() {
     return <LocationLoadingScreen />;
   }
 
-  const handleCancelOrder = () => {
+  const handleCancelOrder = async () => {
     finalSummaryRef.current?.dismiss();
+
+    // Registra no histórico antes de limpar, se houver cotação ativa
+    if (rideFlow.priceQuote && rideFlow.draftPickup && rideFlow.draftDropoff) {
+      try {
+        const newRide = await rideService.create({
+          vehicleType: rideFlow.selectedVehicleType as any,
+          serviceType: "delivery",
+          pricing: rideFlow.priceQuote.pricing,
+          pickup: {
+            address: rideFlow.draftPickup!.formattedAddress!,
+            latitude: rideFlow.draftPickup!.latitude,
+            longitude: rideFlow.draftPickup!.longitude,
+          },
+          dropoff: {
+            address: rideFlow.draftDropoff!.formattedAddress!,
+            latitude: rideFlow.draftDropoff!.latitude,
+            longitude: rideFlow.draftDropoff!.longitude,
+          },
+          cityId: (detectedCity as any)?._id || (detectedCity as any)?.id,
+          purposeId: rideFlow.selectedPurposeId || undefined,
+          distance: rideFlow.priceQuote.distance,
+          duration: rideFlow.priceQuote.duration,
+        });
+
+        // Marca como cancelado imediatamente
+        await rideService.cancel(newRide._id, "Desistência na tela de resumo");
+      } catch (err) {
+        console.error("[Home] Erro ao registrar cancelamento no histórico:", err);
+      }
+    }
+
     rideFlow.resetFlow();
     setFlowStep("dashboard");
     setPickupDisplayAddress(mapLocation.currentAddress || "");

@@ -54,6 +54,9 @@ export function mapRideStatusToText(status: string): string {
     in_progress: 'Em andamento',
     completed: 'Concluída',
     cancelled: 'Cancelada',
+    cancelled_by_client: 'Cancelada',
+    cancelled_by_driver: 'Cancelada',
+    timeout: 'Expirada',
   };
   return mapping[status] || status;
 }
@@ -136,6 +139,9 @@ export function mapRideStatusToColor(status: string): string {
     in_progress: '#02de95', // primary
     completed: '#10b981', // success
     cancelled: '#ef4444', // error
+    cancelled_by_client: '#ef4444',
+    cancelled_by_driver: '#ef4444',
+    timeout: '#8D8D99',
   };
   return mapping[status] || '#8D8D99';
 }
