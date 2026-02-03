@@ -1184,17 +1184,30 @@ class RideController {
 
       const durationMinutes = Math.max(1, Math.ceil((distanceKm / 30) * 60)); // Estimativa simples 30km/h
 
-      return res.json({
-        pricing: {
-          basePrice: 0, // Mantendo estrutura antiga para compatibilidade
-          distancePrice: parseFloat(finalPrice.toFixed(2)), // Colocando tudo aqui ou dividindo?
-          // O frontend soma basePrice + distancePrice + serviceFee.
-          // Vamos simplificar: total é o que importa.
-          total: parseFloat(finalPrice.toFixed(2)),
-          currency: "BRL",
-          breakdown,
-          ruleUsed: rule.name,
-        },
+    const PlatformConfig = require("../models/PlatformConfig");
+    let platformConfig = await PlatformConfig.findOne().sort({ createdAt: -1 });
+    const feePercentage = platformConfig ? (platformConfig.appFeePercentage || 0) : 0;
+
+    const baseRidePrice = parseFloat(minimumFee.toFixed(2));
+    const distanceExtraPrice = parseFloat((finalPrice - minimumFee).toFixed(2));
+    
+    // Arredondamento para números "limpos" (múltiplos de 0.10)
+    const rawTotal = finalPrice + (finalPrice * (feePercentage / 100));
+    const finalTotal = Math.round(rawTotal * 10) / 10;
+    
+    // Ajusta a taxa de serviço para que o total bata exatamente (Total - Base - Distância)
+    const adjustedServiceFee = parseFloat((finalTotal - baseRidePrice - distanceExtraPrice).toFixed(2));
+
+    return res.json({
+      pricing: {
+        basePrice: baseRidePrice,
+        distancePrice: distanceExtraPrice,
+        serviceFee: adjustedServiceFee,
+        total: parseFloat(finalTotal.toFixed(2)),
+        currency: "BRL",
+        breakdown,
+        ruleUsed: rule.name,
+      },
         distance: {
           value: Math.round(distance * 1000) / 1000,
           text: `${distanceKm.toFixed(1)} km`,

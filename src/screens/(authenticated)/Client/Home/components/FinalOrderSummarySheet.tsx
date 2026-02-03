@@ -351,7 +351,7 @@ export const FinalOrderSummarySheet = forwardRef<AppBottomSheetModalRef, Props>(
               }}
             >
               <Row
-                label="Tarifa base"
+                label="Taxa mínima"
                 value={formatBRL(data.pricing.base)}
                 muted
               />
