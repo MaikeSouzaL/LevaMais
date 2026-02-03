@@ -143,7 +143,7 @@ export default function ClientBoot() {
           flex: 1,
           alignItems: "center",
           justifyContent: "center",
-          backgroundColor: "#0f231c",
+          backgroundColor: "#091A2F",
           padding: 24,
         }}
       >

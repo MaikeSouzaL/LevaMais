@@ -38,8 +38,8 @@ export function SideSheetContent({
           className="flex-row items-center gap-3 bg-primary rounded-full px-5 py-4 mb-6 active:opacity-80"
           activeOpacity={0.9}
         >
-          <MaterialIcons name="search" size={24} color="#0f231c" />
-          <Text className="flex-1 text-base font-semibold text-[#0f231c]">
+          <MaterialIcons name="search" size={24} color="#091A2F" />
+          <Text className="flex-1 text-base font-semibold text-[#091A2F]">
             Para onde vamos?
           </Text>
         </TouchableOpacity>

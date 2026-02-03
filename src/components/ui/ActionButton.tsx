@@ -37,7 +37,7 @@ function getContainerStyle(variant: ActionButtonVariant, disabled: boolean) {
 
 function getTextStyle(variant: ActionButtonVariant) {
   if (variant === "primary") {
-    return { color: "#0f231c" } as TextStyle;
+    return { color: "#091A2F" } as TextStyle;
   }
 
   if (variant === "danger") {

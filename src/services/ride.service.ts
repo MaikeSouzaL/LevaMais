@@ -128,6 +128,26 @@ class RideService {
   }
 
   /**
+   * Buscar motoristas próximos
+   */
+  async getNearbyDrivers(
+    latitude: number,
+    longitude: number,
+    radius: number = 5000 // 5km radius
+  ): Promise<Array<{
+    id: string;
+    latitude: number;
+    longitude: number;
+    type: "motorcycle" | "car" | "van" | "truck";
+    rotation: number;
+  }>> {
+    const response = await api.get("/rides/nearby-drivers", {
+      params: { latitude, longitude, radius }
+    });
+    return response.data;
+  }
+
+  /**
    * Criar nova solicitação de corrida
    */
   async create(data: CreateRideRequest): Promise<Ride> {

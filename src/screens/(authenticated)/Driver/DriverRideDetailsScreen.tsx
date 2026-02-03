@@ -108,7 +108,7 @@ export default function DriverRideDetailsScreen() {
           >
             <Marker coordinate={details.pickup} title="Retirada">
                <View style={{ backgroundColor: "#02de95", padding: 6, borderRadius: 20, borderWidth: 2, borderColor: "#fff" }}>
-                  <FontAwesome5 name="map-marker-alt" size={14} color="#0f231c" />
+                  <FontAwesome5 name="map-marker-alt" size={14} color="#091A2F" />
                </View>
             </Marker>
             <Marker coordinate={details.dropoff} title="Entrega">

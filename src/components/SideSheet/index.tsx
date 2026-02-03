@@ -42,7 +42,7 @@ export const SideSheet = forwardRef<SideSheetMethods, SideSheetProps>(
       children,
       side = "right",
       initialSnap = "peek",
-      backgroundColor = "#0f231c",
+      backgroundColor = "#091A2F",
     },
     ref
   ) => {

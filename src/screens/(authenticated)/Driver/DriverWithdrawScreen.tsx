@@ -187,9 +187,9 @@ export default function DriverWithdrawScreen({ navigation }: any) {
           }}
         >
           {loading ? (
-            <ActivityIndicator color="#0f231c" />
+            <ActivityIndicator color="#091A2F" />
           ) : (
-            <Text style={{ color: "#0f231c", fontWeight: "900", fontSize: 16 }}>
+            <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 16 }}>
               CONFIRMAR SAQUE
             </Text>
           )}

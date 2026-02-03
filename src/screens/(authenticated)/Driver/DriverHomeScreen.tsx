@@ -476,7 +476,7 @@ export default function DriverHomeScreen() {
   }, [incomingRequest?.rideId]);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#0f231c" }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#091A2F" }}>
       <View style={{ flex: 1 }}>
         {!region ? (
           <LocationLoadingScreen />
@@ -589,7 +589,7 @@ export default function DriverHomeScreen() {
                 activeBackgroundColor="#1b2723"
                 iconColor={
                   isSwitchingMapStyle
-                    ? "#0f231c"
+                    ? "#091A2F"
                     : useDarkMap
                       ? "#02de95"
                       : "rgba(255,255,255,0.9)"
@@ -677,7 +677,7 @@ export default function DriverHomeScreen() {
                   borderRadius: 12,
                 }}
               >
-                <Text style={{ color: "#0f231c", fontWeight: "900" }}>
+                <Text style={{ color: "#091A2F", fontWeight: "900" }}>
                   Abrir
                 </Text>
               </TouchableOpacity>
@@ -757,7 +757,7 @@ export default function DriverHomeScreen() {
                   alignItems: "center",
                 }}
               >
-                <Text style={{ color: "#0f231c", fontWeight: "900" }}>
+                <Text style={{ color: "#091A2F", fontWeight: "900" }}>
                   Aceitar
                 </Text>
               </TouchableOpacity>

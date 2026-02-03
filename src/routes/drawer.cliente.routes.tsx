@@ -6,27 +6,33 @@ import {
   DrawerContentComponentProps,
 } from "@react-navigation/drawer";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import HomeScreen from "../screens/(authenticated)/Client/HomeScreen/index";
-import MapLocationPickerScreen from "../screens/(authenticated)/Client/HomeScreen/AddressPickerScreen";
-// (removido) telas antigas de favorito — agora é tudo via AddressPickerScreen
-import FinalOrderSummaryScreen from "../screens/(authenticated)/Client/HomeScreen/FinalOrderSummaryScreen";
-import CancelFeeScreen from "../screens/(authenticated)/Client/HomeScreen/CancelFeeScreen";
-import ChatScreen from "../screens/(authenticated)/Client/HomeScreen/ChatScreen";
-import OrderDetailsScreen from "../screens/(authenticated)/Client/HomeScreen/OrderDetailsScreen";
-import PaymentScreen from "../screens/(authenticated)/Client/HomeScreen/PaymentScreen";
-import SelectVehicleScreen from "../screens/(authenticated)/Client/HomeScreen/SelectVehicleScreen";
-import RideTrackingScreen from "../screens/(authenticated)/Client/RideTrackingScreen";
-import RideCompletedScreen from "../screens/(authenticated)/Client/RideCompletedScreen";
-import ClientRateDriverScreen from "../screens/(authenticated)/Client/ClientRateDriverScreen";
-import ClientCancelRideScreen from "../screens/(authenticated)/Client/ClientCancelRideScreen";
+
+// Telas Refatoradas
+import HomeScreen from "../screens/(authenticated)/Client/Home";
+import HistoryScreen from "../screens/(authenticated)/Client/History/HistoryList";
+import WalletScreen from "../screens/(authenticated)/Client/Profile/Wallet";
+import ProfileScreen from "../screens/(authenticated)/Client/Profile/ProfileView";
+import HelpScreen from "../screens/(authenticated)/Client/Profile/Help";
+import SettingsScreen from "../screens/(authenticated)/Client/Profile/Settings";
+import AddressPickerScreen from "../screens/(authenticated)/Client/Ride/Request/AddressPicker";
+import FavoritesScreen from "../screens/(authenticated)/Client/Favorites/FavoritesList";
+import SelectVehicleScreen from "../screens/(authenticated)/Client/Ride/Request/SelectVehicle";
+import ServicePurposeScreen from "../screens/(authenticated)/Client/Ride/Request/ServicePurpose";
+import OrderSummaryScreen from "../screens/(authenticated)/Client/Ride/Request/OrderSummary";
+import CancelFeeScreen from "../screens/(authenticated)/Client/Ride/Cancellation/CancelFee";
+import ChatScreen from "../screens/(authenticated)/Client/Ride/Tracking/Chat";
+import OrderDetailsScreen from "../screens/(authenticated)/Client/History/OrderDetails";
+import PaymentScreen from "../screens/(authenticated)/Client/Ride/Request/Payment";
+import RideTrackingScreen from "../screens/(authenticated)/Client/Ride/Tracking/RideTracking";
+import RideCompletedScreen from "../screens/(authenticated)/Client/Ride/Completion/RideCompleted";
+import RateDriverScreen from "../screens/(authenticated)/Client/Ride/Completion/RateDriver";
+import CancelRideScreen from "../screens/(authenticated)/Client/Ride/Cancellation/CancelRide";
+import ServiceSelectionScreen from "../screens/(authenticated)/Client/Ride/Request/ServiceSelection";
+
 import { useAuthStore } from "../context/authStore";
-import ServicePurposeScreen from "../screens/(authenticated)/Client/HomeScreen/ServicePurposeScreen";
-import ClientHistoryScreen from "../screens/(authenticated)/Client/ClientHistoryScreen";
-import ClientWalletScreen from "../screens/(authenticated)/Client/ClientWalletScreen";
-import ClientProfileScreen from "../screens/(authenticated)/Client/ClientProfileScreen";
-import ClientHelpScreen from "../screens/(authenticated)/Client/ClientHelpScreen";
-import ClientSettingsScreen from "../screens/(authenticated)/Client/ClientSettingsScreen";
-import ClientCityScreen from "../screens/(authenticated)/Client/ClientCityScreen";
+
+// Tela não refatorada ainda (se necessário)
+// import ClientCityScreen from "../screens/(authenticated)/Client/_backup_old_screens/ClientCityScreen";
 
 const Drawer = createDrawerNavigator();
 
@@ -57,7 +63,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
       {...props}
       contentContainerStyle={{
         flex: 1,
-        backgroundColor: "#0f231c", // background-dark
+        backgroundColor: "#091A2F", // background-dark
       }}
     >
       {/* Header do drawer */}
@@ -67,7 +73,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
             <Text className="text-background-dark font-bold text-xl">
               {userData?.nome
                 ?.split(" ")
-                .map((n) => n[0])
+                .map((n: string) => n[0])
                 .join("")
                 .toUpperCase()
                 .slice(0, 2) || "U"}
@@ -144,9 +150,9 @@ export default function DrawerClienteRoutes(props: DrawerClienteRoutesProps) {
       initialRouteName={initialRoute}
       drawerContent={(props) => <CustomDrawerContent {...props} />}
       screenOptions={{
-        headerShown: false, // Esconder header padrão, usar custom
+        headerShown: false,
         drawerStyle: {
-          backgroundColor: "#0f231c",
+          backgroundColor: "#091A2F",
           width: 280,
         },
         drawerActiveTintColor: "#02de95",
@@ -158,199 +164,111 @@ export default function DrawerClienteRoutes(props: DrawerClienteRoutesProps) {
       <Screen
         name="Home"
         component={HomeScreen}
-        options={{
-          title: "Leva+",
-          drawerLabel: "Início",
-        }}
+        options={{ title: "Início", drawerLabel: "Início" }}
       />
       <Screen
         name="History"
-        component={ClientHistoryScreen}
-        options={{
-          title: "Histórico",
-          drawerLabel: "Histórico",
-        }}
+        component={HistoryScreen}
+        options={{ title: "Histórico", drawerLabel: "Histórico" }}
       />
       <Screen
         name="Wallet"
-        component={ClientWalletScreen}
-        options={{
-          title: "Carteira",
-          drawerLabel: "Carteira",
-        }}
+        component={WalletScreen}
+        options={{ title: "Carteira", drawerLabel: "Carteira" }}
       />
       <Screen
         name="Profile"
-        component={ClientProfileScreen}
-        options={{
-          title: "Perfil",
-          drawerLabel: "Perfil",
-        }}
+        component={ProfileScreen}
+        options={{ title: "Perfil", drawerLabel: "Perfil" }}
       />
       <Screen
         name="Help"
-        component={ClientHelpScreen}
-        options={{
-          title: "Ajuda",
-          drawerLabel: "Ajuda",
-        }}
+        component={HelpScreen}
+        options={{ title: "Ajuda", drawerLabel: "Ajuda" }}
       />
       <Screen
         name="Settings"
-        component={ClientSettingsScreen}
-        options={{
-          title: "Configurações",
-          drawerLabel: "Configurações",
-        }}
+        component={SettingsScreen}
+        options={{ title: "Configurações", drawerLabel: "Configurações" }}
       />
-      <Screen
-        name="ClientCity"
-        component={ClientCityScreen}
-        options={{
-          drawerLabel: () => null,
-          title: "Cidade",
-          drawerItemStyle: { display: "none" },
-        }}
-      />
+      
+      {/* Telas secundárias (não aparecem no menu drawer) */}
       <Screen
         name="LocationPicker"
-        component={MapLocationPickerScreen}
-        options={{
-          drawerLabel: () => null,
-          title: "Selecionar Destino",
-          drawerItemStyle: { display: "none" },
-        }}
+        component={AddressPickerScreen}
+        options={{ drawerLabel: () => null, drawerItemStyle: { display: "none" } }}
       />
       <Screen
         name="MapLocationPicker"
-        component={MapLocationPickerScreen}
-        options={{
-          drawerLabel: () => null,
-          title: "Escolher no Mapa",
-          drawerItemStyle: { display: "none" },
-        }}
+        component={AddressPickerScreen}
+        options={{ drawerLabel: () => null, drawerItemStyle: { display: "none" } }}
       />
       <Screen
         name="Favorites"
-        component={
-          require("../screens/(authenticated)/Client/HomeScreen/FavoritesScreen")
-            .default
-        }
-        options={{
-          drawerLabel: () => null,
-          title: "Favoritos",
-          drawerItemStyle: { display: "none" },
-        }}
+        component={FavoritesScreen}
+        options={{ drawerLabel: () => null, drawerItemStyle: { display: "none" } }}
       />
       <Screen
         name="SelectVehicle"
         component={SelectVehicleScreen}
-        options={{
-          drawerLabel: () => null,
-          title: "Selecionar Veículo",
-          drawerItemStyle: { display: "none" },
-        }}
+        options={{ drawerLabel: () => null, drawerItemStyle: { display: "none" } }}
       />
       <Screen
         name="ServicePurpose"
         component={ServicePurposeScreen}
-        options={{
-          drawerLabel: () => null,
-          title: "Finalidade do Serviço",
-          drawerItemStyle: { display: "none" },
-        }}
+        options={{ drawerLabel: () => null, drawerItemStyle: { display: "none" } }}
       />
-      {/* Favoritos agora são salvos dentro da tela unificada (MapLocationPicker/AddressPickerScreen). */}
       <Screen
         name="FinalOrderSummary"
-        component={FinalOrderSummaryScreen}
-        options={{
-          drawerLabel: () => null,
-          title: "Resumo do pedido",
-          drawerItemStyle: { display: "none" },
-        }}
+        component={OrderSummaryScreen}
+        options={{ drawerLabel: () => null, drawerItemStyle: { display: "none" } }}
       />
       <Screen
         name="CancelFee"
         component={CancelFeeScreen}
-        options={{
-          drawerLabel: () => null,
-          title: "Cancelar corrida",
-          drawerItemStyle: { display: "none" },
-        }}
+        options={{ drawerLabel: () => null, drawerItemStyle: { display: "none" } }}
       />
       <Screen
         name="Chat"
         component={ChatScreen}
-        options={{
-          drawerLabel: () => null,
-          title: "Chat",
-          drawerItemStyle: { display: "none" },
-        }}
+        options={{ drawerLabel: () => null, drawerItemStyle: { display: "none" } }}
       />
       <Screen
         name="OrderDetails"
         component={OrderDetailsScreen}
-        options={{
-          drawerLabel: () => null,
-          title: "Detalhes do pedido",
-          drawerItemStyle: { display: "none" },
-        }}
+        options={{ drawerLabel: () => null, drawerItemStyle: { display: "none" } }}
       />
       <Screen
         name="Payment"
         component={PaymentScreen}
-        options={{
-          drawerLabel: () => null,
-          title: "Pagamento",
-          drawerItemStyle: { display: "none" },
-        }}
+        options={{ drawerLabel: () => null, drawerItemStyle: { display: "none" } }}
       />
       <Screen
         name="RideTracking"
         component={RideTrackingScreen}
-        initialParams={
-          props?.initialRideId ? { rideId: props.initialRideId } : undefined
-        }
-        options={{
-          drawerLabel: () => null,
-          title: "Acompanhar corrida",
-          drawerItemStyle: { display: "none" },
-        }}
+        initialParams={props?.initialRideId ? { rideId: props.initialRideId } : undefined}
+        options={{ drawerLabel: () => null, drawerItemStyle: { display: "none" } }}
       />
       <Screen
         name="RideCompleted"
         component={RideCompletedScreen}
-        options={{
-          drawerLabel: () => null,
-          title: "Corrida finalizada",
-          drawerItemStyle: { display: "none" },
-        }}
+        options={{ drawerLabel: () => null, drawerItemStyle: { display: "none" } }}
       />
       <Screen
         name="ClientRateDriver"
-        component={ClientRateDriverScreen}
-        options={{
-          drawerLabel: () => null,
-          title: "Avaliar motorista",
-          drawerItemStyle: { display: "none" },
-        }}
+        component={RateDriverScreen}
+        options={{ drawerLabel: () => null, drawerItemStyle: { display: "none" } }}
       />
       <Screen
         name="ClientCancelRide"
-        component={ClientCancelRideScreen}
-        options={{
-          drawerLabel: () => null,
-          title: "Cancelar corrida",
-          drawerItemStyle: { display: "none" },
-        }}
+        component={CancelRideScreen}
+        options={{ drawerLabel: () => null, drawerItemStyle: { display: "none" } }}
       />
-      {/* TODO: Adicionar outras screens quando forem criadas */}
-      {/* <Screen name="History" component={HistoryScreen} options={{ drawerLabel: "Histórico" }} /> */}
-      {/* <Screen name="Wallet" component={WalletScreen} options={{ drawerLabel: "Carteira" }} /> */}
-      {/* <Screen name="Profile" component={ProfileScreen} options={{ drawerLabel: "Perfil" }} /> */}
-      {/* <Screen name="Help" component={HelpScreen} options={{ drawerLabel: "Ajuda" }} /> */}
-      {/* <Screen name="Settings" component={SettingsScreen} options={{ drawerLabel: "Configurações" }} /> */}
+      <Screen
+        name="ServiceSelection"
+        component={ServiceSelectionScreen}
+        options={{ drawerLabel: () => null, drawerItemStyle: { display: "none" } }}
+      />
     </Navigator>
   );
 }

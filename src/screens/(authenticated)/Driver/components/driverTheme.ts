@@ -1,6 +1,6 @@
 export const driverTheme = {
   colors: {
-    screenBg: "#0f231c",
+    screenBg: "#091A2F",
     cardBg: "rgba(17,24,22,0.96)",
     cardBgSolid: "#111816",
     border: "rgba(255,255,255,0.10)",
@@ -13,7 +13,7 @@ export const driverTheme = {
     primary: "#02de95",
     danger: "#ef4444",
     info: "#3b82f6",
-    onPrimary: "#0f231c",
+    onPrimary: "#091A2F",
     onDanger: "#111816",
   },
   radius: {

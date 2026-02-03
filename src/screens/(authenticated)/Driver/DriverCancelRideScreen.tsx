@@ -61,7 +61,7 @@ export default function DriverCancelRideScreen() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#0f231c" }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#091A2F" }}>
       <View style={{ padding: 16 }}>
         <Text style={{ color: "#fff", fontWeight: "900", fontSize: 18 }}>
           Cancelar corrida

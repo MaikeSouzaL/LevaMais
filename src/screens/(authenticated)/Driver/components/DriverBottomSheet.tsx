@@ -143,18 +143,18 @@ export function DriverBottomSheet({
             {isTogglingOnline ? (
               <ActivityIndicator
                 size="small"
-                color={online ? "#ef4444" : "#0f231c"}
+                color={online ? "#ef4444" : "#091A2F"}
               />
             ) : (
               <MaterialIcons
                 name={online ? "toggle-off" : "toggle-on"}
                 size={20}
-                color={online ? "#ef4444" : "#0f231c"}
+                color={online ? "#ef4444" : "#091A2F"}
               />
             )}
             <Text
               style={{
-                color: online ? "#ef4444" : "#0f231c",
+                color: online ? "#ef4444" : "#091A2F",
                 fontWeight: "900",
               }}
             >

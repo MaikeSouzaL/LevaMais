@@ -37,7 +37,7 @@ export function DriverHeader({
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
-        backgroundColor: "#0f231c",
+        backgroundColor: "#091A2F",
       }}
     >
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>

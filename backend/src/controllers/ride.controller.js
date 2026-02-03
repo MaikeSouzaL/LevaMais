@@ -1161,6 +1161,41 @@ class RideController {
       });
     }
   }
+
+  // Buscar motoristas próximos (para exibir no mapa)
+  async getNearbyDrivers(req, res) {
+    try {
+      const { latitude, longitude, radius, vehicleType, limit } = req.query;
+
+      if (!latitude || !longitude) {
+        return res
+          .status(400)
+          .json({ error: "Latitude e Longitude são obrigatórios" });
+      }
+
+      const DriverLocation = require("../models/DriverLocation");
+      const drivers = await DriverLocation.findNearby(
+        parseFloat(latitude),
+        parseFloat(longitude),
+        parseInt(radius) || 5000,
+        vehicleType,
+        parseInt(limit) || 10
+      );
+
+      const mapped = drivers.map((d) => ({
+        id: d.driverId,
+        latitude: d.location.coordinates[1],
+        longitude: d.location.coordinates[0],
+        type: d.vehicleType || "car",
+        rotation: 0,
+      }));
+
+      res.json(mapped);
+    } catch (error) {
+      console.error("Erro ao buscar motoristas próximos:", error);
+      res.status(500).json({ error: "Erro interno", details: error.message });
+    }
+  }
 }
 
 // Função auxiliar para calcular distância (Haversine)

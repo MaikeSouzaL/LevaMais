@@ -56,7 +56,7 @@ export default function DriverRateClientScreen() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#0f231c" }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#091A2F" }}>
       <View
         style={{
           padding: 16,

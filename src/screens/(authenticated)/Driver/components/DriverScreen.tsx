@@ -28,7 +28,7 @@ export function DriverScreen({
   );
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#0f231c" }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#091A2F" }}>
       <DriverHeader title={title} right={headerRight} />
       {scroll ? (
         <ScrollView

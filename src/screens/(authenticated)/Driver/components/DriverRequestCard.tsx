@@ -71,7 +71,7 @@ export function DriverRequestCard({
             alignItems: "center",
           }}
         >
-          <Text style={{ color: "#0f231c", fontWeight: "900" }}>Aceitar</Text>
+          <Text style={{ color: "#091A2F", fontWeight: "900" }}>Aceitar</Text>
         </TouchableOpacity>
       </View>
     </View>

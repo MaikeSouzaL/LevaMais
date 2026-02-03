@@ -124,7 +124,7 @@ export default function AddressAutocomplete(props: AddressAutocompleteProps) {
           style={{
             flexDirection: "row",
             alignItems: "center",
-            backgroundColor: "#162e25",
+            backgroundColor: "#11253E",
             borderWidth: 1,
             borderColor: "rgba(255,255,255,0.08)",
             borderRadius: 12,
@@ -167,7 +167,7 @@ export default function AddressAutocomplete(props: AddressAutocompleteProps) {
               top: 52,
               left: 0,
               right: 0,
-              backgroundColor: "#162e25",
+              backgroundColor: "#11253E",
               borderRadius: 12,
               borderWidth: 1,
               borderColor: "rgba(255,255,255,0.08)",

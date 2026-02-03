@@ -252,7 +252,7 @@ export default function DriverRideScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#0f231c" }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#091A2F" }}>
       <DriverHeader
         title="Corrida ativa"
         right={

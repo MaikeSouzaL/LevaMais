@@ -15,7 +15,7 @@ interface LocationLoadingScreenProps {
   subtitle?: string;
   /**
    * Cor de fundo da tela
-   * @default "#0f231c"
+   * @default "#091A2F"
    */
   backgroundColor?: string;
   /**
@@ -45,7 +45,7 @@ interface LocationLoadingScreenProps {
 export function LocationLoadingScreen({
   title = "Localizando você...",
   subtitle = "Aguarde enquanto buscamos sua posição",
-  backgroundColor = "#0f231c",
+  backgroundColor = "#091A2F",
   accentColor = "#02de95",
 }: LocationLoadingScreenProps) {
   return (

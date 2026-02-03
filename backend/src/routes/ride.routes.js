@@ -41,6 +41,9 @@ router.get("/stats", rideController.getDriverStats);
 // Histórico de ganhos (gráfico 7 dias)
 router.get("/earnings-history", rideController.getEarningsHistory);
 
+// Buscar motoristas próximos
+router.get("/nearby-drivers", rideController.getNearbyDrivers);
+
 // Buscar corrida por ID
 router.get("/:rideId", rideController.getById);
 

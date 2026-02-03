@@ -62,7 +62,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
   return (
     <DrawerContentScrollView
       {...props}
-      contentContainerStyle={{ flex: 1, backgroundColor: "#0f231c" }}
+      contentContainerStyle={{ flex: 1, backgroundColor: "#091A2F" }}
     >
       <View
         style={{
@@ -151,7 +151,7 @@ export default function DrawerDriverRoutes() {
       drawerContent={(props) => <CustomDrawerContent {...props} />}
       screenOptions={{
         headerShown: false,
-        drawerStyle: { backgroundColor: "#0f231c", width: 280 },
+        drawerStyle: { backgroundColor: "#091A2F", width: 280 },
         drawerType: "slide",
         overlayColor: "rgba(0, 0, 0, 0.5)",
       }}

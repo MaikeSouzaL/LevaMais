@@ -88,7 +88,7 @@ export function DriverTopHud({
                   borderRadius: 999,
                   backgroundColor: "#ef4444",
                   borderWidth: 2,
-                  borderColor: "#0f231c",
+                  borderColor: "#091A2F",
                   alignItems: "center",
                   justifyContent: "center",
                 }}

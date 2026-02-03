@@ -1,0 +1,279 @@
+import React, { forwardRef, useEffect, useState } from "react";
+import { View, Text, TouchableOpacity, ActivityIndicator, Alert } from "react-native";
+import { MaterialIcons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
+import { AppBottomSheet, AppBottomSheetRef } from "../../../../../components/ui/AppBottomSheet";
+import favoriteAddressService, { FavoriteAddress } from "../../../../../services/favoriteAddress.service";
+
+const FakeSearchBar = ({ onPress }: { onPress?: () => void }) => (
+  <TouchableOpacity 
+    style={{
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#11253E',
+      borderRadius: 12,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      borderWidth: 1,
+      borderColor: 'rgba(2,222,149,0.1)',
+      marginBottom: 16
+    }}
+    onPress={onPress}
+    activeOpacity={0.8}
+  >
+    <MaterialIcons name="search" size={24} color="#02de95" style={{ marginRight: 12 }} />
+    <Text style={{ color: '#9bbbb0', fontSize: 16, fontWeight: '500' }}>Para onde vamos?</Text>
+  </TouchableOpacity>
+);
+
+interface BottomSheetProps {
+  onPressSearch?: () => void;
+  onSelectFavorite?: (favorite: FavoriteAddress) => void;
+  onPressSeeAll?: () => void;
+  onPressEditPickup?: () => void;
+  pickupLabel?: string;
+}
+
+export const BottomSheet = forwardRef<AppBottomSheetRef, BottomSheetProps>(
+  ({ onPressSearch, onSelectFavorite, onPressSeeAll, onPressEditPickup, pickupLabel }, ref) => {
+    const navigation = useNavigation();
+    const [favorites, setFavorites] = useState<FavoriteAddress[]>([]);
+    const [loadingFavorites, setLoadingFavorites] = useState(true);
+
+    useEffect(() => {
+      loadFavorites();
+    }, []);
+
+    const loadFavorites = async () => {
+      try {
+        setLoadingFavorites(true);
+        const favorites = await favoriteAddressService.list();
+        // Pegar apenas os 2 primeiros
+        setFavorites(favorites.slice(0, 2));
+      } catch (error) {
+        console.error("Erro ao carregar favoritos:", error);
+        setFavorites([]);
+      } finally {
+        setLoadingFavorites(false);
+      }
+    };
+
+    const handleFavoritePress = (favorite: FavoriteAddress) => {
+      if (onSelectFavorite) {
+        onSelectFavorite(favorite);
+      }
+    };
+
+    const handleDeleteFavorite = (favorite: FavoriteAddress) => {
+      Alert.alert(
+        "Excluir favorito",
+        `Deseja excluir \"${favorite.name}\"?`,
+        [
+          { text: "Cancelar", style: "cancel" },
+          {
+            text: "Excluir",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                await favoriteAddressService.delete(favorite._id);
+                await loadFavorites();
+              } catch (e) {
+                console.error("Erro ao excluir favorito:", e);
+              }
+            },
+          },
+        ],
+      );
+    };
+
+    return (
+      <AppBottomSheet
+        ref={ref}
+        index={0}
+        snapPoints={favorites.length > 0 ? ["32%"] : ["20%"]}
+        enablePanDownToClose={false}
+        backgroundColor="#091A2F"
+        handleIndicatorColor="rgba(156, 163, 175, 0.3)"
+        contentPaddingHorizontal={24}
+        contentPaddingTop={16}
+        style={{
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: 0.5,
+          shadowRadius: 12,
+          elevation: 10,
+        }}
+      >
+        <FakeSearchBar onPress={onPressSearch} />
+
+        {/* Local atual (pickup) */}
+        <View style={{ marginTop: 4 }}>
+          <Text
+            style={{
+              color: "#9bbbb0",
+              fontSize: 11,
+              fontWeight: "700",
+              marginBottom: 10,
+              marginLeft: 4,
+              textTransform: "uppercase",
+              letterSpacing: 0.5,
+            }}
+          >
+            Local atual
+          </Text>
+
+          <TouchableOpacity
+            onPress={onPressEditPickup}
+            activeOpacity={0.8}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              backgroundColor: "rgba(255,255,255,0.06)",
+              borderRadius: 14,
+              paddingHorizontal: 14,
+              paddingVertical: 12,
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.06)",
+            }}
+          >
+            <View style={{ flex: 1, paddingRight: 12 }}>
+              <Text style={{ color: "#fff", fontSize: 14, fontWeight: "800" }} numberOfLines={1}>
+                {pickupLabel || "Definir local atual"}
+              </Text>
+              <Text style={{ color: "#9abcb0", fontSize: 12, marginTop: 2 }} numberOfLines={1}>
+                Toque para editar
+              </Text>
+            </View>
+
+            <MaterialIcons name="edit" size={18} color="#02de95" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Favoritos */}
+        {loadingFavorites ? (
+          <View style={{ marginTop: 16, alignItems: "center" }}>
+            <ActivityIndicator color="#02de95" size="small" />
+          </View>
+        ) : favorites.length > 0 ? (
+          <View style={{ marginTop: 16 }}>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: 12,
+                marginLeft: 4,
+              }}
+            >
+              <Text
+                style={{
+                  color: "#9bbbb0",
+                  fontSize: 11,
+                  fontWeight: "700",
+                  textTransform: "uppercase",
+                  letterSpacing: 0.5,
+                }}
+              >
+                Favoritos
+              </Text>
+
+              {!!onPressSeeAll && (
+                <TouchableOpacity onPress={onPressSeeAll} activeOpacity={0.8}>
+                  <Text style={{ color: "#02de95", fontSize: 12, fontWeight: "800" }}>
+                    Ver todos
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {favorites.map((favorite) => (
+              <View
+                key={favorite._id}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  backgroundColor: "#11253E",
+                  borderRadius: 12,
+                  marginBottom: 8,
+                  borderWidth: 1,
+                  borderColor: "rgba(2,222,149,0.1)",
+                  overflow: "hidden",
+                }}
+              >
+                <TouchableOpacity
+                  onPress={() => handleFavoritePress(favorite)}
+                  style={{
+                    flex: 1,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    padding: 12,
+                  }}
+                  activeOpacity={0.7}
+                >
+                  {/* Ícone */}
+                  <View
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 20,
+                      backgroundColor: "rgba(2,222,149,0.15)",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      marginRight: 12,
+                    }}
+                  >
+                    <MaterialIcons name={favorite.icon as any} size={20} color="#02de95" />
+                  </View>
+
+                  {/* Informações */}
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={{
+                        color: "#ffffff",
+                        fontSize: 14,
+                        fontWeight: "700",
+                        marginBottom: 2,
+                      }}
+                      numberOfLines={1}
+                    >
+                      {favorite.name}
+                    </Text>
+                    <Text style={{ color: "#9bbbb0", fontSize: 12 }} numberOfLines={1}>
+                      {favorite.formattedAddress || favorite.address}
+                    </Text>
+                  </View>
+
+                  <MaterialIcons name="chevron-right" size={20} color="#9bbbb0" />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => handleDeleteFavorite(favorite)}
+                  style={{ paddingHorizontal: 12, paddingVertical: 14 }}
+                  activeOpacity={0.8}
+                >
+                  <MaterialIcons name="delete-outline" size={20} color="#EF4444" />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <Text
+            style={{
+              color: "#9bbbb0",
+              fontSize: 11,
+              fontWeight: "600",
+              marginTop: 16,
+              marginBottom: 8,
+              marginLeft: 4,
+              textAlign: "center",
+              opacity: 0.7,
+            }}
+          >
+            Toque na barra de busca para escolher seu destino
+          </Text>
+        )}
+      </AppBottomSheet>
+    );
+  },
+);

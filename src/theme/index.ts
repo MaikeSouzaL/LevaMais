@@ -1,3 +1,17 @@
+/**
+ * Design System - Index
+ * Exporta todos os tokens do design system
+ * Mantém compatibilidade com tema antigo
+ */
+
+export { colors, gradients } from './colors';
+export { spacing, borderRadius, touchTargets, shadows } from './dimensions';
+export { fonts, fontSize, lineHeight, fontWeight } from './typography';
+export { animations, transitions } from './animations';
+export { breakpoints, containerPadding, maxWidth } from './layout';
+export { iconSizes } from './icons';
+
+// Tema antigo (mantido para compatibilidade)
 const theme = {
   COLORS: {
     WHITE: "#FFFFFF",

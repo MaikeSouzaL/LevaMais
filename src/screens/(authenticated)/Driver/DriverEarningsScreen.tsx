@@ -91,7 +91,7 @@ export default function DriverEarningsScreen() {
                 }}
               >
                   <Text style={{ 
-                      color: period === p ? "#0f231c" : "rgba(255,255,255,0.6)", 
+                      color: period === p ? "#091A2F" : "rgba(255,255,255,0.6)", 
                       fontWeight: "700",
                       fontSize: 13,
                       textTransform: "capitalize"
@@ -220,8 +220,8 @@ export default function DriverEarningsScreen() {
               gap: 8,
             }}
           >
-            <FontAwesome5 name="money-bill-wave" size={16} color="#0f231c" />
-            <Text style={{ color: "#0f231c", fontWeight: "800", fontSize: 15 }}>SACAR</Text>
+            <FontAwesome5 name="money-bill-wave" size={16} color="#091A2F" />
+            <Text style={{ color: "#091A2F", fontWeight: "800", fontSize: 15 }}>SACAR</Text>
           </TouchableOpacity>
 
           <TouchableOpacity

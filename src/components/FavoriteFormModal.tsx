@@ -198,7 +198,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   input: {
-    backgroundColor: "#162e25",
+    backgroundColor: "#11253E",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
     borderRadius: 12,
@@ -216,7 +216,7 @@ const styles = StyleSheet.create({
     width: 86,
     height: 70,
     borderRadius: 12,
-    backgroundColor: "#162e25",
+    backgroundColor: "#11253E",
     borderWidth: 2,
     borderColor: "rgba(255,255,255,0.05)",
     alignItems: "center",

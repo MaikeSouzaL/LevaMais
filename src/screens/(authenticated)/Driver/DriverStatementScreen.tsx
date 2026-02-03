@@ -92,7 +92,7 @@ export default function DriverStatementScreen() {
   }, [filteredItems]);
 
   const renderSectionHeader = ({ section: { title } }: any) => (
-      <View style={{ backgroundColor: "#0f231c", paddingVertical: 12, marginTop: 8 }}>
+      <View style={{ backgroundColor: "#091A2F", paddingVertical: 12, marginTop: 8 }}>
           <Text style={{ color: "rgba(255,255,255,0.4)", fontWeight: "700", fontSize: 13, textTransform: "uppercase", letterSpacing: 0.5 }}>
             {title}
           </Text>
@@ -180,7 +180,7 @@ export default function DriverStatementScreen() {
       <View style={{ marginBottom: 20 }}>
         {/* Summary Card */}
         <LinearGradient
-            colors={['#162e25', '#0f231c']}
+            colors={['#11253E', '#091A2F']}
             style={{ 
                 padding: 20, 
                 borderRadius: 24, 
@@ -221,7 +221,7 @@ export default function DriverStatementScreen() {
                     }}
                 >
                     <Text style={{ 
-                        color: filter === opt.key ? "#0f231c" : "rgba(255,255,255,0.7)", 
+                        color: filter === opt.key ? "#091A2F" : "rgba(255,255,255,0.7)", 
                         fontWeight: "700",
                         fontSize: 13 
                     }}>
