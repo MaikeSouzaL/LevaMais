@@ -60,9 +60,10 @@ type DashboardViewProps = {
   onDefaultAddressFound?: (address: string) => void; // NOVO
   onPressAddFavorite: () => void;
   cityId?: string;
+  refreshTrigger?: number; // Sincronização
 };
 
-export const DashboardView = ({ userAddress, destinationAddress, onPressAddress, onPressDestination, onPressMenu, onPressAddFavorite, onSelectFlow, onSelectFavorite, onDefaultAddressFound, cityId }: DashboardViewProps) => {
+export const DashboardView = ({ userAddress, destinationAddress, onPressAddress, onPressDestination, onPressMenu, onPressAddFavorite, onSelectFlow, onSelectFavorite, onDefaultAddressFound, cityId, refreshTrigger }: DashboardViewProps) => {
     const [favorites, setFavorites] = useState<FavoriteAddress[]>([]);
     const [recentRides, setRecentRides] = useState<Ride[]>([]);
     const [vehiclesData, setVehiclesData] = useState(INITIAL_VEHICLES);
@@ -72,7 +73,7 @@ export const DashboardView = ({ userAddress, destinationAddress, onPressAddress,
 
     useEffect(() => {
         loadData();
-    }, [cityId]); // Recarregar se mudar a cidade
+    }, [cityId, refreshTrigger]); // Recarregar se mudar cidade ou trigger
 
     const loadData = async () => {
         setLoadingServices(true);
