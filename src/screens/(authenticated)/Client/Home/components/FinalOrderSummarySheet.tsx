@@ -1,4 +1,4 @@
-import React, { forwardRef, useMemo } from "react";
+import React, { forwardRef, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -46,7 +46,7 @@ export type FinalOrderSummaryData = {
 
 type Props = {
   data: FinalOrderSummaryData;
-  onConfirm: () => void;
+  onConfirm: (paymentMethod: "cash" | "pix" | "card") => void;
   onCancel?: () => void;
 };
 
@@ -55,6 +55,17 @@ export const FinalOrderSummarySheet = forwardRef<AppBottomSheetModalRef, Props>(
   ({ data, onConfirm, onCancel }, ref) => {
     const insets = useSafeAreaInsets();
     const snapPoints = useMemo(() => [100, "85%"], []);
+
+    const [selectedMethod, setSelectedMethod] = useState<"cash" | "pix" | "card">(
+      "cash"
+    );
+    const [showSelector, setShowSelector] = useState(false);
+
+    const paymentOptions = [
+      { id: "cash" as const, label: "Dinheiro", icon: "cash" },
+      { id: "pix" as const, label: "Pix", icon: "qrcode" },
+      { id: "card" as const, label: "Cartão", icon: "credit-card" },
+    ];
 
 
     return (
@@ -357,7 +368,11 @@ export const FinalOrderSummarySheet = forwardRef<AppBottomSheetModalRef, Props>(
               />
               <Row
                 label={`Distância (${data.pricing.distanceKm.toFixed(1)} km)`}
-                value={formatBRL(data.pricing.distancePrice)}
+                value={
+                  data.pricing.distancePrice > 0
+                    ? formatBRL(data.pricing.distancePrice)
+                    : "Incluso na taxa"
+                }
                 muted
               />
               {!!data.etaMinutes && (
@@ -404,13 +419,14 @@ export const FinalOrderSummarySheet = forwardRef<AppBottomSheetModalRef, Props>(
             {/* Payment */}
             <TouchableOpacity
               activeOpacity={0.8}
+              onPress={() => setShowSelector(true)}
               style={{
                 flexDirection: "row",
                 alignItems: "center",
                 justifyContent: "space-between",
-                backgroundColor: "#11253E",
+                backgroundColor: showSelector ? "rgba(2,222,149,0.1)" : "#11253E",
                 borderWidth: 1,
-                borderColor: "rgba(255,255,255,0.05)",
+                borderColor: showSelector ? "#02de95" : "rgba(255,255,255,0.05)",
                 padding: 16,
                 borderRadius: 12,
               }}
@@ -424,7 +440,11 @@ export const FinalOrderSummarySheet = forwardRef<AppBottomSheetModalRef, Props>(
                     marginRight: 12,
                   }}
                 >
-                  <Text style={{ color: "white" }}>💳</Text>
+                  <MaterialCommunityIcons 
+                    name={paymentOptions.find(o => o.id === selectedMethod)?.icon as any} 
+                    size={20} 
+                    color="white" 
+                  />
                 </View>
                 <View>
                   <Text
@@ -440,12 +460,61 @@ export const FinalOrderSummarySheet = forwardRef<AppBottomSheetModalRef, Props>(
                   <Text
                     style={{ color: "white", fontSize: 14, fontWeight: "600" }}
                   >
-                    {data.paymentSummary}
+                    {paymentOptions.find(o => o.id === selectedMethod)?.label}
                   </Text>
                 </View>
               </View>
-              <Text style={{ color: "#9abcb0" }}>›</Text>
+              <MaterialCommunityIcons name="chevron-right" size={24} color="#9abcb0" />
             </TouchableOpacity>
+
+            {/* Payment Selector Overlay */}
+            {showSelector && (
+              <View 
+                style={{ 
+                  marginTop: 12, 
+                  backgroundColor: "rgba(255,255,255,0.03)", 
+                  borderRadius: 12, 
+                  padding: 8,
+                  borderWidth: 1,
+                  borderColor: "rgba(255,255,255,0.05)"
+                }}
+              >
+                {paymentOptions.map((opt) => (
+                  <TouchableOpacity
+                    key={opt.id}
+                    onPress={() => {
+                      setSelectedMethod(opt.id);
+                      setShowSelector(false);
+                    }}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      padding: 12,
+                      borderRadius: 8,
+                      backgroundColor: selectedMethod === opt.id ? "rgba(2,222,149,0.15)" : "transparent",
+                      marginBottom: 4,
+                    }}
+                  >
+                    <MaterialCommunityIcons 
+                      name={opt.icon as any} 
+                      size={20} 
+                      color={selectedMethod === opt.id ? "#02de95" : "white"} 
+                      style={{ marginRight: 12 }}
+                    />
+                    <Text style={{ 
+                      color: selectedMethod === opt.id ? "#02de95" : "white",
+                      fontWeight: selectedMethod === opt.id ? "700" : "500",
+                      flex: 1
+                    }}>
+                      {opt.label}
+                    </Text>
+                    {selectedMethod === opt.id && (
+                      <MaterialCommunityIcons name="check" size={20} color="#02de95" />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
           </ScrollView>
 
           {/* Footer */}
@@ -483,7 +552,7 @@ export const FinalOrderSummarySheet = forwardRef<AppBottomSheetModalRef, Props>(
               </TouchableOpacity>
 
               <TouchableOpacity
-                onPress={onConfirm}
+                onPress={() => onConfirm(selectedMethod)}
                 activeOpacity={0.9}
                 style={{
                   flex: 2,

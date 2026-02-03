@@ -849,9 +849,11 @@ export default function HomeScreen() {
             insuranceLevel: "none",
           }}
           onCancel={handleCancelOrder}
-          onConfirm={async () => {
+          onConfirm={async (method) => {
             try {
               finalSummaryRef.current?.dismiss();
+
+              const mappedMethod = method === "card" ? "credit_card" : method;
 
               // 1. Criar a corrida no backend
               const newRide = await rideService.create({
@@ -867,6 +869,11 @@ export default function HomeScreen() {
                   address: rideFlow.draftDropoff!.formattedAddress!,
                   latitude: rideFlow.draftDropoff!.latitude,
                   longitude: rideFlow.draftDropoff!.longitude,
+                },
+                payment: {
+                  method: {
+                    type: mappedMethod,
+                  },
                 },
                 cityId: (detectedCity as any)?._id || (detectedCity as any)?.id,
                 purposeId: rideFlow.selectedPurposeId || undefined,
