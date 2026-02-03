@@ -1,6 +1,7 @@
 const Ride = require("../models/Ride");
 const DriverLocation = require("../models/DriverLocation");
 const User = require("../models/User");
+const PricingConfig = require("../models/PricingConfig");
 
 // mixins (rating + proofs)
 const ratingProofMixin = require("./ride.ratingProof.mixin");
@@ -996,9 +997,14 @@ class RideController {
             purposeId: purposeDoc._id,
             active: true,
           });
+          
+          if (rule && rule.pricing.minimumFee === 0 && rule.pricing.pricePerKm === 0) {
+            rule = null;
+          }
+
           console.log(
             "[calculatePrice] Busca específica (Cidade+Veículo+Serviço):",
-            rule ? `Encontrada: ${rule.name}` : "Não encontrada",
+            rule ? `Encontrada: ${rule.name}` : "Não encontrada ou zerada",
           );
         }
 
@@ -1010,9 +1016,14 @@ class RideController {
             purposeId: null, // Regra base explicitamente
             active: true,
           });
+
+          if (rule && rule.pricing.minimumFee === 0 && rule.pricing.pricePerKm === 0) {
+            rule = null;
+          }
+
           console.log(
             "[calculatePrice] Busca base (Cidade+Veículo):",
-            rule ? `Encontrada: ${rule.name}` : "Não encontrada",
+            rule ? `Encontrada: ${rule.name}` : "Não encontrada ou zerada",
           );
         }
       } else {
@@ -1037,9 +1048,12 @@ class RideController {
             ...globalFilter,
             purposeId: purposeDoc._id,
           });
+          if (rule && rule.pricing.minimumFee === 0 && rule.pricing.pricePerKm === 0) {
+            rule = null;
+          }
           console.log(
             "[calculatePrice] Busca global específica:",
-            rule ? `Encontrada: ${rule.name}` : "Não encontrada",
+            rule ? `Encontrada: ${rule.name}` : "Não encontrada ou zerada",
           );
         }
         // Global Base
@@ -1048,10 +1062,51 @@ class RideController {
             ...globalFilter,
             purposeId: null,
           });
+          if (rule && rule.pricing.minimumFee === 0 && rule.pricing.pricePerKm === 0) {
+            rule = null;
+          }
           console.log(
             "[calculatePrice] Busca global base:",
-            rule ? `Encontrada: ${rule.name}` : "Não encontrada",
+            rule ? `Encontrada: ${rule.name}` : "Não encontrada ou zerada",
           );
+        }
+      }
+
+      // 4. Último Recurso: Configuração Global Aggregada (PricingConfig)
+      if (!rule) {
+        console.log("[calculatePrice] 🌐 Tentando ULTIMATO fallback: PricingConfig...");
+        const globalConfig = await PricingConfig.findOne().sort({ updatedAt: -1 });
+
+        if (globalConfig) {
+          const vPricing = globalConfig.vehiclePricing?.find(p => p.vehicleType === vehicleType && p.enabled);
+
+          if (vPricing && (vPricing.minimumFee > 0 || vPricing.pricePerKm > 0)) {
+            console.log("[calculatePrice] ✅ Usando PricingConfig para veículo:", vehicleType);
+            rule = {
+              name: `GLOBAL_CONFIG_${vehicleType.toUpperCase()}`,
+              pricing: {
+                basePrice: vPricing.basePrice || 0,
+                pricePerKm: vPricing.pricePerKm,
+                pricePerMinute: vPricing.pricePerMinute || 0,
+                minimumKm: vPricing.minimumKm,
+                minimumFee: vPricing.minimumFee
+              }
+            };
+            if (purposeDoc) {
+              const pPricing = globalConfig.purposePricing?.find(p =>
+                p.purposeId?.toString() === purposeDoc._id.toString() && p.enabled
+              );
+              if (pPricing) {
+                if (pPricing.additionalPercentage > 0) {
+                  rule.pricing.minimumFee *= (1 + pPricing.additionalPercentage / 100);
+                  rule.pricing.pricePerKm *= (1 + pPricing.additionalPercentage / 100);
+                }
+                if (pPricing.additionalFixed > 0) {
+                  rule.pricing.minimumFee += pPricing.additionalFixed;
+                }
+              }
+            }
+          }
         }
       }
 

@@ -52,6 +52,8 @@ const INITIAL_VEHICLES = [
 type DashboardViewProps = {
   userAddress: string;
   destinationAddress?: string;
+  pickup?: any;
+  dropoff?: any;
   onPressAddress: () => void;
   onPressDestination: () => void;
   onPressMenu: () => void; // NOVO
@@ -63,7 +65,21 @@ type DashboardViewProps = {
   refreshTrigger?: number; // Sincronização
 };
 
-export const DashboardView = ({ userAddress, destinationAddress, onPressAddress, onPressDestination, onPressMenu, onPressAddFavorite, onSelectFlow, onSelectFavorite, onDefaultAddressFound, cityId, refreshTrigger }: DashboardViewProps) => {
+export const DashboardView = ({ 
+  userAddress, 
+  destinationAddress, 
+  pickup,
+  dropoff,
+  onPressAddress, 
+  onPressDestination, 
+  onPressMenu, 
+  onPressAddFavorite, 
+  onSelectFlow, 
+  onSelectFavorite, 
+  onDefaultAddressFound, 
+  cityId, 
+  refreshTrigger 
+}: DashboardViewProps) => {
     const [favorites, setFavorites] = useState<FavoriteAddress[]>([]);
     const [recentRides, setRecentRides] = useState<Ride[]>([]);
     const [vehiclesData, setVehiclesData] = useState(INITIAL_VEHICLES);
@@ -176,7 +192,11 @@ export const DashboardView = ({ userAddress, destinationAddress, onPressAddress,
 
     const handleVehiclePress = (vehicle: any) => {
         if (vehicle.services.length === 0) return;
-        navigation.navigate('ServiceSelection', { vehicle });
+        navigation.navigate('ServiceSelection', { 
+            vehicle,
+            pickup,
+            dropoff
+        });
     };
 
     return (

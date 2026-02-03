@@ -13,7 +13,9 @@ import {
   TouchableOpacity,
   Text,
 } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
+import Toast from 'react-native-toast-message';
+import MapView, { Marker, Polyline } from 'react-native-maps';
+import MapViewDirections from 'react-native-maps-directions';
 import { MaterialIcons } from '@expo/vector-icons';
 import {
   useNavigation,
@@ -105,6 +107,7 @@ export default function HomeScreen() {
   const offersCarRef = useRef<OffersCarSheetRef>(null);
   const offersVanRef = useRef<OffersVanSheetRef>(null);
   const offersTruckRef = useRef<OffersTruckSheetRef>(null);
+  const finalSummaryRef = useRef<any>(null);
   
   // ========================================
   // ESTADOS LOCAIS (apenas UI)
@@ -136,21 +139,9 @@ export default function HomeScreen() {
   }, []);
 
   const handleDashboardSelectFavorite = (fav: any) => {
-      // Atualiza ORIGEM (Pickup) conforme solicitado
-      const addr = fav.address || fav.formattedAddress || fav.name;
-      
-      
-      // Atualiza visualmente
-      setPickupDisplayAddress(addr);
-      mapLocation.setCurrentAddress(addr);
-
-      if (fav.latitude && fav.longitude) {
-          rideFlow.setDraftPickup({
-              formattedAddress: addr,
-              latitude: fav.latitude,
-              longitude: fav.longitude
-          });
-      }
+      // Se o usuário clica num favorito na Dashboard, tratamos como DESTINO
+      // e iniciamos o fluxo de seleção de veículo
+      handleSelectFavorite(fav);
   };
 
   useFocusEffect(
@@ -271,10 +262,19 @@ export default function HomeScreen() {
       const pickup = route.params.pickup;
       const dropoff = route.params.dropoff;
       
-      rideFlow.setSelectedVehicleType(type);
+      rideFlow.setSelectedVehicleType(type as any);
       rideFlow.setSelectedPurposeId(purposeId || null);
-      if (pickup) rideFlow.setPickupSelection(pickup);
-      if (dropoff) rideFlow.setDropoffSelection(dropoff);
+      if (pickup) rideFlow.setDraftPickup(pickup);
+      if (dropoff) rideFlow.setDraftDropoff(dropoff);
+
+      console.log("[Home] Abrindo ofertas para:", type, "Purpose:", purposeId);
+      console.log("[Home] Coordenadas - Pickup:", pickup?.latitude, pickup?.longitude);
+      console.log("[Home] Coordenadas - Dropoff:", dropoff?.latitude, dropoff?.longitude);
+      
+      // Se já temos um serviço selecionado, vamos para o mapa AGORA
+      if (purposeId) {
+          setFlowStep('map');
+      }
       
       // Calcular preço
       if (pickup?.latitude && dropoff?.latitude) {
@@ -302,15 +302,27 @@ export default function HomeScreen() {
             rideFlow.setPriceQuote(null);
           } finally {
             rideFlow.setPriceQuoteLoading(false);
+            // Abrir o resumo AUTOMATICAMENTE após o cálculo se tiver purposeId
+            if (purposeId) {
+                setTimeout(() => {
+                    bottomSheetRef.current?.close();
+                    finalSummaryRef.current?.present();
+                    setFlowStep('map');
+                }, 100);
+            }
           }
         })();
       }
       
+      
       setTimeout(() => {
-        if (type === 'motorcycle') offersMotoRef.current?.snapToIndex(0);
-        else if (type === 'car') offersCarRef.current?.snapToIndex(0);
-        else if (type === 'van') offersVanRef.current?.snapToIndex(0);
-        else if (type === 'truck') offersTruckRef.current?.snapToIndex(0);
+        // Se NÃO temos purposeId, mostramos as abas de ofertas normais
+        if (!purposeId) {
+            if (type === 'motorcycle') offersMotoRef.current?.snapToIndex(0);
+            else if (type === 'car') offersCarRef.current?.snapToIndex(0);
+            else if (type === 'van') offersVanRef.current?.snapToIndex(0);
+            else if (type === 'truck') offersTruckRef.current?.snapToIndex(0);
+        }
         
         navigation.setParams({
           openOffersFor: undefined,
@@ -375,12 +387,12 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       const timer = setTimeout(() => {
-        if (!driverSearch.searchingState.visible && !driverSearch.driverFoundState.found) {
+        if (!driverSearch.searchingState.visible && !driverSearch.driverFoundState.found && flowStep === 'dashboard') {
           bottomSheetRef.current?.snapToIndex(1);
         }
       }, 300);
       return () => clearTimeout(timer);
-    }, [driverSearch.searchingState.visible, driverSearch.driverFoundState.found])
+    }, [driverSearch.searchingState.visible, driverSearch.driverFoundState.found, flowStep])
   );
   
   // ========================================
@@ -473,16 +485,20 @@ export default function HomeScreen() {
       const pickup = lat != null && lng != null
         ? {
             formattedAddress: mapLocation.currentAddress,
-            latitude: lat,
-            longitude: lng,
+            latitude: Number(lat),
+            longitude: Number(lng),
           }
         : rideFlow.draftPickup;
       
       const dropoff = {
         formattedAddress: dropAddr,
-        latitude: favorite.latitude,
-        longitude: favorite.longitude,
+        latitude: Number(favorite.latitude),
+        longitude: Number(favorite.longitude),
       };
+
+      console.log("[Home] handleSelectFavorite - Coordenadas Finais:");
+      console.log("  Pickup:", pickup?.latitude, pickup?.longitude);
+      console.log("  Dropoff:", dropoff.latitude, dropoff.longitude);
       
       if (pickup) rideFlow.setDraftPickup(pickup);
       rideFlow.setDraftDropoff(dropoff);
@@ -518,6 +534,8 @@ export default function HomeScreen() {
           <DashboardView 
               userAddress={pickupDisplayAddress}
               destinationAddress={destinationAddress}
+              pickup={rideFlow.draftPickup}
+              dropoff={rideFlow.draftDropoff}
               onPressAddress={handleEditPickup}
               onPressDestination={handleEditDropoff}
               onPressMenu={handlePressMenu}
@@ -567,6 +585,34 @@ export default function HomeScreen() {
               <VehicleMarker type="car" rotation={0} />
             </Marker>
           )}
+
+          {/* ROTA E MARCADORES DE ORIGEM/DESTINO */}
+          {rideFlow.draftPickup?.latitude && rideFlow.draftDropoff?.latitude && (
+              <>
+                  <Marker 
+                      coordinate={{ latitude: rideFlow.draftPickup.latitude, longitude: rideFlow.draftPickup.longitude }}
+                      title="Partida"
+                  />
+                  <Marker 
+                      coordinate={{ latitude: rideFlow.draftDropoff.latitude, longitude: rideFlow.draftDropoff.longitude }}
+                      title="Destino"
+                      pinColor="#02de95"
+                  />
+                  <MapViewDirections
+                    origin={{ latitude: rideFlow.draftPickup.latitude, longitude: rideFlow.draftPickup.longitude }}
+                    destination={{ latitude: rideFlow.draftDropoff.latitude, longitude: rideFlow.draftDropoff.longitude }}
+                    apikey={process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || ''}
+                    strokeWidth={4}
+                    strokeColor="#02de95"
+                    optimizeWaypoints={true}
+                    onReady={result => {
+                        mapLocation.mapRef.current?.fitToCoordinates(result.coordinates, {
+                            edgePadding: { top: 100, right: 50, bottom: 300, left: 50 },
+                        });
+                    }}
+                  />
+              </>
+          )}
         </MapView>
         
         {/* Header */}
@@ -600,16 +646,7 @@ export default function HomeScreen() {
           <MaterialIcons name="my-location" size={24} color="#02de95" />
         </TouchableOpacity>
         
-        {/* Bottom Sheet Principal */}
-        <LocalBottomSheet
-          {...{
-            ref: bottomSheetRef,
-            onPressSearch: handlePressSearch,
-            onPressEditPickup: handleEditPickup,
-            onSelectFavorite: handleSelectFavorite,
-            pickupLabel: rideFlow.draftPickup?.formattedAddress || mapLocation.currentAddress,
-          } as any}
-        />
+        {/* Bottom Sheet Principal removido do modo mapa para evitar sobreposição */}
         
         {/* Safety Help Sheet */}
         <SafetyHelpSheet
@@ -642,6 +679,68 @@ export default function HomeScreen() {
             driverInfo: driverSearch.driverFoundState.info,
             etaText: driverSearch.driverFoundState.etaText,
           } as any}
+        />
+
+        {/* Resumo Final do Pedido (Aberto após selecionar serviço) */}
+        <FinalOrderSummarySheet 
+            ref={finalSummaryRef}
+            data={{
+                pickupAddress: rideFlow.draftPickup?.formattedAddress || '',
+                dropoffAddress: rideFlow.draftDropoff?.formattedAddress || '',
+                vehicleType: rideFlow.selectedVehicleType as any || 'moto',
+                servicePurposeLabel: rideFlow.priceQuote?.purpose?.title || 'Serviço selecionado',
+                etaMinutes: rideFlow.priceQuote?.duration?.value ? Math.ceil(rideFlow.priceQuote.duration.value / 60) : undefined,
+                pricing: {
+                    base: rideFlow.priceQuote?.pricing?.basePrice || 0,
+                    distanceKm: rideFlow.priceQuote?.distance?.value || 0,
+                    distancePrice: rideFlow.priceQuote?.pricing?.distancePrice || 0,
+                    serviceFee: rideFlow.priceQuote?.pricing?.serviceFee || 0,
+                    total: rideFlow.priceQuote?.pricing?.total || 0
+                },
+                paymentSummary: "Dinheiro", // Padrão
+                insuranceLevel: "none"
+            }}
+            onConfirm={async () => {
+                try {
+                    finalSummaryRef.current?.dismiss();
+                    
+                    // 1. Criar a corrida no backend
+                    const newRide = await rideService.create({
+                        vehicleType: rideFlow.selectedVehicleType as any,
+                        serviceType: "delivery", // Backend espera 'delivery' para fretes no CreateRideRequest
+                        pricing: rideFlow.priceQuote.pricing,
+                        pickup: {
+                            address: rideFlow.draftPickup!.formattedAddress!,
+                            latitude: rideFlow.draftPickup!.latitude,
+                            longitude: rideFlow.draftPickup!.longitude
+                        },
+                        dropoff: {
+                            address: rideFlow.draftDropoff!.formattedAddress!,
+                            latitude: rideFlow.draftDropoff!.latitude,
+                            longitude: rideFlow.draftDropoff!.longitude
+                        },
+                        cityId: (detectedCity as any)?._id || (detectedCity as any)?.id,
+                        purposeId: rideFlow.selectedPurposeId || undefined,
+                        distance: rideFlow.priceQuote.distance,
+                        duration: rideFlow.priceQuote.duration,
+                    });
+
+                    // 2. Iniciar animação/modal de busca
+                    driverSearch.startSearch({
+                        title: "Buscando motoristas...",
+                        price: `R$ ${rideFlow.priceQuote.pricing.total.toFixed(2)}`,
+                        eta: rideFlow.priceQuote.duration.text || '--',
+                        rideId: newRide._id,
+                    });
+                } catch (error: any) {
+                    console.error("Erro ao criar corrida:", error);
+                    Toast.show({
+                        type: 'error',
+                        text1: 'Erro ao solicitar corrida',
+                        text2: error.message || 'Tente novamente em instantes.'
+                    });
+                }
+            }}
         />
         
         {/* Search Timeout Card */}

@@ -8,11 +8,21 @@ import { colors } from '@/theme';
 export default function ServiceSelectionScreen() {
     const navigation = useNavigation<any>();
     const route = useRoute<any>();
-    const { vehicle } = route.params || {};
+    const { vehicle, pickup, dropoff } = route.params || {};
 
     if (!vehicle) return null;
 
     const handleSelectService = (serviceId: string) => {
+        if (pickup?.latitude && dropoff?.latitude) {
+            navigation.navigate('Home', {
+                openOffersFor: vehicle.id,
+                purposeId: serviceId,
+                pickup,
+                dropoff
+            });
+            return;
+        }
+
         navigation.navigate('LocationPicker', {
              initialVehicle: vehicle.id,
              initialService: serviceId,
