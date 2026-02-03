@@ -2,6 +2,7 @@ const Ride = require("../models/Ride");
 const DriverLocation = require("../models/DriverLocation");
 const User = require("../models/User");
 const PricingConfig = require("../models/PricingConfig");
+const City = require("../models/City");
 
 // mixins (rating + proofs)
 const ratingProofMixin = require("./ride.ratingProof.mixin");
@@ -222,11 +223,24 @@ class RideController {
       // Iniciar busca por motorista (via WebSocket)
       const io = req.app.get("io");
       if (io) {
-        // Encontrar motoristas disponíveis na região (raio de 15km para abranger a cidade)
+        // Buscar raio de busca configurado na cidade (ou usar 15km padrão)
+        let searchRadius = 15000;
+        try {
+          if (cityId) {
+            const city = await City.findById(cityId).select("searchRadius");
+            if (city?.searchRadius) {
+              searchRadius = city.searchRadius;
+            }
+          }
+        } catch (e) {
+          console.log("Erro ao buscar raio da cidade, usando padrão 15km");
+        }
+
+        // Encontrar motoristas disponíveis na região (raio dinâmico por cidade)
         const nearbyDrivers = await DriverLocation.findNearby(
           pickup.latitude,
           pickup.longitude,
-          15000, // 15km (Proxy para "Cidade")
+          searchRadius, 
           vehicleType,
           50, // Limite para broadcast
           serviceType,

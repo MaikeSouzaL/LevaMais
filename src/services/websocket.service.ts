@@ -4,7 +4,7 @@ import { useAuthStore } from "../context/authStore";
 // Manter o WebSocket usando a MESMA base da API, para evitar divergência em emulador/dispositivo.
 const RAW_BASE =
   process.env.EXPO_PUBLIC_API_URL ||
-  (__DEV__ ? "http://10.0.2.2:3001" : "http://192.168.1.8:3001");
+  "http://192.168.1.11:3001";
 
 const SOCKET_URL = RAW_BASE.replace(/\/$/, "");
 

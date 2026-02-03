@@ -5,9 +5,9 @@ import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from "axios";
 // - EXPO_PUBLIC_API_URL (ex.: http://192.168.1.8:3000)
 // - Fallbacks para emulador/dispositivo
 // Obs: baseURL inclui /api
-const RAW_BASE = "http://192.168.1.11:3001"; 
-//   process.env.EXPO_PUBLIC_API_URL ||
-//   (__DEV__ ? "http://10.0.2.2:3001" : "http://192.168.1.8:3001");
+const RAW_BASE =
+  process.env.EXPO_PUBLIC_API_URL ||
+  "http://192.168.1.11:3001";
 
 const API_BASE_URL = RAW_BASE.replace(/\/$/, "") + "/api";
 

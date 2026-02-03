@@ -43,6 +43,11 @@ const citySchema = new mongoose.Schema(
         default: "23:59",
       },
     },
+    // Raio de busca para motoristas (em metros)
+    searchRadius: {
+      type: Number,
+      default: 15000, // 15km padrão
+    },
     // Referência ao Representante (Novo Modelo)
     representativeId: {
       type: mongoose.Schema.Types.ObjectId,

@@ -361,7 +361,7 @@ function CityManagementDrawer({
 
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto bg-gray-50 p-6">
-          {activeTab === "pricing" && <PricingConfigTab city={city} />}
+          {activeTab === "pricing" && <PricingConfigTab city={city} onUpdate={onUpdate} />}
           {activeTab === "details" && <CityDetailsTab city={city} onUpdate={onUpdate} />}
           {activeTab === "rep" && <RepresentativeTab city={city} onUpdate={onUpdate} />}
           {activeTab === "revenue" && <RevenueShareTab city={city} onUpdate={onUpdate} />}
@@ -391,12 +391,14 @@ function TabButton({ children, active, onClick, icon: Icon }: any) {
 // TAB: CONFIGURAÇÃO DE PREÇOS (O CORAÇÃO DO SISTEMA)
 // ----------------------------------------------------------------------------
 
-function PricingConfigTab({ city }: { city: City }) {
+function PricingConfigTab({ city, onUpdate }: { city: City, onUpdate?: () => void }) {
   const [vehicleTab, setVehicleTab] = useState<VehicleTab>("motorcycle");
   const [purposes, setPurposes] = useState<PurposeItem[]>([]);
   const [rules, setRules] = useState<PricingRule[]>([]);
   const [loading, setLoading] = useState(true);
   const { showToast } = useToast();
+  const [searchRadius, setSearchRadius] = useState(city.searchRadius || 15000);
+  const [savingRadius, setSavingRadius] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -429,8 +431,62 @@ function PricingConfigTab({ city }: { city: City }) {
 
   if (loading) return <div className="p-10 text-center text-gray-500">Carregando configurações...</div>;
 
+  const handleSaveRadius = async () => {
+    try {
+      setSavingRadius(true);
+      await citiesService.update(city._id!, { searchRadius });
+      showToast("Raio de busca atualizado com sucesso", "success");
+      onUpdate?.();
+    } catch (err) {
+      showToast("Erro ao salvar raio de busca", "error");
+    } finally {
+      setSavingRadius(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {/* Configurações Operacionais da Cidade */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
+          <div>
+            <h3 className="font-bold text-gray-900">Configurações Operacionais</h3>
+            <p className="text-sm text-gray-500">Parâmetros de funcionamento na região</p>
+          </div>
+        </div>
+        <div className="p-6">
+          <div className="flex items-end gap-4 max-w-md">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Raio de Busca de Motoristas (KM)
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  value={searchRadius / 1000}
+                  onChange={(e) => setSearchRadius(Number(e.target.value) * 1000)}
+                  className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all outline-none"
+                  placeholder="Ex: 15"
+                />
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
+                  km
+                </div>
+              </div>
+              <p className="mt-1 text-[10px] text-gray-400 uppercase font-bold tracking-wider">
+                Distância máxima para broadcast da chamada
+              </p>
+            </div>
+            <button
+              onClick={handleSaveRadius}
+              disabled={savingRadius}
+              className="flex items-center gap-2 px-6 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 text-white font-bold rounded-lg transition-all shadow-sm"
+            >
+              {savingRadius ? "Salvando..." : "Salvar"}
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Vehicle Tabs */}
       <div className="flex gap-2 bg-white p-1 rounded-lg border border-gray-200 shadow-sm w-fit">
         <VehicleTabBtn id="motorcycle" label="Moto" active={vehicleTab} onClick={setVehicleTab} icon={Bike} />
@@ -743,7 +799,7 @@ function RepresentativeTab({ city, onUpdate }: { city: City, onUpdate: () => voi
 
   const handleSave = async () => {
     try {
-      await citiesService.update(city._id!, { representativeId: selectedRep || null });
+      await citiesService.update(city._id!, { representativeId: selectedRep || undefined });
       showToast("Representante vinculado!", "success");
       onUpdate();
     } catch {

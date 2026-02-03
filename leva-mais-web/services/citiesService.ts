@@ -56,6 +56,7 @@ export interface City {
   // Configurações
   pricingConfigId?: string; // Ref para PricingConfig específico da cidade
   isActive: boolean;
+  searchRadius?: number; // Raio de busca para motoristas (metros)
 
   // Estatísticas
   stats?: {
