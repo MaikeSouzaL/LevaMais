@@ -61,11 +61,13 @@
 - [x] Implementar endpoints publicos de telefone: `/auth/send-phone-code` e `/auth/verify-phone-code`
 - [ ] Revisar contrato de auth (payloads, mensagens, codigos HTTP)
 - [x] Hardening inicial do cadastro auth (normalizacao/validacao de email, telefone, userType, preferredPayment)
+- [x] Hardening adicional de validacao `auth` (`checkEmail`, `forgotPassword`, `updateProfile.phone`)
 - [ ] Revisar modulo de corridas (status, regras de transicao, validacoes)
 - [ ] Revisar precificacao por cidade/veiculo/servico e fallbacks
 - [x] Normalizar metodo de pagamento na criacao de corrida (mapper backend para `card/pix/cash/wallet`)
 - [x] Padronizacao inicial de erros HTTP em `rides` (endpoints criticos) e `wallet` (`success:false`, `message`, `error`)
-- [ ] Revisar carteira/saque/extrato e reconciliacao de valores
+- [x] Reconciliacao inicial de carteira/ganhos (preferir `pricing.driverValue` com fallback legado)
+- [ ] Revisar carteira/saque/extrato ponta a ponta (incluindo regras financeiras finais)
 - [ ] Revisar chat e seguranca de acesso por corrida
 - [ ] Revisar consistencia de modelos, indices e limpeza de dados
 

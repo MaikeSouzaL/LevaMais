@@ -914,9 +914,19 @@ class RideController {
           },
         },
         {
+          $project: {
+            rideNetValue: {
+              $ifNull: [
+                "$pricing.driverValue",
+                { $multiply: ["$pricing.total", 0.8] },
+              ],
+            },
+          },
+        },
+        {
           $group: {
             _id: null,
-            totalEarnings: { $sum: "$pricing.total" },
+            totalEarnings: { $sum: "$rideNetValue" },
             ridesCount: { $sum: 1 },
           },
         },
@@ -930,9 +940,9 @@ class RideController {
       // Simular um bÃ´nus de R$ 20 se atingir a meta
       const bonusAmount = result.ridesCount >= dailyGoal ? 20 : 0;
 
-      // Deduzir taxa do app (ex: 20%) para mostrar lucro lÃ­quido estimado
-      // (ajuste conforme regra real. Aqui assumindo que pricing.total Ã© o valor BRUTO e motorista fica com 80%)
-      const driverShare = result.totalEarnings * 0.8;
+      // Valor final ja representa o liquido do motorista:
+      // prioriza pricing.driverValue e usa fallback legado (80% de pricing.total).
+      const driverShare = Number((result.totalEarnings || 0).toFixed(2));
 
       res.json({
         earnings: driverShare,

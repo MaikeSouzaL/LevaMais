@@ -11,6 +11,26 @@ function sendError(res, status, message, extras = {}) {
   });
 }
 
+function toMoney(value) {
+  return Number(Number(value || 0).toFixed(2));
+}
+
+function getDriverNetValueFromRide(ride) {
+  const pricing = ride?.pricing || {};
+  const driverValue = Number(pricing.driverValue);
+
+  if (Number.isFinite(driverValue) && driverValue > 0) {
+    return toMoney(driverValue);
+  }
+
+  const total = Number(pricing.total);
+  if (Number.isFinite(total) && total > 0) {
+    return toMoney(total * 0.8);
+  }
+
+  return 0;
+}
+
 class WalletController {
   // Calcular saldo disponivel
   async getBalance(req, res) {
@@ -29,23 +49,16 @@ class WalletController {
     const userObjectId = new mongoose.Types.ObjectId(userId);
 
     // 1. Total ganho em corridas (completed)
-    const earningsAgg = await Ride.aggregate([
-      {
-        $match: {
-          driverId: userObjectId,
-          status: "completed",
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          total: { $sum: "$pricing.total" },
-        },
-      },
-    ]);
-    const totalEarningsBruto = earningsAgg[0] ? earningsAgg[0].total : 0;
-    // Driver gets 80% (MVP rule)
-    const totalEarnings = totalEarningsBruto * 0.8;
+    const completedRides = await Ride.find({
+      driverId: userObjectId,
+      status: "completed",
+    })
+      .select("pricing")
+      .lean();
+
+    const totalEarnings = toMoney(
+      completedRides.reduce((acc, ride) => acc + getDriverNetValueFromRide(ride), 0),
+    );
 
     // 2. Total sacado (considerando pending e paid como "saiu" do saldo disponivel)
     const withdrawalsAgg = await Withdrawal.aggregate([
@@ -66,8 +79,8 @@ class WalletController {
 
     return {
       totalEarnings,
-      totalWithdrawn,
-      available: totalEarnings - totalWithdrawn,
+      totalWithdrawn: toMoney(totalWithdrawn),
+      available: toMoney(totalEarnings - totalWithdrawn),
     };
   }
 
@@ -138,7 +151,7 @@ class WalletController {
       const entries = rides.map((r) => ({
         _id: r._id,
         type: "ride",
-        amount: (r.pricing?.total || 0) * 0.8,
+        amount: getDriverNetValueFromRide(r),
         date: r.completedAt,
         description: "Corrida finalizada",
         status: "completed",

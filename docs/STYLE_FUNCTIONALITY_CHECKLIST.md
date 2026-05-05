@@ -35,6 +35,7 @@
 
 ## 4) Fluxo motorista
 - [x] Revisar aceite/rejeicao e tratamento de timeout (sincronizacao inicial + limpeza de ofertas expiradas)
+- [x] Alinhar calculo de ganhos/saldo/extrato para usar `pricing.driverValue` com fallback legado
 - [ ] Revisar retomada de corrida ativa ao reabrir o app
 - [ ] Revisar status operacionais ate conclusao
 - [ ] Revisar ganhos/extrato/saque com regras claras
@@ -42,6 +43,7 @@
 ## 5) Backend e contratos
 - [x] Endpoints de telefone adicionados (`send-phone-code`, `verify-phone-code`)
 - [x] Metodo de pagamento normalizado na criacao de corrida
+- [x] Hardening de validacao em `auth` para `checkEmail`, `forgotPassword` e telefone em `updateProfile`
 - [ ] Padronizar shape de erro HTTP por modulo (`auth`, `rides`, `wallet`, `chat`)
 - [ ] Revisar validacoes de payload em todos endpoints criticos
 - [ ] Revisar coerencia final de status de corrida entre app e backend

@@ -20,6 +20,19 @@ function normalizePreferredPayment(value) {
   return undefined;
 }
 
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(String(email || ""));
+}
+
+function sendError(res, status, message, extras = {}) {
+  return res.status(status).json({
+    success: false,
+    message,
+    error: message,
+    ...extras,
+  });
+}
+
 class AuthController {
   // Gerar token JWT
   generateToken(user) {
@@ -271,12 +284,8 @@ class AuthController {
     try {
       const { email } = req.body;
 
-      if (!email) {
-        return res.status(400).json({
-          success: false,
-          message: "Email é obrigatório",
-        });
-      }
+      if (!email) return sendError(res, 400, "Email e obrigatorio");
+      if (!isValidEmail(email)) return sendError(res, 400, "Email invalido");
 
       const user = await User.findOne({ email: String(email).toLowerCase() })
         .select("_id email userType isActive")
@@ -421,7 +430,13 @@ class AuthController {
       } = req.body || {};
 
       if (name !== undefined) user.name = String(name);
-      if (phone !== undefined) user.phone = String(phone);
+      if (phone !== undefined) {
+        const normalizedPhone = normalizePhone(phone);
+        if (normalizedPhone && (normalizedPhone.length < 10 || normalizedPhone.length > 11)) {
+          return sendError(res, 400, "Telefone invalido");
+        }
+        user.phone = normalizedPhone || "";
+      }
       if (city !== undefined) user.city = String(city);
       if (profilePhoto !== undefined) user.profilePhoto = String(profilePhoto);
 
@@ -466,12 +481,8 @@ class AuthController {
     try {
       const { email } = req.body;
 
-      if (!email) {
-        return res.status(400).json({
-          success: false,
-          message: "Email é obrigatório",
-        });
-      }
+      if (!email) return sendError(res, 400, "Email e obrigatorio");
+      if (!isValidEmail(email)) return sendError(res, 400, "Email invalido");
 
       // Verificar se o usuário existe
       const user = await User.findOne({ email: email.toLowerCase() });

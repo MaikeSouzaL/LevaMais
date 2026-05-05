@@ -23,6 +23,8 @@
 - [x] Onboarding com fallback manual de cidade/UF para evitar bloqueio quando GPS falha
 - [x] Hardening de validacao de login/cadastro (conta desativada, email, nome e telefone)
 - [x] Padronizacao inicial de erros HTTP em `rides` e `wallet` para contrato consistente
+- [x] Reconciliacao financeira inicial em `wallet` e stats de motorista (priorizando `pricing.driverValue` com fallback 80% legado)
+- [x] Hardening adicional de `auth` em validacoes de `checkEmail`, `forgotPassword` e `updateProfile` (telefone)
 
 ## Diagnostico por fluxo (status)
 
