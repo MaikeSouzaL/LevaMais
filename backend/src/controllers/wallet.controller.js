@@ -15,6 +15,21 @@ function toMoney(value) {
   return Number(Number(value || 0).toFixed(2));
 }
 
+function normalizePixKeyType(value) {
+  const type = String(value || "")
+    .trim()
+    .toLowerCase();
+  if (!type) return "cpf";
+  if (["cpf", "email", "phone", "random"].includes(type)) return type;
+  return null;
+}
+
+function parseAmount(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return null;
+  return toMoney(numeric);
+}
+
 function getDriverNetValueFromRide(ride) {
   const pricing = ride?.pricing || {};
   const driverValue = Number(pricing.driverValue);
@@ -49,16 +64,35 @@ class WalletController {
     const userObjectId = new mongoose.Types.ObjectId(userId);
 
     // 1. Total ganho em corridas (completed)
-    const completedRides = await Ride.find({
-      driverId: userObjectId,
-      status: "completed",
-    })
-      .select("pricing")
-      .lean();
+    const earningsAgg = await Ride.aggregate([
+      {
+        $match: {
+          driverId: userObjectId,
+          status: "completed",
+        },
+      },
+      {
+        $project: {
+          rideNetValue: {
+            $cond: [
+              { $gt: [{ $ifNull: ["$pricing.driverValue", 0] }, 0] },
+              "$pricing.driverValue",
+              {
+                $multiply: [{ $ifNull: ["$pricing.total", 0] }, 0.8],
+              },
+            ],
+          },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: "$rideNetValue" },
+        },
+      },
+    ]);
 
-    const totalEarnings = toMoney(
-      completedRides.reduce((acc, ride) => acc + getDriverNetValueFromRide(ride), 0),
-    );
+    const totalEarnings = toMoney(earningsAgg[0]?.total || 0);
 
     // 2. Total sacado (considerando pending e paid como "saiu" do saldo disponivel)
     const withdrawalsAgg = await Withdrawal.aggregate([
@@ -89,17 +123,26 @@ class WalletController {
     try {
       const userId = req.user.id;
       const { amount, pixKey, pixKeyType } = req.body;
+      const amountValue = parseAmount(amount);
+      const pixKeyValue = String(pixKey || "").trim();
+      const pixTypeValue = normalizePixKeyType(pixKeyType);
 
-      if (!amount || amount <= 0) {
+      if (!amountValue) {
         return sendError(res, 400, "Valor invalido");
       }
-      if (!pixKey) {
+      if (!pixKeyValue) {
         return sendError(res, 400, "Chave PIX obrigatoria");
+      }
+      if (pixKeyValue.length > 120) {
+        return sendError(res, 400, "Chave PIX invalida");
+      }
+      if (!pixTypeValue) {
+        return sendError(res, 400, "Tipo de chave PIX invalido");
       }
 
       // Verificar saldo
       const balance = await WalletController._calculateBalance(userId);
-      if (balance.available < amount) {
+      if (balance.available < amountValue) {
         return sendError(res, 400, "Saldo insuficiente", {
           available: balance.available,
         });
@@ -108,16 +151,16 @@ class WalletController {
       // Criar saque
       const withdrawal = await Withdrawal.create({
         userId,
-        amount,
-        pixKey,
-        pixKeyType,
+        amount: amountValue,
+        pixKey: pixKeyValue,
+        pixKeyType: pixTypeValue,
         status: "pending",
       });
 
       return res.status(201).json({
         message: "Solicitacao de saque realizada",
         withdrawal,
-        newBalance: balance.available - amount,
+        newBalance: toMoney(balance.available - amountValue),
       });
     } catch (error) {
       console.error("Erro ao solicitar saque:", error);
@@ -171,8 +214,8 @@ class WalletController {
       });
 
       // Paginacao simples em memoria (MVP)
-      const numericPage = Number(page) || 1;
-      const numericLimit = Number(limit) || 50;
+      const numericPage = Math.max(1, Number(page) || 1);
+      const numericLimit = Math.min(100, Math.max(1, Number(limit) || 50));
       const startIndex = (numericPage - 1) * numericLimit;
       const paginated = all.slice(startIndex, startIndex + numericLimit);
 
