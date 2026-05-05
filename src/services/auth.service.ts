@@ -153,9 +153,14 @@ export async function googleAuth(
 }
 
 // Buscar perfil do usuário autenticado
-export async function getProfile(token: string): Promise<ApiResponse<User>> {
+export async function getProfile(
+  token: string,
+): Promise<ApiResponse<{ user: User }>> {
   try {
-    const response = await apiGet<ApiResponse<User>>("/auth/profile", token);
+    const response = await apiGet<ApiResponse<{ user: User }>>(
+      "/auth/profile",
+      token,
+    );
 
     return response.data;
   } catch (error: any) {
@@ -351,5 +356,36 @@ export async function removePushToken(
       message: error.message || "Erro ao remover push token",
       error: error.message,
     };
+  }
+}
+
+export async function sendPhoneVerification(
+  phone: string,
+): Promise<ApiResponse<{ message: string }>> {
+  try {
+    const response = await apiPost<ApiResponse<{ message: string }>>(
+      "/auth/send-phone-code",
+      { phone },
+    );
+    return response.data;
+  } catch (error: any) {
+    if (error.response?.data) return error.response.data;
+    return { success: false, message: error.message || "Erro ao enviar codigo" };
+  }
+}
+
+export async function verifyPhoneCode(
+  phone: string,
+  code: string,
+): Promise<ApiResponse<{ verified: boolean }>> {
+  try {
+    const response = await apiPost<ApiResponse<{ verified: boolean }>>(
+      "/auth/verify-phone-code",
+      { phone, code },
+    );
+    return response.data;
+  } catch (error: any) {
+    if (error.response?.data) return error.response.data;
+    return { success: false, message: error.message || "Erro ao verificar codigo" };
   }
 }

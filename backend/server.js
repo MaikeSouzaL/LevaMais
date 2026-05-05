@@ -15,6 +15,7 @@ const pricingRoutes = require("./src/routes/pricing.routes");
 const walletRoutes = require("./src/routes/wallet.routes");
 const representativeRoutes = require("./src/routes/representative.routes");
 const platformConfigRoutes = require("./src/routes/platformConfig.routes");
+const chatRoutes = require("./src/routes/chat.routes");
 
 class Server {
   constructor() {
@@ -31,14 +32,14 @@ class Server {
     // CORS com configuração específica
     this.app.use(
       cors({
-        origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
-        methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
-        allowedHeaders: ["Content-Type", "Authorization"],
+        origin: "*", // Permitir todas as origens em desenvolvimento
+        methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+        allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
         credentials: true,
       })
     );
-    this.app.use(express.json());
-    this.app.use(express.urlencoded({ extended: true }));
+    this.app.use(express.json({ limit: "50mb" }));
+    this.app.use(express.urlencoded({ extended: true, limit: "50mb" }));
   }
 
   routes() {
@@ -53,6 +54,7 @@ class Server {
     this.app.use("/api/wallet", walletRoutes);
     this.app.use("/api/representatives", representativeRoutes);
     this.app.use("/api/platform-config", platformConfigRoutes);
+    this.app.use("/api/chat", chatRoutes);
 
     // Rota de teste
     this.app.get("/api/health", (req, res) => {

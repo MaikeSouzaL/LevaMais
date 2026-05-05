@@ -1,23 +1,17 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from "axios";
 
-// Configuração base da API
-// Preferência:
+// Configuracao base da API
+// Preferencia:
 // - EXPO_PUBLIC_API_URL (ex.: http://192.168.1.8:3000)
-// - Fallbacks para emulador/dispositivo
+// - Fallback para rede local de desenvolvimento
 // Obs: baseURL inclui /api
-const RAW_BASE =
-  process.env.EXPO_PUBLIC_API_URL ||
-  "http://192.168.1.11:3001";
-
+const RAW_BASE = process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.9:3001";
 const API_BASE_URL = RAW_BASE.replace(/\/$/, "") + "/api";
 
-console.log("🌐 API Configuration:");
-console.log("  - RAW_BASE:", RAW_BASE);
-console.log("  - API_BASE_URL:", API_BASE_URL);
-console.log("  - EXPO_PUBLIC_API_URL:", process.env.EXPO_PUBLIC_API_URL);
-console.log("  - __DEV__:", __DEV__);
+if (__DEV__) {
+  console.log("[API] Base URL:", API_BASE_URL);
+}
 
-// Criar instância do axios
 function createApiInstance(): AxiosInstance {
   const instance = axios.create({
     baseURL: API_BASE_URL,
@@ -27,13 +21,13 @@ function createApiInstance(): AxiosInstance {
     },
   });
 
-  // Interceptor para adicionar token nas requisições automaticamente
+  // Interceptor para adicionar token automaticamente
   instance.interceptors.request.use(
     (config) => {
       try {
-        // import local para evitar ciclo
         const { useAuthStore } = require("../context/authStore");
         const token = useAuthStore.getState().token;
+
         if (token) {
           const headers: any = config.headers;
           if (headers && typeof headers.set === "function") {
@@ -45,57 +39,57 @@ function createApiInstance(): AxiosInstance {
             } as any;
           }
         }
-      } catch {}
+      } catch {
+        // no-op
+      }
+
       return config;
     },
     (error) => Promise.reject(error),
   );
 
-  // Interceptor para tratar erros de resposta
   instance.interceptors.response.use(
-    (response) => {
-      return response;
-    },
+    (response) => response,
     (error) => {
       if (error.response) {
         const status = error.response.status;
 
-        // Se token expirou/inválido, desloga para forçar novo login
-        // IMPORTANTe: 403 pode ser apenas "sem permissão" (não é sessão expirada).
+        // 401 = sessao invalida/expirada
         if (status === 401) {
           try {
             const { useAuthStore } = require("../context/authStore");
             useAuthStore.getState().logout();
-          } catch {}
+          } catch {
+            // no-op
+          }
 
           const apiMsg =
             error.response?.data?.message ||
             error.response?.data?.error ||
-            "Sessão expirada. Faça login novamente.";
+            "Sessao expirada. Faca login novamente.";
 
           return Promise.reject(new Error(apiMsg));
         }
 
-        // 403 = Forbidden (sem permissão). Não deslogar automaticamente.
+        // 403 = sem permissao (nao deslogar)
         if (status === 403) {
           const apiMsg =
             error.response?.data?.message ||
             error.response?.data?.error ||
-            "Você não tem permissão para realizar esta ação.";
+            "Voce nao tem permissao para realizar esta acao.";
           return Promise.reject(new Error(apiMsg));
         }
 
-        // Erro da API
-        return Promise.reject(error);
-      } else if (error.request) {
-        // Erro de rede
-        return Promise.reject(
-          new Error("Erro de conexão. Verifique sua internet."),
-        );
-      } else {
-        // Erro ao configurar requisição
         return Promise.reject(error);
       }
+
+      if (error.request) {
+        return Promise.reject(
+          new Error("Erro de conexao. Verifique sua internet."),
+        );
+      }
+
+      return Promise.reject(error);
     },
   );
 
@@ -104,7 +98,6 @@ function createApiInstance(): AxiosInstance {
 
 const apiInstance = createApiInstance();
 
-// Funções helpers para requisições
 export function apiGet<T = any>(
   endpoint: string,
   token?: string,

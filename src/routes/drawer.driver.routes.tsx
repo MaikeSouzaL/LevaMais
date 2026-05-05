@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import {
   createDrawerNavigator,
   DrawerContentComponentProps,
@@ -6,6 +6,7 @@ import {
 } from "@react-navigation/drawer";
 import { View, Text, TouchableOpacity } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
 import DriverHomeScreen from "../screens/(authenticated)/Driver/DriverHomeScreen";
 import DriverRequestsScreen from "../screens/(authenticated)/Driver/DriverRequestsScreen";
@@ -14,7 +15,6 @@ import DriverRateClientScreen from "../screens/(authenticated)/Driver/DriverRate
 import DriverCancelRideScreen from "../screens/(authenticated)/Driver/DriverCancelRideScreen";
 import DriverEarningsScreen from "../screens/(authenticated)/Driver/DriverEarningsScreen";
 import DriverHistoryScreen from "../screens/(authenticated)/Driver/DriverHistoryScreen";
-import DriverWalletScreen from "../screens/(authenticated)/Driver/DriverWalletScreen";
 import DriverProfileScreen from "../screens/(authenticated)/Driver/DriverProfileScreen";
 import DriverVehicleScreen from "../screens/(authenticated)/Driver/DriverVehicleScreen";
 import DriverSettingsScreen from "../screens/(authenticated)/Driver/DriverSettingsScreen";
@@ -22,42 +22,45 @@ import DriverWithdrawScreen from "../screens/(authenticated)/Driver/DriverWithdr
 import DriverStatementScreen from "../screens/(authenticated)/Driver/DriverStatementScreen";
 import DriverRideDetailsScreen from "../screens/(authenticated)/Driver/DriverRideDetailsScreen";
 import DriverHelpScreen from "../screens/(authenticated)/Driver/DriverHelpScreen";
-
-
-import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import DriverChatScreen from "../screens/(authenticated)/Driver/DriverChatScreen";
 import DriverSafetyScreen from "../screens/(authenticated)/Driver/DriverSafetyScreen";
+
 import { useAuthStore } from "../context/authStore";
 
 const Drawer = createDrawerNavigator();
 const Stack = createNativeStackNavigator();
 
-function DriverFinanceGroup() {
+type DrawerDriverRoutesProps = {
+  initialRideId?: string | null;
+};
+
+function DriverFinanceStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false, animation: "slide_from_right" }}>
       <Stack.Screen name="DriverEarnings" component={DriverEarningsScreen} />
       <Stack.Screen name="DriverWithdraw" component={DriverWithdrawScreen} />
       <Stack.Screen name="DriverStatement" component={DriverStatementScreen} />
       <Stack.Screen name="DriverRideDetails" component={DriverRideDetailsScreen} />
-      <Stack.Screen name="DriverEarningsDetails" component={DriverStatementScreen} />
     </Stack.Navigator>
   );
 }
 
+const menuItems = [
+  { name: "DriverHome", label: "Mapa", icon: "map" },
+  { name: "DriverRequests", label: "Solicitacoes", icon: "car" },
+  { name: "DriverFinance", label: "Ganhos e carteira", icon: "cash" },
+  { name: "DriverHistory", label: "Historico", icon: "history" },
+  { name: "DriverVehicle", label: "Veiculo", icon: "car-info" },
+  { name: "DriverProfile", label: "Perfil", icon: "account" },
+  { name: "DriverSafety", label: "Seguranca", icon: "shield" },
+  { name: "DriverHelp", label: "Ajuda", icon: "help-circle" },
+  { name: "DriverSettings", label: "Configuracoes", icon: "cog" },
+] as const;
+
 function CustomDrawerContent(props: DrawerContentComponentProps) {
   const { logout, userData } = useAuthStore();
 
-  const menuItems = [
-    { name: "DriverHome", label: "Mapa", icon: "map" },
-    { name: "DriverRequests", label: "Solicitações", icon: "car" },
-    { name: "DriverFinance", label: "Ganhos/Carteira", icon: "cash" }, // Updated to point to Finance Group
-    { name: "DriverHistory", label: "Histórico", icon: "history" },
-    { name: "DriverVehicle", label: "Veículo", icon: "car-info" },
-    // Wallet removido pois agora está dentro de Ganhos/Carteira
-    { name: "DriverProfile", label: "Perfil", icon: "account" },
-    { name: "DriverSafety", label: "Segurança", icon: "shield" },
-    { name: "DriverHelp", label: "Ajuda", icon: "help-circle" },
-    { name: "DriverSettings", label: "Configurações", icon: "cog" },
-  ];
+  const currentRouteName = props.state.routeNames[props.state.index];
 
   return (
     <DrawerContentScrollView
@@ -75,14 +78,13 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
           {userData?.name || "Motorista"}
         </Text>
         <Text style={{ color: "rgba(255,255,255,0.65)", marginTop: 6 }}>
-          {userData?.email}
+          {userData?.email || ""}
         </Text>
       </View>
 
       <View style={{ flex: 1, paddingTop: 12 }}>
         {menuItems.map((item) => {
-          const isFocused =
-            props.state.routeNames[props.state.index] === item.name;
+          const isFocused = currentRouteName === item.name;
 
           return (
             <TouchableOpacity
@@ -93,9 +95,9 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
                 alignItems: "center",
                 paddingHorizontal: 20,
                 paddingVertical: 14,
-                backgroundColor: isFocused
-                  ? "rgba(2,222,149,0.12)"
-                  : "transparent",
+                backgroundColor: isFocused ? "rgba(2,222,149,0.12)" : "transparent",
+                borderLeftWidth: isFocused ? 3 : 0,
+                borderLeftColor: "#02de95",
               }}
             >
               <MaterialCommunityIcons
@@ -143,11 +145,20 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
   );
 }
 
+function HiddenScreenOptions() {
+  return {
+    drawerLabel: () => null,
+    title: "",
+    drawerItemStyle: { display: "none" as const },
+  };
+}
 
+export default function DrawerDriverRoutes({ initialRideId }: DrawerDriverRoutesProps) {
+  const initialRoute = initialRideId ? "DriverRide" : "DriverHome";
 
-export default function DrawerDriverRoutes() {
   return (
     <Drawer.Navigator
+      initialRouteName={initialRoute}
       drawerContent={(props) => <CustomDrawerContent {...props} />}
       screenOptions={{
         headerShown: false,
@@ -156,92 +167,25 @@ export default function DrawerDriverRoutes() {
         overlayColor: "rgba(0, 0, 0, 0.5)",
       }}
     >
-      <Drawer.Screen
-        name="DriverHome"
-        component={DriverHomeScreen}
-        options={{ title: "Início" }}
-      />
-      <Drawer.Screen
-        name="DriverRequests"
-        component={DriverRequestsScreen}
-        options={{ title: "Solicitações" }}
-      />
-      
-      {/* Substitui Earnings direto pela Stack */}
-      <Drawer.Screen
-        name="DriverFinance"
-        component={DriverFinanceGroup}
-        options={{ title: "Ganhos / Carteira" }} 
-      />
+      <Drawer.Screen name="DriverHome" component={DriverHomeScreen} options={{ title: "Inicio" }} />
+      <Drawer.Screen name="DriverRequests" component={DriverRequestsScreen} options={{ title: "Solicitacoes" }} />
+      <Drawer.Screen name="DriverFinance" component={DriverFinanceStack} options={{ title: "Ganhos e carteira" }} />
+      <Drawer.Screen name="DriverHistory" component={DriverHistoryScreen} options={{ title: "Historico" }} />
+      <Drawer.Screen name="DriverVehicle" component={DriverVehicleScreen} options={{ title: "Veiculo" }} />
+      <Drawer.Screen name="DriverProfile" component={DriverProfileScreen} options={{ title: "Perfil" }} />
+      <Drawer.Screen name="DriverSafety" component={DriverSafetyScreen} options={{ title: "Seguranca" }} />
+      <Drawer.Screen name="DriverHelp" component={DriverHelpScreen} options={{ title: "Ajuda" }} />
+      <Drawer.Screen name="DriverSettings" component={DriverSettingsScreen} options={{ title: "Configuracoes" }} />
 
-      <Drawer.Screen
-        name="DriverHistory"
-        component={DriverHistoryScreen}
-        options={{ title: "Histórico" }}
-      />
-      {/* Wallet screen antiga (DriverWalletScreen) - deprecated ou manter como atalho? 
-          Vamos redirecionar DriverWallet para a nova stack tb ou manter escondida.
-      */}
-      <Drawer.Screen
-        name="DriverWallet"
-        component={DriverWalletScreen}
-        options={{ 
-            title: "Carteira (Antiga)",
-            drawerItemStyle: { display: "none" } // Esconde a antiga
-        }}
-      />
-      <Drawer.Screen
-        name="DriverVehicle"
-        component={DriverVehicleScreen}
-        options={{ title: "Veículo" }}
-      />
-      <Drawer.Screen
-        name="DriverProfile"
-        component={DriverProfileScreen}
-        options={{ title: "Perfil" }}
-      />
-      <Drawer.Screen
-        name="DriverSafety"
-        component={DriverSafetyScreen}
-        options={{ title: "Segurança" }}
-      />
-      <Drawer.Screen
-        name="DriverHelp"
-        component={DriverHelpScreen}
-        options={{ title: "Ajuda" }}
-      />
-      <Drawer.Screen
-        name="DriverSettings"
-        component={DriverSettingsScreen}
-        options={{ title: "Configurações" }}
-      />
       <Drawer.Screen
         name="DriverRide"
         component={DriverRideScreen}
-        options={{
-          drawerLabel: () => null,
-          title: "Corrida",
-          drawerItemStyle: { display: "none" },
-        }}
+        initialParams={initialRideId ? { rideId: initialRideId } : undefined}
+        options={HiddenScreenOptions}
       />
-      <Drawer.Screen
-        name="DriverRateClient"
-        component={DriverRateClientScreen}
-        options={{
-          drawerLabel: () => null,
-          title: "Avaliar cliente",
-          drawerItemStyle: { display: "none" },
-        }}
-      />
-      <Drawer.Screen
-        name="DriverCancelRide"
-        component={DriverCancelRideScreen}
-        options={{
-          drawerLabel: () => null,
-          title: "Cancelar corrida",
-          drawerItemStyle: { display: "none" },
-        }}
-      />
+      <Drawer.Screen name="DriverRateClient" component={DriverRateClientScreen} options={HiddenScreenOptions} />
+      <Drawer.Screen name="DriverCancelRide" component={DriverCancelRideScreen} options={HiddenScreenOptions} />
+      <Drawer.Screen name="DriverChat" component={DriverChatScreen} options={HiddenScreenOptions} />
     </Drawer.Navigator>
   );
 }

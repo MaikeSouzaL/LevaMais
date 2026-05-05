@@ -1,29 +1,18 @@
-/**
- * PaymentScreen - Versão Refatorada
- * Seleção de método de pagamento e confirmação
- */
+import React, { useEffect, useMemo, useState } from "react";
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { MaterialIcons, FontAwesome5, MaterialCommunityIcons } from "@expo/vector-icons";
+import Toast from "react-native-toast-message";
 
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
-import { MaterialIcons, FontAwesome5, MaterialCommunityIcons } from '@expo/vector-icons';
+import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
+import { FlowStepHeader, PaymentMethodCard, LoadingButton } from "../../../Shared/components";
+import rideService from "@/services/ride.service";
+import { useClientCityStore } from "@/context/clientCityStore";
+import { mapServiceModeToApi, mapVehicleTypeToApi, formatBRL } from "@/utils/mappers";
 
-// Design System
-import { colors, spacing, fontSize, fontWeight } from '@/theme';
-
-// Componentes Compartilhados
-import { PaymentMethodCard, LoadingButton } from '../../../Shared/components';
-
-// Services & Utils
-import rideService from '@/services/ride.service';
-import { useClientCityStore } from '@/context/clientCityStore';
-import { mapServiceModeToApi, mapVehicleTypeToApi, formatBRL } from '@/utils/mappers';
-
-// Types locais
-type FinalOrderSummaryData = any; // Tipo simplificado
-
-type PaymentMethod = 'credit_card' | 'pix' | 'cash';
+type FinalOrderSummaryData = any;
+type PaymentMethod = "credit_card" | "pix" | "cash";
 
 type Params = {
   Payment: {
@@ -34,54 +23,57 @@ type Params = {
 
 const PAYMENT_METHODS = [
   {
-    id: 'credit_card' as PaymentMethod,
+    id: "credit_card" as PaymentMethod,
     icon: <MaterialIcons name="credit-card" size={24} color={colors.text.primary} />,
-    label: 'Cartão de Crédito',
-    sublabel: 'Visa final 4242',
+    label: "Cartao de credito",
+    sublabel: "Pagamento no app",
   },
   {
-    id: 'pix' as PaymentMethod,
+    id: "pix" as PaymentMethod,
     icon: <MaterialCommunityIcons name="qrcode-scan" size={24} color="#32BCAD" />,
-    label: 'Pix',
-    sublabel: 'Aprovação imediata',
+    label: "Pix",
+    sublabel: "Aprovacao imediata",
   },
   {
-    id: 'cash' as PaymentMethod,
+    id: "cash" as PaymentMethod,
     icon: <FontAwesome5 name="money-bill-wave" size={20} color="#85bb65" />,
-    label: 'Dinheiro',
-    sublabel: 'Pagar diretamente ao motorista',
+    label: "Dinheiro",
+    sublabel: "Pagar ao motorista",
   },
 ];
 
 export default function PaymentScreen() {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation();
-  const detectedCity = useClientCityStore((s) => s.city);
-  const route = useRoute<RouteProp<Params, 'Payment'>>();
+  const navigation = useNavigation<any>();
+  const detectedCity = useClientCityStore((state) => state.city);
+  const route = useRoute<RouteProp<Params, "Payment">>();
   const amount = route.params?.amount || 0;
   const order = route.params?.order;
 
-  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('credit_card');
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>(
+    (order?.paymentMethodRaw as PaymentMethod) || "credit_card",
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!order) {
+      Toast.show({ type: "info", text1: "Finalize o resumo antes do pagamento" });
+      navigation.navigate("Home");
+    }
+  }, [navigation, order]);
+
+  const cityId = useMemo(() => {
+    return (detectedCity as any)?._id || (detectedCity as any)?.id || detectedCity?.cityId || undefined;
+  }, [detectedCity]);
 
   const handleConfirmPayment = async () => {
     setError(null);
 
-    if (!order) {
-      (navigation as any).navigate('Home', {
-        startSearch: true,
-        searchData: {
-          title: 'Buscando motorista',
-          price: formatBRL(amount),
-          eta: 'Chegada em ~5 min',
-        },
-      });
-      return;
-    }
+    if (!order) return;
 
     if (!order.pickupLatLng || !order.dropoffLatLng) {
-      setError('Faltam coordenadas de coleta/destino. Selecione no mapa e tente novamente.');
+      setError("Faltam coordenadas de coleta ou destino.");
       return;
     }
 
@@ -91,68 +83,68 @@ export default function PaymentScreen() {
       const ride = await rideService.create({
         serviceType: mapServiceModeToApi(order.serviceMode),
         vehicleType: mapVehicleTypeToApi(order.vehicleType),
-        cityId: detectedCity?.cityId,
+        cityId,
         purposeId: order.purposeId,
         pickup: {
           address: order.pickupAddress,
-          latitude: order.pickupLatLng.latitude,
-          longitude: order.pickupLatLng.longitude,
+          latitude: Number(order.pickupLatLng.latitude),
+          longitude: Number(order.pickupLatLng.longitude),
         },
         dropoff: {
           address: order.dropoffAddress,
-          latitude: order.dropoffLatLng.latitude,
-          longitude: order.dropoffLatLng.longitude,
+          latitude: Number(order.dropoffLatLng.latitude),
+          longitude: Number(order.dropoffLatLng.longitude),
         },
         pricing: {
-          basePrice: order.pricing.base,
-          distancePrice: order.pricing.distancePrice,
-          serviceFee: order.pricing.serviceFee,
-          total: order.pricing.total,
-          currency: 'BRL',
+          basePrice: Number(order.pricing.base || 0),
+          distancePrice: Number(order.pricing.distancePrice || 0),
+          serviceFee: Number(order.pricing.serviceFee || 0),
+          total: Number(order.pricing.total || 0),
+          currency: "BRL",
         },
         distance: {
-          value: Math.round((order.pricing.distanceKm || 0) * 1000),
-          text: `${order.pricing.distanceKm?.toFixed?.(1) ?? order.pricing.distanceKm} km`,
+          value: Math.round((Number(order.pricing.distanceKm || 0) || 0) * 1000),
+          text: `${Number(order.pricing.distanceKm || 0).toFixed(1)} km`,
         },
         duration: {
-          value: (order.etaMinutes || 0) * 60,
-          text: order.etaMinutes ? `${order.etaMinutes} min` : '',
+          value: (Number(order.etaMinutes || 0) || 0) * 60,
+          text: order.etaMinutes ? `${order.etaMinutes} min` : "",
         },
         details: {
           itemType: order.itemType,
           needsHelper: order.helperIncluded,
-          insurance: (order.insuranceLevel as any) || 'none',
+          insurance: (order.insuranceLevel as any) || "none",
         },
         payment: {
           method: {
-            type: order.paymentMethodRaw || selectedMethod,
+            type: selectedMethod,
           },
         },
       });
 
-      (navigation as any).navigate('Home', {
+      navigation.navigate("Home", {
         startSearch: true,
         rideId: ride._id,
         searchData: {
-          title: 'Buscando motorista',
+          title: "Buscando motorista",
           price: formatBRL(amount),
-          eta: order.etaText || 'Chegada em ~5 min',
+          eta: order.etaText || "Chegada em ~5 min",
           rideId: ride._id,
         },
       });
     } catch (e: any) {
-      const rideId = e?.response?.data?.rideId;
+      const activeRideId = e?.response?.data?.rideId;
       const message = e?.response?.data?.error || e?.message;
 
-      if (rideId) {
-        setError('Você já possui uma corrida ativa. Abrindo...');
+      if (activeRideId) {
+        setError("Voce ja possui uma corrida ativa. Abrindo acompanhamento...");
         setTimeout(() => {
-          (navigation as any).navigate('RideTracking', { rideId });
-        }, 1000);
+          navigation.navigate("RideTracking", { rideId: activeRideId });
+        }, 700);
         return;
       }
 
-      setError(message || 'Falha ao confirmar pedido. Tente novamente.');
+      setError(message || "Falha ao confirmar pedido. Tente novamente.");
     } finally {
       setLoading(false);
     }
@@ -160,25 +152,44 @@ export default function PaymentScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <MaterialIcons name="arrow-back" size={24} color={colors.text.primary} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Pagamento</Text>
-      </View>
+      <FlowStepHeader
+        title="Pagamento"
+        subtitle="Etapa 4: confirme e solicite"
+        currentStep={4}
+        totalSteps={4}
+        onBack={() => navigation.goBack()}
+      />
 
-      {/* Content */}
-      <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: Math.max(insets.bottom, spacing.xl) + 96 },
-        ]}
-      >
-        <Text style={styles.amountLabel}>Valor a pagar</Text>
-        <Text style={styles.amountValue}>{formatBRL(amount)}</Text>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom, spacing.xl) + 170 }]}>
+        <View style={styles.totalCard}>
+          <Text style={styles.totalLabel}>Total estimado</Text>
+          <Text style={styles.totalValue}>{formatBRL(amount)}</Text>
+        </View>
 
-        <Text style={styles.sectionTitle}>Escolha a forma de pagamento</Text>
+        {!!order && (
+          <View style={styles.tripCard}>
+            <Text style={styles.tripTitle}>Resumo rapido</Text>
+
+            <View style={styles.tripRow}>
+              <View style={styles.dotPickup} />
+              <Text style={styles.tripText} numberOfLines={1}>{order.pickupAddress || "Origem"}</Text>
+            </View>
+
+            <View style={styles.tripDivider} />
+
+            <View style={styles.tripRow}>
+              <MaterialIcons name="location-on" size={14} color="#ff6b6b" />
+              <Text style={styles.tripText} numberOfLines={1}>{order.dropoffAddress || "Destino"}</Text>
+            </View>
+
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.adjustBtn}>
+              <MaterialIcons name="edit" size={15} color={colors.primary[500]} />
+              <Text style={styles.adjustText}>Editar pedido</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        <Text style={styles.sectionTitle}>Forma de pagamento</Text>
 
         {PAYMENT_METHODS.map((method) => (
           <PaymentMethodCard
@@ -193,8 +204,7 @@ export default function PaymentScreen() {
         ))}
       </ScrollView>
 
-      {/* Footer */}
-      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, spacing.lg) + spacing.lg }]}>
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, spacing.lg) + spacing.sm }]}>
         {error && (
           <View style={styles.errorContainer}>
             <Text style={styles.errorText}>{error}</Text>
@@ -202,81 +212,92 @@ export default function PaymentScreen() {
         )}
 
         <LoadingButton
-          title={`Pagar ${formatBRL(amount)}`}
+          title={loading ? "Confirmando..." : `Confirmar e pedir ${formatBRL(amount)}`}
           onPress={handleConfirmPayment}
           loading={loading}
           variant="primary"
-          disabled={loading}
+          disabled={loading || !order}
         />
+
+        <Text style={styles.footerNote}>Ao confirmar, iniciaremos a busca do motorista mais proximo.</Text>
       </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background.primary,
-  },
-  header: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.light,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  backButton: {
-    padding: spacing.sm,
-    marginRight: spacing.sm,
-  },
-  headerTitle: {
-    color: colors.text.primary,
-    fontSize: fontSize.lg,
-    fontWeight: fontWeight.bold,
-  },
-  scrollContent: {
+  container: { flex: 1, backgroundColor: colors.background.primary },
+  scrollContent: { padding: spacing.xl },
+  totalCard: {
+    backgroundColor: "rgba(17,37,62,0.64)",
+    borderWidth: 1,
+    borderColor: colors.border.light,
+    borderRadius: borderRadius.lg,
     padding: spacing.xl,
-  },
-  amountLabel: {
-    color: colors.text.secondary,
-    fontSize: fontSize.sm,
-    marginBottom: spacing.xl,
-    textAlign: 'center',
-  },
-  amountValue: {
-    color: colors.text.primary,
-    fontSize: 40,
-    fontWeight: fontWeight.bold,
-    textAlign: 'center',
-    marginBottom: spacing['3xl'],
-  },
-  sectionTitle: {
-    color: colors.text.primary,
-    fontSize: fontSize.lg,
-    fontWeight: fontWeight.bold,
+    alignItems: "center",
     marginBottom: spacing.lg,
   },
+  totalLabel: { color: colors.text.secondary, fontSize: fontSize.sm, marginBottom: spacing.xs },
+  totalValue: { color: colors.primary[500], fontSize: 38, fontWeight: fontWeight.bold },
+  tripCard: {
+    backgroundColor: "rgba(17,37,62,0.64)",
+    borderWidth: 1,
+    borderColor: colors.border.light,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+  },
+  tripTitle: {
+    color: colors.text.tertiary,
+    fontSize: fontSize.xs,
+    textTransform: "uppercase",
+    letterSpacing: 0.7,
+    fontWeight: fontWeight.bold,
+    marginBottom: spacing.sm,
+  },
+  tripRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  dotPickup: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.primary[500], marginLeft: 2 },
+  tripText: { flex: 1, color: colors.text.primary, fontSize: fontSize.sm },
+  tripDivider: { height: 1, marginVertical: spacing.sm, backgroundColor: colors.border.light },
+  adjustBtn: {
+    marginTop: spacing.md,
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: "rgba(2,222,149,0.35)",
+    backgroundColor: "rgba(2,222,149,0.08)",
+  },
+  adjustText: { color: colors.primary[500], fontWeight: fontWeight.semibold, fontSize: fontSize.sm },
+  sectionTitle: { color: colors.text.primary, fontSize: fontSize.lg, fontWeight: fontWeight.bold, marginBottom: spacing.md },
   footer: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    padding: spacing.lg,
-    backgroundColor: 'rgba(15, 35, 28, 0.95)',
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    backgroundColor: "rgba(15,35,28,0.96)",
     borderTopWidth: 1,
     borderTopColor: colors.border.light,
   },
   errorContainer: {
     marginBottom: spacing.md,
     padding: spacing.md,
-    borderRadius: spacing.md,
-    backgroundColor: 'rgba(255, 75, 75, 0.12)',
+    borderRadius: borderRadius.md,
+    backgroundColor: "rgba(255,75,75,0.12)",
     borderWidth: 1,
-    borderColor: 'rgba(255, 75, 75, 0.25)',
+    borderColor: "rgba(255,75,75,0.25)",
   },
-  errorText: {
-    color: '#ffb3b3',
-    fontSize: fontSize.sm,
+  errorText: { color: "#ffb3b3", fontSize: fontSize.sm },
+  footerNote: {
+    marginTop: spacing.sm,
+    textAlign: "center",
+    color: colors.text.tertiary,
+    fontSize: fontSize.xs,
   },
 });

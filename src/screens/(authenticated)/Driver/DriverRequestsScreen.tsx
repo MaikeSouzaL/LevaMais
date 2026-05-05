@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Text } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 
 import webSocketService from "../../../services/websocket.service";
 import driverAlertService from "../../../services/driverAlert.service";
@@ -17,6 +17,8 @@ type RideRequestItem = {
   dropoff?: { address?: string; latitude?: number; longitude?: number };
   pricing?: { total?: number };
   distance?: { text?: string };
+  duration?: { text?: string };
+  serviceType?: string;
   vehicleType?: string;
 };
 
@@ -24,19 +26,64 @@ export default function DriverRequestsScreen() {
   const navigation = useNavigation();
   const [requests, setRequests] = useState<RideRequestItem[]>([]);
 
+  useFocusEffect(
+    React.useCallback(() => {
+      let active = true;
+
+      (async () => {
+        try {
+          const ride = await rideService.getActive();
+          if (!active) return;
+          if (ride?.active && ride.ride?._id) {
+            (navigation as any).navigate("DriverRide", { rideId: ride.ride._id });
+            return;
+          }
+
+          const me = await driverLocationService.getMe();
+          if (!active) return;
+          const isOnline = me?.status === "available";
+          const hasAnyService =
+            Array.isArray(me?.serviceTypes) && me.serviceTypes.length > 0;
+
+          if (!isOnline || !hasAnyService) {
+            (navigation as any).navigate("DriverHome");
+          }
+        } catch {
+          if (!active) return;
+          (navigation as any).navigate("DriverHome");
+        }
+      })();
+
+      return () => {
+        active = false;
+      };
+    }, [navigation]),
+  );
+
   useEffect(() => {
     let mounted = true;
 
-    // Regra estilo Uber/99: só recebe/aceita corridas quando estiver ONLINE.
     (async () => {
       try {
+        const active = await rideService.getActive();
+        if (active?.active && active.ride?._id) {
+          try {
+            (navigation as any).navigate("DriverRide", {
+              rideId: active.ride._id,
+            });
+          } catch {}
+          return;
+        }
+
         const me = await driverLocationService.getMe();
-        const isOnline =
-          me?.status === "available" && me?.acceptingRides === true;
-        if (!isOnline) {
+        const isOnline = me?.status === "available";
+        const hasAnyService =
+          Array.isArray(me?.serviceTypes) && me.serviceTypes.length > 0;
+
+        if (!isOnline || !hasAnyService) {
           Toast.show({
             type: "info",
-            text1: "Fique online para receber solicitações",
+            text1: "Fique online para receber solicitacoes",
             text2: "Ative o modo online na tela inicial do motorista.",
           });
 
@@ -45,10 +92,25 @@ export default function DriverRequestsScreen() {
           } catch {}
           return;
         }
+
+        const available = await rideService.getAvailableRequests();
+        if (!mounted) return;
+        setRequests(
+          (available?.requests || []).map((item: any) => ({
+            rideId: item.rideId,
+            pickup: item.pickup,
+            dropoff: item.dropoff,
+            pricing: item.pricing,
+            distance: item.distance,
+            duration: item.duration,
+            serviceType: item.serviceType,
+            vehicleType: item.vehicleType,
+          })),
+        );
       } catch {
         Toast.show({
           type: "info",
-          text1: "Atualize sua localização primeiro",
+          text1: "Atualize sua localizacao primeiro",
           text2: "Volte para a tela inicial e ative o modo online.",
         });
 
@@ -66,6 +128,8 @@ export default function DriverRequestsScreen() {
         dropoff: payload?.dropoff,
         pricing: payload?.pricing,
         distance: payload?.distance,
+        duration: payload?.duration,
+        serviceType: payload?.serviceType,
         vehicleType: payload?.vehicleType,
       };
 
@@ -87,7 +151,6 @@ export default function DriverRequestsScreen() {
       if (!mounted) return;
       const takenId = payload?.rideId;
       if (!takenId) return;
-      // remove da lista se outro motorista pegou
       setRequests((prev) => prev.filter((r) => r.rideId !== takenId));
     };
 
@@ -95,7 +158,6 @@ export default function DriverRequestsScreen() {
       if (!mounted) return;
       const expiredId = payload?.rideId;
       if (!expiredId) return;
-      // remove da lista se a oferta expirou (backend passou para outro motorista)
       setRequests((prev) => prev.filter((r) => r.rideId !== expiredId));
     };
 
@@ -115,12 +177,11 @@ export default function DriverRequestsScreen() {
       webSocketService.off("new-ride-request", onNewRide);
       webSocketService.off("ride-taken", onRideTaken);
       webSocketService.off("ride-expired", onRideExpired);
-      // se sair desta tela, não para o alerta automaticamente (continua até aceitar/rejeitar)
+      driverAlertService.stop().catch(() => {});
     };
-  }, []);
+  }, [navigation]);
 
   useEffect(() => {
-    // Se não há solicitações na lista, parar o alerta
     if (requests.length === 0) {
       driverAlertService.stop();
     }
@@ -130,7 +191,6 @@ export default function DriverRequestsScreen() {
     try {
       const ride = await rideService.accept(rideId);
       await driverAlertService.stop();
-      // remove da lista
       setRequests((prev) => prev.filter((r) => r.rideId !== rideId));
       (navigation as any).navigate("DriverRide", { rideId: ride._id });
     } catch (e: any) {
@@ -139,14 +199,12 @@ export default function DriverRequestsScreen() {
 
       console.log("Falha ao aceitar", msg || e);
 
-      // Se o backend indicar que já existe corrida ativa, abre direto
       if (currentRideId) {
         try {
           (navigation as any).navigate("DriverRide", { rideId: currentRideId });
         } catch {}
       }
 
-      // remove a solicitação (provavelmente expirou / já foi aceita por outro)
       setRequests((prev) => prev.filter((r) => r.rideId !== rideId));
       driverAlertService.stop().catch(() => {});
     }
@@ -165,7 +223,7 @@ export default function DriverRequestsScreen() {
 
   return (
     <DriverScreen
-      title="Solicitações"
+      title="Solicitacoes"
       scroll
       headerRight={
         <Text style={{ color: "rgba(255,255,255,0.7)", fontWeight: "800" }}>
@@ -174,7 +232,7 @@ export default function DriverRequestsScreen() {
       }
     >
       {requests.length === 0 ? (
-        <DriverEmptyState title="Nenhuma solicitação no momento." />
+        <DriverEmptyState title="Nenhuma solicitacao no momento." />
       ) : (
         requests.map((r) => (
           <DriverRequestCard

@@ -3,7 +3,6 @@ import { View, Text, TouchableOpacity, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons, Feather } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import { useAuthStore } from "../../../context/authStore";
 import theme from "../../../theme";
 
 type ProfileType = "client" | "driver";
@@ -32,24 +31,20 @@ export default function SelectProfileScreen() {
 
   function handleContinue() {
     if (!user) {
-      console.error("Dados do usuário não encontrados");
+      console.error("Dados do usuario nao encontrados");
       return;
     }
 
     if (selectedProfile === "client") {
       navigation.navigate("CompleteRegistrationClient", { user, token });
       return;
-    } else {
-      navigation.navigate("CompleteRegistrationDriver", {
-        selectedProfile,
-        user,
-        token,
-      });
     }
-  }
 
-  function handleGoBack() {
-    navigation.goBack();
+    navigation.navigate("CompleteRegistrationDriver", {
+      selectedProfile,
+      user,
+      token,
+    });
   }
 
   return (
@@ -60,18 +55,15 @@ export default function SelectProfileScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View className="flex-1 px-6 py-8">
-          {/* Ícone do Caminhão */}
           <View className="mb-8 mt-4" style={{ height: 80 }}>
-            {/* Seta fixa no topo à esquerda */}
             <TouchableOpacity
-              onPress={handleGoBack}
+              onPress={() => navigation.goBack()}
               activeOpacity={0.7}
               style={{ position: "absolute", left: 0, top: 0, padding: 8 }}
             >
               <Feather name="arrow-left" size={18} color={theme.COLORS.WHITE} />
             </TouchableOpacity>
 
-            {/* Ícone centralizado */}
             <View
               style={{
                 position: "absolute",
@@ -94,26 +86,24 @@ export default function SelectProfileScreen() {
             </View>
           </View>
 
-          {/* Título */}
           <View className="items-center mb-3">
             <Text className="text-white text-2xl font-bold text-center">
-              Como você vai usar o{" "}
+              Como voce vai usar o{" "}
               <Text
                 className="font-bold"
                 style={{ color: theme.COLORS.BRAND_LIGHT }}
               >
-                Leva+?
+                Leva+
               </Text>
+              ?
             </Text>
           </View>
 
-          {/* Subtítulo */}
           <Text className="text-gray-300 text-center text-base mb-8 px-4">
-            Escolha um perfil para continuar. Você pode trocar depois nas
-            configurações.
+            Escolha seu perfil inicial. Depois voce pode ajustar seu uso no app
+            sem perder sua conta.
           </Text>
 
-          {/* Card Cliente */}
           <TouchableOpacity
             onPress={() => setSelectedProfile("client")}
             className="mb-4"
@@ -130,7 +120,6 @@ export default function SelectProfileScreen() {
                     : "transparent",
               }}
             >
-              {/* Check no canto superior direito quando selecionado */}
               {selectedProfile === "client" && (
                 <View className="absolute top-4 right-4">
                   <MaterialCommunityIcons
@@ -141,11 +130,10 @@ export default function SelectProfileScreen() {
                 </View>
               )}
 
-              {/* Header do Card */}
               <View className="flex-row items-center mb-3">
                 <View
                   className="w-12 h-12 rounded-xl items-center justify-center mr-3"
-                  style={{ backgroundColor: theme.COLORS.BRAND_LIGHT + "20" }}
+                  style={{ backgroundColor: `${theme.COLORS.BRAND_LIGHT}20` }}
                 >
                   <MaterialCommunityIcons
                     name="account"
@@ -156,14 +144,11 @@ export default function SelectProfileScreen() {
                 <Text className="text-white text-xl font-bold">Cliente</Text>
               </View>
 
-              {/* Descrição */}
               <Text className="text-gray-300 text-sm mb-4">
-                Solicite entregas, fretes e transporte de encomendas. Escolha o
-                veículo ideal para sua necessidade (moto, carro, van ou
-                caminhão).
+                Use para corridas urbanas (Uber/99), entregas rapidas e pedidos
+                de comercio/restaurante.
               </Text>
 
-              {/* Features */}
               <View>
                 <View className="flex-row items-center mb-2">
                   <MaterialCommunityIcons
@@ -172,7 +157,7 @@ export default function SelectProfileScreen() {
                     color={theme.COLORS.BRAND_LIGHT}
                   />
                   <Text className="text-gray-200 text-sm ml-2">
-                    Solicite entregas, fretes e transportes com poucos toques
+                    Pedir corrida para voce e acompanhantes
                   </Text>
                 </View>
                 <View className="flex-row items-center mb-2">
@@ -182,7 +167,7 @@ export default function SelectProfileScreen() {
                     color={theme.COLORS.BRAND_LIGHT}
                   />
                   <Text className="text-gray-200 text-sm ml-2">
-                    Escolha o tipo de veículo ideal para sua encomenda
+                    Pedir entrega e frete com moto, carro, van ou caminhao
                   </Text>
                 </View>
                 <View className="flex-row items-center mb-2">
@@ -192,7 +177,7 @@ export default function SelectProfileScreen() {
                     color={theme.COLORS.BRAND_LIGHT}
                   />
                   <Text className="text-gray-200 text-sm ml-2">
-                    Acompanhe seu pedido em tempo real no mapa
+                    Acompanhar motorista e pedido em tempo real
                   </Text>
                 </View>
                 <View className="flex-row items-center mb-2">
@@ -202,7 +187,7 @@ export default function SelectProfileScreen() {
                     color={theme.COLORS.BRAND_LIGHT}
                   />
                   <Text className="text-gray-200 text-sm ml-2">
-                    Pagamento integrado e seguro
+                    Pagamento integrado com pix, dinheiro e cartao
                   </Text>
                 </View>
                 <View className="flex-row items-center">
@@ -212,14 +197,13 @@ export default function SelectProfileScreen() {
                     color={theme.COLORS.BRAND_LIGHT}
                   />
                   <Text className="text-gray-200 text-sm ml-2">
-                    Histórico detalhado de todas as suas solicitações
+                    Modo pessoal ou comercial com CPF/CNPJ
                   </Text>
                 </View>
               </View>
             </View>
           </TouchableOpacity>
 
-          {/* Card Entregador/Transportador */}
           <TouchableOpacity
             onPress={() => setSelectedProfile("driver")}
             className="mb-8"
@@ -236,7 +220,6 @@ export default function SelectProfileScreen() {
                     : "transparent",
               }}
             >
-              {/* Check no canto superior direito quando selecionado */}
               {selectedProfile === "driver" && (
                 <View className="absolute top-4 right-4">
                   <MaterialCommunityIcons
@@ -247,11 +230,10 @@ export default function SelectProfileScreen() {
                 </View>
               )}
 
-              {/* Header do Card */}
               <View className="flex-row items-center mb-3">
                 <View
                   className="w-12 h-12 rounded-xl items-center justify-center mr-3"
-                  style={{ backgroundColor: theme.COLORS.BRAND_LIGHT + "20" }}
+                  style={{ backgroundColor: `${theme.COLORS.BRAND_LIGHT}20` }}
                 >
                   <MaterialCommunityIcons
                     name="truck-fast"
@@ -259,16 +241,16 @@ export default function SelectProfileScreen() {
                     color={theme.COLORS.WHITE}
                   />
                 </View>
-                <Text className="text-white text-xl font-bold">Entregador</Text>
+                <Text className="text-white text-xl font-bold">
+                  Motorista parceiro
+                </Text>
               </View>
 
-              {/* Descrição */}
               <Text className="text-gray-300 text-sm mb-4">
-                Ofereça serviços de entrega, frete e transporte com moto,
-                bicicleta, carro, van ou caminhão.
+                Fique online para aceitar corridas de passageiros e entregas
+                conforme seu tipo de veiculo.
               </Text>
 
-              {/* Features */}
               <View>
                 <View className="flex-row items-center mb-2">
                   <MaterialCommunityIcons
@@ -277,7 +259,7 @@ export default function SelectProfileScreen() {
                     color={theme.COLORS.WHITE}
                   />
                   <Text className="text-gray-200 text-sm ml-2">
-                    Aceite encomendas, fretes e entregas
+                    Aceitar corridas e entregas por proximidade
                   </Text>
                 </View>
                 <View className="flex-row items-center mb-2">
@@ -287,7 +269,7 @@ export default function SelectProfileScreen() {
                     color={theme.COLORS.WHITE}
                   />
                   <Text className="text-gray-200 text-sm ml-2">
-                    Trabalhe com seu veículo (moto, carro, van, caminhão)
+                    Trabalhar com moto, carro, van ou caminhao
                   </Text>
                 </View>
                 <View className="flex-row items-center mb-2">
@@ -297,7 +279,7 @@ export default function SelectProfileScreen() {
                     color={theme.COLORS.WHITE}
                   />
                   <Text className="text-gray-200 text-sm ml-2">
-                    Visualize solicitações próximas no mapa
+                    Ver chamadas disponiveis no mapa em tempo real
                   </Text>
                 </View>
                 <View className="flex-row items-center mb-2">
@@ -307,7 +289,7 @@ export default function SelectProfileScreen() {
                     color={theme.COLORS.WHITE}
                   />
                   <Text className="text-gray-200 text-sm ml-2">
-                    Receba seus ganhos na hora
+                    Receber ganhos, extrato e solicitacao de saque
                   </Text>
                 </View>
                 <View className="flex-row items-center">
@@ -317,14 +299,13 @@ export default function SelectProfileScreen() {
                     color={theme.COLORS.WHITE}
                   />
                   <Text className="text-gray-200 text-sm ml-2">
-                    Defina seus horários de trabalho
+                    Controle de disponibilidade online e offline
                   </Text>
                 </View>
               </View>
             </View>
           </TouchableOpacity>
 
-          {/* Botão Continuar */}
           <TouchableOpacity
             onPress={handleContinue}
             className="h-14 rounded-2xl items-center justify-center mb-4"

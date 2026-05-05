@@ -96,10 +96,17 @@ class DriverAlertService {
     starting = true;
 
     try {
-      const s = await ensureSound();
-      await s.setIsLoopingAsync(true);
-      await s.playAsync();
       startVibrationLoop();
+
+      try {
+        const s = await ensureSound();
+        await s.setIsLoopingAsync(true);
+        await s.playAsync();
+      } catch (error) {
+        // Mantem somente vibracao quando o audio falha (ex.: modulo ausente, foco de audio indisponivel).
+        console.log("[DriverAlert] Falha ao tocar som, mantendo vibracao:", error);
+      }
+
       running = true;
     } finally {
       starting = false;

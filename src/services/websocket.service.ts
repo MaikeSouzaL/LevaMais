@@ -1,10 +1,10 @@
-import io, { Socket } from "socket.io-client";
+﻿import io, { Socket } from "socket.io-client";
 import { useAuthStore } from "../context/authStore";
 
-// Manter o WebSocket usando a MESMA base da API, para evitar divergência em emulador/dispositivo.
+// Manter o WebSocket usando a MESMA base da API, para evitar divergÃªncia em emulador/dispositivo.
 const RAW_BASE =
   process.env.EXPO_PUBLIC_API_URL ||
-  "http://192.168.1.11:3001";
+  "http://192.168.1.9:3001";
 
 const SOCKET_URL = RAW_BASE.replace(/\/$/, "");
 
@@ -13,27 +13,43 @@ class WebSocketService {
   private connectPromise: Promise<void> | null = null;
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 10;
+  private handledAuthFailure = false;
+
+  private isAuthErrorMessage(message: string): boolean {
+    return /token inv[aá]lido|token n[aã]o fornecido|jwt|sess[aã]o expirada/i.test(
+      String(message || ""),
+    );
+  }
+
+  private normalizeToken(rawToken: string | null | undefined): string {
+    const value = String(rawToken || "").trim();
+    if (!value) return "";
+    if (/^bearer\s+/i.test(value)) {
+      return value.replace(/^bearer\s+/i, "").trim();
+    }
+    return value;
+  }
 
   /**
    * Conectar ao WebSocket
    */
   async connect(): Promise<void> {
     if (this.socket?.connected) {
-      // já conectado
+      // jÃ¡ conectado
       return;
     }
 
-    // evita múltiplas conexões concorrentes
+    // evita mÃºltiplas conexÃµes concorrentes
     if (this.connectPromise) {
       return this.connectPromise;
     }
 
     this.connectPromise = (async () => {
-      const token = useAuthStore.getState().token;
+      const token = this.normalizeToken(useAuthStore.getState().token);
 
       if (!token) {
         this.connectPromise = null;
-        throw new Error("Token não encontrado");
+        throw new Error("Sessao expirada. Faca login novamente.");
       }
 
       // se existe socket antigo, derruba antes de criar outro
@@ -45,11 +61,11 @@ class WebSocketService {
         this.socket = null;
       }
 
-      console.log("🔌 Conectando ao WebSocket...", SOCKET_URL);
+      console.log("ðŸ”Œ Conectando ao WebSocket...", SOCKET_URL);
 
       this.socket = io(SOCKET_URL, {
         auth: { token },
-        // Em redes móveis/Wi‑Fi instáveis, permitir fallback ajuda a evitar perder eventos
+        // Em redes mÃ³veis/Wiâ€‘Fi instÃ¡veis, permitir fallback ajuda a evitar perder eventos
         transports: ["websocket", "polling"],
         reconnection: true,
         reconnectionDelay: 1000,
@@ -59,13 +75,14 @@ class WebSocketService {
         timeout: 20000,
       });
 
+      this.handledAuthFailure = false;
       this.setupListeners();
 
-      // IMPORTANTe: aguardar conexão efetiva.
+      // IMPORTANTe: aguardar conexÃ£o efetiva.
       // Sem isso, a UI pode registrar listeners e o backend emitir eventos
-      // antes do socket entrar na sala do usuário, causando "perda" do driver-found.
+      // antes do socket entrar na sala do usuÃ¡rio, causando "perda" do driver-found.
       await new Promise<void>((resolve, reject) => {
-        if (!this.socket) return reject(new Error("Socket não inicializado"));
+        if (!this.socket) return reject(new Error("Socket nÃ£o inicializado"));
         if (this.socket.connected) return resolve();
 
         const onConnect = () => {
@@ -110,40 +127,49 @@ class WebSocketService {
     this.socket.on("connect", () => {
       const id = this.socket?.id;
       if (id) {
-        console.log("✅ WebSocket conectado:", id);
+        console.log("âœ… WebSocket conectado:", id);
       } else {
-        console.log("✅ WebSocket conectado");
+        console.log("âœ… WebSocket conectado");
       }
       this.reconnectAttempts = 0;
     });
 
     this.socket.on("disconnect", (reason) => {
-      console.log("❌ WebSocket desconectado:", reason);
+      console.log("âŒ WebSocket desconectado:", reason);
     });
 
     this.socket.io.on("reconnect_attempt", (attempt) => {
-      console.log("🔁 Tentando reconectar WebSocket...", attempt);
+      console.log("ðŸ” Tentando reconectar WebSocket...", attempt);
     });
 
     this.socket.io.on("reconnect", (attempt) => {
-      console.log("✅ WebSocket reconectado", attempt);
+      console.log("âœ… WebSocket reconectado", attempt);
     });
 
     this.socket.io.on("reconnect_failed", () => {
-      console.log("❌ WebSocket falhou ao reconectar");
+      console.log("âŒ WebSocket falhou ao reconectar");
     });
 
     this.socket.on("connect_error", (error) => {
-      console.error("❌ Erro de conexão WebSocket:", error.message);
+      const message = String((error as any)?.message || "");
+      console.error("WebSocket connect error:", message);
       this.reconnectAttempts++;
 
+      if (this.isAuthErrorMessage(message) && !this.handledAuthFailure) {
+        this.handledAuthFailure = true;
+        try {
+          this.disconnect();
+          useAuthStore.getState().logout();
+        } catch {}
+      }
+
       if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-        console.error("❌ Máximo de tentativas de reconexão atingido");
+        console.error("Max reconnect attempts reached");
       }
     });
 
     this.socket.on("error", (error) => {
-      console.error("❌ Erro WebSocket:", error);
+      console.error("âŒ Erro WebSocket:", error);
     });
   }
 
@@ -152,14 +178,14 @@ class WebSocketService {
    */
   disconnect(): void {
     if (this.socket) {
-      console.log("👋 Desconectando WebSocket...");
+      console.log("ðŸ‘‹ Desconectando WebSocket...");
       this.socket.disconnect();
       this.socket = null;
     }
   }
 
   /**
-   * Verificar se está conectado
+   * Verificar se estÃ¡ conectado
    */
   isConnected(): boolean {
     return this.socket?.connected || false;
@@ -183,7 +209,7 @@ class WebSocketService {
    */
   on(event: string, callback: (data: any) => void): void {
     if (!this.socket) {
-      console.warn("⚠️ WebSocket não inicializado");
+      console.warn("âš ï¸ WebSocket nÃ£o inicializado");
       return;
     }
 
@@ -203,31 +229,31 @@ class WebSocketService {
     }
   }
 
-  // ========== EVENTOS ESPECÍFICOS ==========
+  // ========== EVENTOS ESPECÃFICOS ==========
 
   /**
-   * Escutar quando motorista é encontrado
+   * Escutar quando motorista Ã© encontrado
    */
   onDriverFound(callback: (data: any) => void): void {
     this.on("driver-found", callback);
   }
 
   /**
-   * Escutar atualização de localização do motorista
+   * Escutar atualizaÃ§Ã£o de localizaÃ§Ã£o do motorista
    */
   onDriverLocationUpdated(callback: (data: any) => void): void {
     this.on("driver-location-updated", callback);
   }
 
   /**
-   * Escutar quando corrida é cancelada
+   * Escutar quando corrida Ã© cancelada
    */
   onRideCancelled(callback: (data: any) => void): void {
     this.on("ride-cancelled", callback);
   }
 
   /**
-   * Escutar quando status da corrida é atualizado
+   * Escutar quando status da corrida Ã© atualizado
    */
   onRideStatusUpdated(callback: (data: any) => void): void {
     this.on("ride-status-updated", callback);
@@ -262,7 +288,7 @@ class WebSocketService {
   }
 
   /**
-   * Notificar que cliente está aguardando motorista
+   * Notificar que cliente estÃ¡ aguardando motorista
    */
   waitingDriver(rideId: string): void {
     this.emit("waiting-driver", { rideId });
@@ -281,3 +307,5 @@ class WebSocketService {
 }
 
 export default new WebSocketService();
+
+

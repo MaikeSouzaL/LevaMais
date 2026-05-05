@@ -1,0 +1,174 @@
+import React, { useEffect, useMemo, useState } from "react";
+import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
+import Toast from "react-native-toast-message";
+
+import rideService from "../../../services/ride.service";
+import chatService, { ChatMessage } from "../../../services/chat.service";
+import webSocketService from "../../../services/websocket.service";
+import { useAuthStore } from "../../../context/authStore";
+import { useChatStore } from "../../../context/chatStore";
+import { RideChatView } from "../../../components/chat/RideChatView";
+
+type Params = {
+  DriverChat: {
+    rideId: string;
+    clientName?: string;
+  };
+};
+
+type ChatItem = {
+  id: string;
+  text: string;
+  sent: boolean;
+  timestamp: number;
+};
+
+function toChatItem(item: ChatMessage, currentUserId?: string): ChatItem {
+  const senderId = item?.senderId ? String(item.senderId) : "";
+  return {
+    id: String(item.id || item._id || `${item.createdAt}-${senderId}`),
+    text: String(item.message || ""),
+    sent: Boolean(currentUserId && senderId === String(currentUserId)),
+    timestamp: new Date(item.createdAt || item.timestamp || Date.now()).getTime(),
+  };
+}
+
+export default function DriverChatScreen() {
+  const navigation = useNavigation();
+  const route = useRoute<RouteProp<Params, "DriverChat">>();
+  const rideId = route.params?.rideId;
+
+  const currentUserId = useAuthStore((s) => s.userData?.id);
+
+  useEffect(() => {
+    if (rideId) useChatStore.getState().clearUnread(rideId);
+  }, [rideId]);
+
+  const [message, setMessage] = useState("");
+  const [messages, setMessages] = useState<ChatItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [clientId, setClientId] = useState<string | null>(null);
+  const [clientName, setClientName] = useState<string>(
+    route.params?.clientName || "Cliente",
+  );
+
+  useEffect(() => {
+    let mounted = true;
+
+    if (!rideId) {
+      (navigation as any).goBack();
+      return;
+    }
+
+    (async () => {
+      try {
+        const [ride, persistedMessages] = await Promise.all([
+          rideService.getById(rideId),
+          chatService.listRideMessages(rideId),
+        ]);
+        if (!mounted) return;
+
+        const cid = (ride?.clientId as any)?._id || (ride?.clientId as any)?.id;
+        const cname = (ride?.clientId as any)?.name;
+        if (cid) setClientId(String(cid));
+        if (cname) setClientName(String(cname));
+        setMessages(persistedMessages.map((item) => toChatItem(item, currentUserId)));
+      } catch {
+        Toast.show({
+          type: "info",
+          text1: "Chat em modo reconexao",
+          text2: "Vamos manter a tela aberta e tentar receber novas mensagens.",
+        });
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [currentUserId, rideId]);
+
+  useEffect(() => {
+    if (!rideId) return;
+
+    let mounted = true;
+
+    const onNewMessage = (payload: any) => {
+      if (!mounted) return;
+      if (payload?.rideId && payload.rideId !== rideId) return;
+
+      const senderId = payload?.senderId ? String(payload.senderId) : "";
+      if (currentUserId && senderId === String(currentUserId)) return;
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: String(payload?.id || payload?._id || `in-${Date.now()}-${Math.random()}`),
+          text: String(payload?.message || ""),
+          sent: false,
+          timestamp: new Date(payload?.createdAt || payload?.timestamp || Date.now()).getTime(),
+        },
+      ]);
+    };
+
+    (async () => {
+      try {
+        await webSocketService.connect();
+        webSocketService.onNewMessage(onNewMessage);
+      } catch {
+        // fallback: chat local while socket reconnects
+      }
+    })();
+
+    return () => {
+      mounted = false;
+      webSocketService.off("new-message", onNewMessage);
+    };
+  }, [rideId, currentUserId]);
+
+  const canSend = useMemo(
+    () => Boolean(message.trim() && rideId),
+    [message, rideId],
+  );
+
+  const handleSend = async () => {
+    const txt = message.trim();
+    if (!txt || !rideId) return;
+
+    setMessage("");
+
+    try {
+      const saved = await chatService.sendRideMessage(rideId, txt);
+      setMessages((prev) => {
+        const id = String(saved?.id || saved?._id || "");
+        if (id && prev.some((item) => item.id === id)) return prev;
+        return [...prev, toChatItem(saved, currentUserId)];
+      });
+    } catch (e: any) {
+      Toast.show({
+        type: "error",
+        text1: "Mensagem nao enviada",
+        text2: e?.message || "Tente novamente.",
+      });
+      setMessage(txt);
+    }
+  };
+
+  return (
+    <RideChatView
+      title="Chat"
+      subtitle={`Conversando com ${clientName}`}
+      peerName={clientName}
+      peerIcon="person"
+      messages={messages}
+      loading={loading}
+      message={message}
+      quickReplies={["Cheguei", "Estou indo", "Pode entregar o pacote"]}
+      canSend={canSend}
+      onBack={() => (navigation as any).goBack()}
+      onChangeMessage={setMessage}
+      onSend={handleSend}
+    />
+  );
+}

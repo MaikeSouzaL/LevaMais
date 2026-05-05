@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 
@@ -6,20 +6,22 @@ export type DriverTopHudProps = {
   driverName?: string | null;
   vehicleTypeLabel?: string;
   plate?: string | null;
+  todayEarnings?: number;
   pendingRequests?: number;
   onPressNotifications: () => void;
-  /** Status online/offline */
   online?: boolean;
 };
 
 export function DriverTopHud({
-  driverName,
   vehicleTypeLabel,
   plate,
+  todayEarnings = 0,
   pendingRequests = 0,
   onPressNotifications,
   online = false,
 }: DriverTopHudProps) {
+  const earningsValue = `R$ ${Number(todayEarnings || 0).toFixed(2).replace(".", ",")}`;
+
   return (
     <View
       style={{
@@ -29,30 +31,39 @@ export function DriverTopHud({
         gap: 12,
       }}
     >
-      {/* Nome e Veículo */}
-      <View style={{ flex: 1 }}>
-        <Text style={{ color: "white", fontWeight: "900", fontSize: 18 }}>
-          {driverName ? `Olá, ${driverName}` : "Motorista"}
-        </Text>
+      <View style={{ flex: 1, justifyContent: "center" }}>
+        <View
+          style={{
+            alignSelf: "flex-start",
+            borderRadius: 14,
+            borderWidth: 1,
+            borderColor: "rgba(2,222,149,0.4)",
+            backgroundColor: "rgba(2,222,149,0.12)",
+            paddingHorizontal: 12,
+            paddingVertical: 8,
+          }}
+        >
+          <Text style={{ color: "#02de95", fontWeight: "900", fontSize: 24, lineHeight: 26 }}>
+            {earningsValue}
+          </Text>
+        </View>
 
-        {!!vehicleTypeLabel && (
+        {!!plate && (
           <Text
             style={{
-              color: "rgba(255,255,255,0.7)",
-              marginTop: 2,
-              fontSize: 14,
-              fontWeight: "600",
+              color: "rgba(255,255,255,0.72)",
+              marginTop: 6,
+              fontSize: 13,
+              fontWeight: "700",
+              letterSpacing: 0.5,
             }}
           >
-            {vehicleTypeLabel}
-            {plate ? ` • ${plate}` : ""}
+            {plate}
           </Text>
         )}
       </View>
 
-      {/* Notificação e Status */}
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-        {/* Botão de Notificações */}
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, alignSelf: "flex-start", marginTop: 2 }}>
         <TouchableOpacity
           onPress={onPressNotifications}
           activeOpacity={0.85}
@@ -67,7 +78,7 @@ export function DriverTopHud({
             justifyContent: "center",
           }}
           accessibilityRole="button"
-          accessibilityLabel="Notificações"
+          accessibilityLabel="Notificacoes"
         >
           <View>
             <MaterialIcons
@@ -107,7 +118,6 @@ export function DriverTopHud({
           </View>
         </TouchableOpacity>
 
-        {/* Status Badge */}
         <View
           style={{
             flexDirection: "row",

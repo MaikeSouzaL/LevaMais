@@ -1,13 +1,24 @@
 const express = require("express");
 const router = express.Router();
 const authController = require("../controllers/auth.controller");
-const { authenticateToken } = require("../middlewares/auth.middleware");
+const {
+  authenticateToken,
+  requireAdmin,
+} = require("../middlewares/auth.middleware");
 
-// Rotas públicas
+// Rotas publicas
 router.post("/register", authController.register.bind(authController));
 router.post("/login", authController.login.bind(authController));
 router.post("/google", authController.googleAuth.bind(authController));
 router.post("/check-email", authController.checkEmail.bind(authController));
+router.post(
+  "/send-phone-code",
+  authController.sendPhoneCode.bind(authController),
+);
+router.post(
+  "/verify-phone-code",
+  authController.verifyPhoneCode.bind(authController),
+);
 router.post(
   "/forgot-password",
   authController.forgotPassword.bind(authController),
@@ -21,7 +32,7 @@ router.post(
   authController.resetPassword.bind(authController),
 );
 
-// Rotas protegidas (requerem autenticação)
+// Rotas protegidas (requerem autenticacao)
 router.get(
   "/profile",
   authenticateToken,
@@ -43,8 +54,26 @@ router.delete(
   authController.removePushToken.bind(authController),
 );
 
-// Rotas admin (sem autenticação por enquanto - adicionar depois)
-router.get("/users", authController.listUsers.bind(authController));
-router.get("/users/:id", authController.getUserById.bind(authController));
+// Rotas admin
+router.get(
+  "/users",
+  requireAdmin,
+  authController.listUsers.bind(authController),
+);
+router.get(
+  "/users/:id",
+  requireAdmin,
+  authController.getUserById.bind(authController),
+);
+router.patch(
+  "/users/:id",
+  requireAdmin,
+  authController.updateUserById.bind(authController),
+);
+router.delete(
+  "/users/:id",
+  requireAdmin,
+  authController.deleteUserById.bind(authController),
+);
 
 module.exports = router;

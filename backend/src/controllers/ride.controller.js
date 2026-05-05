@@ -7,9 +7,20 @@ const City = require("../models/City");
 // mixins (rating + proofs)
 const ratingProofMixin = require("./ride.ratingProof.mixin");
 const mongoose = require("mongoose");
+const NON_TERMINAL_STATUSES = [
+  "requesting",
+  "driver_assigned",
+  "accepted",
+  "driver_arriving",
+  "arrived",
+  "in_progress",
+];
 
 class RideController {
-  // Buscar corrida ativa do usuário autenticado
+  getNonTerminalStatuses() {
+    return NON_TERMINAL_STATUSES;
+  }
+  // Buscar corrida ativa do usuÃ¡rio autenticado
   async getActive(req, res) {
     try {
       const userId = req.user.id;
@@ -20,20 +31,36 @@ class RideController {
         const DriverLocation = require("../models/DriverLocation");
         const dl = await DriverLocation.findOne({ driverId: userId });
 
-        if (!dl?.currentRideId) {
-          return res.json({ active: false, ride: null });
-        }
+        let ride = dl?.currentRideId
+          ? await Ride.findById(dl.currentRideId)
+              .populate("clientId", "name phone profilePhoto")
+              .populate("driverId", "name phone profilePhoto")
+              .populate("purposeId")
+          : null;
 
-        const ride = await Ride.findById(dl.currentRideId)
-          .populate("clientId", "name phone profilePhoto")
-          .populate("driverId", "name phone profilePhoto")
-          .populate("purposeId");
+        if (!ride) {
+          ride = await Ride.findOne({
+            driverId: userId,
+            status: { $in: NON_TERMINAL_STATUSES },
+          })
+            .sort({ updatedAt: -1 })
+            .populate("clientId", "name phone profilePhoto")
+            .populate("driverId", "name phone profilePhoto")
+            .populate("purposeId");
+
+          if (ride?._id && dl) {
+            await DriverLocation.findOneAndUpdate(
+              { driverId: userId },
+              { currentRideId: ride._id, status: "on_ride" },
+            );
+          }
+        }
 
         if (!ride) {
           return res.json({ active: false, ride: null });
         }
 
-        // Se já finalizou/cancelou, considera sem corrida ativa
+        // Se jÃ¡ finalizou/cancelou, considera sem corrida ativa
         if (
           [
             "completed",
@@ -49,19 +76,11 @@ class RideController {
         return res.json({ active: true, ride });
       }
 
-      // Cliente (opcional): pega a última corrida não finalizada
+      // Cliente (opcional): pega a Ãºltima corrida nÃ£o finalizada
       if (userType === "client") {
         const ride = await Ride.findOne({
           clientId: userId,
-          status: {
-            $nin: [
-              "completed",
-              "cancelled",
-              "cancelled_by_client",
-              "cancelled_by_driver",
-              "cancelled_no_driver",
-            ],
-          },
+          status: { $in: NON_TERMINAL_STATUSES },
         })
           .sort({ createdAt: -1 })
           .populate("clientId", "name phone profilePhoto")
@@ -82,7 +101,142 @@ class RideController {
     }
   }
 
-  // Criar uma nova solicitação de corrida
+  // Lista corridas ativas (cliente/motorista)
+  async getActiveList(req, res) {
+    try {
+      const userId = req.user.id;
+      const userType = req.user.userType;
+      const statuses = NON_TERMINAL_STATUSES;
+
+      if (userType === "client") {
+        const rides = await Ride.find({
+          clientId: userId,
+          status: { $in: statuses },
+        })
+          .sort({ createdAt: -1 })
+          .populate("clientId", "name phone profilePhoto")
+          .populate("driverId", "name phone profilePhoto")
+          .populate("purposeId");
+
+        return res.json({ active: rides.length > 0, count: rides.length, rides });
+      }
+
+      if (userType === "driver") {
+        const rides = await Ride.find({
+          driverId: userId,
+          status: { $in: statuses },
+        })
+          .sort({ createdAt: -1 })
+          .populate("clientId", "name phone profilePhoto")
+          .populate("driverId", "name phone profilePhoto")
+          .populate("purposeId");
+
+        return res.json({ active: rides.length > 0, count: rides.length, rides });
+      }
+
+      return res.json({ active: false, count: 0, rides: [] });
+    } catch (error) {
+      console.error("Erro ao buscar lista de corridas ativas:", error);
+      return res.status(500).json({
+        error: "Erro ao buscar corridas ativas",
+        details: error.message,
+      });
+    }
+  }
+
+  // Motorista busca solicitacoes ainda disponiveis.
+  // Isso cobre quando o socket foi perdido ou o motorista ficou online depois do pedido.
+  async getAvailableRequests(req, res) {
+    try {
+      const driverId = req.user.id;
+
+      if (req.user.userType !== "driver") {
+        return res.status(403).json({ error: "Apenas motoristas podem buscar solicitacoes" });
+      }
+
+      const activeRide = await Ride.findOne({
+        driverId,
+        status: { $in: NON_TERMINAL_STATUSES },
+      }).select("_id");
+      if (activeRide?._id) {
+        return res.json({ count: 0, requests: [] });
+      }
+
+      const driverLocation = await DriverLocation.findOne({ driverId });
+      if (
+        !driverLocation ||
+        driverLocation.status !== "available" ||
+        driverLocation.currentRideId
+      ) {
+        return res.json({ count: 0, requests: [] });
+      }
+
+      const serviceTypes = Array.isArray(driverLocation.serviceTypes)
+        ? driverLocation.serviceTypes
+        : [];
+      if (!serviceTypes.length) {
+        return res.json({ count: 0, requests: [] });
+      }
+
+      const requestedAfter = new Date(Date.now() - 2 * 60 * 1000);
+      const rides = await Ride.find({
+        status: { $in: ["requesting", "driver_assigned"] },
+        vehicleType: driverLocation.vehicleType,
+        serviceType: { $in: serviceTypes },
+        requestedAt: { $gte: requestedAfter },
+        "rejectedBy.driverId": { $ne: driverId },
+      })
+        .sort({ requestedAt: -1 })
+        .limit(30)
+        .populate("clientId", "name phone profilePhoto rating");
+
+      const cityIds = [
+        ...new Set(
+          rides
+            .map((ride) => ride.cityId?.toString())
+            .filter(Boolean),
+        ),
+      ];
+      const cities = cityIds.length
+        ? await City.find({ _id: { $in: cityIds } }).select("_id searchRadius")
+        : [];
+      const radiusByCityId = new Map(
+        cities.map((city) => [city._id.toString(), city.searchRadius || 15000]),
+      );
+
+      const requests = rides
+        .map((ride) => {
+          const pickup = ride.pickup;
+          if (!pickup?.latitude || !pickup?.longitude) return null;
+
+          const maxDistance =
+            radiusByCityId.get(ride.cityId?.toString()) || 15000;
+          const distanceToPickup = driverLocation.distanceTo(
+            pickup.latitude,
+            pickup.longitude,
+          );
+
+          if (distanceToPickup > maxDistance) return null;
+          return buildRideRequestPayload(ride, { distanceToPickup });
+        })
+        .filter(Boolean)
+        .slice(0, 10);
+
+      console.log(
+        `[rides/available-requests] driver=${driverId} requests=${requests.length}`,
+      );
+
+      return res.json({ count: requests.length, requests });
+    } catch (error) {
+      console.error("Erro ao buscar solicitacoes disponiveis:", error);
+      return res.status(500).json({
+        error: "Erro ao buscar solicitacoes disponiveis",
+        details: error.message,
+      });
+    }
+  }
+
+  // Criar uma nova solicitaÃ§Ã£o de corrida
   async create(req, res) {
     try {
       const {
@@ -98,12 +252,12 @@ class RideController {
         details,
       } = req.body;
 
-      const clientId = req.user.id; // Do middleware de autenticação
+      const clientId = req.user.id; // Do middleware de autenticaÃ§Ã£o
 
-      // Validações básicas
+      // ValidaÃ§Ãµes bÃ¡sicas
       if (!pickup || !dropoff) {
         return res.status(400).json({
-          error: "Origem e destino são obrigatórios",
+          error: "Origem e destino sÃ£o obrigatÃ³rios",
         });
       }
 
@@ -123,27 +277,21 @@ class RideController {
           resolvedPurposeId = purpose?._id;
         }
       } catch (e) {
-        console.log("Aviso: não foi possível resolver purposeId", purposeId);
+        console.log("Aviso: nÃ£o foi possÃ­vel resolver purposeId", purposeId);
         resolvedPurposeId = undefined;
       }
 
-      // Impedir múltiplas corridas ativas para o mesmo cliente (estilo Uber/99)
+      // Permite novo pedido quando o cliente so tiver entregas ativas.
+      // Bloqueia quando existir corrida/frete ativo.
       const activeRide = await Ride.findOne({
         clientId,
-        status: {
-          $nin: [
-            "completed",
-            "cancelled",
-            "cancelled_by_client",
-            "cancelled_by_driver",
-            "cancelled_no_driver",
-          ],
-        },
+        status: { $in: NON_TERMINAL_STATUSES },
+        serviceType: { $nin: ["delivery"] },
       }).select("_id status");
 
       if (activeRide?._id) {
         return res.status(400).json({
-          error: "Você já possui uma corrida em andamento",
+          error: "VocÃª jÃ¡ possui uma corrida em andamento",
           rideId: activeRide._id,
           status: activeRide.status,
         });
@@ -153,10 +301,10 @@ class RideController {
       const PlatformConfig = require("../models/PlatformConfig");
       const City = require("../models/City");
 
-      // 1. Busca configurações globais (App Fee %)
+      // 1. Busca configuraÃ§Ãµes globais (App Fee %)
       let config = await PlatformConfig.findOne().sort({ createdAt: -1 });
       if (!config) {
-        // Cria default se não existir
+        // Cria default se nÃ£o existir
         config = await PlatformConfig.create({ appFeePercentage: 20 });
       }
       const appFeePercentage = config.appFeePercentage || 20;
@@ -167,7 +315,7 @@ class RideController {
       const driverValue = total - platformFee;
 
       // 3. Verifica Split com Representante (Se houver)
-      let platformShare = platformFee; // Padrão: 100% da taxa vai pra plataforma
+      let platformShare = platformFee; // PadrÃ£o: 100% da taxa vai pra plataforma
       let representativeShare = 0;
       let representativeId = null;
 
@@ -175,7 +323,7 @@ class RideController {
         const city = await City.findById(cityId);
         if (city && city.representativeId) {
           representativeId = city.representativeId;
-          // Padrão 50/50 ou override da cidade
+          // PadrÃ£o 50/50 ou override da cidade
           const repPct = city.revenueSharing?.representativePercentage || 50;
           representativeShare = platformFee * (repPct / 100);
           platformShare = platformFee - representativeShare;
@@ -186,7 +334,7 @@ class RideController {
       pricing.platformFee = platformFee;
       pricing.driverValue = driverValue;
 
-      // Salva detalhe do split no objeto da corrida (para relatórios futuros)
+      // Salva detalhe do split no objeto da corrida (para relatÃ³rios futuros)
       const splitDetails = {
         platformConfigUsed: appFeePercentage,
         totalAppFee: platformFee,
@@ -223,7 +371,7 @@ class RideController {
       // Iniciar busca por motorista (via WebSocket)
       const io = req.app.get("io");
       if (io) {
-        // Buscar raio de busca configurado na cidade (ou usar 15km padrão)
+        // Buscar raio de busca configurado na cidade (ou usar 15km padrÃ£o)
         let searchRadius = 15000;
         try {
           if (cityId) {
@@ -233,10 +381,10 @@ class RideController {
             }
           }
         } catch (e) {
-          console.log("Erro ao buscar raio da cidade, usando padrão 15km");
+          console.log("Erro ao buscar raio da cidade, usando padrÃ£o 15km");
         }
 
-        // Encontrar motoristas disponíveis na região (raio dinâmico por cidade)
+        // Encontrar motoristas disponÃ­veis na regiÃ£o (raio dinÃ¢mico por cidade)
         const nearbyDrivers = await DriverLocation.findNearby(
           pickup.latitude,
           pickup.longitude,
@@ -247,24 +395,20 @@ class RideController {
         );
 
         console.log(
-          `🔍 Broadcast: Enviando para ${nearbyDrivers.length} motoristas na região`,
+          `ðŸ” Broadcast: Enviando para ${nearbyDrivers.length} motoristas na regiÃ£o`,
         );
 
-        // Broadcast: Notifica todos os motoristas disponíveis ao mesmo tempo
+        // Broadcast: Notifica todos os motoristas disponÃ­veis ao mesmo tempo
         nearbyDrivers.forEach((driver) => {
-          io.to(`driver-${driver.driverId}`).emit("new-ride-request", {
-            rideId: ride._id,
-            pickup: ride.pickup,
-            dropoff: ride.dropoff,
-            pricing: ride.pricing,
-            distance: ride.distance,
-            duration: ride.duration,
-            vehicleType: ride.vehicleType,
-            client: {
-              name: ride.clientId.name,
-              rating: 5.0,
-            },
-          });
+          io.to(`driver-${driver.driverId}`).emit(
+            "new-ride-request",
+            buildRideRequestPayload(ride, {
+              distanceToPickup: driver.distanceTo(
+                ride.pickup.latitude,
+                ride.pickup.longitude,
+              ),
+            }),
+          );
         });
 
         // Definir timeout para cancelar se nenhum motorista aceitar (ex: 60 segundos)
@@ -306,16 +450,16 @@ class RideController {
       const { rideId } = req.params;
       const driverId = req.user.id;
 
-      // Impedir aceitar se o motorista já estiver em corrida
+      // Impedir aceitar se o motorista jÃ¡ estiver em corrida
       const driverLocation = await DriverLocation.findOne({ driverId });
       if (driverLocation?.currentRideId) {
         return res.status(400).json({
-          error: "Você já possui uma corrida ativa",
+          error: "VocÃª jÃ¡ possui uma corrida ativa",
           currentRideId: driverLocation.currentRideId,
         });
       }
 
-      // 1) Tenta “travar” o motorista (evita ele aceitar duas corridas em paralelo)
+      // 1) Tenta â€œtravarâ€ o motorista (evita ele aceitar duas corridas em paralelo)
       const lockedDriver = await DriverLocation.findOneAndUpdate(
         {
           driverId,
@@ -327,11 +471,11 @@ class RideController {
 
       if (!lockedDriver) {
         return res.status(400).json({
-          error: "Você já possui uma corrida ativa",
+          error: "VocÃª jÃ¡ possui uma corrida ativa",
         });
       }
 
-      // 2) Aceite atômico da corrida (evita dois motoristas aceitarem ao mesmo tempo)
+      // 2) Aceite atÃ´mico da corrida (evita dois motoristas aceitarem ao mesmo tempo)
       const now = new Date();
       const ride = await Ride.findOneAndUpdate(
         {
@@ -339,7 +483,7 @@ class RideController {
           status: { $in: ["requesting", "driver_assigned"] },
           "rejectedBy.driverId": { $ne: driverId },
           $or: [
-            // ainda não reservada
+            // ainda nÃ£o reservada
             { status: "requesting", driverId: null },
             // reservada para este motorista
             { status: "driver_assigned", driverId: driverId },
@@ -354,14 +498,14 @@ class RideController {
       );
 
       if (!ride) {
-        // Libera o motorista caso a corrida não esteja mais disponível
+        // Libera o motorista caso a corrida nÃ£o esteja mais disponÃ­vel
         await DriverLocation.findOneAndUpdate(
           { driverId, currentRideId: rideId },
           { status: "available", currentRideId: null },
         );
 
         return res.status(400).json({
-          error: "Corrida não está mais disponível",
+          error: "Corrida nÃ£o estÃ¡ mais disponÃ­vel",
         });
       }
 
@@ -415,17 +559,17 @@ class RideController {
       const ride = await Ride.findById(rideId);
 
       if (!ride) {
-        return res.status(404).json({ error: "Corrida não encontrada" });
+        return res.status(404).json({ error: "Corrida nÃ£o encontrada" });
       }
 
-      // Adicionar à lista de rejeitados
+      // Adicionar Ã  lista de rejeitados
       ride.rejectedBy.push({
         driverId,
         rejectedAt: new Date(),
         reason,
       });
 
-      // Se a corrida estava reservada para este motorista, libera e tenta o próximo
+      // Se a corrida estava reservada para este motorista, libera e tenta o prÃ³ximo
       const isAssignedToMe =
         ride.status === "driver_assigned" &&
         ride.driverId &&
@@ -438,7 +582,7 @@ class RideController {
 
       await ride.save();
 
-      // Tenta oferecer para o próximo motorista (MVP)
+      // Tenta oferecer para o prÃ³ximo motorista (MVP)
       const io = req.app.get("io");
       if (io && ["requesting", "driver_assigned"].includes(ride.status)) {
         const nearbyDrivers = await DriverLocation.findNearby(
@@ -497,22 +641,22 @@ class RideController {
       const ride = await Ride.findById(rideId);
 
       if (!ride) {
-        return res.status(404).json({ error: "Corrida não encontrada" });
+        return res.status(404).json({ error: "Corrida nÃ£o encontrada" });
       }
 
       if (!ride.canBeCancelled()) {
         return res.status(400).json({
-          error: "Corrida não pode ser cancelada neste momento",
+          error: "Corrida nÃ£o pode ser cancelada neste momento",
         });
       }
 
-      // Verificar quem está cancelando
+      // Verificar quem estÃ¡ cancelando
       const isClient = ride.clientId?.toString() === userIdStr;
       const isDriver = ride.driverId?.toString() === userIdStr;
 
       if (!isClient && !isDriver) {
         return res.status(403).json({
-          error: "Você não tem permissão para cancelar esta corrida",
+          error: "VocÃª nÃ£o tem permissÃ£o para cancelar esta corrida",
         });
       }
 
@@ -575,6 +719,7 @@ class RideController {
       const { status } = req.body;
       const driverId = req.user.id;
       const driverIdStr = String(driverId);
+      const nextStatus = String(status || "").trim();
 
       const ride = await Ride.findById(rideId);
 
@@ -588,16 +733,56 @@ class RideController {
         });
       }
 
-      ride.status = status;
+      const allowedStatuses = ["arrived", "in_progress", "completed"];
+      if (!allowedStatuses.includes(nextStatus)) {
+        return res.status(400).json({
+          error: "Status inválido para atualização do motorista",
+          allowed: allowedStatuses,
+        });
+      }
 
-      // Atualizar timestamps específicos
-      if (status === "arrived") {
+      const allowedTransitions = {
+        accepted: ["arrived"],
+        driver_arriving: ["arrived"],
+        arrived: ["in_progress"],
+        in_progress: ["completed"],
+      };
+
+      const currentStatus = String(ride.status || "");
+      const canTransition = Boolean(
+        allowedTransitions[currentStatus]?.includes(nextStatus),
+      );
+
+      if (!canTransition) {
+        return res.status(400).json({
+          error: "Transição de status inválida",
+          current: currentStatus,
+          requested: nextStatus,
+        });
+      }
+
+      if (ride.serviceType === "delivery") {
+        if (nextStatus === "in_progress" && !ride.proofs?.pickupPhoto) {
+          return res.status(400).json({
+            error: "Envie a foto da coleta antes de iniciar a entrega",
+          });
+        }
+        if (nextStatus === "completed" && !ride.proofs?.deliveryPhoto) {
+          return res.status(400).json({
+            error: "Envie a foto da entrega antes de finalizar",
+          });
+        }
+      }
+
+      ride.status = nextStatus;
+
+      if (nextStatus === "arrived") {
         ride.arrivedAt = new Date();
-      } else if (status === "in_progress") {
+      } else if (nextStatus === "in_progress") {
         ride.startedAt = new Date();
-      } else if (status === "completed") {
+      } else if (nextStatus === "completed") {
         ride.completedAt = new Date();
-        // Liberar motorista
+
         await DriverLocation.findOneAndUpdate(
           { driverId },
           {
@@ -609,12 +794,12 @@ class RideController {
 
       await ride.save();
 
-      // Notificar cliente
       const io = req.app.get("io");
       if (io) {
         io.to(`client-${ride.clientId}`).emit("ride-status-updated", {
           rideId: ride._id,
           status: ride.status,
+          timestamp: new Date().toISOString(),
         });
       }
 
@@ -644,16 +829,16 @@ class RideController {
         .populate("purposeId");
 
       if (!ride) {
-        return res.status(404).json({ error: "Corrida não encontrada" });
+        return res.status(404).json({ error: "Corrida nÃ£o encontrada" });
       }
 
-      // Verificar permissão
+      // Verificar permissÃ£o
       const isClient = ride.clientId?._id?.toString() === userIdStr;
       const isDriver = ride.driverId?._id?.toString() === userIdStr;
 
       if (!isClient && !isDriver) {
         return res.status(403).json({
-          error: "Você não tem permissão para ver esta corrida",
+          error: "VocÃª nÃ£o tem permissÃ£o para ver esta corrida",
         });
       }
 
@@ -667,7 +852,7 @@ class RideController {
     }
   }
 
-  // Histórico de corridas
+  // HistÃ³rico de corridas
   async getHistory(req, res) {
     try {
       const userId = req.user.id;
@@ -704,22 +889,22 @@ class RideController {
         },
       });
     } catch (error) {
-      console.error("Erro ao buscar histórico:", error);
+      console.error("Erro ao buscar histÃ³rico:", error);
       res.status(500).json({
-        error: "Erro ao buscar histórico",
+        error: "Erro ao buscar histÃ³rico",
         details: error.message,
       });
     }
   }
 
-  // Estatísticas do motorista (Ganhos de hoje, Meta)
+  // EstatÃ­sticas do motorista (Ganhos de hoje, Meta)
   async getDriverStats(req, res) {
     try {
       const driverId = req.user.id;
       const { startOfDay, endOfDay } = require("date-fns");
 
       const now = new Date();
-      // Considerando fuso horário local simples (ideal seria receber timezone do client)
+      // Considerando fuso horÃ¡rio local simples (ideal seria receber timezone do client)
       const todayStart = startOfDay(now);
       const todayEnd = endOfDay(now);
 
@@ -742,14 +927,14 @@ class RideController {
 
       const result = stats[0] || { totalEarnings: 0, ridesCount: 0 };
 
-      // Meta diária hardcoded por enquanto (gamification MVP)
+      // Meta diÃ¡ria hardcoded por enquanto (gamification MVP)
       const dailyGoal = 10;
 
-      // Simular um bônus de R$ 20 se atingir a meta
+      // Simular um bÃ´nus de R$ 20 se atingir a meta
       const bonusAmount = result.ridesCount >= dailyGoal ? 20 : 0;
 
-      // Deduzir taxa do app (ex: 20%) para mostrar lucro líquido estimado
-      // (ajuste conforme regra real. Aqui assumindo que pricing.total é o valor BRUTO e motorista fica com 80%)
+      // Deduzir taxa do app (ex: 20%) para mostrar lucro lÃ­quido estimado
+      // (ajuste conforme regra real. Aqui assumindo que pricing.total Ã© o valor BRUTO e motorista fica com 80%)
       const driverShare = result.totalEarnings * 0.8;
 
       res.json({
@@ -759,7 +944,7 @@ class RideController {
         bonus: bonusAmount,
       });
     } catch (error) {
-      console.error("Erro ao buscar estatísticas:", error);
+      console.error("Erro ao buscar estatÃ­sticas:", error);
       res.status(500).json({
         earnings: 0,
         rides: 0,
@@ -769,7 +954,7 @@ class RideController {
     }
   }
 
-  // Histórico de ganhos (últimos 7 dias)
+  // HistÃ³rico de ganhos (Ãºltimos 7 dias)
   async getEarningsHistory(req, res) {
     try {
       const driverId = req.user.id;
@@ -839,7 +1024,7 @@ class RideController {
           const match = stats.find((s) => s._id === hourLabel);
           result.push({
             label: hourLabel,
-            value: match ? match.total : 0, // Valor já é liquido do motorista
+            value: match ? match.total : 0, // Valor jÃ¡ Ã© liquido do motorista
             count: match ? match.count : 0,
           });
         }
@@ -852,7 +1037,7 @@ class RideController {
           // Format Label
           let label = "";
           if (period === "week") {
-            const days = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+            const days = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "SÃ¡b"];
             label = days[current.getDay()];
           } else {
             label = `${current.getDate()}/${current.getMonth() + 1}`;
@@ -861,7 +1046,7 @@ class RideController {
           result.push({
             label: label,
             fullDate: dateKey,
-            value: match ? match.total : 0, // Valor já é liquido
+            value: match ? match.total : 0, // Valor jÃ¡ Ã© liquido
             count: match ? match.count : 0,
           });
 
@@ -871,34 +1056,34 @@ class RideController {
 
       res.json(result);
     } catch (error) {
-      console.error("Erro ao buscar histórico de ganhos:", error);
+      console.error("Erro ao buscar histÃ³rico de ganhos:", error);
       res.status(500).json({ error: "Erro interno ao buscar dados" });
     }
   }
 
-  // Calcular preço (antes de criar a corrida)
+  // Calcular preÃ§o (antes de criar a corrida)
   async calculatePrice(req, res) {
     try {
       const { pickup, dropoff, vehicleType, purposeId, cityId } = req.body;
 
       if (!pickup || !dropoff) {
         return res.status(400).json({
-          error: "Origem e destino são obrigatórios",
+          error: "Origem e destino sÃ£o obrigatÃ³rios",
         });
       }
 
-      // Validar se cityId foi enviado (agora é obrigatório para preço preciso)
-      // Se o app antigo não mandar, tentamos inferir (geo) ou usar regra global (se existir)
+      // Validar se cityId foi enviado (agora Ã© obrigatÃ³rio para preÃ§o preciso)
+      // Se o app antigo nÃ£o mandar, tentamos inferir (geo) ou usar regra global (se existir)
       // Por enquanto, vamos assumir que o app PRECISA mandar ou a gente geocodifica no back.
-      // Como o usuário disse "pegamos a localização... buscamos configurações da cidade",
-      // o ideal seria o backend resolver a cidade via lat/long se o app não mandar.
-      // MVP: App manda ou Backend resolve. Vamos focar na lógica de preço primeiro.
+      // Como o usuÃ¡rio disse "pegamos a localizaÃ§Ã£o... buscamos configuraÃ§Ãµes da cidade",
+      // o ideal seria o backend resolver a cidade via lat/long se o app nÃ£o mandar.
+      // MVP: App manda ou Backend resolve. Vamos focar na lÃ³gica de preÃ§o primeiro.
 
       const mongoose = require("mongoose");
       const PricingRule = require("../models/PricingRule");
       const Purpose = require("../models/Purpose");
 
-      // Distância Haversine em metros
+      // DistÃ¢ncia Haversine em metros
       const distance = haversineDistance(
         pickup.latitude,
         pickup.longitude,
@@ -921,10 +1106,10 @@ class RideController {
       }
 
       // ==============================================================================
-      // NOVA LÓGICA DE PRECIFICAÇÃO (Prioridade: Cidade/Veículo/Serviço)
+      // NOVA LÃ“GICA DE PRECIFICAÃ‡ÃƒO (Prioridade: Cidade/VeÃ­culo/ServiÃ§o)
       // ==============================================================================
 
-      console.log("[calculatePrice] Parâmetros recebidos:", {
+      console.log("[calculatePrice] ParÃ¢metros recebidos:", {
         cityId,
         vehicleType,
         purposeId,
@@ -935,7 +1120,7 @@ class RideController {
       let rule = null;
 
       if (cityId) {
-        // 1. Tenta regra ESPECÍFICA: Cidade + Veículo + Serviço
+        // 1. Tenta regra ESPECÃFICA: Cidade + VeÃ­culo + ServiÃ§o
         if (purposeDoc?._id) {
           rule = await PricingRule.findOne({
             cityId,
@@ -949,12 +1134,12 @@ class RideController {
           }
 
           console.log(
-            "[calculatePrice] Busca específica (Cidade+Veículo+Serviço):",
-            rule ? `Encontrada: ${rule.name}` : "Não encontrada ou zerada",
+            "[calculatePrice] Busca especÃ­fica (Cidade+VeÃ­culo+ServiÃ§o):",
+            rule ? `Encontrada: ${rule.name}` : "NÃ£o encontrada ou zerada",
           );
         }
 
-        // 2. Se não achar, tenta regra BASE da Cidade: Cidade + Veículo (sem serviço)
+        // 2. Se nÃ£o achar, tenta regra BASE da Cidade: Cidade + VeÃ­culo (sem serviÃ§o)
         if (!rule) {
           rule = await PricingRule.findOne({
             cityId,
@@ -968,16 +1153,16 @@ class RideController {
           }
 
           console.log(
-            "[calculatePrice] Busca base (Cidade+Veículo):",
-            rule ? `Encontrada: ${rule.name}` : "Não encontrada ou zerada",
+            "[calculatePrice] Busca base (Cidade+VeÃ­culo):",
+            rule ? `Encontrada: ${rule.name}` : "NÃ£o encontrada ou zerada",
           );
         }
       } else {
-        console.log("[calculatePrice] ⚠️ cityId NÃO foi enviado pelo cliente!");
+        console.log("[calculatePrice] âš ï¸ cityId NÃƒO foi enviado pelo cliente!");
       }
 
       // 3. Fallback (Opcional): Regra Global (sem cidade)
-      // Se não achou na cidade (ou cityId não veio), tenta regra global
+      // Se nÃ£o achou na cidade (ou cityId nÃ£o veio), tenta regra global
       if (!rule) {
         console.log(
           "[calculatePrice] Tentando fallback para regra global (sem cityId)...",
@@ -988,7 +1173,7 @@ class RideController {
           active: true,
         };
 
-        // Global Específica
+        // Global EspecÃ­fica
         if (purposeDoc?._id) {
           rule = await PricingRule.findOne({
             ...globalFilter,
@@ -998,8 +1183,8 @@ class RideController {
             rule = null;
           }
           console.log(
-            "[calculatePrice] Busca global específica:",
-            rule ? `Encontrada: ${rule.name}` : "Não encontrada ou zerada",
+            "[calculatePrice] Busca global especÃ­fica:",
+            rule ? `Encontrada: ${rule.name}` : "NÃ£o encontrada ou zerada",
           );
         }
         // Global Base
@@ -1013,21 +1198,21 @@ class RideController {
           }
           console.log(
             "[calculatePrice] Busca global base:",
-            rule ? `Encontrada: ${rule.name}` : "Não encontrada ou zerada",
+            rule ? `Encontrada: ${rule.name}` : "NÃ£o encontrada ou zerada",
           );
         }
       }
 
-      // 4. Último Recurso: Configuração Global Aggregada (PricingConfig)
+      // 4. Ãšltimo Recurso: ConfiguraÃ§Ã£o Global Aggregada (PricingConfig)
       if (!rule) {
-        console.log("[calculatePrice] 🌐 Tentando ULTIMATO fallback: PricingConfig...");
+        console.log("[calculatePrice] ðŸŒ Tentando ULTIMATO fallback: PricingConfig...");
         const globalConfig = await PricingConfig.findOne().sort({ updatedAt: -1 });
 
         if (globalConfig) {
           const vPricing = globalConfig.vehiclePricing?.find(p => p.vehicleType === vehicleType && p.enabled);
 
           if (vPricing && (vPricing.minimumFee > 0 || vPricing.pricePerKm > 0)) {
-            console.log("[calculatePrice] ✅ Usando PricingConfig para veículo:", vehicleType);
+            console.log("[calculatePrice] âœ… Usando PricingConfig para veÃ­culo:", vehicleType);
             rule = {
               name: `GLOBAL_CONFIG_${vehicleType.toUpperCase()}`,
               pricing: {
@@ -1058,7 +1243,7 @@ class RideController {
 
       if (!rule) {
         console.log(
-          "[calculatePrice] ❌ ERRO: Nenhuma regra encontrada!",
+          "[calculatePrice] âŒ ERRO: Nenhuma regra encontrada!",
           {
             cityId,
             vehicleType,
@@ -1067,12 +1252,12 @@ class RideController {
         );
         return res.status(400).json({
           error:
-            "Serviço não disponível ou sem preço configurado nesta região.",
-          details: "Nenhuma regra de preço encontrada (PricingRule).",
+            "ServiÃ§o nÃ£o disponÃ­vel ou sem preÃ§o configurado nesta regiÃ£o.",
+          details: "Nenhuma regra de preÃ§o encontrada (PricingRule).",
         });
       }
 
-      console.log("[calculatePrice] ✅ Regra encontrada:", {
+      console.log("[calculatePrice] âœ… Regra encontrada:", {
         name: rule.name,
         cityId: rule.cityId,
         vehicleCategory: rule.vehicleCategory,
@@ -1086,10 +1271,10 @@ class RideController {
       const pricePerKm = Number(rule.pricing.pricePerKm || 0);
       const basePrice = Number(rule.pricing.basePrice || 0); // Se existir campo basePrice separado
 
-      // Cálculo
-      // Regra comum: (Base) + (Km Excedente * PreçoKm)
-      // Mas a regra do usuário foi: "KM mínimo que irá se basear na taxa mínima"
-      // Interpretação: Até X km, paga Y. Acima disso, paga Y + (Km - X)*Z.
+      // CÃ¡lculo
+      // Regra comum: (Base) + (Km Excedente * PreÃ§oKm)
+      // Mas a regra do usuÃ¡rio foi: "KM mÃ­nimo que irÃ¡ se basear na taxa mÃ­nima"
+      // InterpretaÃ§Ã£o: AtÃ© X km, paga Y. Acima disso, paga Y + (Km - X)*Z.
 
       let finalPrice = 0;
       let breakdown = {};
@@ -1097,7 +1282,7 @@ class RideController {
       if (distanceKm <= minimumKm) {
         finalPrice = minimumFee;
         breakdown = { method: "minimum_fee", minimumFee, distanceKm };
-        console.log("[calculatePrice] 💰 Cálculo (Taxa Mínima):", {
+        console.log("[calculatePrice] ðŸ’° CÃ¡lculo (Taxa MÃ­nima):", {
           distanceKm,
           minimumKm,
           minimumFee,
@@ -1114,7 +1299,7 @@ class RideController {
           pricePerKm,
           distancePrice,
         };
-        console.log("[calculatePrice] 💰 Cálculo (Distância):", {
+        console.log("[calculatePrice] ðŸ’° CÃ¡lculo (DistÃ¢ncia):", {
           distanceKm,
           minimumKm,
           exceedKm,
@@ -1125,7 +1310,7 @@ class RideController {
         });
       }
 
-      // Ajuste de duração (opcional, se configurado)
+      // Ajuste de duraÃ§Ã£o (opcional, se configurado)
       // if (rule.pricing.pricePerMinute) ...
 
       const durationMinutes = Math.max(1, Math.ceil((distanceKm / 30) * 60)); // Estimativa simples 30km/h
@@ -1137,11 +1322,11 @@ class RideController {
     const baseRidePrice = parseFloat(minimumFee.toFixed(2));
     const distanceExtraPrice = parseFloat((finalPrice - minimumFee).toFixed(2));
     
-    // Arredondamento para números "limpos" (múltiplos de 0.10)
+    // Arredondamento para nÃºmeros "limpos" (mÃºltiplos de 0.10)
     const rawTotal = finalPrice + (finalPrice * (feePercentage / 100));
     const finalTotal = Math.round(rawTotal * 10) / 10;
     
-    // Ajusta a taxa de serviço para que o total bata exatamente (Total - Base - Distância)
+    // Ajusta a taxa de serviÃ§o para que o total bata exatamente (Total - Base - DistÃ¢ncia)
     const adjustedServiceFee = parseFloat((finalTotal - baseRidePrice - distanceExtraPrice).toFixed(2));
 
     return res.json({
@@ -1167,16 +1352,16 @@ class RideController {
           : undefined,
       });
     } catch (error) {
-      console.error("Erro ao calcular preço:", error);
+      console.error("Erro ao calcular preÃ§o:", error);
       res.status(500).json({
-        error: "Erro ao calcular preço",
+        error: "Erro ao calcular preÃ§o",
         details: error?.message,
         stack: process.env.NODE_ENV === "production" ? undefined : error?.stack,
       });
     }
   }
 
-  // Buscar motoristas próximos (para exibir no mapa)
+  // Buscar motoristas prÃ³ximos (para exibir no mapa)
   async getNearbyDrivers(req, res) {
     try {
       const { latitude, longitude, radius, vehicleType, limit, cityId } = req.query;
@@ -1184,7 +1369,7 @@ class RideController {
       if (!latitude || !longitude) {
         return res
           .status(400)
-          .json({ error: "Latitude e Longitude são obrigatórios" });
+          .json({ error: "Latitude e Longitude sÃ£o obrigatÃ³rios" });
       }
 
       // Buscar raio configurado na cidade (prioridade)
@@ -1197,7 +1382,7 @@ class RideController {
           }
         }
       } catch (e) {
-        // Usa fallback se não conseguir buscar a cidade
+        // Usa fallback se nÃ£o conseguir buscar a cidade
       }
 
       const DriverLocation = require("../models/DriverLocation");
@@ -1219,23 +1404,44 @@ class RideController {
 
       res.json(mapped);
     } catch (error) {
-      console.error("Erro ao buscar motoristas próximos:", error);
+      console.error("Erro ao buscar motoristas prÃ³ximos:", error);
       res.status(500).json({ error: "Erro interno", details: error.message });
     }
   }
 }
 
-// Função auxiliar para calcular distância (Haversine)
+function buildRideRequestPayload(ride, extras = {}) {
+  const client = ride.clientId || {};
+  return {
+    rideId: ride._id,
+    pickup: ride.pickup,
+    dropoff: ride.dropoff,
+    pricing: ride.pricing,
+    distance: ride.distance,
+    duration: ride.duration,
+    serviceType: ride.serviceType,
+    vehicleType: ride.vehicleType,
+    requestedAt: ride.requestedAt,
+    distanceToPickup: extras.distanceToPickup,
+    client: {
+      name: client.name,
+      phone: client.phone,
+      profilePhoto: client.profilePhoto,
+      rating: client.rating || 5.0,
+    },
+  };
+}
+// FunÃ§Ã£o auxiliar para calcular distÃ¢ncia (Haversine)
 function haversineDistance(lat1, lon1, lat2, lon2) {
   const R = 6371e3; // Raio da Terra em metros
-  const φ1 = (lat1 * Math.PI) / 180;
-  const φ2 = (lat2 * Math.PI) / 180;
-  const Δφ = ((lat2 - lat1) * Math.PI) / 180;
-  const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+  const phi1 = (lat1 * Math.PI) / 180;
+  const phi2 = (lat2 * Math.PI) / 180;
+  const deltaPhi = ((lat2 - lat1) * Math.PI) / 180;
+  const deltaLambda = ((lon2 - lon1) * Math.PI) / 180;
 
   const a =
-    Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+    Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
   return R * c;

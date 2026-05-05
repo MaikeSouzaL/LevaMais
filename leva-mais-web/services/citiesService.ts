@@ -1,6 +1,7 @@
 import axios from "axios";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
+const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || "dev-admin-key";
 
 // Criar instância do axios
 const api = axios.create({
@@ -8,6 +9,7 @@ const api = axios.create({
   timeout: 10000,
   headers: {
     "Content-Type": "application/json",
+    ...(ADMIN_API_KEY ? { "x-admin-key": ADMIN_API_KEY } : {}),
   },
 });
 

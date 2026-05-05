@@ -1,0 +1,172 @@
+import React, { useState, useRef, useEffect } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+} from "react-native";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import { MaterialIcons } from "@expo/vector-icons";
+import Toast from "react-native-toast-message";
+import MapView, { Marker } from "react-native-maps";
+import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
+import { LoadingButton } from "../../../Shared/components";
+import { darkMapStyle } from "@/utils/mapStyle";
+
+export default function ConfirmPickupScreen() {
+  const navigation = useNavigation<any>();
+  const route = useRoute<any>();
+  const mapRef = useRef<MapView>(null);
+
+  const initialAddress = route.params?.formattedAddress || route.params?.address || "Sua localizacao";
+  const initialLat = route.params?.latitude;
+  const initialLng = route.params?.longitude;
+
+  const [region, setRegion] = useState({
+    latitude: initialLat || -23.5505,
+    longitude: initialLng || -46.6333,
+    latitudeDelta: 0.005,
+    longitudeDelta: 0.005,
+  });
+
+  const [pinCoord, setPinCoord] = useState({
+    latitude: initialLat || -23.5505,
+    longitude: initialLng || -46.6333,
+  });
+
+  const [address, setAddress] = useState(initialAddress);
+
+  useEffect(() => {
+    if (initialLat && initialLng) {
+      setRegion((r) => ({ ...r, latitude: initialLat, longitude: initialLng }));
+      setPinCoord({ latitude: initialLat, longitude: initialLng });
+    }
+  }, [initialLat, initialLng]);
+
+  const handleConfirm = () => {
+    navigation.navigate("Home", {
+      currentLocation: {
+        address,
+        latitude: pinCoord.latitude,
+        longitude: pinCoord.longitude,
+      },
+    });
+  };
+
+  return (
+    <View style={styles.container}>
+      <MapView
+        ref={mapRef}
+        style={styles.map}
+        region={region}
+        onRegionChangeComplete={setRegion}
+        customMapStyle={darkMapStyle}
+        showsUserLocation
+        showsMyLocationButton={false}
+      >
+        <Marker
+          coordinate={pinCoord}
+          draggable
+          onDragEnd={(e) => {
+            setPinCoord(e.nativeEvent.coordinate);
+            setAddress(
+              `${e.nativeEvent.coordinate.latitude.toFixed(6)}, ${e.nativeEvent.coordinate.longitude.toFixed(6)}`
+            );
+          }}
+          title="Ponto de coleta"
+        />
+      </MapView>
+
+      <TouchableOpacity
+        style={styles.backButton}
+        onPress={() => navigation.goBack()}
+      >
+        <MaterialIcons name="arrow-back" size={24} color="#fff" />
+      </TouchableOpacity>
+
+      <View style={styles.pinHint}>
+        <Text style={styles.pinHintText}>Arraste o pin para o local exato de coleta</Text>
+      </View>
+
+      <View style={styles.bottomSheet}>
+        <View style={styles.addressRow}>
+          <View style={styles.dot} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.addressLabel}>PONTO DE COLETA</Text>
+            <Text style={styles.addressText} numberOfLines={2}>{address}</Text>
+          </View>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.editButton}
+          >
+            <MaterialIcons name="edit" size={20} color={colors.primary[500]} />
+          </TouchableOpacity>
+        </View>
+        <LoadingButton title="Confirmar local de coleta" onPress={handleConfirm} variant="primary" />
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background.primary },
+  map: { ...StyleSheet.absoluteFillObject },
+  backButton: {
+    position: "absolute",
+    top: 50,
+    left: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 10,
+  },
+  pinHint: {
+    position: "absolute",
+    top: 110,
+    alignSelf: "center",
+    backgroundColor: "rgba(0,0,0,0.7)",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    zIndex: 10,
+  },
+  pinHintText: { color: "#fff", fontSize: fontSize.sm, fontWeight: fontWeight.semibold },
+  bottomSheet: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: colors.background.primary,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: spacing.xl,
+    paddingBottom: spacing["3xl"],
+    borderTopWidth: 1,
+    borderTopColor: colors.border.light,
+  },
+  addressRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: spacing.lg,
+    gap: spacing.md,
+  },
+  dot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: colors.primary[500],
+    borderWidth: 2,
+    borderColor: colors.background.primary,
+  },
+  addressLabel: {
+    color: colors.text.tertiary,
+    fontSize: fontSize.xs,
+    fontWeight: fontWeight.bold,
+    marginBottom: 2,
+  },
+  addressText: { color: colors.text.primary, fontSize: fontSize.base, fontWeight: fontWeight.semibold },
+  editButton: { padding: spacing.sm },
+});

@@ -47,6 +47,7 @@ export default function SignUp() {
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [localPhone, setLocalPhone] = useState(phone || "");
   const [password, setPassword] = useState("");
   const [confirmarSenha, setConfirmarSenha] = useState("");
   const [loading, setLoading] = useState(false);
@@ -393,8 +394,10 @@ export default function SignUp() {
 
   async function handleManualSignUp() {
     if (loading) return;
+    const sanitizedPhone = (localPhone || phone || "").replace(/\D/g, "");
+    const normalizedEmail = email.trim().toLowerCase();
 
-    // Validações
+    // Validacoes
     if (!name || !email || !password || !confirmarSenha) {
       Toast.show({
         type: "error",
@@ -403,10 +406,19 @@ export default function SignUp() {
       return;
     }
 
+    if (sanitizedPhone.length < 10 || sanitizedPhone.length > 11) {
+      Toast.show({
+        type: "error",
+        text1: "Telefone invalido",
+        text2: "Informe um telefone com DDD para continuar",
+      });
+      return;
+    }
+
     if (password !== confirmarSenha) {
       Toast.show({
         type: "error",
-        text1: "As senhas não coincidem.",
+        text1: "As senhas nao coincidem.",
       });
       return;
     }
@@ -422,31 +434,33 @@ export default function SignUp() {
     setLoading(true);
 
     try {
-      // Criar objeto com os dados do formulário para passar via props
-      // Não vamos salvar no banco ainda, apenas passar os dados para a tela de seleção de perfil
+      // Criar objeto com os dados do formulario para passar via props
+      // Nao vamos salvar no banco ainda, apenas passar os dados para a tela de selecao de perfil
       const userData = {
-        _id: "", // Será gerado no backend após seleção do perfil
+        _id: "",
         name,
-        email,
-        password, // Incluir senha para salvar depois
-        phone: phone || undefined,
+        email: normalizedEmail,
+        password,
+        phone: sanitizedPhone,
         city: city || detectedCity || undefined,
-        userType: undefined, // Será definido na tela de seleção
+        userType: undefined,
         googleId: undefined,
         profilePhoto: undefined,
         acceptedTerms: true,
       };
 
-      // Não salvar no banco ainda, apenas navegar com os dados
       Toast.show({
         type: "success",
         text1: "Dados preenchidos com sucesso!",
       });
 
-      // Navegar para tela de seleção de perfil com dados do formulário
-      navigation.navigate("SelectProfile", {
-        user: userData,
-        token: "",
+      navigation.navigate("PhoneVerification", {
+        phone: sanitizedPhone,
+        nextScreen: "SelectProfile",
+        nextParams: {
+          user: userData,
+          token: "",
+        },
       });
     } catch (error: any) {
       console.error("Erro:", error);
@@ -459,7 +473,6 @@ export default function SignUp() {
       setLoading(false);
     }
   }
-
   // Mostrar tela de permissão se necessário
   if (showPermissionScreen && hasCheckedPermission) {
     return (
@@ -497,6 +510,31 @@ export default function SignUp() {
             <Text className="text-base text-gray-400 mt-2 font-regular">
               Preencha os dados abaixo para começar
             </Text>
+          </View>
+
+          {/* Campo Telefone */}
+          <View className="mb-4">
+            <Text className="text-sm font-semibold text-gray-300 mb-1.5">
+              Telefone (WhatsApp)
+            </Text>
+            <View className="flex-row items-center border border-gray-700 rounded-xl bg-surface-secondary px-3 focus:border-brand-light">
+              <Feather
+                name="phone"
+                size={22}
+                color={theme.COLORS.BRAND_LIGHT}
+              />
+              <TextInput
+                className="flex-1 h-12 text-base text-white ml-2"
+                placeholder="(11) 99999-9999"
+                placeholderTextColor="#7C7C8A"
+                value={localPhone}
+                onChangeText={setLocalPhone}
+                keyboardType="phone-pad"
+                maxLength={15}
+                returnKeyType="next"
+                onSubmitEditing={() => nameInputRef.current?.focus()}
+              />
+            </View>
           </View>
 
           {/* Campo Nome */}

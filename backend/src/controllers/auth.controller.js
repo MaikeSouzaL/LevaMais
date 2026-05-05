@@ -1,8 +1,14 @@
 const User = require("../models/User");
 const PasswordReset = require("../models/PasswordReset");
+const PhoneVerification = require("../models/PhoneVerification");
 const jwt = require("jsonwebtoken");
 const emailService = require("../services/email.service");
 const crypto = require("crypto");
+
+function normalizePhone(phone) {
+  if (!phone) return "";
+  return String(phone).replace(/\D/g, "");
+}
 
 class AuthController {
   // Gerar token JWT
@@ -273,6 +279,13 @@ class AuthController {
       });
 
       if (user) {
+        if (!user.isActive) {
+          return res.status(401).json({
+            success: false,
+            message: "Conta desativada",
+          });
+        }
+
         // Atualizar informações do Google se necessário
         if (!user.googleId) {
           user.googleId = googleId;
@@ -583,6 +596,137 @@ class AuthController {
     }
   }
 
+  async sendPhoneCode(req, res) {
+    try {
+      const normalizedPhone = normalizePhone(req.body?.phone);
+
+      if (!normalizedPhone) {
+        return res.status(400).json({
+          success: false,
+          message: "Telefone e obrigatorio",
+        });
+      }
+
+      if (normalizedPhone.length < 10 || normalizedPhone.length > 11) {
+        return res.status(400).json({
+          success: false,
+          message: "Telefone invalido",
+        });
+      }
+
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      const recentAttempts = await PhoneVerification.countDocuments({
+        phone: normalizedPhone,
+        createdAt: { $gte: fiveMinutesAgo },
+      });
+
+      if (recentAttempts >= 5) {
+        return res.status(429).json({
+          success: false,
+          message: "Muitas tentativas. Tente novamente em alguns minutos.",
+        });
+      }
+
+      await PhoneVerification.updateMany(
+        { phone: normalizedPhone, used: false },
+        { used: true },
+      );
+
+      const code = crypto.randomInt(100000, 999999).toString();
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+      await PhoneVerification.create({
+        phone: normalizedPhone,
+        code,
+        expiresAt,
+      });
+
+      const isProd = process.env.NODE_ENV === "production";
+      console.log(
+        `[PhoneVerification] code generated for ${normalizedPhone}: ${code}`,
+      );
+
+      return res.json({
+        success: true,
+        message: "Codigo de verificacao enviado",
+        data: isProd ? undefined : { devCode: code },
+      });
+    } catch (error) {
+      console.error("Erro ao enviar codigo de telefone:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Erro ao enviar codigo",
+        error: error.message,
+      });
+    }
+  }
+
+  async verifyPhoneCode(req, res) {
+    try {
+      const normalizedPhone = normalizePhone(req.body?.phone);
+      const code = String(req.body?.code || "").trim();
+
+      if (!normalizedPhone || !code) {
+        return res.status(400).json({
+          success: false,
+          message: "Telefone e codigo sao obrigatorios",
+        });
+      }
+
+      const verification = await PhoneVerification.findOne({
+        phone: normalizedPhone,
+        used: false,
+      }).sort({ createdAt: -1 });
+
+      if (!verification) {
+        return res.status(400).json({
+          success: false,
+          message: "Nenhum codigo valido encontrado. Solicite um novo codigo.",
+        });
+      }
+
+      if (verification.expiresAt <= new Date()) {
+        verification.used = true;
+        await verification.save();
+
+        return res.status(400).json({
+          success: false,
+          message: "Codigo expirado. Solicite um novo codigo.",
+        });
+      }
+
+      if (verification.code !== code) {
+        verification.attempts = (verification.attempts || 0) + 1;
+        if (verification.attempts >= 5) {
+          verification.used = true;
+        }
+        await verification.save();
+
+        return res.status(400).json({
+          success: false,
+          message: "Codigo invalido",
+        });
+      }
+
+      verification.used = true;
+      verification.verifiedAt = new Date();
+      await verification.save();
+
+      return res.json({
+        success: true,
+        message: "Telefone verificado com sucesso",
+        data: { verified: true, phone: normalizedPhone },
+      });
+    } catch (error) {
+      console.error("Erro ao verificar codigo de telefone:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Erro ao verificar codigo",
+        error: error.message,
+      });
+    }
+  }
+
   // Salvar push token do dispositivo
   async savePushToken(req, res) {
     try {
@@ -743,6 +887,87 @@ class AuthController {
       res.status(500).json({
         success: false,
         message: "Erro ao buscar usuário",
+        error: error.message,
+      });
+    }
+  }
+
+  // Atualizar usuario por ID (admin)
+  async updateUserById(req, res) {
+    try {
+      const { id } = req.params;
+      const allowedFields = [
+        "name",
+        "email",
+        "phone",
+        "city",
+        "userType",
+        "isActive",
+        "vehicleType",
+        "vehicleInfo",
+        "cpf",
+        "cnpj",
+      ];
+
+      const payload = req.body || {};
+      const updates = {};
+
+      allowedFields.forEach((field) => {
+        if (Object.prototype.hasOwnProperty.call(payload, field)) {
+          updates[field] = payload[field];
+        }
+      });
+
+      if (updates.email) {
+        updates.email = String(updates.email).toLowerCase().trim();
+      }
+
+      const user = await User.findByIdAndUpdate(id, updates, {
+        new: true,
+        runValidators: true,
+      }).select("-password");
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: "Usuário não encontrado",
+        });
+      }
+
+      return res.json({
+        success: true,
+        message: "Usuário atualizado com sucesso",
+        user,
+      });
+    } catch (error) {
+      console.error("Erro ao atualizar usuário:", error);
+      return res.status(400).json({
+        success: false,
+        message: "Erro ao atualizar usuário",
+        error: error.message,
+      });
+    }
+  }
+
+  // Deletar usuario por ID (admin)
+  async deleteUserById(req, res) {
+    try {
+      const { id } = req.params;
+
+      const user = await User.findByIdAndDelete(id);
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: "Usuário não encontrado",
+        });
+      }
+
+      return res.status(204).send();
+    } catch (error) {
+      console.error("Erro ao deletar usuário:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Erro ao deletar usuário",
         error: error.message,
       });
     }

@@ -26,6 +26,8 @@ export default function AddressPickerScreen() {
   
   const mapLocation = useMapLocation();
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
+  const reverseGeocodeSeqRef = useRef(0);
+  const lastReversePointRef = useRef<{ latitude: number; longitude: number } | null>(null);
   
   // O endereço texto exibido no input
   const [selectedAddress, setSelectedAddress] = useState(favoriteData?.address || initialLocation?.formattedAddress || '');
@@ -138,20 +140,39 @@ export default function AddressPickerScreen() {
 
     if (searchTimeout.current) clearTimeout(searchTimeout.current);
 
+    // Evita chamadas excessivas quando o usuário move muito pouco o mapa.
+    const prev = lastReversePointRef.current;
+    if (prev) {
+      const dLat = region.latitude - prev.latitude;
+      const dLng = region.longitude - prev.longitude;
+      // ~18m de limiar (aprox) para disparar novo reverse geocode
+      const movedMetersApprox = Math.sqrt(dLat * dLat + dLng * dLng) * 111000;
+      if (movedMetersApprox < 18) {
+        return;
+      }
+    }
+
     searchTimeout.current = setTimeout(async () => {
+       const seq = ++reverseGeocodeSeqRef.current;
        try {
          const details = await googlePlacesService.reverseGeocode(region.latitude, region.longitude);
+         // Ignora resposta antiga (race condition)
+         if (seq !== reverseGeocodeSeqRef.current) return;
          if (details && details.formattedAddress) {
             setSelectedAddress(details.formattedAddress);
             setAddressDetails(details);
+            lastReversePointRef.current = {
+              latitude: region.latitude,
+              longitude: region.longitude,
+            };
          }
        } catch (error) {
          console.log("Erro ao obter endereço reverso:", error);
        }
-    }, 800);
+    }, 450);
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (isEditMode) {
         setModalVisible(true);
         return;
@@ -169,14 +190,81 @@ export default function AddressPickerScreen() {
         return;
     }
 
-    console.log(`[AddressPicker] Confirmando ${selectionMode}:`, selectedAddress, finalLat, finalLng);
+    let resolvedAddress = String(selectedAddress || "").trim();
+    const isGeneric =
+      !resolvedAddress ||
+      resolvedAddress.toLowerCase().includes("local selecionado no mapa");
+
+    if (isGeneric) {
+      try {
+        const details = await googlePlacesService.reverseGeocode(
+          Number(finalLat),
+          Number(finalLng),
+        );
+        if (details?.formattedAddress) {
+          resolvedAddress = details.formattedAddress;
+          setSelectedAddress(details.formattedAddress);
+          setAddressDetails(details);
+        }
+      } catch (error) {
+        console.log("Falha ao resolver endereco antes de confirmar:", error);
+      }
+    }
+
+    if (!resolvedAddress) {
+      Alert.alert(
+        "Endereco indisponivel",
+        "Nao foi possivel obter o nome do endereco. Mova o mapa e tente novamente.",
+      );
+      return;
+    }
+
+    console.log(`[AddressPicker] Confirmando ${selectionMode}:`, resolvedAddress, finalLat, finalLng);
+
+    // Fluxo: Veiculo -> Destino -> Tipo de servico
+    if (initialVehicle && (selectionMode === "dropoff" || selectionMode === "home_dropoff")) {
+      const pickupLat =
+        Number(mapLocation.userRegion?.latitude) ||
+        Number(mapLocation.region?.latitude);
+      const pickupLng =
+        Number(mapLocation.userRegion?.longitude) ||
+        Number(mapLocation.region?.longitude);
+
+      if (!Number.isFinite(pickupLat) || !Number.isFinite(pickupLng)) {
+        Alert.alert(
+          "Origem pendente",
+          "Defina sua localizacao de coleta antes de continuar.",
+        );
+        (navigation as any).navigate("LocationPicker", {
+          selectionMode: "currentLocation",
+          returnScreen: "Home",
+        });
+        return;
+      }
+
+      (navigation as any).navigate("ServicePurpose", {
+        vehicleType: initialVehicle,
+        initialPurposeId: initialService,
+        pickup: {
+          address: mapLocation.currentAddress || "Sua localizacao",
+          latitude: pickupLat,
+          longitude: pickupLng,
+        },
+        dropoff: {
+          address: resolvedAddress,
+          latitude: Number(finalLat),
+          longitude: Number(finalLng),
+        },
+      });
+      return;
+    }
 
     (navigation as any).navigate(returnScreen || 'Home', {
       [selectionMode]: {
-        address: selectedAddress || 'Local selecionado no mapa',
+        address: resolvedAddress,
         latitude: Number(finalLat),
         longitude: Number(finalLng),
-        formattedAddress: selectedAddress,
+        formattedAddress: resolvedAddress,
       },
       initialVehicle,
       initialService
@@ -522,3 +610,6 @@ const styles = StyleSheet.create({
       fontWeight: 'bold'
   }
 });
+
+
+

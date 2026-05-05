@@ -176,7 +176,28 @@ export async function reverseGeocode(
       return null;
     }
 
-    const result = response.data.results[0];
+    const results = response.data.results || [];
+    if (!results.length) return null;
+
+    const scoreResult = (r: any): number => {
+      const types: string[] = Array.isArray(r?.types) ? r.types : [];
+      const components = r?.address_components || [];
+      const hasStreetNumber = components.some((c: any) =>
+        (c?.types || []).includes("street_number")
+      );
+
+      let score = 0;
+      if (types.includes("street_address")) score += 100;
+      if (types.includes("premise")) score += 80;
+      if (types.includes("subpremise")) score += 60;
+      if (types.includes("route")) score += 40;
+      if (types.includes("plus_code")) score -= 100;
+      if (hasStreetNumber) score += 30;
+      return score;
+    };
+
+    const sorted = [...results].sort((a, b) => scoreResult(b) - scoreResult(a));
+    const result = sorted[0];
     const components = result.address_components || [];
 
     const getComponent = (type: string) => {
@@ -184,7 +205,7 @@ export async function reverseGeocode(
       return component?.long_name || component?.short_name;
     };
 
-    const placeDetails: PlaceDetails = {
+    let placeDetails: PlaceDetails = {
       placeId: result.place_id,
       formattedAddress: result.formatted_address,
       street: getComponent("route"),
@@ -205,6 +226,28 @@ export async function reverseGeocode(
       latitude: result.geometry.location.lat,
       longitude: result.geometry.location.lng,
     };
+
+    // Enriquecer via Place Details quando faltar rua/numero
+    if (!placeDetails.street || !placeDetails.streetNumber) {
+      try {
+        const enriched = await getPlaceDetails(placeDetails.placeId);
+        if (enriched) {
+          placeDetails = {
+            ...placeDetails,
+            street: enriched.street || placeDetails.street,
+            streetNumber: enriched.streetNumber || placeDetails.streetNumber,
+            neighborhood: enriched.neighborhood || placeDetails.neighborhood,
+            city: enriched.city || placeDetails.city,
+            state: enriched.state || placeDetails.state,
+            stateCode: enriched.stateCode || placeDetails.stateCode,
+            postalCode: enriched.postalCode || placeDetails.postalCode,
+            country: enriched.country || placeDetails.country,
+            formattedAddress:
+              enriched.formattedAddress || placeDetails.formattedAddress,
+          };
+        }
+      } catch {}
+    }
 
     console.log("✅ Endereço obtido:", placeDetails);
     return placeDetails;

@@ -64,6 +64,11 @@ export declare global {
       Terms: {
         onAccept?: () => void;
       };
+      PhoneVerification: {
+        phone: string;
+        nextScreen?: string;
+        nextParams?: Record<string, unknown>;
+      };
       NotificationPermission: {
         user: {
           _id: string;

@@ -34,6 +34,8 @@ router.post("/:rideId/proof/delivery", rideController.uploadDeliveryProof);
 
 // Buscar corrida ativa do usuário (principalmente motorista)
 router.get("/active", rideController.getActive);
+router.get("/active/list", rideController.getActiveList);
+router.get("/available-requests", rideController.getAvailableRequests);
 
 // Estatísticas do motorista (dashboard)
 router.get("/stats", rideController.getDriverStats);

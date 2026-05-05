@@ -12,3 +12,5 @@ export { default as StatusBadge } from './StatusBadge';
 export { default as EmptyState } from './EmptyState';
 export { default as PurposeCard } from './PurposeCard';
 export { default as PaymentMethodCard } from './PaymentMethodCard';
+export { default as FlowStepHeader } from './FlowStepHeader';
+export { default as ClientScreenHeader } from './ClientScreenHeader';

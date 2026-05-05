@@ -36,6 +36,13 @@ export interface User {
   phone?: string;
   city?: string;
   userType: 'client' | 'driver' | 'admin';
+  vehicleType?: "motorcycle" | "car" | "van" | "truck";
+  vehicleInfo?: {
+    plate?: string;
+    model?: string;
+    color?: string;
+    year?: number;
+  };
   googleId?: string;
   profilePhoto?: string;
   acceptedTerms: boolean;
@@ -48,4 +55,3 @@ export interface AuthResponse {
   user: User;
   token: string;
 }
-

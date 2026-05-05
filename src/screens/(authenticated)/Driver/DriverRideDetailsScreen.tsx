@@ -4,7 +4,8 @@ import { useRoute, useNavigation } from "@react-navigation/native";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import { MaterialIcons, FontAwesome5, Ionicons } from "@expo/vector-icons";
 import { DriverScreen } from "./components/DriverScreen"; // Adjust path if needed
-import rideService, { Ride } from "../../../services/ride.service"; // Adjust path
+import rideService, { Ride } from "../../../services/ride.service";
+import MapMarker from "../../../components/MapMarker";
 import { PROVIDER_GOOGLE } from "react-native-maps";
 
 const { width } = Dimensions.get("window");
@@ -106,15 +107,11 @@ export default function DriverRideDetailsScreen() {
             }}
             liteMode={false} // Full interactivity
           >
-            <Marker coordinate={details.pickup} title="Retirada">
-               <View style={{ backgroundColor: "#02de95", padding: 6, borderRadius: 20, borderWidth: 2, borderColor: "#fff" }}>
-                  <FontAwesome5 name="map-marker-alt" size={14} color="#091A2F" />
-               </View>
+            <Marker coordinate={details.pickup} title="Retirada" anchor={{ x: 0.5, y: 1 }}>
+              <MapMarker type="pickup" size={46} />
             </Marker>
-            <Marker coordinate={details.dropoff} title="Entrega">
-               <View style={{ backgroundColor: "#ef4444", padding: 6, borderRadius: 20, borderWidth: 2, borderColor: "#fff" }}>
-                  <FontAwesome5 name="flag-checkered" size={14} color="#fff" />
-               </View>
+            <Marker coordinate={details.dropoff} title="Entrega" anchor={{ x: 0.5, y: 1 }}>
+              <MapMarker type="dropoff" size={46} />
             </Marker>
             <Polyline
                 coordinates={[

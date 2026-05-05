@@ -1,11 +1,6 @@
-/**
- * useDriverSearch - Hook para gerenciar busca de motorista
- * Extrai lógica de WebSocket e busca de motorista do HomeScreen
- */
-
-import { useState, useEffect, useRef } from 'react';
-import webSocketService from '@/services/websocket.service';
-import Toast from 'react-native-toast-message';
+import { useEffect, useRef, useState } from "react";
+import Toast from "react-native-toast-message";
+import webSocketService from "@/services/websocket.service";
 
 export interface DriverInfo {
   id: string;
@@ -42,15 +37,16 @@ export interface DriverFoundState {
 
 export interface CancelNotice {
   visible: boolean;
+  kind?: "driver_cancelled" | "no_driver" | "generic";
   reason?: string;
 }
 
 export function useDriverSearch(rideId?: string) {
   const [searchingState, setSearchingState] = useState<SearchingState>({
     visible: false,
-    title: '',
-    price: '',
-    eta: '',
+    title: "",
+    price: "",
+    eta: "",
     secondsLeft: undefined,
   });
 
@@ -66,7 +62,6 @@ export function useDriverSearch(rideId?: string) {
 
   const driverFoundRef = useRef<any>(null);
 
-  // Iniciar busca
   const startSearch = (data: {
     title: string;
     price: string;
@@ -81,12 +76,17 @@ export function useDriverSearch(rideId?: string) {
     });
   };
 
-  // Parar busca
   const stopSearch = () => {
     setSearchingState((prev) => ({ ...prev, visible: false }));
   };
 
-  // Resetar estado do motorista
+  const setSearchSecondsLeft = (secondsLeft: number) => {
+    setSearchingState((prev) => ({
+      ...prev,
+      secondsLeft: Math.max(0, secondsLeft),
+    }));
+  };
+
   const resetDriverState = () => {
     setDriverFoundState({
       found: false,
@@ -95,15 +95,11 @@ export function useDriverSearch(rideId?: string) {
     });
   };
 
-  // WebSocket: Motorista encontrado
   useEffect(() => {
     let mounted = true;
-
     const currentRideId = searchingState.rideId || rideId;
 
-    if (!searchingState.visible || !currentRideId) {
-      return;
-    }
+    if (!searchingState.visible || !currentRideId) return;
 
     const onDriverFound = (payload: any) => {
       if (!mounted) return;
@@ -113,7 +109,7 @@ export function useDriverSearch(rideId?: string) {
 
       const etaText =
         payload?.eta?.text ||
-        (typeof payload?.eta === 'string' ? payload.eta : undefined);
+        (typeof payload?.eta === "string" ? payload.eta : undefined);
 
       setDriverFoundState({
         found: true,
@@ -122,7 +118,6 @@ export function useDriverSearch(rideId?: string) {
         location: null,
       });
 
-      // Abrir sheet de motorista encontrado
       setTimeout(() => {
         driverFoundRef.current?.snapToIndex?.(0);
       }, 150);
@@ -137,30 +132,46 @@ export function useDriverSearch(rideId?: string) {
 
       try {
         driverFoundRef.current?.close?.();
-      } catch {}
+      } catch {
+        // no-op
+      }
 
       const cancelledBy = payload?.cancelledBy;
       const reason = payload?.reason;
+      const status = String(payload?.status || "").toLowerCase();
+      const noDriverDetected =
+        status === "cancelled_no_driver" ||
+        cancelledBy === "system" ||
+        /nenhum motorista|sem motorista|no driver/i.test(String(reason || ""));
 
-      if (cancelledBy === 'driver') {
+      if (noDriverDetected) {
         setCancelNotice({
           visible: true,
+          kind: "no_driver",
+          reason: reason ? String(reason) : "Nenhum motorista disponivel no momento.",
+        });
+      } else if (cancelledBy === "driver") {
+        setCancelNotice({
+          visible: true,
+          kind: "driver_cancelled",
           reason: reason ? String(reason) : undefined,
         });
 
-        // Auto-fechar após 6 segundos
         setTimeout(() => {
-          setCancelNotice({ visible: false });
+          setCancelNotice({ visible: false, kind: undefined });
         }, 6000);
+      } else {
+        setCancelNotice({
+          visible: true,
+          kind: "generic",
+          reason: reason ? String(reason) : undefined,
+        });
       }
 
       Toast.show({
-        type: 'error',
-        text1:
-          cancelledBy === 'driver'
-            ? 'O motorista cancelou'
-            : 'Corrida cancelada',
-        text2: reason ? String(reason) : 'Tente novamente.',
+        type: "error",
+        text1: cancelledBy === "driver" ? "O motorista cancelou" : "Corrida cancelada",
+        text2: reason ? String(reason) : "Tente novamente.",
       });
     };
 
@@ -173,14 +184,13 @@ export function useDriverSearch(rideId?: string) {
         setDriverFoundState((prev) => ({
           ...prev,
           location: {
-            latitude: loc.latitude,
-            longitude: loc.longitude,
+            latitude: Number(loc.latitude),
+            longitude: Number(loc.longitude),
           },
         }));
       }
     };
 
-    // Conectar WebSocket
     (async () => {
       try {
         await webSocketService.connect();
@@ -189,15 +199,15 @@ export function useDriverSearch(rideId?: string) {
         webSocketService.onDriverLocationUpdated(onDriverLocationUpdated);
         webSocketService.waitingDriver(currentRideId);
       } catch (e) {
-        console.log('Falha ao conectar WebSocket', e);
+        console.log("Falha ao conectar WebSocket", e);
       }
     })();
 
     return () => {
       mounted = false;
-      webSocketService.off('driver-found', onDriverFound);
-      webSocketService.off('ride-cancelled', onRideCancelled);
-      webSocketService.off('driver-location-updated', onDriverLocationUpdated);
+      webSocketService.off("driver-found", onDriverFound);
+      webSocketService.off("ride-cancelled", onRideCancelled);
+      webSocketService.off("driver-location-updated", onDriverLocationUpdated);
     };
   }, [searchingState.visible, searchingState.rideId, rideId]);
 
@@ -208,7 +218,9 @@ export function useDriverSearch(rideId?: string) {
     driverFoundRef,
     startSearch,
     stopSearch,
+    setSearchSecondsLeft,
     resetDriverState,
     setCancelNotice,
   };
 }
+

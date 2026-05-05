@@ -152,7 +152,7 @@ export default function Step1Data({
             Completar cadastro
           </Text>
           <Text className="text-gray-300 text-base mb-6">
-            Precisamos de alguns dados para você começar a pedir entregas.
+            Precisamos de alguns dados para você comecar a usar corridas e entregas.
           </Text>
 
           {/* Form Card */}
@@ -252,7 +252,7 @@ export default function Step1Data({
                 <Text className="text-white text-sm font-semibold">
                   CPF ou CNPJ
                 </Text>
-                <Text className="text-gray-400 text-xs">Opcional</Text>
+                <Text className="text-gray-400 text-xs">Obrigatorio</Text>
               </View>
 
               {/* Toggle CPF/CNPJ */}

@@ -1,36 +1,26 @@
-/**
- * OrderSummaryScreen - Versão Refatorada
- * Resumo final do pedido antes do pagamento
- * 
- * NOTA: Versão simplificada e modular
- */
+import React, { useMemo } from "react";
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { RouteProp, useRoute, useNavigation } from "@react-navigation/native";
+import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
 
-import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
+import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
+import { LoadingButton, EmptyState } from "../../../Shared/components";
+import { formatBRL } from "@/utils/mappers";
 
-// Design System
-import { colors, spacing, fontSize, fontWeight, borderRadius } from '@/theme';
-
-// Componentes Compartilhados
-import { LoadingButton, EmptyState } from '../../../Shared/components';
-
-// Utils
-import { formatBRL } from '@/utils/mappers';
-
-// Types locais
 type FinalOrderSummaryData = {
   vehicleType: string;
+  serviceMode?: "delivery" | "ride" | "frete";
+  purposeId?: string;
   pickupAddress: string;
-  pickupNeighborhood?: string;
+  pickupLatLng?: { latitude: number; longitude: number };
   dropoffAddress: string;
-  dropoffNeighborhood?: string;
+  dropoffLatLng?: { latitude: number; longitude: number };
   etaMinutes?: number;
+  etaText?: string;
   servicePurposeLabel?: string;
-  itemType?: string;
-  helperIncluded?: boolean;
   insuranceLevel: string;
+  paymentMethodRaw?: "credit_card" | "pix" | "cash";
   pricing: {
     base: number;
     distancePrice: number;
@@ -38,63 +28,41 @@ type FinalOrderSummaryData = {
     total: number;
     distanceKm: number;
   };
-  paymentSummary: string;
 };
 
 type Params = { FinalOrderSummary: { data: FinalOrderSummaryData } };
 
-const mapVehicleTypeToName = (type: string) => {
-  const names: Record<string, string> = {
-    moto: 'Moto',
-    car: 'Carro',
-    van: 'Van',
-    truck: 'Caminhão',
-  };
-  return names[type] || 'Veículo';
+const VEHICLE_META: Record<
+  string,
+  { icon: string; label: string; iconLib: "MaterialCommunityIcons" | "MaterialIcons" }
+> = {
+  moto: { icon: "motorbike", label: "Moto", iconLib: "MaterialCommunityIcons" },
+  motorcycle: { icon: "motorbike", label: "Moto", iconLib: "MaterialCommunityIcons" },
+  car: { icon: "directions-car", label: "Carro", iconLib: "MaterialIcons" },
+  van: { icon: "local-shipping", label: "Van", iconLib: "MaterialIcons" },
+  truck: { icon: "truck", label: "Caminhao", iconLib: "MaterialCommunityIcons" },
 };
 
-const VEHICLE_ICONS = {
-  moto: '🛵',
-  car: '🚗',
-  van: '🚐',
-  truck: '🚚',
+const SERVICE_MODE_LABEL: Record<string, string> = {
+  ride: "Transporte de passageiro",
+  delivery: "Entrega",
+  frete: "Frete",
 };
-
-const getInsuranceLabel = (level: string) => {
-  if (level === 'premium') return 'Premium';
-  if (level === 'basic') return 'Básico Ativado';
-  return 'Não contratado';
-};
-
-// Componente Row
-const Row = ({ label, value, muted, highlight }: {
-  label: string;
-  value: string;
-  muted?: boolean;
-  highlight?: boolean;
-}) => (
-  <View style={styles.row}>
-    <Text style={[styles.rowLabel, muted && styles.rowLabelMuted]}>{label}</Text>
-    <Text style={[styles.rowValue, highlight && styles.rowValueHighlight]}>{value}</Text>
-  </View>
-);
 
 export default function OrderSummaryScreen() {
   const insets = useSafeAreaInsets();
-  const route = useRoute<RouteProp<Params, 'FinalOrderSummary'>>();
-  const navigation = useNavigation();
+  const route = useRoute<RouteProp<Params, "FinalOrderSummary">>();
+  const navigation = useNavigation<any>();
   const data = route.params?.data;
 
-  const handleBack = () => {
-    (navigation as any).navigate('Home', {
-      reopenOffers: true,
-      vehicleType: data?.vehicleType,
-    });
-  };
+  const vehicle = useMemo(
+    () => VEHICLE_META[String(data?.vehicleType || "").toLowerCase()] || VEHICLE_META.car,
+    [data?.vehicleType],
+  );
 
-  const handleConfirm = () => {
+  const handleContinue = () => {
     if (!data) return;
-    (navigation as any).navigate('Payment', {
+    navigation.navigate("Payment", {
       amount: data.pricing.total,
       order: data,
     });
@@ -105,426 +73,202 @@ export default function OrderSummaryScreen() {
       <EmptyState
         icon="receipt"
         title="Sem dados do pedido"
-        description="Não foi possível carregar os dados do pedido"
+        description="Nao foi possivel carregar os dados do pedido"
         actionLabel="Voltar"
         onAction={() => navigation.goBack()}
       />
     );
   }
 
-  const vehicleIcon = VEHICLE_ICONS[data.vehicleType as keyof typeof VEHICLE_ICONS];
-
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-          <Text style={styles.backText}>‹ Voltar</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
+          <MaterialIcons name="arrow-back" size={24} color={colors.text.primary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Resumo do pedido</Text>
-        <TouchableOpacity style={styles.editButton}>
-          <Text style={styles.editText}>Editar</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
+          <MaterialIcons name="edit" size={20} color={colors.primary[500]} />
         </TouchableOpacity>
       </View>
 
-      {/* Content */}
       <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: Math.max(insets.bottom, spacing.xl) + 96 },
-        ]}
+        style={styles.scroll}
+        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, spacing.xl) + 140 }}
+        showsVerticalScrollIndicator={false}
       >
-        {/* Addresses */}
-        <View style={styles.addressesContainer}>
-          {/* Pickup */}
-          <View style={styles.addressRow}>
-            <View style={styles.addressIconContainer}>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Rota confirmada</Text>
+          <View style={styles.addressCard}>
+            <View style={styles.addressRow}>
               <View style={styles.pickupDot} />
-              <View style={styles.addressLine} />
+              <Text style={styles.addressLabel}>Coleta</Text>
             </View>
-            <View style={styles.addressInfo}>
-              <Text style={styles.addressLabel}>COLETA</Text>
-              <Text style={styles.addressText}>{data.pickupAddress}</Text>
-              {!!data.pickupNeighborhood && (
-                <Text style={styles.addressNeighborhood}>{data.pickupNeighborhood}</Text>
-              )}
-            </View>
-          </View>
+            <Text style={styles.addressText}>{data.pickupAddress}</Text>
 
-          {/* Dropoff */}
-          <View style={styles.addressRow}>
-            <View style={styles.addressIconContainer}>
-              <Text style={styles.dropoffIcon}>📍</Text>
+            <View style={styles.addressDivider} />
+
+            <View style={styles.addressRow}>
+              <MaterialIcons name="location-on" size={14} color="#ff6b6b" />
+              <Text style={styles.addressLabel}>Destino</Text>
             </View>
-            <View style={styles.addressInfo}>
-              <Text style={styles.addressLabel}>DESTINO</Text>
-              <Text style={styles.addressText}>{data.dropoffAddress}</Text>
-              {!!data.dropoffNeighborhood && (
-                <Text style={styles.addressNeighborhood}>{data.dropoffNeighborhood}</Text>
-              )}
-            </View>
+            <Text style={styles.addressText}>{data.dropoffAddress}</Text>
           </View>
         </View>
 
-        <View style={styles.divider} />
-
-        {/* Service Info */}
-        <View style={styles.serviceCard}>
-          <View style={styles.vehicleIconContainer}>
-            <Text style={styles.vehicleIcon}>{vehicleIcon}</Text>
-          </View>
-          <View style={styles.serviceInfo}>
-            <View style={styles.serviceHeader}>
-              <Text style={styles.serviceTitle}>
-                Entrega • {mapVehicleTypeToName(data.vehicleType)}
-              </Text>
-              {!!data.etaMinutes && (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>Rápido</Text>
-                </View>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Servico selecionado</Text>
+          <View style={styles.serviceCard}>
+            <View style={styles.vehicleIconBg}>
+              {vehicle.iconLib === "MaterialCommunityIcons" ? (
+                <MaterialCommunityIcons name={vehicle.icon as any} size={30} color={colors.primary[500]} />
+              ) : (
+                <MaterialIcons name={vehicle.icon as any} size={30} color={colors.primary[500]} />
               )}
+            </View>
+            <View style={{ flex: 1, marginLeft: spacing.lg }}>
+              <Text style={styles.serviceName}>
+                {SERVICE_MODE_LABEL[data.serviceMode || "delivery"] || data.servicePurposeLabel}
+              </Text>
+              <Text style={styles.serviceVehicle}>{vehicle.label}</Text>
             </View>
             {!!data.etaMinutes && (
-              <Text style={styles.etaText}>
-                Chegada estimada: <Text style={styles.etaValue}>{data.etaMinutes} min</Text>
-              </Text>
-            )}
-            {!!data.servicePurposeLabel && (
-              <Text style={styles.purposeText}>
-                Finalidade: <Text style={styles.purposeValue}>{data.servicePurposeLabel}</Text>
-              </Text>
+              <View style={styles.etaBadge}>
+                <Text style={styles.etaBadgeValue}>{data.etaMinutes} min</Text>
+              </View>
             )}
           </View>
         </View>
 
-        {/* Details */}
-        <View style={styles.detailsContainer}>
-          <Text style={styles.sectionTitle}>DETALHES DA CORRIDA</Text>
-          {!!data.itemType && <Row label="Tipo de item" value={data.itemType} />}
-          {typeof data.helperIncluded !== 'undefined' && (
-            <Row label="Ajudante" value={data.helperIncluded ? 'Incluído' : 'Não incluso'} />
-          )}
-          <Row
-            label="Seguro"
-            value={getInsuranceLabel(data.insuranceLevel)}
-            highlight={data.insuranceLevel !== 'none'}
-          />
-        </View>
-
-        <View style={styles.divider} />
-
-        {/* Pricing */}
-        <View style={styles.pricingCard}>
-          <Row label="Tarifa base" value={formatBRL(data.pricing.base)} muted />
-          <Row
-            label={`Distância (${data.pricing.distanceKm.toFixed(1)} km)`}
-            value={formatBRL(data.pricing.distancePrice)}
-            muted
-          />
-          <View style={styles.pricingDivider}>
-            <Row label="Taxa de serviço" value={formatBRL(data.pricing.serviceFee)} muted />
-          </View>
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValue}>{formatBRL(data.pricing.total)}</Text>
-          </View>
-        </View>
-
-        {/* Payment Method */}
-        <TouchableOpacity style={styles.paymentCard} activeOpacity={0.7}>
-          <View style={styles.paymentContent}>
-            <View style={styles.paymentIconContainer}>
-              <Text>💳</Text>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Detalhamento de valores</Text>
+          <View style={styles.pricingCard}>
+            <View style={styles.priceRow}>
+              <Text style={styles.priceLabel}>Tarifa base</Text>
+              <Text style={styles.priceValue}>{formatBRL(data.pricing.base)}</Text>
             </View>
-            <View>
-              <Text style={styles.paymentLabel}>PAGAMENTO</Text>
-              <Text style={styles.paymentValue}>{data.paymentSummary}</Text>
+            <View style={styles.priceRow}>
+              <Text style={styles.priceLabel}>Distancia ({data.pricing.distanceKm.toFixed(1)} km)</Text>
+              <Text style={styles.priceValue}>{formatBRL(data.pricing.distancePrice)}</Text>
+            </View>
+            <View style={styles.priceRow}>
+              <Text style={styles.priceLabel}>Taxa de servico</Text>
+              <Text style={styles.priceValue}>{formatBRL(data.pricing.serviceFee)}</Text>
+            </View>
+            <View style={styles.priceDivider} />
+            <View style={styles.priceRow}>
+              <Text style={styles.totalLabel}>Total estimado</Text>
+              <Text style={styles.totalValue}>{formatBRL(data.pricing.total)}</Text>
             </View>
           </View>
-          <Text style={styles.chevron}>›</Text>
-        </TouchableOpacity>
+        </View>
       </ScrollView>
 
-      {/* Footer */}
-      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, spacing.lg) + spacing.lg }]}>
-        <LoadingButton
-          title="Confirmar Pedido →"
-          onPress={handleConfirm}
-          variant="primary"
-        />
-        <Text style={styles.footerNote}>
-          Ao confirmar, buscaremos um motorista próximo a você.
-        </Text>
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, spacing.lg) + spacing.sm }]}>
+        <View style={styles.footerTotal}>
+          <Text style={styles.footerTotalLabel}>Total estimado</Text>
+          <Text style={styles.footerTotalValue}>{formatBRL(data.pricing.total)}</Text>
+        </View>
+        <LoadingButton title="Confirmar" onPress={handleContinue} variant="primary" />
       </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background.primary,
-  },
+  container: { flex: 1, backgroundColor: colors.background.primary },
   header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border.light,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    borderBottomColor: "rgba(255,255,255,0.06)",
   },
-  backButton: {
-    padding: spacing.sm,
+  headerBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.04)",
   },
-  backText: {
+  headerTitle: { color: colors.text.primary, fontSize: fontSize.lg, fontWeight: fontWeight.bold },
+  scroll: { flex: 1 },
+  section: { paddingHorizontal: spacing.xl, paddingTop: spacing.xl },
+  sectionTitle: {
     color: colors.text.tertiary,
-    fontSize: fontSize.base,
-  },
-  headerTitle: {
-    color: colors.text.primary,
-    fontSize: fontSize.lg,
+    fontSize: 12,
     fontWeight: fontWeight.bold,
-  },
-  editButton: {
-    padding: spacing.sm,
-  },
-  editText: {
-    color: colors.primary[500],
-    fontWeight: fontWeight.bold,
-    fontSize: fontSize.base,
-  },
-  scrollContent: {
-    padding: spacing.xl,
-  },
-  addressesContainer: {
-    marginTop: spacing.sm,
-    marginBottom: spacing.xl,
-  },
-  addressRow: {
-    flexDirection: 'row',
-    gap: spacing.lg,
+    letterSpacing: 1.1,
     marginBottom: spacing.md,
+    textTransform: "uppercase",
   },
-  addressIconContainer: {
-    width: 24,
-    alignItems: 'center',
+  addressCard: {
+    backgroundColor: "rgba(17,37,62,0.64)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
   },
-  pickupDot: {
-    height: 14,
-    width: 14,
-    borderRadius: 7,
-    backgroundColor: colors.primary[500],
-    borderWidth: 2,
-    borderColor: colors.background.primary,
-  },
-  addressLine: {
-    width: 2,
-    flexGrow: 1,
-    borderLeftWidth: 2,
-    borderStyle: 'dotted',
-    borderColor: colors.border.light,
-    marginVertical: spacing.xs,
-    minHeight: 40,
-  },
-  dropoffIcon: {
-    fontSize: 20,
-    marginTop: -4,
-  },
-  addressInfo: {
-    flex: 1,
-  },
-  addressLabel: {
-    fontSize: 11,
-    fontWeight: fontWeight.bold,
-    color: colors.text.tertiary,
-    textTransform: 'uppercase',
-    marginBottom: spacing.xs,
-  },
+  addressRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+  pickupDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.primary[500] },
+  addressLabel: { color: colors.text.tertiary, fontSize: fontSize.xs, textTransform: "uppercase" },
   addressText: {
     color: colors.text.primary,
-    fontSize: fontSize.lg,
+    fontSize: fontSize.base,
     fontWeight: fontWeight.semibold,
+    marginTop: 4,
   },
-  addressNeighborhood: {
-    color: colors.text.tertiary,
-    fontSize: fontSize.sm,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: colors.border.light,
-    marginBottom: spacing.lg,
-  },
+  addressDivider: { height: 1, backgroundColor: "rgba(255,255,255,0.08)", marginVertical: spacing.md },
   serviceCard: {
-    backgroundColor: colors.background.secondary,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(17,37,62,0.64)",
     borderWidth: 1,
-    borderColor: colors.border.light,
-    borderRadius: borderRadius.md,
+    borderColor: "rgba(255,255,255,0.08)",
+    borderRadius: borderRadius.lg,
     padding: spacing.lg,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    marginBottom: spacing.lg,
   },
-  vehicleIconContainer: {
-    height: 48,
-    width: 48,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.background.tertiary,
-    alignItems: 'center',
-    justifyContent: 'center',
+  vehicleIconBg: {
+    width: 62,
+    height: 62,
+    borderRadius: 18,
+    backgroundColor: "rgba(2,222,149,0.08)",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  vehicleIcon: {
-    fontSize: 24,
+  serviceName: { color: colors.text.primary, fontSize: fontSize.lg, fontWeight: fontWeight.bold },
+  serviceVehicle: { color: colors.text.tertiary, fontSize: fontSize.sm, marginTop: 2 },
+  etaBadge: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.full,
+    backgroundColor: "rgba(2,222,149,0.16)",
   },
-  serviceInfo: {
-    flex: 1,
-  },
-  serviceHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.xs,
-  },
-  serviceTitle: {
-    color: colors.text.primary,
-    fontSize: fontSize.lg,
-    fontWeight: fontWeight.bold,
-  },
-  badge: {
-    backgroundColor: 'rgba(2, 222, 149, 0.1)',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderRadius: borderRadius.sm,
-  },
-  badgeText: {
-    color: colors.primary[500],
-    fontSize: fontSize.xs,
-    fontWeight: fontWeight.bold,
-  },
-  etaText: {
-    color: colors.text.tertiary,
-    fontSize: fontSize.sm,
-  },
-  etaValue: {
-    color: colors.text.primary,
-    fontWeight: fontWeight.semibold,
-  },
-  purposeText: {
-    color: colors.text.tertiary,
-    fontSize: fontSize.xs,
-    marginTop: 2,
-  },
-  purposeValue: {
-    color: colors.text.primary,
-  },
-  detailsContainer: {
-    marginBottom: spacing.lg,
-  },
-  sectionTitle: {
-    fontSize: 11,
-    fontWeight: fontWeight.bold,
-    color: colors.text.tertiary,
-    textTransform: 'uppercase',
-    marginBottom: spacing.sm,
-  },
+  etaBadgeValue: { color: colors.primary[500], fontSize: fontSize.sm, fontWeight: fontWeight.bold },
   pricingCard: {
-    backgroundColor: 'rgba(22, 46, 37, 0.3)',
-    padding: spacing.lg,
-    borderRadius: borderRadius.md,
-    marginBottom: spacing.lg,
-  },
-  pricingDivider: {
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.light,
-    paddingBottom: spacing.sm,
-    marginBottom: spacing.sm,
-  },
-  totalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-  },
-  totalLabel: {
-    color: colors.text.primary,
-    fontWeight: fontWeight.semibold,
-    fontSize: fontSize.lg,
-  },
-  totalValue: {
-    color: colors.primary[500],
-    fontWeight: fontWeight.bold,
-    fontSize: 24,
-  },
-  paymentCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.background.secondary,
+    backgroundColor: "rgba(17,37,62,0.64)",
     borderWidth: 1,
-    borderColor: colors.border.light,
-    padding: spacing.lg,
-    borderRadius: borderRadius.md,
+    borderColor: "rgba(255,255,255,0.08)",
+    borderRadius: borderRadius.lg,
+    padding: spacing.xl,
   },
-  paymentContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  paymentIconContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    padding: spacing.sm,
-    borderRadius: borderRadius.sm,
-    marginRight: spacing.md,
-  },
-  paymentLabel: {
-    fontSize: 10,
-    color: colors.text.tertiary,
-    fontWeight: fontWeight.bold,
-    textTransform: 'uppercase',
-  },
-  paymentValue: {
-    color: colors.text.primary,
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.semibold,
-  },
-  chevron: {
-    color: colors.text.tertiary,
-    fontSize: fontSize.lg,
-  },
+  priceRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.md },
+  priceLabel: { color: colors.text.secondary, fontSize: fontSize.base },
+  priceValue: { color: colors.text.primary, fontSize: fontSize.base, fontWeight: fontWeight.semibold },
+  priceDivider: { height: 1, backgroundColor: "rgba(255,255,255,0.08)", marginVertical: spacing.md },
+  totalLabel: { color: colors.text.primary, fontSize: fontSize.lg, fontWeight: fontWeight.bold },
+  totalValue: { color: colors.primary[500], fontSize: 22, fontWeight: fontWeight.bold },
   footer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: spacing.lg,
-    backgroundColor: 'rgba(15, 35, 28, 0.95)',
+    backgroundColor: "rgba(10,25,20,0.97)",
     borderTopWidth: 1,
-    borderTopColor: colors.border.light,
+    borderTopColor: "rgba(255,255,255,0.08)",
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.lg,
   },
-  footerNote: {
-    textAlign: 'center',
-    fontSize: 11,
-    color: colors.text.tertiary,
-    marginTop: spacing.sm,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.sm,
-  },
-  rowLabel: {
-    color: colors.text.tertiary,
-    fontSize: fontSize.sm,
-  },
-  rowLabelMuted: {
-    color: colors.text.tertiary,
-  },
-  rowValue: {
-    color: colors.text.primary,
-    fontSize: fontSize.sm,
-  },
-  rowValueHighlight: {
-    color: colors.primary[500],
-    fontWeight: fontWeight.bold,
-  },
+  footerTotal: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.md },
+  footerTotalLabel: { color: colors.text.secondary, fontSize: fontSize.sm },
+  footerTotalValue: { color: colors.primary[500], fontSize: 22, fontWeight: fontWeight.bold },
 });

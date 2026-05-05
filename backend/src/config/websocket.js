@@ -139,17 +139,18 @@ function initializeWebSocket(server) {
     // Evento: Mensagem de chat
     socket.on("send-message", async (data) => {
       try {
-        const { rideId, message, receiverId } = data;
+        const { rideId, message } = data;
+        const { createMessage } = require("../controllers/chat.controller");
 
-        // Determinar tipo do receptor
-        const receiverType = socket.userType === "driver" ? "client" : "driver";
-
-        io.to(`${receiverType}-${receiverId}`).emit("new-message", {
+        const payload = await createMessage({
           rideId,
           senderId: socket.userId,
+          senderType: socket.userType,
           message,
-          timestamp: new Date(),
         });
+
+        const receiverType = payload.senderType === "driver" ? "client" : "driver";
+        io.to(`${receiverType}-${payload.receiverId}`).emit("new-message", payload);
       } catch (error) {
         console.error("Erro ao enviar mensagem:", error);
       }

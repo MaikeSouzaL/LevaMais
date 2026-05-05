@@ -4,7 +4,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import Constants from "expo-constants";
-import { useNavigation } from "@react-navigation/native";
+import {
+  useFocusEffect,
+  useIsFocused,
+  useNavigation,
+} from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import GlobalMap from "../../../components/GlobalMap";
@@ -25,9 +29,11 @@ import { MapFabStack } from "../../../components/ui/MapFabStack";
 import { DriverMapMenuButton } from "./components/DriverMapMenuButton";
 import { DriverTopHud } from "./components/DriverTopHud";
 import { LocationLoadingScreen } from "../../../components/ui/LocationLoadingScreen";
+import MapMarker from "../../../components/MapMarker";
 
 export default function DriverHomeScreen() {
   const navigation = useNavigation();
+  const isFocused = useIsFocused();
   const colorScheme = useColorScheme();
   const userData = useAuthStore((s) => s.userData);
 
@@ -45,10 +51,13 @@ export default function DriverHomeScreen() {
   const [showMapStyleHint, setShowMapStyleHint] = useState(false);
   const [isTogglingOnline, setIsTogglingOnline] = useState(false);
   const [pendingRequests, setPendingRequests] = useState(0);
+  const [todayEarnings, setTodayEarnings] = useState(0);
   const [incomingRequest, setIncomingRequest] = useState<any>(null);
   const [routeCoords, setRouteCoords] = useState<LatLng[]>([]);
   const intervalRef = useRef<any>(null);
+  const pendingSyncIntervalRef = useRef<any>(null);
   const mapRef = useRef<MapView | null>(null);
+  const hasIncomingRequestRef = useRef(false);
   const didSetInitialRegionRef = useRef(false);
 
   const vehicleType = (userData?.vehicleType ||
@@ -75,10 +84,159 @@ export default function DriverHomeScreen() {
     return list;
   };
 
+  const currentServiceTypesFrom = (
+    nextServices: typeof services,
+  ): Array<"ride" | "delivery"> => {
+    const list: Array<"ride" | "delivery"> = [];
+    if (nextServices.ride) list.push("ride");
+    if (nextServices.delivery) list.push("delivery");
+    return list;
+  };
+
+  const publishDriverLocation = async (
+    nextStatus: DriverStatus = "available",
+    serviceTypes?: Array<"ride" | "delivery">,
+  ) => {
+    const types = serviceTypes || currentServiceTypes();
+
+    let latitude: number | null = null;
+    let longitude: number | null = null;
+    let heading: number | undefined;
+    let speed: number | undefined;
+
+    try {
+      const last = await Location.getLastKnownPositionAsync();
+      if (last?.coords?.latitude && last?.coords?.longitude) {
+        latitude = last.coords.latitude;
+        longitude = last.coords.longitude;
+        heading = last.coords.heading ?? undefined;
+        speed =
+          typeof last.coords.speed === "number"
+            ? Math.max(0, last.coords.speed * 3.6)
+            : undefined;
+      }
+    } catch {}
+
+    if (latitude == null || longitude == null) {
+      const cur = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      latitude = cur.coords.latitude;
+      longitude = cur.coords.longitude;
+      heading = cur.coords.heading ?? undefined;
+      speed =
+        typeof cur.coords.speed === "number"
+          ? Math.max(0, cur.coords.speed * 3.6)
+          : undefined;
+    }
+
+    await driverLocationService.update({
+      latitude,
+      longitude,
+      heading,
+      speed,
+      status: nextStatus,
+      vehicleType,
+      vehicle: {
+        plate: vehicleInfo?.plate,
+        model: vehicleInfo?.model,
+        color: vehicleInfo?.color,
+        year: vehicleInfo?.year,
+      },
+      serviceTypes: types,
+    });
+
+    await driverLocationService.setStatus({
+      status: nextStatus,
+      serviceTypes: types,
+    });
+
+    if (!hasIncomingRequestRef.current) {
+      setRegion((prev: any) => ({
+        latitude,
+        longitude,
+        latitudeDelta: prev?.latitudeDelta || 0.02,
+        longitudeDelta: prev?.longitudeDelta || 0.02,
+      }));
+    }
+  };
+
+  const showIncomingRideRequest = async (payload: any, totalCount?: number) => {
+    if (!payload?.rideId || !payload?.pickup || !payload?.dropoff) return;
+
+    const alreadyShowing = incomingRequest?.rideId === payload.rideId;
+    setIncomingRequest(payload);
+    hasIncomingRequestRef.current = true;
+    setPendingRequests((prev) => {
+      if (typeof totalCount === "number") return Math.max(totalCount, 1);
+      if (alreadyShowing) return Math.max(prev, 1);
+      return Math.max(prev + 1, 1);
+    });
+
+    try {
+      await driverAlertService.start();
+    } catch (e) {
+      console.log("Falha ao tocar alerta", e);
+    }
+  };
+
+  const syncAvailableRequests = async () => {
+    if (!isFocused) return;
+    if (hasIncomingRequestRef.current) return;
+
+    try {
+      const active = await rideService.getActive();
+      if (active?.active && active.ride?._id) {
+        await clearIncoming();
+        (navigation as any).navigate("DriverRide", { rideId: active.ride._id });
+        return;
+      }
+
+      const response = await rideService.getAvailableRequests();
+      const requests = response?.requests || [];
+
+      if (!requests.length) {
+        setPendingRequests(0);
+        return;
+      }
+
+      await showIncomingRideRequest(requests[0], response.count || requests.length);
+    } catch (e) {
+      console.log("Falha ao sincronizar solicitacoes disponiveis", e);
+    }
+  };
+
+  useFocusEffect(
+    React.useCallback(() => {
+      let active = true;
+
+      (async () => {
+        try {
+          const response = await rideService.getActive();
+          if (!active) return;
+          if (response?.active && response.ride?._id) {
+            await clearIncoming();
+            (navigation as any).navigate("DriverRide", {
+              rideId: response.ride._id,
+            });
+          }
+        } catch {}
+      })();
+
+      return () => {
+        active = false;
+      };
+    }, [navigation]),
+  );
+
   const stopSharing = async () => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
+    }
+    if (pendingSyncIntervalRef.current) {
+      clearInterval(pendingSyncIntervalRef.current);
+      pendingSyncIntervalRef.current = null;
     }
 
     try {
@@ -86,6 +244,14 @@ export default function DriverHomeScreen() {
         status: "offline",
         serviceTypes: currentServiceTypes(),
       });
+    } catch {}
+
+    try {
+      webSocketService.disconnect();
+    } catch {}
+
+    try {
+      await driverAlertService.stop();
     } catch {}
 
     setOnline(false);
@@ -139,54 +305,94 @@ export default function DriverHomeScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Sincroniza status online inicial com backend (evita UI divergente ao reabrir app)
+  useEffect(() => {
+    let mounted = true;
+
+    (async () => {
+      try {
+        const me = await driverLocationService.getMe();
+        if (!mounted) return;
+
+        const isOnline =
+          me?.status === "available" ||
+          me?.status === "busy" ||
+          me?.status === "on_ride";
+
+        setOnline(Boolean(isOnline));
+      } catch {
+        // segue offline por padrão
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const startSharing = async () => {
     setError(null);
 
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== "granted") {
-      setError("Permissão de localização negada");
+      setError("Permissao de localizacao negada");
       return;
     }
 
-    // Conectar websocket para receber corridas
     try {
       await webSocketService.connect();
     } catch (e: any) {
+      const message = String(e?.message || "");
       console.log("Falha ao conectar WS", e);
+
+      if (/sessao expirada|token inv[aá]lido|token n[aã]o fornecido|jwt/i.test(message)) {
+        setError("Sua sessao expirou. Faca login novamente para ficar online.");
+      } else {
+        setError("Nao foi possivel conectar em tempo real. Tente novamente.");
+      }
+      throw e;
     }
 
-    // Define status disponível rapidamente (não depende da posição)
-    try {
-      await driverLocationService.setStatus({
-        status: "available",
-        serviceTypes: currentServiceTypes(),
-      });
-    } catch {}
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
 
-    // TODO: restante do startSharing (tick/interval) continua mais abaixo no arquivo.
-    // Esta função foi interrompida por uma edição manual; vamos manter o comportamento atual
-    // e não iniciar intervalos aqui para evitar regressão.
+    await publishDriverLocation("available", currentServiceTypes());
+
+    intervalRef.current = setInterval(() => {
+      publishDriverLocation("available", currentServiceTypes()).catch(() => {});
+    }, 10000);
+
+    setOnline(true);
   };
 
-  // Badge de solicitações novas (new-ride-request)
+  // Badge de solicitacoes novas (new-ride-request)
   useEffect(() => {
     let mounted = true;
 
+    if (!online || !isFocused) {
+      webSocketService.off("new-ride-request");
+      webSocketService.off("ride-taken");
+      return () => {
+        mounted = false;
+      };
+    }
+
     const onNewRideRequest = async (payload: any) => {
       if (!mounted) return;
-
-      // guarda o último request para preview no mapa
-      if (payload?.rideId && payload?.pickup && payload?.dropoff) {
-        setIncomingRequest(payload);
-      }
-
-      setPendingRequests((prev) => prev + 1);
+      if (!isFocused) return;
 
       try {
-        await driverAlertService.start();
-      } catch (e) {
-        console.log("Falha ao tocar alerta", e);
-      }
+        const active = await rideService.getActive();
+        if (active?.active && active.ride?._id) {
+          await clearIncoming();
+          (navigation as any).navigate("DriverRide", { rideId: active.ride._id });
+          return;
+        }
+      } catch {}
+
+      await showIncomingRideRequest(payload);
     };
 
     const onRideTaken = async (payload: any) => {
@@ -194,24 +400,60 @@ export default function DriverHomeScreen() {
       const takenId = payload?.rideId;
       if (!takenId) return;
 
-      // se a solicitação que está na tela foi pega por outro motorista, limpa
       if (incomingRequest?.rideId && incomingRequest.rideId === takenId) {
         await clearIncoming();
       }
     };
 
-    (async () => {
-      try {
-        await webSocketService.connect();
-        webSocketService.on("new-ride-request", onNewRideRequest);
-        webSocketService.on("ride-taken", onRideTaken);
-      } catch {}
-    })();
+    webSocketService.on("new-ride-request", onNewRideRequest);
+    webSocketService.on("ride-taken", onRideTaken);
+
+    webSocketService.connect().catch(() => {});
+    syncAvailableRequests().catch(() => {});
 
     return () => {
       mounted = false;
       webSocketService.off("new-ride-request", onNewRideRequest);
       webSocketService.off("ride-taken", onRideTaken);
+    };
+  }, [online, incomingRequest?.rideId, isFocused]);
+
+  useEffect(() => {
+    if (!online || !isFocused) {
+      if (pendingSyncIntervalRef.current) {
+        clearInterval(pendingSyncIntervalRef.current);
+        pendingSyncIntervalRef.current = null;
+      }
+      return;
+    }
+
+    syncAvailableRequests().catch(() => {});
+    if (pendingSyncIntervalRef.current) {
+      clearInterval(pendingSyncIntervalRef.current);
+    }
+    pendingSyncIntervalRef.current = setInterval(() => {
+      syncAvailableRequests().catch(() => {});
+    }, 6000);
+
+    return () => {
+      if (pendingSyncIntervalRef.current) {
+        clearInterval(pendingSyncIntervalRef.current);
+        pendingSyncIntervalRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [online, isFocused]);
+
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      if (pendingSyncIntervalRef.current) {
+        clearInterval(pendingSyncIntervalRef.current);
+        pendingSyncIntervalRef.current = null;
+      }
     };
   }, []);
 
@@ -219,8 +461,6 @@ export default function DriverHomeScreen() {
     if (isTogglingOnline) return;
 
     const next = !online;
-    // UI otimista: muda imediatamente
-    setOnline(next);
     setIsTogglingOnline(true);
 
     try {
@@ -234,14 +474,11 @@ export default function DriverHomeScreen() {
           setError(
             "⚠️ Você precisa ativar pelo menos 1 tipo de serviço para ficar online",
           );
-          setOnline(false); // reverte
           setIsTogglingOnline(false);
           return;
         }
 
         await startSharing();
-        // Libera o loading imediatamente após iniciar compartilhamento
-        setIsTogglingOnline(false);
         // Consulta de corrida ativa em segundo plano
         rideService
           .getActive()
@@ -254,10 +491,15 @@ export default function DriverHomeScreen() {
           })
           .catch(() => {});
       }
-    } catch (e) {
-      // Em caso de falha, reverte estado e mostra erro genérico
+    } catch (e: any) {
+      // Em caso de falha, reverte estado e mostra erro retornado (quando houver)
       setOnline(!next);
-      if (!error) setError("Não foi possível alterar seu status agora.");
+      const message = String(e?.message || "").trim();
+      if (message) {
+        setError(message);
+      } else if (!error) {
+        setError("Nao foi possivel alterar seu status agora.");
+      }
     } finally {
       setIsTogglingOnline(false);
     }
@@ -285,7 +527,8 @@ export default function DriverHomeScreen() {
       return;
     }
 
-    setServices((prev) => ({ ...prev, [key]: !prev[key] }));
+    const nextServices = { ...services, [key]: !services[key] };
+    setServices(nextServices);
     setError(null); // Limpa erro se a operação foi bem sucedida
 
     // se já estiver online, atualizar preferências no backend
@@ -293,7 +536,7 @@ export default function DriverHomeScreen() {
       try {
         await driverLocationService.setStatus({
           status: "available",
-          serviceTypes: currentServiceTypes(),
+          serviceTypes: currentServiceTypesFrom(nextServices),
         });
       } catch {}
     }
@@ -376,10 +619,37 @@ export default function DriverHomeScreen() {
 
   const clearIncoming = async () => {
     setIncomingRequest(null);
+    hasIncomingRequestRef.current = false;
     setRouteCoords([]);
     setPendingRequests(0);
     await driverAlertService.stop();
   };
+
+  const refreshTodayEarnings = async () => {
+    try {
+      const stats = await rideService.getDriverStats();
+      setTodayEarnings(Number(stats?.earnings || 0));
+    } catch {
+      // silencioso para nao impactar operacao
+    }
+  };
+
+  useEffect(() => {
+    let mounted = true;
+
+    const run = async () => {
+      if (!mounted) return;
+      await refreshTodayEarnings();
+    };
+
+    run();
+    const timer = setInterval(run, 15000);
+
+    return () => {
+      mounted = false;
+      clearInterval(timer);
+    };
+  }, []);
 
   const acceptIncoming = async () => {
     if (!incomingRequest?.rideId) {
@@ -445,9 +715,15 @@ export default function DriverHomeScreen() {
       // Enquadra a rota automaticamente
       if (decoded.length >= 2 && mapRef.current) {
         mapRef.current.fitToCoordinates(decoded as any, {
-          edgePadding: { top: 120, right: 60, bottom: 260, left: 60 },
+          edgePadding: { top: 220, right: 90, bottom: 460, left: 90 },
           animated: true,
         });
+        setTimeout(() => {
+          mapRef.current?.fitToCoordinates(decoded as any, {
+            edgePadding: { top: 220, right: 90, bottom: 460, left: 90 },
+            animated: true,
+          });
+        }, 350);
       }
     } catch (e) {
       console.log("Falha ao carregar rota real", e);
@@ -458,6 +734,7 @@ export default function DriverHomeScreen() {
   useEffect(() => {
     const pickup = incomingRequest?.pickup;
     const dropoff = incomingRequest?.dropoff;
+    hasIncomingRequestRef.current = Boolean(incomingRequest?.rideId);
 
     if (
       pickup?.latitude &&
@@ -501,7 +778,10 @@ export default function DriverHomeScreen() {
                   title="Coleta"
                   description={incomingRequest.pickup.address}
                   tracksViewChanges={false}
-                />
+                  anchor={{ x: 0.5, y: 1 }}
+                >
+                  <MapMarker type="client" />
+                </Marker>
               )}
 
             {!!incomingRequest?.dropoff?.latitude &&
@@ -513,9 +793,11 @@ export default function DriverHomeScreen() {
                   }}
                   title="Destino"
                   description={incomingRequest.dropoff.address}
-                  pinColor="#02de95"
                   tracksViewChanges={false}
-                />
+                  anchor={{ x: 0.5, y: 1 }}
+                >
+                  <MapMarker type="dropoff" />
+                </Marker>
               )}
 
             {!!incomingRequest?.pickup?.latitude &&
@@ -607,6 +889,7 @@ export default function DriverHomeScreen() {
                 driverName={userData?.name}
                 vehicleTypeLabel={vehicleType.toUpperCase()}
                 plate={vehicleInfo?.plate}
+                todayEarnings={todayEarnings}
                 pendingRequests={pendingRequests}
                 onPressNotifications={handleNotifications}
                 online={online}

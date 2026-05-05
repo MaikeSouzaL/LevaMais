@@ -13,54 +13,7 @@ import MapView, {
   PROVIDER_GOOGLE,
 } from "react-native-maps";
 import { MaterialIcons } from "@expo/vector-icons";
-
-const darkMapStyle = [
-  { elementType: "geometry", stylers: [{ color: "#101816" }] },
-  { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] },
-  { elementType: "labels.text.stroke", stylers: [{ color: "#101816" }] },
-  {
-    featureType: "administrative",
-    elementType: "geometry",
-    stylers: [{ visibility: "off" }],
-  },
-  { featureType: "poi", stylers: [{ visibility: "off" }] },
-  {
-    featureType: "road",
-    elementType: "geometry",
-    stylers: [{ color: "#1b2823" }],
-  },
-  {
-    featureType: "road",
-    elementType: "geometry.stroke",
-    stylers: [{ color: "#16201d" }],
-  },
-  {
-    featureType: "road",
-    elementType: "labels.icon",
-    stylers: [{ visibility: "off" }],
-  },
-  {
-    featureType: "road.arterial",
-    elementType: "geometry",
-    stylers: [{ color: "#1f2d29" }],
-  },
-  {
-    featureType: "road.highway",
-    elementType: "geometry",
-    stylers: [{ color: "#23332d" }],
-  },
-  {
-    featureType: "road.highway",
-    elementType: "geometry.stroke",
-    stylers: [{ color: "#1f2d29" }],
-  },
-  { featureType: "transit", stylers: [{ visibility: "off" }] },
-  {
-    featureType: "water",
-    elementType: "geometry",
-    stylers: [{ color: "#0a1410" }],
-  },
-];
+import { darkMapStyle } from "@/utils/mapStyle";
 
 export type GlobalMapProps = {
   initialRegion: Region;
@@ -91,6 +44,7 @@ export function GlobalMap({
   children,
 }: GlobalMapProps) {
   const mapRef = useRef<MapView>(null);
+  const didApply3DRef = useRef(false);
 
   useEffect(() => {
     onMapRef?.(mapRef.current);
@@ -129,15 +83,30 @@ export function GlobalMap({
         showsMyLocationButton={false}
         showsCompass={false}
         showsTraffic={false}
-        showsBuildings={false}
-        showsIndoors={false}
+        showsBuildings={true}
+        showsIndoors={true}
         toolbarEnabled={false}
         rotateEnabled={true}
         scrollEnabled={true}
         zoomEnabled={true}
-        pitchEnabled={false}
+        pitchEnabled={true}
         onMapReady={() => {
           console.log("[GlobalMap] MapView ready (tiles devem carregar agora)");
+          if (didApply3DRef.current) return;
+          didApply3DRef.current = true;
+          const center = region || initialRegion;
+          mapRef.current?.animateCamera(
+            {
+              center: {
+                latitude: center.latitude,
+                longitude: center.longitude,
+              },
+              heading: 0,
+              pitch: 45,
+              zoom: 16,
+            },
+            { duration: 700 },
+          );
         }}
         onMapLoaded={() => {
           console.log("[GlobalMap] MapView loaded completamente");

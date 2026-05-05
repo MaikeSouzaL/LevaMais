@@ -1,39 +1,69 @@
-/**
- * HelpScreen - Versão Refatorada
- */
+import React, { useState } from "react";
+import { Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { MaterialIcons } from "@expo/vector-icons";
 
-import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Linking } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { MaterialIcons } from '@expo/vector-icons';
-import { colors, spacing, fontSize, fontWeight, borderRadius } from '@/theme';
+import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
+import { ClientScreenHeader } from "../../Shared/components";
 
 const HELP_ITEMS = [
-  { icon: 'phone', label: 'Ligar para Suporte', action: () => Linking.openURL('tel:0800123456') },
-  { icon: 'email', label: 'Enviar E-mail', action: () => Linking.openURL('mailto:suporte@levamais.com') },
-  { icon: 'chat', label: 'Chat Online', action: () => {} },
-  { icon: 'help', label: 'FAQ', action: () => {} },
+  { icon: "phone", label: "Ligar para suporte", action: () => Linking.openURL("tel:0800123456") },
+  { icon: "email", label: "Enviar e-mail", action: () => Linking.openURL("mailto:suporte@levamais.com") },
+  { icon: "chat", label: "Abrir WhatsApp", action: () => Linking.openURL("https://wa.me/5500000000000") },
+];
+
+const FAQ = [
+  {
+    q: "Como alterar origem ou destino antes de pedir?",
+    a: "Na etapa de resumo, toque em Editar para ajustar origem e destino antes de confirmar.",
+  },
+  {
+    q: "Quando a taxa de cancelamento e cobrada?",
+    a: "A taxa pode ser aplicada quando o motorista ja foi acionado ou esta a caminho.",
+  },
+  {
+    q: "Como funciona o pagamento?",
+    a: "Voce escolhe o metodo na tela de pagamento antes de finalizar o pedido.",
+  },
 ];
 
 export default function HelpScreen() {
+  const [openFaq, setOpenFaq] = useState<number | null>(0);
+
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.content}>
-        <View style={styles.header}>
-          <MaterialIcons name="support-agent" size={64} color={colors.primary[500]} />
+      <ClientScreenHeader title="Ajuda" subtitle="Canais de suporte e respostas rapidas" />
+
+      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
+        <View style={styles.headerCard}>
+          <MaterialIcons name="support-agent" size={48} color={colors.primary[500]} />
           <Text style={styles.title}>Como podemos ajudar?</Text>
-          <Text style={styles.subtitle}>Escolha uma opção abaixo</Text>
+          <Text style={styles.subtitle}>Escolha um canal de atendimento ou consulte o FAQ.</Text>
         </View>
 
         <View style={styles.menu}>
-          {HELP_ITEMS.map((item, index) => (
-            <TouchableOpacity key={index} style={styles.menuItem} onPress={item.action}>
-              <MaterialIcons name={item.icon as any} size={24} color={colors.text.primary} />
+          {HELP_ITEMS.map((item) => (
+            <TouchableOpacity key={item.label} style={styles.menuItem} onPress={item.action}>
+              <MaterialIcons name={item.icon as any} size={22} color={colors.text.primary} />
               <Text style={styles.menuLabel}>{item.label}</Text>
-              <MaterialIcons name="chevron-right" size={24} color={colors.text.tertiary} />
+              <MaterialIcons name="chevron-right" size={22} color={colors.text.tertiary} />
             </TouchableOpacity>
           ))}
         </View>
+
+        <Text style={styles.sectionTitle}>PERGUNTAS FREQUENTES</Text>
+        {FAQ.map((item, index) => {
+          const opened = openFaq === index;
+          return (
+            <View key={item.q} style={styles.faqItem}>
+              <TouchableOpacity style={styles.faqHeader} onPress={() => setOpenFaq(opened ? null : index)}>
+                <Text style={styles.faqQuestion}>{item.q}</Text>
+                <MaterialIcons name={opened ? "expand-less" : "expand-more"} size={22} color={colors.text.secondary} />
+              </TouchableOpacity>
+              {opened && <Text style={styles.faqAnswer}>{item.a}</Text>}
+            </View>
+          );
+        })}
       </ScrollView>
     </SafeAreaView>
   );
@@ -42,19 +72,74 @@ export default function HelpScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background.primary },
   content: { flex: 1 },
-  header: { alignItems: 'center', padding: spacing.xl, marginBottom: spacing.lg },
-  title: { color: colors.text.primary, fontSize: fontSize.xl, fontWeight: fontWeight.bold, marginTop: spacing.lg },
-  subtitle: { color: colors.text.secondary, fontSize: fontSize.sm, marginTop: spacing.xs },
-  menu: { padding: spacing.lg },
+  contentContainer: { padding: spacing.lg },
+  headerCard: {
+    alignItems: "center",
+    padding: spacing.lg,
+    borderRadius: borderRadius.lg,
+    backgroundColor: colors.background.secondary,
+    borderWidth: 1,
+    borderColor: colors.border.light,
+    marginBottom: spacing.lg,
+  },
+  title: {
+    color: colors.text.primary,
+    fontSize: fontSize.xl,
+    fontWeight: fontWeight.bold,
+    marginTop: spacing.md,
+  },
+  subtitle: {
+    color: colors.text.secondary,
+    fontSize: fontSize.sm,
+    marginTop: spacing.xs,
+    textAlign: "center",
+  },
+  menu: { marginBottom: spacing.lg, gap: spacing.sm },
   menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: colors.background.secondary,
     padding: spacing.lg,
     borderRadius: borderRadius.md,
-    marginBottom: spacing.md,
     borderWidth: 1,
     borderColor: colors.border.light,
   },
   menuLabel: { flex: 1, color: colors.text.primary, fontSize: fontSize.base, marginLeft: spacing.md },
+  sectionTitle: {
+    color: colors.text.tertiary,
+    fontSize: fontSize.xs,
+    fontWeight: fontWeight.bold,
+    marginBottom: spacing.sm,
+    letterSpacing: 0.8,
+  },
+  faqItem: {
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border.light,
+    backgroundColor: colors.background.secondary,
+    marginBottom: spacing.sm,
+    overflow: "hidden",
+  },
+  faqHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+  },
+  faqQuestion: {
+    color: colors.text.primary,
+    fontSize: fontSize.base,
+    fontWeight: fontWeight.semibold,
+    flex: 1,
+    paddingRight: spacing.sm,
+  },
+  faqAnswer: {
+    color: colors.text.secondary,
+    fontSize: fontSize.sm,
+    lineHeight: 20,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.md,
+  },
 });
+

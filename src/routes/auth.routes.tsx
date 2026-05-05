@@ -14,6 +14,7 @@ import VerifyCodeScreen from "../screens/(public)/VerifyCodeScreen";
 import NewPasswordScreen from "../screens/(public)/NewPasswordScreen";
 import TermsScreen from "../screens/(public)/TermsScreen";
 import NotificationPermissionScreen from "../screens/(public)/NotificationPermissionScreen";
+import PhoneVerificationScreen from "../screens/(public)/PhoneVerificationScreen";
 import theme from "../theme";
 // import Terms from "../screens/(public)/TermsScreen";
 // import Notificacoes from "../screens/ScreenClient/Notificacao/Notificacoes";
@@ -89,6 +90,7 @@ export default function AuthRoutes() {
       <Screen name="VerifyCode" component={VerifyCodeScreen} />
       <Screen name="NewPassword" component={NewPasswordScreen} />
       <Screen name="Terms" component={TermsScreen} />
+      <Screen name="PhoneVerification" component={PhoneVerificationScreen} />
       <Screen
         name="NotificationPermission"
         component={NotificationPermissionScreen}

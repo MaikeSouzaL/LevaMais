@@ -1,12 +1,14 @@
 import axios from "axios";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
+const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || "dev-admin-key";
 
 const api = axios.create({
   baseURL: API_URL,
   timeout: 10000,
   headers: {
     "Content-Type": "application/json",
+    ...(ADMIN_API_KEY ? { "x-admin-key": ADMIN_API_KEY } : {}),
   },
 });
 
@@ -54,3 +56,4 @@ export const representativesService = {
     await api.delete(`/representatives/${id}`);
   }
 };
+

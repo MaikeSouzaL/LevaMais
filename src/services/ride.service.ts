@@ -94,6 +94,36 @@ export interface ActiveRideResponse {
   ride: Ride | null;
 }
 
+export interface ActiveRidesResponse {
+  active: boolean;
+  count: number;
+  rides: Ride[];
+}
+
+export interface AvailableRideRequest {
+  rideId: string;
+  pickup?: Location;
+  dropoff?: Location;
+  pricing?: PricingCalculation;
+  distance?: DistanceDuration;
+  duration?: DistanceDuration;
+  serviceType?: string;
+  vehicleType?: string;
+  requestedAt?: string;
+  distanceToPickup?: number;
+  client?: {
+    name?: string;
+    phone?: string;
+    profilePhoto?: string;
+    rating?: number;
+  };
+}
+
+export interface AvailableRideRequestsResponse {
+  count: number;
+  requests: AvailableRideRequest[];
+}
+
 export type RatePayload = {
   stars: number;
   comment?: string;
@@ -161,6 +191,16 @@ class RideService {
    */
   async getActive(): Promise<ActiveRideResponse> {
     const response = await api.get("/rides/active");
+    return response.data;
+  }
+
+  async getActiveList(): Promise<ActiveRidesResponse> {
+    const response = await api.get("/rides/active/list");
+    return response.data;
+  }
+
+  async getAvailableRequests(): Promise<AvailableRideRequestsResponse> {
+    const response = await api.get("/rides/available-requests");
     return response.data;
   }
 

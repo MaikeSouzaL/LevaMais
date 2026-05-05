@@ -7,113 +7,86 @@ import {
 } from "@react-navigation/drawer";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
-// Telas Refatoradas
-import HomeScreen from "../screens/(authenticated)/Client/Home";
-import HistoryScreen from "../screens/(authenticated)/Client/History/HistoryList";
-import WalletScreen from "../screens/(authenticated)/Client/Profile/Wallet";
-import ProfileScreen from "../screens/(authenticated)/Client/Profile/ProfileView";
-import HelpScreen from "../screens/(authenticated)/Client/Profile/Help";
-import SettingsScreen from "../screens/(authenticated)/Client/Profile/Settings";
-import AddressPickerScreen from "../screens/(authenticated)/Client/Ride/Request/AddressPicker";
-import FavoritesScreen from "../screens/(authenticated)/Client/Favorites/FavoritesList";
-import SelectVehicleScreen from "../screens/(authenticated)/Client/Ride/Request/SelectVehicle";
-import ServicePurposeScreen from "../screens/(authenticated)/Client/Ride/Request/ServicePurpose";
-import OrderSummaryScreen from "../screens/(authenticated)/Client/Ride/Request/OrderSummary";
-import CancelFeeScreen from "../screens/(authenticated)/Client/Ride/Cancellation/CancelFee";
-import ChatScreen from "../screens/(authenticated)/Client/Ride/Tracking/Chat";
-import OrderDetailsScreen from "../screens/(authenticated)/Client/History/OrderDetails";
-import PaymentScreen from "../screens/(authenticated)/Client/Ride/Request/Payment";
-import RideTrackingScreen from "../screens/(authenticated)/Client/Ride/Tracking/RideTracking";
-import RideCompletedScreen from "../screens/(authenticated)/Client/Ride/Completion/RideCompleted";
-import RateDriverScreen from "../screens/(authenticated)/Client/Ride/Completion/RateDriver";
-import CancelRideScreen from "../screens/(authenticated)/Client/Ride/Cancellation/CancelRide";
-import ServiceSelectionScreen from "../screens/(authenticated)/Client/Ride/Request/ServiceSelection";
-
 import { useAuthStore } from "../context/authStore";
-
-// Tela não refatorada ainda (se necessário)
-// import ClientCityScreen from "../screens/(authenticated)/Client/_backup_old_screens/ClientCityScreen";
-
-const Drawer = createDrawerNavigator();
+import ClientStackRoutes from "./client.stack.routes";
 
 type DrawerClienteRoutesProps = {
   initialRideId?: string | null;
 };
-const { Navigator, Screen } = Drawer;
+
+const Drawer = createDrawerNavigator();
+
+const menuItems = [
+  { route: "Home", label: "Inicio", icon: "home" },
+  { route: "History", label: "Historico", icon: "history" },
+  { route: "ActiveOrders", label: "Pedidos ativos", icon: "map-marker-path" },
+  { route: "Wallet", label: "Carteira", icon: "wallet" },
+  { route: "Profile", label: "Perfil", icon: "account-circle" },
+  { route: "NotificationsCenter", label: "Notificacoes", icon: "bell" },
+  { route: "Favorites", label: "Favoritos", icon: "star" },
+  { route: "SafetyCenter", label: "Seguranca", icon: "shield-check" },
+  { route: "Help", label: "Ajuda", icon: "help-circle" },
+  { route: "Settings", label: "Configuracoes", icon: "cog" },
+];
 
 function CustomDrawerContent(props: DrawerContentComponentProps) {
-  const { logout, userData } = useAuthStore();
+  const { userData, logout } = useAuthStore();
 
-  function handleLogout() {
-    logout();
-  }
+  const nestedState = (props.state.routes[props.state.index] as any)?.state;
+  const nestedRoutes = nestedState?.routes || [];
+  const nestedIndex = nestedState?.index || 0;
+  const activeNestedRoute = nestedRoutes[nestedIndex]?.name || "Home";
 
-  // Itens do menu
-  const menuItems = [
-    { name: "Home", label: "Início", icon: "home" },
-    { name: "History", label: "Histórico", icon: "history" },
-    { name: "Wallet", label: "Carteira", icon: "wallet" },
-    { name: "Profile", label: "Perfil", icon: "account" },
-    { name: "Help", label: "Ajuda", icon: "help-circle" },
-    { name: "Settings", label: "Configurações", icon: "cog" },
-  ];
+  const navigateToStackScreen = (screenName: string) => {
+    (props.navigation as any).navigate("ClientMain", { screen: screenName });
+  };
 
   return (
     <DrawerContentScrollView
       {...props}
-      contentContainerStyle={{
-        flex: 1,
-        backgroundColor: "#091A2F", // background-dark
-      }}
+      contentContainerStyle={{ flex: 1, backgroundColor: "#091A2F" }}
     >
-      {/* Header do drawer */}
-      <View className="px-6 py-8 border-b border-white/10">
-        <View className="flex-row items-center mb-2">
-          <View className="w-16 h-16 rounded-full items-center justify-center mr-4 bg-primary">
-            <Text className="text-background-dark font-bold text-xl">
-              {userData?.nome
-                ?.split(" ")
-                .map((n: string) => n[0])
-                .join("")
-                .toUpperCase()
-                .slice(0, 2) || "U"}
-            </Text>
-          </View>
-          <View className="flex-1">
-            <Text className="text-white font-bold text-lg">
-              {userData?.nome || "Usuário"}
-            </Text>
-            <Text className="text-gray-400 text-sm">{userData?.email}</Text>
-          </View>
-        </View>
+      <View style={{ paddingHorizontal: 20, paddingVertical: 24 }}>
+        <Text style={{ color: "white", fontSize: 20, fontWeight: "800" }}>
+          {userData?.name || userData?.nome || "Cliente"}
+        </Text>
+        <Text style={{ color: "rgba(255,255,255,0.7)", marginTop: 4 }}>
+          {userData?.email || "Bem-vindo"}
+        </Text>
       </View>
 
-      {/* Itens do menu */}
-      <View className="flex-1 pt-4">
-        {menuItems.map((item) => {
-          const isFocused =
-            props.state.routeNames[props.state.index] === item.name;
+      <View style={{ borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.08)" }} />
 
+      <View style={{ paddingVertical: 12 }}>
+        {menuItems.map((item) => {
+          const active = activeNestedRoute === item.route;
           return (
             <TouchableOpacity
-              key={item.name}
-              onPress={() => {
-                props.navigation.navigate(item.name);
+              key={item.route}
+              onPress={() => navigateToStackScreen(item.route)}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                paddingHorizontal: 20,
+                paddingVertical: 12,
+                backgroundColor: active ? "rgba(2,222,149,0.12)" : "transparent",
+                borderLeftWidth: active ? 3 : 0,
+                borderLeftColor: "#02de95",
               }}
-              className={`flex-row items-center px-6 py-4 ${
-                isFocused ? "bg-primary/10 border-l-4 border-primary" : ""
-              }`}
-              activeOpacity={0.7}
+              activeOpacity={0.8}
             >
               <MaterialCommunityIcons
                 name={item.icon as any}
-                size={24}
-                color={isFocused ? "#02de95" : "#9ca5a3"}
+                size={22}
+                color={active ? "#02de95" : "rgba(255,255,255,0.75)"}
               />
               <Text
-                className={`ml-4 text-base font-semibold ${
-                  isFocused ? "text-primary" : "text-gray-400"
-                }`}
+                style={{
+                  marginLeft: 12,
+                  color: active ? "#02de95" : "rgba(255,255,255,0.85)",
+                  fontWeight: "700",
+                  fontSize: 15,
+                }}
               >
                 {item.label}
               </Text>
@@ -122,18 +95,20 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
         })}
       </View>
 
-      {/* Botão de sair */}
-      <View className="px-6 py-4 border-t border-white/10">
+      <View style={{ marginTop: "auto", paddingHorizontal: 20, paddingBottom: 24 }}>
         <TouchableOpacity
-          onPress={handleLogout}
-          className="flex-row items-center py-4"
-          activeOpacity={0.7}
+          onPress={logout}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            paddingVertical: 12,
+            borderTopWidth: 1,
+            borderTopColor: "rgba(255,255,255,0.08)",
+          }}
+          activeOpacity={0.8}
         >
-          <MaterialCommunityIcons name="logout" size={24} color="#ef4444" />
-          <Text
-            className="ml-4 text-base font-semibold"
-            style={{ color: "#ef4444" }}
-          >
+          <MaterialCommunityIcons name="logout" size={22} color="#ef4444" />
+          <Text style={{ marginLeft: 12, color: "#ef4444", fontWeight: "700" }}>
             Sair
           </Text>
         </TouchableOpacity>
@@ -142,138 +117,28 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
   );
 }
 
-export default function DrawerClienteRoutes(props: DrawerClienteRoutesProps) {
-  const initialRoute = props?.initialRideId ? "RideTracking" : "Home";
-
+export default function DrawerClienteRoutes({
+  initialRideId,
+}: DrawerClienteRoutesProps) {
   return (
-    <Navigator
-      initialRouteName={initialRoute}
+    <Drawer.Navigator
       drawerContent={(props) => <CustomDrawerContent {...props} />}
       screenOptions={{
         headerShown: false,
+        drawerType: "slide",
+        overlayColor: "rgba(0,0,0,0.45)",
         drawerStyle: {
           backgroundColor: "#091A2F",
-          width: 280,
+          width: 300,
         },
-        drawerActiveTintColor: "#02de95",
-        drawerInactiveTintColor: "#9ca5a3",
-        drawerType: "slide",
-        overlayColor: "rgba(0, 0, 0, 0.5)",
       }}
     >
-      <Screen
-        name="Home"
-        component={HomeScreen}
-        options={{ title: "Início", drawerLabel: "Início" }}
-      />
-      <Screen
-        name="History"
-        component={HistoryScreen}
-        options={{ title: "Histórico", drawerLabel: "Histórico" }}
-      />
-      <Screen
-        name="Wallet"
-        component={WalletScreen}
-        options={{ title: "Carteira", drawerLabel: "Carteira" }}
-      />
-      <Screen
-        name="Profile"
-        component={ProfileScreen}
-        options={{ title: "Perfil", drawerLabel: "Perfil" }}
-      />
-      <Screen
-        name="Help"
-        component={HelpScreen}
-        options={{ title: "Ajuda", drawerLabel: "Ajuda" }}
-      />
-      <Screen
-        name="Settings"
-        component={SettingsScreen}
-        options={{ title: "Configurações", drawerLabel: "Configurações" }}
-      />
-      
-      {/* Telas secundárias (não aparecem no menu drawer) */}
-      <Screen
-        name="LocationPicker"
-        component={AddressPickerScreen}
-        options={{ drawerLabel: () => null, drawerItemStyle: { display: "none" } }}
-      />
-      <Screen
-        name="EditFavorite"
-        component={AddressPickerScreen}
-        options={{ drawerLabel: () => null, drawerItemStyle: { display: "none" } }}
-      />
-      <Screen
-        name="MapLocationPicker"
-        component={AddressPickerScreen}
-        options={{ drawerLabel: () => null, drawerItemStyle: { display: "none" } }}
-      />
-      <Screen
-        name="Favorites"
-        component={FavoritesScreen}
-        options={{ drawerLabel: () => null, drawerItemStyle: { display: "none" } }}
-      />
-      <Screen
-        name="SelectVehicle"
-        component={SelectVehicleScreen}
-        options={{ drawerLabel: () => null, drawerItemStyle: { display: "none" } }}
-      />
-      <Screen
-        name="ServicePurpose"
-        component={ServicePurposeScreen}
-        options={{ drawerLabel: () => null, drawerItemStyle: { display: "none" } }}
-      />
-      <Screen
-        name="FinalOrderSummary"
-        component={OrderSummaryScreen}
-        options={{ drawerLabel: () => null, drawerItemStyle: { display: "none" } }}
-      />
-      <Screen
-        name="CancelFee"
-        component={CancelFeeScreen}
-        options={{ drawerLabel: () => null, drawerItemStyle: { display: "none" } }}
-      />
-      <Screen
-        name="Chat"
-        component={ChatScreen}
-        options={{ drawerLabel: () => null, drawerItemStyle: { display: "none" } }}
-      />
-      <Screen
-        name="OrderDetails"
-        component={OrderDetailsScreen}
-        options={{ drawerLabel: () => null, drawerItemStyle: { display: "none" } }}
-      />
-      <Screen
-        name="Payment"
-        component={PaymentScreen}
-        options={{ drawerLabel: () => null, drawerItemStyle: { display: "none" } }}
-      />
-      <Screen
-        name="RideTracking"
-        component={RideTrackingScreen}
-        initialParams={props?.initialRideId ? { rideId: props.initialRideId } : undefined}
-        options={{ drawerLabel: () => null, drawerItemStyle: { display: "none" } }}
-      />
-      <Screen
-        name="RideCompleted"
-        component={RideCompletedScreen}
-        options={{ drawerLabel: () => null, drawerItemStyle: { display: "none" } }}
-      />
-      <Screen
-        name="ClientRateDriver"
-        component={RateDriverScreen}
-        options={{ drawerLabel: () => null, drawerItemStyle: { display: "none" } }}
-      />
-      <Screen
-        name="ClientCancelRide"
-        component={CancelRideScreen}
-        options={{ drawerLabel: () => null, drawerItemStyle: { display: "none" } }}
-      />
-      <Screen
-        name="ServiceSelection"
-        component={ServiceSelectionScreen}
-        options={{ drawerLabel: () => null, drawerItemStyle: { display: "none" } }}
-      />
-    </Navigator>
+      <Drawer.Screen
+        name="ClientMain"
+        options={{ title: "Leva Mais" }}
+      >
+        {() => <ClientStackRoutes initialRideId={initialRideId} />}
+      </Drawer.Screen>
+    </Drawer.Navigator>
   );
 }

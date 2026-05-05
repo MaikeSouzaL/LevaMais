@@ -1,45 +1,47 @@
-/**
- * Ride Types
- * Define todos os tipos relacionados a corridas
+﻿/**
+ * Tipos do modulo Client para corridas.
  */
 
-/**
- * Status da corrida
- */
 export type RideStatus =
-  | 'pending'
+  | 'requesting'
+  | 'driver_assigned'
   | 'accepted'
-  | 'arriving'
+  | 'driver_arriving'
+  | 'arrived'
   | 'in_progress'
   | 'completed'
-  | 'cancelled';
+  | 'cancelled'
+  | 'cancelled_by_client'
+  | 'cancelled_by_driver'
+  | 'cancelled_no_driver'
+  | 'timeout'
+  | 'pending'
+  | 'arriving';
 
-/**
- * Tipo de veículo
- */
 export type VehicleType = 'motorcycle' | 'car' | 'van' | 'truck';
 
-/**
- * Modo de serviço
- */
-export type ServiceMode = 'transport' | 'delivery' | 'moving' | 'other' | 'ride';
+export type ServiceMode =
+  | 'ride'
+  | 'delivery'
+  | 'transport'
+  | 'moving'
+  | 'other'
+  | 'frete';
 
-/**
- * Método de pagamento
- */
-export type PaymentMethod = 'cash' | 'pix' | 'credit' | 'debit' | 'wallet';
+export type PaymentMethod =
+  | 'cash'
+  | 'pix'
+  | 'credit'
+  | 'credit_card'
+  | 'debit'
+  | 'debit_card'
+  | 'wallet';
 
-/**
- * Coordenadas geográficas
- */
 export interface LatLng {
   latitude: number;
   longitude: number;
 }
 
-/**
- * Endereço
- */
 export interface Address {
   formatted: string;
   street?: string;
@@ -52,9 +54,6 @@ export interface Address {
   coordinates: LatLng;
 }
 
-/**
- * Veículo
- */
 export interface Vehicle {
   id: string;
   type: VehicleType;
@@ -65,9 +64,6 @@ export interface Vehicle {
   year?: number;
 }
 
-/**
- * Motorista
- */
 export interface Driver {
   id: string;
   name: string;
@@ -78,21 +74,15 @@ export interface Driver {
   vehicle: Vehicle;
 }
 
-/**
- * Oferta de corrida
- */
 export interface RideOffer {
   id: string;
   vehicleType: VehicleType;
   price: number;
-  estimatedDuration: number; // em segundos
-  estimatedDistance: number; // em metros
+  estimatedDuration: number;
+  estimatedDistance: number;
   available: boolean;
 }
 
-/**
- * Corrida
- */
 export interface Ride {
   id: string;
   status: RideStatus;
@@ -103,23 +93,20 @@ export interface Ride {
   destination: Address;
   driver?: Driver;
   price: number;
-  distance: number; // em metros
-  duration: number; // em segundos
-  estimatedArrival?: string; // ISO date
-  startedAt?: string; // ISO date
-  completedAt?: string; // ISO date
-  cancelledAt?: string; // ISO date
+  distance: number;
+  duration: number;
+  estimatedArrival?: string;
+  startedAt?: string;
+  completedAt?: string;
+  cancelledAt?: string;
   cancellationReason?: string;
   cancellationFee?: number;
   rating?: number;
   ratingComment?: string;
-  createdAt: string; // ISO date
-  updatedAt: string; // ISO date
+  createdAt: string;
+  updatedAt: string;
 }
 
-/**
- * Rascunho de corrida (usado durante o fluxo de solicitação)
- */
 export interface RideDraft {
   pickup?: Address;
   destination?: Address;
@@ -129,9 +116,6 @@ export interface RideDraft {
   selectedOffer?: RideOffer;
 }
 
-/**
- * Histórico de corrida (versão resumida)
- */
 export interface RideHistory {
   id: string;
   status: RideStatus;
@@ -148,9 +132,6 @@ export interface RideHistory {
   createdAt: string;
 }
 
-/**
- * Estatísticas de corridas
- */
 export interface RideStats {
   totalRides: number;
   completedRides: number;
@@ -159,18 +140,12 @@ export interface RideStats {
   averageRating: number;
 }
 
-/**
- * Motivo de cancelamento
- */
 export interface CancellationReason {
   id: string;
   label: string;
 }
 
-/**
- * Avaliação
- */
 export interface Rating {
-  stars: number; // 1-5
+  stars: number;
   comment?: string;
 }

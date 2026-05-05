@@ -121,7 +121,10 @@ export default function ClientBoot() {
         const res = await rideService.getActive();
         if (!mounted) return;
 
-        if (res?.active && res.ride?._id) {
+        const isDelivery =
+          res?.ride?.serviceType === "delivery" || res?.ride?.serviceType === "frete";
+
+        if (res?.active && res.ride?._id && !isDelivery) {
           setInitialRideId(res.ride._id);
         }
       } catch {
