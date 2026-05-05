@@ -13,7 +13,13 @@ export type DriverStatusCardProps = {
   canArrive: boolean;
   canStart: boolean;
   canComplete: boolean;
-  actionLoading: null | "cancel" | "arrived" | "in_progress" | "completed";
+  actionLoading:
+    | null
+    | "cancel"
+    | "driver_arriving"
+    | "arrived"
+    | "in_progress"
+    | "completed";
   onArrive: () => void;
   onStart: () => void;
   onComplete: () => void;

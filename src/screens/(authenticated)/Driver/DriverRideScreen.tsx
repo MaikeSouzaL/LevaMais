@@ -50,9 +50,10 @@ export default function DriverRideScreen() {
   const cancelHandledRef = useRef(false);
   const statusRef = useRef<string>("accepted");
   const lastAppStateRef = useRef(AppState.currentState);
+  const autoArrivingRequestedRef = useRef(false);
 
   const [actionLoading, setActionLoading] = useState<
-    null | "cancel" | "arrived" | "in_progress" | "completed"
+    null | "cancel" | "driver_arriving" | "arrived" | "in_progress" | "completed"
   >(null);
 
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
@@ -116,6 +117,24 @@ export default function DriverRideScreen() {
     });
   }, [navigation, rideId]);
 
+  useEffect(() => {
+    if (!rideId) return;
+    if (status !== "accepted") return;
+    if (autoArrivingRequestedRef.current) return;
+
+    autoArrivingRequestedRef.current = true;
+
+    (async () => {
+      try {
+        const updated = await rideService.updateStatus(rideId, "driver_arriving");
+        setRide(updated as any);
+        setStatus(updated?.status || "driver_arriving");
+      } catch {
+        // fallback silencioso: mantem fluxo com status atual
+      }
+    })();
+  }, [rideId, status]);
+
   async function takePhotoBase64() {
     if (AppState.currentState !== "active") {
       throw new Error("Abra o app e tente novamente para usar a camera.");
@@ -174,6 +193,7 @@ export default function DriverRideScreen() {
       recoverActiveRide().catch(() => {});
       return;
     }
+    autoArrivingRequestedRef.current = false;
     cancelHandledRef.current = false;
 
     (async () => {
@@ -417,11 +437,12 @@ export default function DriverRideScreen() {
   }, []);
 
   const update = async (
-    nextStatus: "arrived" | "in_progress" | "completed",
+    nextStatus: "driver_arriving" | "arrived" | "in_progress" | "completed",
   ) => {
     if (!rideId) return;
 
     // validacoes do fluxo (estilo Uber/99)
+    if (nextStatus === "driver_arriving" && status !== "accepted") return;
     if (nextStatus === "arrived" && !canArrive) return;
     if (nextStatus === "in_progress" && !canStart) return;
     if (nextStatus === "completed" && !canComplete) return;
@@ -474,6 +495,9 @@ export default function DriverRideScreen() {
       setRide(r as any);
       setStatus(r?.status || nextStatus);
 
+      if (nextStatus === "driver_arriving") {
+        Toast.show({ type: "success", text1: "Voce esta a caminho da coleta" });
+      }
       if (nextStatus === "arrived") {
         webSocketService.emit("driver-arrived", { rideId });
         Toast.show({ type: "success", text1: "Voce marcou: Cheguei" });

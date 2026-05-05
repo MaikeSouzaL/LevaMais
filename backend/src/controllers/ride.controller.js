@@ -666,9 +666,7 @@ class RideController {
       }
 
       if (!ride.canBeCancelled()) {
-        return res.status(400).json({
-          error: "Corrida nÃ£o pode ser cancelada neste momento",
-        });
+        return sendError(res, 400, "Corrida nao pode ser cancelada neste momento");
       }
 
       // Verificar quem estÃ¡ cancelando
@@ -747,13 +745,13 @@ class RideController {
         return sendError(res, 403, "Apenas o motorista pode atualizar o status");
       }
 
-      const allowedStatuses = ["arrived", "in_progress", "completed"];
+      const allowedStatuses = ["driver_arriving", "arrived", "in_progress", "completed"];
       if (!allowedStatuses.includes(nextStatus)) {
         return sendError(res, 400, "Status invalido para atualizacao do motorista", { allowed: allowedStatuses });
       }
 
       const allowedTransitions = {
-        accepted: ["arrived"],
+        accepted: ["driver_arriving", "arrived"],
         driver_arriving: ["arrived"],
         arrived: ["in_progress"],
         in_progress: ["completed"],
@@ -832,21 +830,18 @@ class RideController {
         return sendError(res, 404, "Corrida nao encontrada");
       }
 
-      // Verificar permissÃ£o
+      // Verificar permissao
       const isClient = ride.clientId?._id?.toString() === userIdStr;
       const isDriver = ride.driverId?._id?.toString() === userIdStr;
 
       if (!isClient && !isDriver) {
-        return res.status(403).json({
-          error: "VocÃª nÃ£o tem permissÃ£o para ver esta corrida",
-        });
+        return sendError(res, 403, "Voce nao tem permissao para ver esta corrida");
       }
 
-      res.json(ride);
+      return res.json(ride);
     } catch (error) {
       console.error("Erro ao buscar corrida:", error);
-      res.status(500).json({
-        error: "Erro ao buscar corrida",
+      return sendError(res, 500, "Erro ao buscar corrida", {
         details: error.message,
       });
     }

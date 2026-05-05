@@ -45,7 +45,7 @@
 ## D. Fluxo Motorista
 - [ ] Home operacional (online/offline, demanda, mapa)
 - [ ] Recebimento e resposta a chamadas (aceite/rejeicao)
-- [ ] Fluxo operacional da corrida (a caminho, chegada, em viagem, concluida)
+- [x] Fluxo operacional da corrida (a caminho, chegada, em viagem, concluida)
 - [ ] Chat com cliente e recursos de seguranca
 - [ ] Ganhos, extrato, saque e detalhes financeiros
 - [ ] Historico, perfil, veiculo, ajuda e configuracoes

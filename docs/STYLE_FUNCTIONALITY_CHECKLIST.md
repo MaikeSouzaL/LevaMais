@@ -37,7 +37,7 @@
 - [x] Revisar aceite/rejeicao e tratamento de timeout (sincronizacao inicial + limpeza de ofertas expiradas)
 - [x] Alinhar calculo de ganhos/saldo/extrato para usar `pricing.driverValue` com fallback legado
 - [x] Revisar retomada de corrida ativa ao reabrir o app (AppState resume + ressincronizacao de corrida)
-- [ ] Revisar status operacionais ate conclusao
+- [x] Revisar status operacionais ate conclusao (incluindo `driver_arriving` no fluxo oficial)
 - [ ] Revisar ganhos/extrato/saque com regras claras
 
 ## 5) Backend e contratos

@@ -27,6 +27,7 @@
 - [x] Hardening adicional de `auth` em validacoes de `checkEmail`, `forgotPassword` e `updateProfile` (telefone)
 - [x] Padronizacao de erros HTTP no `auth` para contrato unico (`success:false`, `message`, `error`)
 - [x] Retomada de corrida ativa do motorista reforcada ao voltar do background (`AppState` em Home/Ride)
+- [x] Fluxo de status do motorista consolidado com `driver_arriving` oficial (backend + app)
 
 ## Diagnostico por fluxo (status)
 
