@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, TouchableOpacity, useColorScheme } from "react-native";
+import { AppState, View, Text, TouchableOpacity, useColorScheme } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import * as Location from "expo-location";
@@ -59,6 +59,7 @@ export default function DriverHomeScreen() {
   const mapRef = useRef<MapView | null>(null);
   const hasIncomingRequestRef = useRef(false);
   const didSetInitialRegionRef = useRef(false);
+  const lastAppStateRef = useRef(AppState.currentState);
 
   const vehicleType = (userData?.vehicleType ||
     "motorcycle") as DriverVehicleType;
@@ -228,6 +229,35 @@ export default function DriverHomeScreen() {
       };
     }, [navigation]),
   );
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      const prevState = lastAppStateRef.current;
+      lastAppStateRef.current = nextState;
+
+      const resumed =
+        prevState.match(/inactive|background/) && nextState === "active";
+      if (!resumed) return;
+
+      rideService
+        .getActive()
+        .then(async (response) => {
+          if (response?.active && response.ride?._id) {
+            setIncomingRequest(null);
+            hasIncomingRequestRef.current = false;
+            setRouteCoords([]);
+            setPendingRequests(0);
+            await driverAlertService.stop();
+            (navigation as any).navigate("DriverRide", {
+              rideId: response.ride._id,
+            });
+          }
+        })
+        .catch(() => {});
+    });
+
+    return () => subscription.remove();
+  }, [navigation]);
 
   const stopSharing = async () => {
     if (intervalRef.current) {

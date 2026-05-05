@@ -25,6 +25,8 @@
 - [x] Padronizacao inicial de erros HTTP em `rides` e `wallet` para contrato consistente
 - [x] Reconciliacao financeira inicial em `wallet` e stats de motorista (priorizando `pricing.driverValue` com fallback 80% legado)
 - [x] Hardening adicional de `auth` em validacoes de `checkEmail`, `forgotPassword` e `updateProfile` (telefone)
+- [x] Padronizacao de erros HTTP no `auth` para contrato unico (`success:false`, `message`, `error`)
+- [x] Retomada de corrida ativa do motorista reforcada ao voltar do background (`AppState` em Home/Ride)
 
 ## Diagnostico por fluxo (status)
 

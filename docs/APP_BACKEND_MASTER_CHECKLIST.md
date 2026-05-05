@@ -49,6 +49,7 @@
 - [ ] Chat com cliente e recursos de seguranca
 - [ ] Ganhos, extrato, saque e detalhes financeiros
 - [ ] Historico, perfil, veiculo, ajuda e configuracoes
+- [x] Retomada de corrida ativa ao reabrir app (Home/Ride com ressincronizacao em `AppState` ativo)
 
 ## E. Realtime, mapa e resiliencia
 - [ ] Auditoria completa de websocket (conexao, reconexao, eventos zumbis)
@@ -62,6 +63,7 @@
 - [ ] Revisar contrato de auth (payloads, mensagens, codigos HTTP)
 - [x] Hardening inicial do cadastro auth (normalizacao/validacao de email, telefone, userType, preferredPayment)
 - [x] Hardening adicional de validacao `auth` (`checkEmail`, `forgotPassword`, `updateProfile.phone`)
+- [x] Padronizacao de erros HTTP em `auth` para contrato unico (`success:false`, `message`, `error`)
 - [ ] Revisar modulo de corridas (status, regras de transicao, validacoes)
 - [ ] Revisar precificacao por cidade/veiculo/servico e fallbacks
 - [x] Normalizar metodo de pagamento na criacao de corrida (mapper backend para `card/pix/cash/wallet`)

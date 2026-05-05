@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, TouchableOpacity, AppState, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
@@ -49,6 +49,7 @@ export default function DriverRideScreen() {
   const lastCameraUpdateRef = useRef(0);
   const cancelHandledRef = useRef(false);
   const statusRef = useRef<string>("accepted");
+  const lastAppStateRef = useRef(AppState.currentState);
 
   const [actionLoading, setActionLoading] = useState<
     null | "cancel" | "arrived" | "in_progress" | "completed"
@@ -93,6 +94,27 @@ export default function DriverRideScreen() {
   useEffect(() => {
     statusRef.current = status;
   }, [status]);
+
+  const recoverActiveRide = useCallback(async () => {
+    try {
+      const active = await rideService.getActive();
+      if (active?.active && active.ride?._id) {
+        const activeRideId = String(active.ride._id);
+        if (!rideId || activeRideId !== String(rideId)) {
+          (navigation as any).reset({
+            index: 0,
+            routes: [{ name: "DriverRide", params: { rideId: activeRideId } }],
+          });
+        }
+        return;
+      }
+    } catch {}
+
+    (navigation as any).reset({
+      index: 0,
+      routes: [{ name: "DriverHome" }],
+    });
+  }, [navigation, rideId]);
 
   async function takePhotoBase64() {
     if (AppState.currentState !== "active") {
@@ -148,7 +170,10 @@ export default function DriverRideScreen() {
 
   useEffect(() => {
     let mounted = true;
-    if (!rideId) return;
+    if (!rideId) {
+      recoverActiveRide().catch(() => {});
+      return;
+    }
     cancelHandledRef.current = false;
 
     (async () => {
@@ -159,13 +184,16 @@ export default function DriverRideScreen() {
         setStatus(r?.status || "accepted");
       } catch (e) {
         console.log("Falha ao carregar corrida", e);
+        if (mounted) {
+          recoverActiveRide().catch(() => {});
+        }
       }
     })();
 
     return () => {
       mounted = false;
     };
-  }, [rideId]);
+  }, [recoverActiveRide, rideId]);
 
   useEffect(() => {
     if (!rideId) return;
@@ -281,6 +309,55 @@ export default function DriverRideScreen() {
       webSocketService.off("new-message", onNewMsg);
     };
   }, [navigation, rideId, currentUserId]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      const prevState = lastAppStateRef.current;
+      lastAppStateRef.current = nextState;
+
+      const resumed =
+        prevState.match(/inactive|background/) && nextState === "active";
+
+      if (!resumed) return;
+
+      (async () => {
+        try {
+          await webSocketService.connect();
+        } catch {}
+
+        if (!rideId) {
+          await recoverActiveRide();
+          return;
+        }
+
+        try {
+          const current = await rideService.getById(rideId);
+          setRide(current as any);
+          setStatus(current?.status || "accepted");
+
+          const currentStatus = String(current?.status || "");
+          if (currentStatus === "completed") {
+            (navigation as any).reset({
+              index: 0,
+              routes: [{ name: "DriverRateClient", params: { rideId } }],
+            });
+            return;
+          }
+
+          if (currentStatus.startsWith("cancelled")) {
+            (navigation as any).reset({
+              index: 0,
+              routes: [{ name: "DriverHome" }],
+            });
+          }
+        } catch {
+          await recoverActiveRide();
+        }
+      })().catch(() => {});
+    });
+
+    return () => subscription.remove();
+  }, [navigation, recoverActiveRide, rideId]);
 
   useEffect(() => {
     const start = async () => {

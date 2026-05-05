@@ -92,33 +92,21 @@ class AuthController {
 
       // Validar campos obrigatórios
       if (!name || !email || !password) {
-        return res.status(400).json({
-          success: false,
-          message: "Nome, email e senha são obrigatórios",
-        });
+        return sendError(res, 400, "Nome, email e senha são obrigatórios");
       }
 
       // Verificar se o email já existe
       if (!normalizedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(normalizedEmail)) {
-        return res.status(400).json({
-          success: false,
-          message: "Email invalido",
-        });
+        return sendError(res, 400, "Email invalido");
       }
 
       if (normalizedPhone && (normalizedPhone.length < 10 || normalizedPhone.length > 11)) {
-        return res.status(400).json({
-          success: false,
-          message: "Telefone invalido",
-        });
+        return sendError(res, 400, "Telefone invalido");
       }
 
       const existingUser = await User.findOne({ email: normalizedEmail });
       if (existingUser) {
-        return res.status(400).json({
-          success: false,
-          message: "Email já cadastrado",
-        });
+        return sendError(res, 400, "Email já cadastrado");
       }
 
       // Se tiver address com city, usar o city do address, senão usar o city direto
@@ -183,10 +171,7 @@ class AuthController {
       // Dados do motorista
       if (resolvedUserType === "driver") {
         if (!vehicleType) {
-          return res.status(400).json({
-            success: false,
-            message: "Tipo de veiculo e obrigatorio para motorista",
-          });
+          return sendError(res, 400, "Tipo de veiculo e obrigatorio para motorista");
         }
         if (vehicleType) userData.vehicleType = vehicleType;
         if (vehicleInfo) userData.vehicleInfo = vehicleInfo;
@@ -208,11 +193,7 @@ class AuthController {
       });
     } catch (error) {
       console.error("Erro ao cadastrar usuário:", error);
-      res.status(500).json({
-        success: false,
-        message: "Erro ao cadastrar usuário",
-        error: error.message,
-      });
+      return sendError(res, 500, "Erro ao cadastrar usuário", { details: error.message });
     }
   }
 
@@ -223,10 +204,7 @@ class AuthController {
 
       // Validar campos obrigatórios
       if (!email || !password) {
-        return res.status(400).json({
-          success: false,
-          message: "Email e senha são obrigatórios",
-        });
+        return sendError(res, 400, "Email e senha são obrigatórios");
       }
 
       // Buscar usuário com senha
@@ -235,27 +213,18 @@ class AuthController {
       );
 
       if (!user) {
-        return res.status(401).json({
-          success: false,
-          message: "Email ou senha inválidos",
-        });
+        return sendError(res, 401, "Email ou senha inválidos");
       }
 
       // Verificar se a conta está ativa
       if (!user.isActive) {
-        return res.status(401).json({
-          success: false,
-          message: "Conta desativada",
-        });
+        return sendError(res, 401, "Conta desativada");
       }
 
       // Verificar senha
       const isPasswordValid = await user.comparePassword(password);
       if (!isPasswordValid) {
-        return res.status(401).json({
-          success: false,
-          message: "Email ou senha inválidos",
-        });
+        return sendError(res, 401, "Email ou senha inválidos");
       }
 
       // Gerar token
@@ -271,11 +240,7 @@ class AuthController {
       });
     } catch (error) {
       console.error("Erro ao fazer login:", error);
-      res.status(500).json({
-        success: false,
-        message: "Erro ao fazer login",
-        error: error.message,
-      });
+      return sendError(res, 500, "Erro ao fazer login", { details: error.message });
     }
   }
 
@@ -301,11 +266,7 @@ class AuthController {
       });
     } catch (error) {
       console.error("Erro ao verificar email:", error);
-      return res.status(500).json({
-        success: false,
-        message: "Erro ao verificar email",
-        error: error.message,
-      });
+      return sendError(res, 500, "Erro ao verificar email", { details: error.message });
     }
   }
 
@@ -315,10 +276,7 @@ class AuthController {
       const { googleId, email, name, profilePhoto } = req.body;
 
       if (!googleId || !email) {
-        return res.status(400).json({
-          success: false,
-          message: "Google ID e email são obrigatórios",
-        });
+        return sendError(res, 400, "Google ID e email são obrigatórios");
       }
 
       // Buscar usuário existente por googleId ou email
@@ -328,10 +286,7 @@ class AuthController {
 
       if (user) {
         if (!user.isActive) {
-          return res.status(401).json({
-            success: false,
-            message: "Conta desativada",
-          });
+          return sendError(res, 401, "Conta desativada");
         }
 
         // Atualizar informações do Google se necessário
@@ -367,11 +322,7 @@ class AuthController {
       });
     } catch (error) {
       console.error("Erro na autenticação Google:", error);
-      res.status(500).json({
-        success: false,
-        message: "Erro na autenticação Google",
-        error: error.message,
-      });
+      return sendError(res, 500, "Erro na autenticação Google", { details: error.message });
     }
   }
 
@@ -382,10 +333,7 @@ class AuthController {
       const user = await User.findById(userId);
 
       if (!user) {
-        return res.status(404).json({
-          success: false,
-          message: "Usuário não encontrado",
-        });
+        return sendError(res, 404, "Usuário não encontrado");
       }
 
       res.json({
@@ -396,11 +344,7 @@ class AuthController {
       });
     } catch (error) {
       console.error("Erro ao buscar perfil:", error);
-      res.status(500).json({
-        success: false,
-        message: "Erro ao buscar perfil",
-        error: error.message,
-      });
+      return sendError(res, 500, "Erro ao buscar perfil", { details: error.message });
     }
   }
 
@@ -411,10 +355,7 @@ class AuthController {
       const user = await User.findById(userId);
 
       if (!user) {
-        return res.status(404).json({
-          success: false,
-          message: "Usuário não encontrado",
-        });
+        return sendError(res, 404, "Usuário não encontrado");
       }
 
       const {
@@ -443,10 +384,7 @@ class AuthController {
       if (preferredPayment !== undefined) {
         const normalized = normalizePreferredPayment(preferredPayment);
         if (!normalized) {
-          return res.status(400).json({
-            success: false,
-            message: "Metodo de pagamento invalido",
-          });
+          return sendError(res, 400, "Metodo de pagamento invalido");
         }
         user.preferredPayment = normalized;
       }
@@ -468,11 +406,7 @@ class AuthController {
       });
     } catch (error) {
       console.error("Erro ao atualizar perfil:", error);
-      return res.status(500).json({
-        success: false,
-        message: "Erro ao atualizar perfil",
-        error: error.message,
-      });
+      return sendError(res, 500, "Erro ao atualizar perfil", { details: error.message });
     }
   }
 
@@ -524,10 +458,7 @@ class AuthController {
 
       if (!emailResult.success) {
         console.error("Erro ao enviar email:", emailResult.error);
-        return res.status(500).json({
-          success: false,
-          message: "Erro ao enviar email. Tente novamente mais tarde.",
-        });
+        return sendError(res, 500, "Erro ao enviar email. Tente novamente mais tarde.");
       }
 
       res.json({
@@ -536,11 +467,7 @@ class AuthController {
       });
     } catch (error) {
       console.error("Erro ao solicitar reset de senha:", error);
-      res.status(500).json({
-        success: false,
-        message: "Erro ao processar solicitação",
-        error: error.message,
-      });
+      return sendError(res, 500, "Erro ao processar solicitação", { details: error.message });
     }
   }
 
@@ -550,10 +477,7 @@ class AuthController {
       const { email, code } = req.body;
 
       if (!email || !code) {
-        return res.status(400).json({
-          success: false,
-          message: "Email e código são obrigatórios",
-        });
+        return sendError(res, 400, "Email e código são obrigatórios");
       }
 
       // Buscar código válido
@@ -565,10 +489,7 @@ class AuthController {
       });
 
       if (!resetRequest) {
-        return res.status(400).json({
-          success: false,
-          message: "Código inválido ou expirado",
-        });
+        return sendError(res, 400, "Código inválido ou expirado");
       }
 
       res.json({
@@ -577,11 +498,7 @@ class AuthController {
       });
     } catch (error) {
       console.error("Erro ao verificar código:", error);
-      res.status(500).json({
-        success: false,
-        message: "Erro ao verificar código",
-        error: error.message,
-      });
+      return sendError(res, 500, "Erro ao verificar código", { details: error.message });
     }
   }
 
@@ -591,17 +508,11 @@ class AuthController {
       const { email, code, newPassword } = req.body;
 
       if (!email || !code || !newPassword) {
-        return res.status(400).json({
-          success: false,
-          message: "Email, código e nova senha são obrigatórios",
-        });
+        return sendError(res, 400, "Email, código e nova senha são obrigatórios");
       }
 
       if (newPassword.length < 6) {
-        return res.status(400).json({
-          success: false,
-          message: "A senha deve ter no mínimo 6 caracteres",
-        });
+        return sendError(res, 400, "A senha deve ter no mínimo 6 caracteres");
       }
 
       // Buscar código válido
@@ -613,10 +524,7 @@ class AuthController {
       });
 
       if (!resetRequest) {
-        return res.status(400).json({
-          success: false,
-          message: "Código inválido ou expirado",
-        });
+        return sendError(res, 400, "Código inválido ou expirado");
       }
 
       // Buscar usuário
@@ -625,10 +533,7 @@ class AuthController {
       );
 
       if (!user) {
-        return res.status(404).json({
-          success: false,
-          message: "Usuário não encontrado",
-        });
+        return sendError(res, 404, "Usuário não encontrado");
       }
 
       // Atualizar senha
@@ -645,11 +550,7 @@ class AuthController {
       });
     } catch (error) {
       console.error("Erro ao redefinir senha:", error);
-      res.status(500).json({
-        success: false,
-        message: "Erro ao redefinir senha",
-        error: error.message,
-      });
+      return sendError(res, 500, "Erro ao redefinir senha", { details: error.message });
     }
   }
 
@@ -658,17 +559,11 @@ class AuthController {
       const normalizedPhone = normalizePhone(req.body?.phone);
 
       if (!normalizedPhone) {
-        return res.status(400).json({
-          success: false,
-          message: "Telefone e obrigatorio",
-        });
+        return sendError(res, 400, "Telefone e obrigatorio");
       }
 
       if (normalizedPhone.length < 10 || normalizedPhone.length > 11) {
-        return res.status(400).json({
-          success: false,
-          message: "Telefone invalido",
-        });
+        return sendError(res, 400, "Telefone invalido");
       }
 
       const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
@@ -678,10 +573,7 @@ class AuthController {
       });
 
       if (recentAttempts >= 5) {
-        return res.status(429).json({
-          success: false,
-          message: "Muitas tentativas. Tente novamente em alguns minutos.",
-        });
+        return sendError(res, 429, "Muitas tentativas. Tente novamente em alguns minutos.");
       }
 
       await PhoneVerification.updateMany(
@@ -710,11 +602,7 @@ class AuthController {
       });
     } catch (error) {
       console.error("Erro ao enviar codigo de telefone:", error);
-      return res.status(500).json({
-        success: false,
-        message: "Erro ao enviar codigo",
-        error: error.message,
-      });
+      return sendError(res, 500, "Erro ao enviar codigo", { details: error.message });
     }
   }
 
@@ -724,10 +612,7 @@ class AuthController {
       const code = String(req.body?.code || "").trim();
 
       if (!normalizedPhone || !code) {
-        return res.status(400).json({
-          success: false,
-          message: "Telefone e codigo sao obrigatorios",
-        });
+        return sendError(res, 400, "Telefone e codigo sao obrigatorios");
       }
 
       const verification = await PhoneVerification.findOne({
@@ -736,20 +621,14 @@ class AuthController {
       }).sort({ createdAt: -1 });
 
       if (!verification) {
-        return res.status(400).json({
-          success: false,
-          message: "Nenhum codigo valido encontrado. Solicite um novo codigo.",
-        });
+        return sendError(res, 400, "Nenhum codigo valido encontrado. Solicite um novo codigo.");
       }
 
       if (verification.expiresAt <= new Date()) {
         verification.used = true;
         await verification.save();
 
-        return res.status(400).json({
-          success: false,
-          message: "Codigo expirado. Solicite um novo codigo.",
-        });
+        return sendError(res, 400, "Codigo expirado. Solicite um novo codigo.");
       }
 
       if (verification.code !== code) {
@@ -759,10 +638,7 @@ class AuthController {
         }
         await verification.save();
 
-        return res.status(400).json({
-          success: false,
-          message: "Codigo invalido",
-        });
+        return sendError(res, 400, "Codigo invalido");
       }
 
       verification.used = true;
@@ -776,11 +652,7 @@ class AuthController {
       });
     } catch (error) {
       console.error("Erro ao verificar codigo de telefone:", error);
-      return res.status(500).json({
-        success: false,
-        message: "Erro ao verificar codigo",
-        error: error.message,
-      });
+      return sendError(res, 500, "Erro ao verificar codigo", { details: error.message });
     }
   }
 
@@ -792,10 +664,7 @@ class AuthController {
 
       // Validar token
       if (!pushToken || typeof pushToken !== "string") {
-        return res.status(400).json({
-          success: false,
-          message: "Push token é obrigatório",
-        });
+        return sendError(res, 400, "Push token é obrigatório");
       }
 
       // Validar formato do token Expo
@@ -803,19 +672,13 @@ class AuthController {
         !pushToken.startsWith("ExponentPushToken[") &&
         !pushToken.startsWith("ExpoPushToken[")
       ) {
-        return res.status(400).json({
-          success: false,
-          message: "Formato de push token inválido",
-        });
+        return sendError(res, 400, "Formato de push token inválido");
       }
 
       // Buscar usuário
       const user = await User.findById(userId);
       if (!user) {
-        return res.status(404).json({
-          success: false,
-          message: "Usuário não encontrado",
-        });
+        return sendError(res, 404, "Usuário não encontrado");
       }
 
       // Atualizar push token
@@ -835,11 +698,7 @@ class AuthController {
       });
     } catch (error) {
       console.error("Erro ao salvar push token:", error);
-      res.status(500).json({
-        success: false,
-        message: "Erro ao salvar push token",
-        error: error.message,
-      });
+      return sendError(res, 500, "Erro ao salvar push token", { details: error.message });
     }
   }
 
@@ -851,10 +710,7 @@ class AuthController {
       // Buscar usuário
       const user = await User.findById(userId);
       if (!user) {
-        return res.status(404).json({
-          success: false,
-          message: "Usuário não encontrado",
-        });
+        return sendError(res, 404, "Usuário não encontrado");
       }
 
       // Remover push token
@@ -870,11 +726,7 @@ class AuthController {
       });
     } catch (error) {
       console.error("Erro ao remover push token:", error);
-      res.status(500).json({
-        success: false,
-        message: "Erro ao remover push token",
-        error: error.message,
-      });
+      return sendError(res, 500, "Erro ao remover push token", { details: error.message });
     }
   }
 
@@ -913,11 +765,7 @@ class AuthController {
       });
     } catch (error) {
       console.error("Erro ao listar usuários:", error);
-      res.status(500).json({
-        success: false,
-        message: "Erro ao listar usuários",
-        error: error.message,
-      });
+      return sendError(res, 500, "Erro ao listar usuários", { details: error.message });
     }
   }
 
@@ -929,10 +777,7 @@ class AuthController {
       const user = await User.findById(id).select("-password");
 
       if (!user) {
-        return res.status(404).json({
-          success: false,
-          message: "Usuário não encontrado",
-        });
+        return sendError(res, 404, "Usuário não encontrado");
       }
 
       res.json({
@@ -941,11 +786,7 @@ class AuthController {
       });
     } catch (error) {
       console.error("Erro ao buscar usuário:", error);
-      res.status(500).json({
-        success: false,
-        message: "Erro ao buscar usuário",
-        error: error.message,
-      });
+      return sendError(res, 500, "Erro ao buscar usuário", { details: error.message });
     }
   }
 
@@ -985,10 +826,7 @@ class AuthController {
       }).select("-password");
 
       if (!user) {
-        return res.status(404).json({
-          success: false,
-          message: "Usuário não encontrado",
-        });
+        return sendError(res, 404, "Usuário não encontrado");
       }
 
       return res.json({
@@ -998,11 +836,7 @@ class AuthController {
       });
     } catch (error) {
       console.error("Erro ao atualizar usuário:", error);
-      return res.status(400).json({
-        success: false,
-        message: "Erro ao atualizar usuário",
-        error: error.message,
-      });
+      return sendError(res, 400, "Erro ao atualizar usuário", { details: error.message });
     }
   }
 
@@ -1013,20 +847,13 @@ class AuthController {
 
       const user = await User.findByIdAndDelete(id);
       if (!user) {
-        return res.status(404).json({
-          success: false,
-          message: "Usuário não encontrado",
-        });
+        return sendError(res, 404, "Usuário não encontrado");
       }
 
       return res.status(204).send();
     } catch (error) {
       console.error("Erro ao deletar usuário:", error);
-      return res.status(500).json({
-        success: false,
-        message: "Erro ao deletar usuário",
-        error: error.message,
-      });
+      return sendError(res, 500, "Erro ao deletar usuário", { details: error.message });
     }
   }
 }
