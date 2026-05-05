@@ -72,7 +72,16 @@ exports.getById = async (req, res) => {
 // Create a new purpose
 exports.create = async (req, res) => {
   try {
-    const { vehicleType, id, title, subtitle, icon, badges, isActive } =
+    const {
+      vehicleType,
+      id,
+      title,
+      subtitle,
+      serviceMode,
+      icon,
+      badges,
+      isActive,
+    } =
       req.body;
 
     // Check if ID already exists for this vehicle
@@ -88,6 +97,7 @@ exports.create = async (req, res) => {
       id,
       title,
       subtitle,
+      serviceMode,
       icon,
       badges,
       isActive,
@@ -122,13 +132,13 @@ exports.update = async (req, res) => {
     // We'll search by _id. The frontend will need to have the _id available.
     // The current seed data doesn't have _id. When we fetch from DB, it will have _id.
 
-    const { title, subtitle, icon, badges, isActive, vehicleType } = req.body;
+    const { title, subtitle, serviceMode, icon, badges, isActive, vehicleType } = req.body;
 
     // Find by custom ID and Vehicle Type (since that's what we have in the unique index)
     // The route param :id corresponds to the custom "slug" ID.
     const purpose = await Purpose.findOneAndUpdate(
       { id: req.params.id, vehicleType },
-      { title, subtitle, icon, badges, isActive },
+      { title, subtitle, serviceMode, icon, badges, isActive },
       { new: true },
     );
 
@@ -236,8 +246,37 @@ exports.toggleActive = async (req, res) => {
 // Seed database with initial data
 exports.seed = async (req, res) => {
   try {
+    const inferSeedServiceMode = (item) => {
+      const text = `${item.id || ""} ${item.title || ""}`.toLowerCase();
+      const isRide =
+        text.includes("corrida") ||
+        text.includes("passageiro") ||
+        text.includes("moto taxi") ||
+        text.includes("mototaxi") ||
+        text.includes("taxi");
+      if (isRide) return "ride";
+
+      const isFrete =
+        text.includes("frete") ||
+        text.includes("mudanca") ||
+        text.includes("mudança") ||
+        text.includes("carga");
+      if (isFrete) return "frete";
+
+      return "delivery";
+    };
+
     const SEED_DATA = [
       // Motorcycle
+      {
+        vehicleType: "motorcycle",
+        id: "moto-taxi",
+        title: "Corrida de Passageiro",
+        subtitle: "Transporte rapido de pessoas",
+        icon: "Car",
+        badges: ["RAPIDO"],
+        isActive: true,
+      },
       {
         vehicleType: "motorcycle",
         id: "delivery",
@@ -289,6 +328,15 @@ exports.seed = async (req, res) => {
       },
 
       // Car
+      {
+        vehicleType: "car",
+        id: "passenger-ride",
+        title: "Corrida de Passageiro",
+        subtitle: "Transporte urbano para pessoas",
+        icon: "Car",
+        badges: ["MOBILIDADE"],
+        isActive: true,
+      },
       {
         vehicleType: "car",
         id: "delivery",
@@ -371,11 +419,16 @@ exports.seed = async (req, res) => {
     // Delete existing data to avoid duplicates (optional, or check existence)
     await Purpose.deleteMany({});
 
-    await Purpose.insertMany(SEED_DATA);
+    const normalizedSeed = SEED_DATA.map((item) => ({
+      ...item,
+      serviceMode: item.serviceMode || inferSeedServiceMode(item),
+    }));
+
+    await Purpose.insertMany(normalizedSeed);
 
     res.json({
       message: "Banco de dados populado com sucesso!",
-      count: SEED_DATA.length,
+      count: normalizedSeed.length,
     });
   } catch (error) {
     console.error("Error seeding database:", error);

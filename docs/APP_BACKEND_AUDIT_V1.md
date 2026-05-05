@@ -11,6 +11,18 @@
 - [x] Correcao de bloqueio de verificacao de telefone no onboarding
 - [x] Ajustes iniciais de copy e consistencia no fluxo de escolha de perfil
 - [x] Bloqueio de login Google para contas desativadas
+- [x] Reenvio de codigo implementado no fluxo de recuperacao de senha
+- [x] Fluxo do motorista alinhado com etapa de permissao de notificacao
+- [x] Guardrail para projectId de push nao configurado
+- [x] Limpeza de artefatos orfaos do onboarding antigo (componentes/arquivos nao usados)
+- [x] Home cliente com leitura mais clara de modalidades (corrida/entrega/frete)
+- [x] Classificacao centralizada de finalidade para reduzir heuristica fragil
+- [x] Busca/tracking reforcados (status terminais, reconnect websocket, rejoin de corrida)
+- [x] Metodo de pagamento preservado na criacao de corrida via normalizacao backend
+- [x] Fluxo motorista reforcado em requests/chat (re-sync de ofertas e badge de mensagens mais preciso)
+- [x] Onboarding com fallback manual de cidade/UF para evitar bloqueio quando GPS falha
+- [x] Hardening de validacao de login/cadastro (conta desativada, email, nome e telefone)
+- [x] Padronizacao inicial de erros HTTP em `rides` e `wallet` para contrato consistente
 
 ## Diagnostico por fluxo (status)
 
@@ -30,7 +42,7 @@
 - Historico, carteira, favoritos, seguranca: existem telas e rotas.
 - Gaps principais:
 - [ ] Revisao de coerencia entre ride e delivery no mesmo fluxo de descoberta.
-- [ ] Padronizacao dos estados de busca de motorista e fallback.
+- [ ] Padronizacao final dos estados de busca de motorista e fallback.
 - [ ] Consolidacao do contrato de pagamento e metodos.
 
 ### 3) Fluxo motorista (app autenticado)

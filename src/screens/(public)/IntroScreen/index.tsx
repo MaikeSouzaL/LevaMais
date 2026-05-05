@@ -158,6 +158,27 @@ export default function IntroScreen() {
             />
           </TouchableOpacity>
         </View>
+        <View style={{ position: "absolute", top: 54, left: 16, zIndex: 10 }}>
+          <TouchableOpacity
+            onPress={async () => {
+              await AsyncStorage.setItem("@leva_mais:intro_viewed", "true");
+              navigation.navigate("SignIn");
+            }}
+            activeOpacity={0.85}
+            style={{
+              paddingHorizontal: 14,
+              paddingVertical: 8,
+              borderRadius: 14,
+              backgroundColor: "rgba(0,0,0,0.35)",
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.20)",
+            }}
+          >
+            <Text style={{ color: theme.COLORS.BRAND_LIGHT, fontWeight: "700" }}>
+              Pular
+            </Text>
+          </TouchableOpacity>
+        </View>
 
         <LinearGradient
           colors={["transparent", theme.COLORS.BRAND_DARK]}

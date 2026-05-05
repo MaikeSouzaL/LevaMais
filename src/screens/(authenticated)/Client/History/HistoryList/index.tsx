@@ -81,7 +81,10 @@ export default function HistoryScreen() {
     }
 
     if (selectedFilter === "cancelled") {
-      return history.filter((ride) => String(ride.status).startsWith("cancelled"));
+      return history.filter((ride) => {
+        const status = String(ride.status);
+        return status.startsWith("cancelled") || status === "expired";
+      });
     }
 
     return history.filter((ride) =>

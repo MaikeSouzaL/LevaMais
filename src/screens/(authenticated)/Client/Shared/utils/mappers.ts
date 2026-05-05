@@ -55,6 +55,7 @@ export function mapRideStatusToText(status: string): string {
     cancelled_by_client: 'Cancelada pelo cliente',
     cancelled_by_driver: 'Cancelada pelo motorista',
     cancelled_no_driver: 'Sem motorista disponivel',
+    expired: 'Busca expirada',
     timeout: 'Tempo esgotado',
     pending: 'Pendente',
     arriving: 'Chegando',
@@ -102,6 +103,7 @@ export function mapPaymentMethodToName(method: string): string {
   const mapping: Record<string, string> = {
     cash: 'Dinheiro',
     pix: 'PIX',
+    card: 'Cartao',
     credit: 'Cartao de credito',
     credit_card: 'Cartao de credito',
     debit: 'Cartao de debito',
@@ -116,6 +118,7 @@ export function mapPaymentMethodToIcon(method: string): string {
   const mapping: Record<string, string> = {
     cash: 'cash',
     pix: 'pix',
+    card: 'credit-card',
     credit: 'credit-card',
     credit_card: 'credit-card',
     debit: 'credit-card',
@@ -139,6 +142,7 @@ export function mapRideStatusToColor(status: string): string {
     cancelled_by_client: '#ef4444',
     cancelled_by_driver: '#ef4444',
     cancelled_no_driver: '#ef4444',
+    expired: '#ef4444',
     timeout: '#8D8D99',
     pending: '#f59e0b',
     arriving: '#3b82f6',

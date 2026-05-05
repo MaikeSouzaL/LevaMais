@@ -21,30 +21,29 @@ import {
   isSuccessResponse,
 } from "@react-native-google-signin/google-signin";
 import Toast from "react-native-toast-message";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 import GoogleButton from "./component/GoogleButton";
-import PhoneNumberModal from "./component/PhoneNumberModal";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { getCidadeUsuario } from "./getCidadeUsuario";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CLIENTE_WEB_ID } from "@env";
 
 export default function SignInScreen() {
   const navigation = useNavigation();
-  const route = useRoute();
-  const { params } = route;
+  const route = useRoute<any>();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const [phone, setPhone] = useState("");
-  const [city, setCity] = useState(""); // garanta que exista no componente
-  const [showPhoneModal, setShowPhoneModal] = useState(true);
-  const [phoneError, setPhoneError] = useState<string>("");
   const passwordInputRef = React.useRef<TextInput>(null);
 
   const googleConfiguredRef = useRef(false);
+
+  useEffect(() => {
+    const paramEmail = route.params?.email;
+    if (!paramEmail || typeof paramEmail !== "string") return;
+
+    setEmail(paramEmail.trim().toLowerCase());
+    setTimeout(() => passwordInputRef.current?.focus(), 250);
+  }, [route.params?.email]);
 
   useEffect(() => {
     // Configure dentro do lifecycle do React para garantir Activity pronta no Android.
@@ -97,6 +96,15 @@ export default function SignInScreen() {
           type: "error",
           text1: "Erro ao verificar email",
           text2: existsRes.message || "Tente novamente.",
+        });
+        return;
+      }
+
+      if (existsRes.data?.exists && existsRes.data?.isActive === false) {
+        Toast.show({
+          type: "error",
+          text1: "Conta desativada",
+          text2: "Entre em contato com o suporte para reativar sua conta.",
         });
         return;
       }
@@ -304,78 +312,6 @@ export default function SignInScreen() {
     }
   }
 
-  // function handlePhoneConfirm(numero: string) {
-  //   setPhone(numero);
-  //   setShowPhoneModal(false);
-  //   setPhoneError("");
-
-  //   // Solicitar localização após confirmar o número de telefone
-  //   getUserCity();
-  // }
-
-  // async function getUserCity() {
-  //   try {
-  //     const { status } = await Location.requestForegroundPermissionsAsync();
-
-  //     if (status !== "granted") {
-  //       console.log("Permissão de localização negada");
-  //       return;
-  //     }
-
-  //     Toast.show({
-  //       type: "info",
-  //       text1: "Detectando sua localização",
-  //       text2: "Estamos identificando sua cidade",
-  //     });
-
-  //     const location = await Location.getCurrentPositionAsync({});
-  //     const cidade = await getCidadeUsuario(location.coords);
-
-  //     if (cidade) {
-  //       setCity(cidade);
-
-  //       console.log(`Cidade detectada: ${cidade}`);
-
-  //       Toast.show({
-  //         type: "success",
-  //         text1: "Localização detectada",
-  //         text2: `Você está em ${cidade}`,
-  //       });
-  //     } else {
-  //       Toast.show({
-  //         type: "error",
-  //         text1: "Cidade não detectada",
-  //         text2: "Não foi possível identificar sua cidade",
-  //       });
-  //     }
-  //   } catch (error) {
-  //     console.error("Erro ao obter cidade:", error);
-  //     Toast.show({
-  //       type: "error",
-  //       text1: "Erro de localização",
-  //       text2: "Não foi possível detectar sua cidade",
-  //     });
-  //   }
-  // }
-
-  // function handlePhoneCancel() {
-  //   setPhoneError("O número de telefone é obrigatório para criar uma conta");
-  // }
-
-  // useEffect(() => {
-  //   if (Email) {
-  //     setEmail(Email);
-  //     if (passwordInputRef.current) {
-  //       passwordInputRef.current.focus();
-  //     }
-  //     Toast.show({
-  //       type: "info",
-  //       text1: "Email preenchido",
-  //       text2: "Digite sua nova senha para entrar",
-  //     });
-  //   }
-  // }, [route.params]);
-
   return (
     <SafeAreaView className="flex-1 bg-brand-dark">
       <KeyboardAvoidingView
@@ -398,28 +334,6 @@ export default function SignInScreen() {
                 Faça login para continuar
               </Text>
             </View>
-
-            {phone ? (
-              <View className="flex-row items-center bg-surface-primary border border-brand-light/30 rounded-2xl px-4 py-3 mb-8">
-                <MaterialCommunityIcons
-                  name="cellphone"
-                  size={24}
-                  color="#00E096"
-                />
-                <Text className="ml-3 text-base text-gray-200 font-semibold">
-                  +55 {phone.replace(/^(\d{2})(\d{5})(\d{4})$/, "($1) $2-$3")}
-                </Text>
-                <TouchableOpacity
-                  className="ml-auto"
-                  onPress={() => setShowPhoneModal(true)}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                  <Text className="text-brand-light font-bold text-sm">
-                    Alterar
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            ) : null}
 
             <View className="mb-4">
               <Text className="text-sm font-medium text-gray-300 mb-2">

@@ -4,12 +4,12 @@ import {
   Text,
   TouchableOpacity,
   ScrollView,
-  Platform,
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons, Feather } from "@expo/vector-icons";
 import * as Device from "expo-device";
+import Constants from "expo-constants";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import Toast from "react-native-toast-message";
 import theme from "../../../theme";
@@ -33,82 +33,89 @@ interface NotificationPermissionParams {
 }
 
 export default function NotificationPermissionScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
   const route = useRoute();
   const params = route.params as NotificationPermissionParams;
   const [loading, setLoading] = useState(false);
+
+  const projectId =
+    Constants.expoConfig?.extra?.eas?.projectId ||
+    Constants.easConfig?.projectId;
 
   async function requestNotificationPermissionsHandler() {
     setLoading(true);
 
     try {
-      // Verificar se é um dispositivo físico
       if (!Device.isDevice) {
         Alert.alert(
           "Aviso",
-          "Notificações push não funcionam em emulador/simulador. Use um dispositivo físico para testar."
+          "Notificacoes push nao funcionam em emulador/simulador. Use dispositivo fisico.",
         );
         handleSkip();
         return;
       }
 
-      // Configurar handler de notificações
       setupNotificationHandler();
 
-      // Solicitar permissões usando o serviço
       const permissionGranted = await requestNotificationPermissions();
 
       if (!permissionGranted) {
         Toast.show({
           type: "error",
-          text1: "Permissão negada",
-          text2: "Você pode ativar depois nas configurações do app",
+          text1: "Permissao negada",
+          text2: "Voce pode ativar depois nas configuracoes do app",
         });
         handleSkip();
         return;
       }
 
-      // Obter token do dispositivo
-      const pushToken = await getPushToken("seu-project-id-aqui"); // Configurar com o projectId do app.json
+      const hasValidProjectId =
+        !!projectId && projectId !== "seu-project-id-aqui";
 
-      if (!pushToken) {
-        console.warn("Não foi possível obter push token");
+      if (!hasValidProjectId) {
         Toast.show({
           type: "warning",
-          text1: "Aviso",
-          text2: "Notificações ativadas, mas token não foi gerado",
+          text1: "Project ID nao configurado",
+          text2: "Configure o EAS Project ID para push remoto",
         });
         handleContinue();
         return;
       }
 
-      console.log("Push Token obtido:", pushToken);
+      const pushToken = await getPushToken(projectId);
 
-      // Salvar token no backend
+      if (!pushToken) {
+        Toast.show({
+          type: "warning",
+          text1: "Aviso",
+          text2: "Permissao ativa, mas nao foi possivel gerar push token",
+        });
+        handleContinue();
+        return;
+      }
+
       const saveResponse = await savePushToken(pushToken, params.token);
 
       if (saveResponse.success) {
-        console.log("Push token salvo no backend com sucesso!");
         Toast.show({
           type: "success",
-          text1: "Notificações ativadas!",
-          text2: "Você receberá atualizações sobre suas entregas",
+          text1: "Notificacoes ativadas",
+          text2: "Voce recebera atualizacoes em tempo real",
         });
       } else {
-        console.warn("Erro ao salvar push token:", saveResponse.message);
         Toast.show({
           type: "warning",
-          text1: "Notificações ativadas",
-          text2: "Mas houve um problema ao salvar. Tente novamente mais tarde.",
+          text1: "Notificacoes ativadas",
+          text2: "Houve problema ao salvar token no backend",
         });
       }
 
       handleContinue();
     } catch (error: any) {
-      console.error("Erro ao solicitar permissões de notificação:", error);
+      console.error("Erro ao solicitar permissoes de notificacao:", error);
       Toast.show({
         type: "error",
-        text1: "Erro ao ativar notificações",
+        text1: "Erro ao ativar notificacoes",
         text2: error.message || "Tente novamente mais tarde",
       });
       handleSkip();
@@ -118,19 +125,13 @@ export default function NotificationPermissionScreen() {
   }
 
   function handleSkip() {
-    // Pular permissão de notificação
     handleContinue();
   }
 
   function handleContinue() {
-    // O store já foi atualizado no Step3Preferences
-    // A navegação será automática através do componente Routes
-    // que verifica isAuthenticated e userType
-    // Apenas fazemos goBack para permitir que o Routes redirecione
-    navigation.reset({
-      index: 0,
-      routes: [{ name: "SignIn" }],
-    });
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    }
   }
 
   return (
@@ -144,11 +145,10 @@ export default function NotificationPermissionScreen() {
         }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Ilustração */}
         <View className="items-center mb-8">
           <View
             className="w-32 h-32 rounded-full items-center justify-center mb-6"
-            style={{ backgroundColor: theme.COLORS.BRAND_LIGHT + "20" }}
+            style={{ backgroundColor: `${theme.COLORS.BRAND_LIGHT}20` }}
           >
             <MaterialCommunityIcons
               name="bell-ring"
@@ -158,18 +158,15 @@ export default function NotificationPermissionScreen() {
           </View>
         </View>
 
-        {/* Título */}
         <View className="mb-8">
           <Text className="text-3xl font-bold text-white text-center mb-3">
-            Ative as notificações
+            Ative as notificacoes
           </Text>
           <Text className="text-base text-gray-400 text-center leading-6">
-            Fique por dentro de tudo que acontece com suas entregas em tempo
-            real
+            Fique por dentro do status da corrida, entrega e mensagens.
           </Text>
         </View>
 
-        {/* Benefícios */}
         <View className="mb-10">
           <View className="flex-row items-start mb-5">
             <View
@@ -187,8 +184,7 @@ export default function NotificationPermissionScreen() {
                 Acompanhe em tempo real
               </Text>
               <Text className="text-gray-400 text-sm leading-5">
-                Receba atualizações sobre o status das suas entregas mesmo com o
-                app fechado
+                Atualizacoes mesmo com app fechado.
               </Text>
             </View>
           </View>
@@ -209,8 +205,7 @@ export default function NotificationPermissionScreen() {
                 Mensagens importantes
               </Text>
               <Text className="text-gray-400 text-sm leading-5">
-                Não perca nenhuma mensagem do entregador ou atualizações
-                urgentes
+                Nao perca alertas e recados do fluxo.
               </Text>
             </View>
           </View>
@@ -228,17 +223,15 @@ export default function NotificationPermissionScreen() {
             </View>
             <View className="flex-1">
               <Text className="text-white text-lg font-semibold mb-1">
-                Alertas de segurança
+                Alertas de seguranca
               </Text>
               <Text className="text-gray-400 text-sm leading-5">
-                Receba notificações sobre confirmações de entrega e avisos
-                importantes
+                Confirmacoes e eventos importantes de seguranca.
               </Text>
             </View>
           </View>
         </View>
 
-        {/* Observação de privacidade */}
         <View
           className="flex-row items-center p-4 rounded-xl mb-8"
           style={{ backgroundColor: theme.COLORS.SURFACE_PRIMARY }}
@@ -250,13 +243,11 @@ export default function NotificationPermissionScreen() {
             style={{ marginRight: 12 }}
           />
           <Text className="flex-1 text-gray-300 text-xs leading-5">
-            Suas notificações são privadas e seguras. Você pode desativar a
-            qualquer momento nas configurações do app.
+            Suas notificacoes sao privadas e podem ser desativadas quando quiser.
           </Text>
         </View>
       </ScrollView>
 
-      {/* Botões fixos na parte inferior */}
       <View className="px-6 pb-6">
         <TouchableOpacity
           className="h-14 rounded-2xl items-center justify-center mb-3 shadow-lg"
@@ -266,7 +257,7 @@ export default function NotificationPermissionScreen() {
           activeOpacity={0.8}
         >
           <Text className="text-brand-dark font-bold text-lg">
-            {loading ? "Ativando..." : "Ativar notificações"}
+            {loading ? "Ativando..." : "Ativar notificacoes"}
           </Text>
         </TouchableOpacity>
 
@@ -276,9 +267,7 @@ export default function NotificationPermissionScreen() {
           disabled={loading}
           activeOpacity={0.7}
         >
-          <Text className="text-gray-400 font-semibold text-base">
-            Agora não
-          </Text>
+          <Text className="text-gray-400 font-semibold text-base">Agora nao</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

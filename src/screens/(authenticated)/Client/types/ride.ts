@@ -14,6 +14,7 @@ export type RideStatus =
   | 'cancelled_by_client'
   | 'cancelled_by_driver'
   | 'cancelled_no_driver'
+  | 'expired'
   | 'timeout'
   | 'pending'
   | 'arriving';
@@ -31,6 +32,7 @@ export type ServiceMode =
 export type PaymentMethod =
   | 'cash'
   | 'pix'
+  | 'card'
   | 'credit'
   | 'credit_card'
   | 'debit'

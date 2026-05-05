@@ -2,7 +2,9 @@ export declare global {
   namespace ReactNavigation {
     interface RootParamList {
       IntroScreen: undefined;
-      SignIn: undefined;
+      SignIn: {
+        email?: string;
+      } | undefined;
       SignUp: undefined;
       SelectProfile: {
         user: {
@@ -66,7 +68,10 @@ export declare global {
       };
       PhoneVerification: {
         phone: string;
-        nextScreen?: string;
+        nextScreen?:
+          | "SelectProfile"
+          | "CompleteRegistrationClient"
+          | "CompleteRegistrationDriver";
         nextParams?: Record<string, unknown>;
       };
       NotificationPermission: {

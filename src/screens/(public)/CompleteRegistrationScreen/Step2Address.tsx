@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   ScrollView,
   Platform,
   KeyboardAvoidingView,
+  TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons, Feather } from "@expo/vector-icons";
@@ -129,7 +130,10 @@ export default function Step2Address({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const gpsFilled = gpsStatus === "ok" && !!selectedState && !!selectedCity;
+  const normalizedUf = String(selectedState || "").trim().toUpperCase();
+  const normalizedCity = String(selectedCity || "").trim();
+  const hasLocationSelection =
+    /^[A-Z]{2}$/.test(normalizedUf) && normalizedCity.length >= 2;
 
   function commit(updates: Partial<NonNullable<RegistrationData["address"]>>) {
     const currentAddress = data.address || {
@@ -158,19 +162,19 @@ export default function Step2Address({
   }
 
   function handleNext() {
-    if (!selectedState || !selectedCity) {
+    if (!hasLocationSelection) {
       Toast.show({
         type: "error",
         text1: "Localização incompleta",
-        text2: "Aguarde o GPS preencher sua cidade ou tente novamente",
+        text2: "Informe UF valida (2 letras) e cidade com pelo menos 2 caracteres",
       });
       return;
     }
 
     // Atualiza antes de ir para o próximo step
     commit({
-      state: selectedState,
-      city: selectedCity,
+      state: normalizedUf,
+      city: normalizedCity,
     });
 
     onNext();
@@ -236,10 +240,54 @@ export default function Step2Address({
               ) : null}
             </View>
 
+            <View className="bg-white/5 border border-white/10 rounded-2xl px-4 py-4 mb-5">
+              <Text className="text-white/80 font-semibold mb-1">
+                Ajuste manual (se necessario)
+              </Text>
+              <Text className="text-white/60 text-xs mb-3">
+                Se o GPS falhar, preencha sua UF e cidade para continuar.
+              </Text>
+              <View className="flex-row gap-2">
+                <View className="flex-1">
+                  <Text className="text-white/70 text-xs mb-1">UF</Text>
+                  <TextInput
+                    value={selectedState || ""}
+                    onChangeText={(text) => {
+                      const uf = toUf(text);
+                      setSelectedState(uf);
+                      commit({ state: uf });
+                    }}
+                    maxLength={2}
+                    autoCapitalize="characters"
+                    placeholder="SP"
+                    placeholderTextColor="rgba(255,255,255,0.35)"
+                    className="rounded-xl px-3 py-3 text-white"
+                    style={{ backgroundColor: "rgba(255,255,255,0.06)" }}
+                  />
+                </View>
+                <View className="flex-[2]">
+                  <Text className="text-white/70 text-xs mb-1">Cidade</Text>
+                  <TextInput
+                    value={selectedCity || ""}
+                    onChangeText={(text) => {
+                      const city = text.trimStart();
+                      setSelectedCity(city);
+                      commit({ city });
+                    }}
+                    autoCapitalize="words"
+                    placeholder="Sao Paulo"
+                    placeholderTextColor="rgba(255,255,255,0.35)"
+                    className="rounded-xl px-3 py-3 text-white"
+                    style={{ backgroundColor: "rgba(255,255,255,0.06)" }}
+                  />
+                </View>
+              </View>
+            </View>
+
             {/* Resumo */}
             <View className="bg-white/5 border border-white/10 rounded-2xl px-4 py-3 mb-8">
               <Text className="text-white/80 font-semibold mb-1">Resumo</Text>
-              {gpsFilled ? (
+              {hasLocationSelection ? (
                 <Text className="text-white">
                   {selectedState} • {selectedCity}
                 </Text>
@@ -249,7 +297,7 @@ export default function Step2Address({
                 </Text>
               )}
               <Text className="text-white/50 text-xs mt-1">
-                Se estiver errado, toque em "Usar GPS" novamente.
+                Se estiver errado, toque em "Usar GPS" novamente ou ajuste manualmente.
               </Text>
             </View>
           </ScrollView>
@@ -257,20 +305,20 @@ export default function Step2Address({
           {/* Botão fixo no rodapé */}
           <View className="px-5 pb-5">
             <TouchableOpacity
-              disabled={!gpsFilled}
+              disabled={!hasLocationSelection}
               onPress={handleNext}
               className={`h-14 rounded-2xl items-center justify-center shadow-lg ${
-                !gpsFilled
+                !hasLocationSelection
                   ? "bg-gray-700"
                   : "bg-brand-light shadow-brand-light/20"
               }`}
             >
               <Text
                 className={`font-bold text-lg ${
-                  !gpsFilled ? "text-gray-400" : "text-brand-dark"
+                  !hasLocationSelection ? "text-gray-400" : "text-brand-dark"
                 }`}
               >
-                {gpsFilled ? "Próximo" : "Aguardando GPS..."}
+                {hasLocationSelection ? "Próximo" : "Informe sua localizacao"}
               </Text>
             </TouchableOpacity>
           </View>

@@ -1,14 +1,8 @@
-import React, { useEffect, useMemo, useState } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-  Platform,
-  KeyboardAvoidingView,
-} from "react-native";
+import React, { useEffect, useState } from "react";
+import { View, Text, TouchableOpacity, TextInput } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
 import Toast from "react-native-toast-message";
 
 import theme from "../../../theme";
@@ -23,10 +17,8 @@ import {
 
 function toUf(value?: string | null) {
   if (!value) return "";
-  // Se por algum motivo vier "RO" já, mantém.
   const s = String(value).trim();
   if (s.length === 2) return s.toUpperCase();
-  // Alguns provedores retornam "Rondônia" em `region`, então pegamos as 2 primeiras letras.
   return s.substring(0, 2).toUpperCase();
 }
 
@@ -41,7 +33,9 @@ export default function Step3DriverLocation({
   onUpdate,
   onBack,
 }: Step3DriverLocationProps) {
+  const navigation = useNavigation<any>();
   const { login } = useAuthStore();
+
   const [selectedState, setSelectedState] = useState<string | null>(
     data.driverLocation?.state || null,
   );
@@ -54,21 +48,16 @@ export default function Step3DriverLocation({
   const [gpsMessage, setGpsMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const stateLabel = useMemo(() => {
-    // Sem lista/seleção manual: exibimos apenas a UF (quando existir).
-    return selectedState || "";
-  }, [selectedState]);
-
   async function autofillFromGps() {
     setGpsStatus("loading");
-    setGpsMessage("Obtendo sua localização...");
+    setGpsMessage("Obtendo sua localizacao...");
 
     try {
       const coords = await getCurrentLocation();
       if (!coords) {
         setGpsStatus("denied");
         setGpsMessage(
-          "Sem permissão de localização. Você pode preencher manualmente.",
+          "Sem permissao de localizacao. Voce pode preencher manualmente.",
         );
         return;
       }
@@ -79,19 +68,6 @@ export default function Step3DriverLocation({
         coords.longitude,
       );
 
-      // Debug seguro (sem vazar coords): ajuda a entender quando o provider retorna campos diferentes
-      console.log("[DriverLocation][GPS] reverseGeocode:", {
-        city: endereco?.city,
-        region: endereco?.region,
-        subregion: endereco?.subregion,
-        district: endereco?.district,
-        isoCountryCode: endereco?.isoCountryCode,
-      });
-
-      // Algumas variações comuns:
-      // - Android: city ok, region = "Rondônia"
-      // - iOS: city ok, region = "Rondônia"
-      // - Alguns casos: city vem vazio; aí a gente tenta subregion/district
       const city = (
         endereco?.city ||
         endereco?.subregion ||
@@ -100,35 +76,35 @@ export default function Step3DriverLocation({
       ).trim();
       const uf = toUf(endereco?.region);
 
-      // Aqui a regra é simples: se não vier cidade ou UF, não dá para exibir o resumo.
       if (!uf || !city) {
         setGpsStatus("error");
         setGpsMessage(
-          `Não foi possível identificar automaticamente. UF=${uf || "?"} Cidade=${city || "?"}.`,
+          `Nao foi possivel identificar automaticamente. UF=${uf || "?"} Cidade=${city || "?"}.`,
         );
         return;
       }
 
       setSelectedState(uf);
       setSelectedCity(city);
-
       commit({ state: uf, city });
 
       setGpsStatus("ok");
-      setGpsMessage("Localização preenchida automaticamente.");
+      setGpsMessage("Localizacao preenchida automaticamente.");
     } catch (e: any) {
       setGpsStatus("error");
-      setGpsMessage(e?.message || "Falha ao obter localização.");
+      setGpsMessage(e?.message || "Falha ao obter localizacao.");
     }
   }
 
   useEffect(() => {
-    // Auto-preencher no primeiro carregamento. Sem mapa.
     autofillFromGps();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const gpsFilled = gpsStatus === "ok" && !!selectedState && !!selectedCity;
+  const normalizedUf = String(selectedState || "").trim().toUpperCase();
+  const normalizedCity = String(selectedCity || "").trim();
+  const hasLocationSelection =
+    /^[A-Z]{2}$/.test(normalizedUf) && normalizedCity.length >= 2;
 
   function commit(
     updates: Partial<NonNullable<RegistrationData["driverLocation"]>>,
@@ -145,24 +121,22 @@ export default function Step3DriverLocation({
   }
 
   async function handleFinishDriver() {
-    if (!selectedState || !selectedCity) {
+    if (!hasLocationSelection) {
       Toast.show({
         type: "error",
-        text1: "Localização incompleta",
-        text2: "Aguarde o GPS preencher sua cidade ou tente novamente",
+        text1: "Localizacao incompleta",
+        text2: "Informe UF valida (2 letras) e cidade com pelo menos 2 caracteres",
       });
       return;
     }
 
     setLoading(true);
     try {
-      // Atualiza os dados no estado pai
       commit({
-        state: selectedState,
-        city: selectedCity,
+        state: normalizedUf,
+        city: normalizedCity,
       });
 
-      // Payload final (driver) — sem mapa/coords
       const registrationPayload: any = {
         name: data.name,
         email: data.email,
@@ -178,10 +152,8 @@ export default function Step3DriverLocation({
         companyEmail: data.companyEmail,
         companyPhone: data.companyPhone,
 
-        // Campo legado usado no backend
-        city: selectedCity,
+        city: normalizedCity,
 
-        // Driver
         vehicleType: data.vehicleType,
         vehicleInfo: data.vehicleInfo,
 
@@ -191,10 +163,9 @@ export default function Step3DriverLocation({
         googleId: data.googleId,
         profilePhoto: data.profilePhoto,
 
-        // Extra (não quebra se backend ignorar)
         driverLocation: {
-          state: selectedState,
-          city: selectedCity,
+          state: normalizedUf,
+          city: normalizedCity,
         },
       };
 
@@ -233,9 +204,17 @@ export default function Step3DriverLocation({
         text1: "Cadastro realizado com sucesso!",
       });
 
-      // Mantém o fluxo já existente (permissão de notificações)
-      // Importante: não navegar daqui porque esse Step não tem access ao navigation.
-      // A tela seguinte do app (NotificationPermission) já é aberta em outros fluxos.
+      navigation.navigate("NotificationPermission", {
+        user: {
+          _id: user._id,
+          name: user.name,
+          email: user.email,
+          phone: user.phone || "",
+          userType: user.userType,
+          cidade: user.city || "",
+        },
+        token,
+      });
     } catch (e: any) {
       Toast.show({
         type: "error",
@@ -268,20 +247,19 @@ export default function Step3DriverLocation({
         </View>
 
         <Text className="text-white text-2xl font-bold mb-2">
-          Sua área de atuação
+          Sua area de atuacao
         </Text>
         <Text className="text-white/70 mb-6">
           Vamos pegar sua cidade automaticamente pelo GPS.
         </Text>
 
-        {/* Status do GPS */}
         <View className="bg-white/5 border border-white/10 rounded-2xl px-4 py-3 mb-5">
           <Text className="text-white/80 font-semibold mb-1">GPS</Text>
           <Text className="text-white">
             {gpsMessage ||
               (gpsStatus === "loading"
-                ? "Obtendo localização..."
-                : "Pronto para obter localização")}
+                ? "Obtendo localizacao..."
+                : "Pronto para obter localizacao")}
           </Text>
 
           {gpsStatus !== "loading" ? (
@@ -294,12 +272,11 @@ export default function Step3DriverLocation({
           ) : null}
         </View>
 
-        {/* Resumo */}
-        <View className="bg-white/5 border border-white/10 rounded-2xl px-4 py-3 mb-8">
+        <View className="bg-white/5 border border-white/10 rounded-2xl px-4 py-3 mb-5">
           <Text className="text-white/80 font-semibold mb-1">Resumo</Text>
-          {gpsFilled ? (
+          {hasLocationSelection ? (
             <Text className="text-white">
-              {selectedState} • {selectedCity}
+              {selectedState} - {selectedCity}
             </Text>
           ) : (
             <Text className="text-white/60">
@@ -307,30 +284,74 @@ export default function Step3DriverLocation({
             </Text>
           )}
           <Text className="text-white/50 text-xs mt-1">
-            Se estiver errado, toque em "Usar GPS" novamente.
+            Se estiver errado, toque em "Usar GPS" novamente ou ajuste manualmente.
           </Text>
+        </View>
+
+        <View className="bg-white/5 border border-white/10 rounded-2xl px-4 py-4 mb-8">
+          <Text className="text-white/80 font-semibold mb-1">
+            Ajuste manual (se necessario)
+          </Text>
+          <Text className="text-white/60 text-xs mb-3">
+            Se o GPS falhar, preencha sua UF e cidade para continuar.
+          </Text>
+          <View className="flex-row gap-2">
+            <View className="flex-1">
+              <Text className="text-white/70 text-xs mb-1">UF</Text>
+              <TextInput
+                value={selectedState || ""}
+                onChangeText={(text) => {
+                  const uf = toUf(text);
+                  setSelectedState(uf);
+                  commit({ state: uf });
+                }}
+                maxLength={2}
+                autoCapitalize="characters"
+                placeholder="SP"
+                placeholderTextColor="rgba(255,255,255,0.35)"
+                className="rounded-xl px-3 py-3 text-white"
+                style={{ backgroundColor: "rgba(255,255,255,0.06)" }}
+              />
+            </View>
+            <View className="flex-[2]">
+              <Text className="text-white/70 text-xs mb-1">Cidade</Text>
+              <TextInput
+                value={selectedCity || ""}
+                onChangeText={(text) => {
+                  const city = text.trimStart();
+                  setSelectedCity(city);
+                  commit({ city });
+                }}
+                autoCapitalize="words"
+                placeholder="Sao Paulo"
+                placeholderTextColor="rgba(255,255,255,0.35)"
+                className="rounded-xl px-3 py-3 text-white"
+                style={{ backgroundColor: "rgba(255,255,255,0.06)" }}
+              />
+            </View>
+          </View>
         </View>
 
         <View className="pb-5">
           <TouchableOpacity
-            disabled={loading || !gpsFilled}
+            disabled={loading || !hasLocationSelection}
             onPress={handleFinishDriver}
             className={`h-14 rounded-2xl items-center justify-center shadow-lg ${
-              loading || !gpsFilled
+              loading || !hasLocationSelection
                 ? "bg-gray-700"
                 : "bg-brand-light shadow-brand-light/20"
             }`}
           >
             <Text
               className={`font-bold text-lg ${
-                loading || !gpsFilled ? "text-gray-400" : "text-brand-dark"
+                loading || !hasLocationSelection ? "text-gray-400" : "text-brand-dark"
               }`}
             >
               {loading
                 ? "Finalizando..."
-                : gpsFilled
+                : hasLocationSelection
                   ? "Finalizar cadastro"
-                  : "Aguardando GPS..."}
+                  : "Informe sua localizacao"}
             </Text>
           </TouchableOpacity>
         </View>

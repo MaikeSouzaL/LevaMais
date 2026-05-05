@@ -13,6 +13,11 @@ import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
 import favoriteAddressService, { FavoriteAddress } from "@/services/favoriteAddress.service";
 import purposeService from "@/services/purpose.service";
+import {
+  buildModeCounts,
+  formatModeSummary,
+  inferPurposeServiceMode,
+} from "../../Shared/utils";
 
 type DashboardViewProps = {
   userAddress: string;
@@ -35,6 +40,10 @@ type VehicleCardData = {
   description: string;
   icon: keyof typeof MaterialCommunityIcons.glyphMap;
   servicesCount: number;
+  rideCount: number;
+  deliveryCount: number;
+  freteCount: number;
+  modeSummary: string;
   defaultServiceId?: string;
 };
 
@@ -63,7 +72,14 @@ export const DashboardView = ({
   const [loadingFavorites, setLoadingFavorites] = useState(true);
   const [loadingVehicles, setLoadingVehicles] = useState(true);
   const [vehicles, setVehicles] = useState<VehicleCardData[]>(
-    VEHICLE_BASE.map((v) => ({ ...v, servicesCount: 0 })),
+    VEHICLE_BASE.map((v) => ({
+      ...v,
+      servicesCount: 0,
+      rideCount: 0,
+      deliveryCount: 0,
+      freteCount: 0,
+      modeSummary: "Sem servicos ativos",
+    })),
   );
 
   useEffect(() => {
@@ -108,17 +124,38 @@ export const DashboardView = ({
 
         const enriched = VEHICLE_BASE.map((vehicle) => {
           const services = (purposes || []).filter((p) => p.vehicleType === vehicle.id);
+          const modeCounts = buildModeCounts(services);
+
+          const prioritized = [...services].sort((a, b) => {
+            const priority = (mode: string) =>
+              mode === "ride" ? 0 : mode === "delivery" ? 1 : 2;
+            return priority(inferPurposeServiceMode(a)) - priority(inferPurposeServiceMode(b));
+          });
+
           return {
             ...vehicle,
             servicesCount: services.length,
-            defaultServiceId: services[0]?.id,
+            rideCount: modeCounts.ride,
+            deliveryCount: modeCounts.delivery,
+            freteCount: modeCounts.frete,
+            modeSummary: formatModeSummary(modeCounts),
+            defaultServiceId: prioritized[0]?.id,
           };
         });
 
         setVehicles(enriched);
       } catch {
         if (mounted) {
-          setVehicles(VEHICLE_BASE.map((v) => ({ ...v, servicesCount: 0 })));
+          setVehicles(
+            VEHICLE_BASE.map((v) => ({
+              ...v,
+              servicesCount: 0,
+              rideCount: 0,
+              deliveryCount: 0,
+              freteCount: 0,
+              modeSummary: "Sem servicos ativos",
+            })),
+          );
         }
       } finally {
         if (mounted) setLoadingVehicles(false);
@@ -149,8 +186,8 @@ export const DashboardView = ({
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.title}>Vamos para onde?</Text>
-        <Text style={styles.subtitle}>Defina origem e destino para continuar</Text>
+        <Text style={styles.title}>Qual servico voce precisa?</Text>
+        <Text style={styles.subtitle}>Escolha entre corrida, entrega ou frete e continue</Text>
 
         <View style={styles.routeCard}>
           <TouchableOpacity onPress={onPressAddress} style={styles.routeRow} activeOpacity={0.85}>
@@ -205,7 +242,7 @@ export const DashboardView = ({
                     {vehicle.label}
                   </Text>
                   <Text style={[styles.vehicleDescription, !enabled && styles.vehicleDescriptionDisabled]}>
-                    {vehicle.description}
+                    {enabled ? vehicle.modeSummary : "Sem servicos ativos nessa categoria"}
                   </Text>
 
                   <View style={[styles.badge, !enabled && styles.badgeDisabled]}>

@@ -2,20 +2,29 @@ const Ride = require("../models/Ride");
 const Withdrawal = require("../models/Withdrawal");
 const mongoose = require("mongoose");
 
+function sendError(res, status, message, extras = {}) {
+  return res.status(status).json({
+    success: false,
+    message,
+    error: message,
+    ...extras,
+  });
+}
+
 class WalletController {
-  // Calcular saldo disponível
+  // Calcular saldo disponivel
   async getBalance(req, res) {
     try {
       const userId = req.user.id;
       const balance = await WalletController._calculateBalance(userId);
-      res.json(balance);
+      return res.json(balance);
     } catch (error) {
       console.error("Erro ao buscar saldo:", error);
-      res.status(500).json({ error: "Erro ao buscar saldo" });
+      return sendError(res, 500, "Erro ao buscar saldo");
     }
   }
 
-  // Método auxiliar reutilizável
+  // Metodo auxiliar reutilizavel
   static async _calculateBalance(userId) {
     const userObjectId = new mongoose.Types.ObjectId(userId);
 
@@ -38,7 +47,7 @@ class WalletController {
     // Driver gets 80% (MVP rule)
     const totalEarnings = totalEarningsBruto * 0.8;
 
-    // 2. Total sacado (considerando pending e paid como "saiu" do saldo disponível)
+    // 2. Total sacado (considerando pending e paid como "saiu" do saldo disponivel)
     const withdrawalsAgg = await Withdrawal.aggregate([
       {
         $match: {
@@ -69,18 +78,17 @@ class WalletController {
       const { amount, pixKey, pixKeyType } = req.body;
 
       if (!amount || amount <= 0) {
-        return res.status(400).json({ error: "Valor inválido" });
+        return sendError(res, 400, "Valor invalido");
       }
       if (!pixKey) {
-        return res.status(400).json({ error: "Chave PIX obrigatória" });
+        return sendError(res, 400, "Chave PIX obrigatoria");
       }
 
       // Verificar saldo
       const balance = await WalletController._calculateBalance(userId);
       if (balance.available < amount) {
-        return res.status(400).json({ 
-            error: "Saldo insuficiente", 
-            available: balance.available 
+        return sendError(res, 400, "Saldo insuficiente", {
+          available: balance.available,
         });
       }
 
@@ -93,15 +101,14 @@ class WalletController {
         status: "pending",
       });
 
-      res.status(201).json({
-        message: "Solicitação de saque realizada",
+      return res.status(201).json({
+        message: "Solicitacao de saque realizada",
         withdrawal,
-        newBalance: balance.available - amount
+        newBalance: balance.available - amount,
       });
-
     } catch (error) {
       console.error("Erro ao solicitar saque:", error);
-      res.status(500).json({ error: "Erro ao solicitar saque" });
+      return sendError(res, 500, "Erro ao solicitar saque");
     }
   }
 
@@ -109,7 +116,6 @@ class WalletController {
   async getStatement(req, res) {
     try {
       const userId = req.user.id;
-      const userObjectId = new mongoose.Types.ObjectId(userId);
       const { limit = 50, page = 1 } = req.query;
 
       // Buscar Corridas (Entradas)
@@ -117,51 +123,50 @@ class WalletController {
         driverId: userId,
         status: "completed",
       })
-      .select("pricing completedAt pickup dropoff")
-      .sort({ completedAt: -1 })
-      .limit(100) // limit hardcoded for merge logic MVP
-      .lean();
+        .select("pricing completedAt pickup dropoff")
+        .sort({ completedAt: -1 })
+        .limit(100) // limit hardcoded for merge logic MVP
+        .lean();
 
-      // Buscar Saques (Saídas)
-      const withdrawals = await Withdrawal.find({
-        userId: userId,
-      })
-      .sort({ createdAt: -1 })
-      .limit(50)
-      .lean();
+      // Buscar Saques (Saidas)
+      const withdrawals = await Withdrawal.find({ userId })
+        .sort({ createdAt: -1 })
+        .limit(50)
+        .lean();
 
       // Normalizar e mergear
-      const entries = rides.map(r => ({
+      const entries = rides.map((r) => ({
         _id: r._id,
-        type: 'ride',
+        type: "ride",
         amount: (r.pricing?.total || 0) * 0.8,
         date: r.completedAt,
-        description: `Corrida finalizada`,
-        status: 'completed'
+        description: "Corrida finalizada",
+        status: "completed",
       }));
 
-      const exits = withdrawals.map(w => ({
+      const exits = withdrawals.map((w) => ({
         _id: w._id,
-        type: 'withdrawal',
-        amount: -w.amount, // Negativo para exibir vermelho
+        type: "withdrawal",
+        amount: -w.amount,
         date: w.createdAt,
-        description: 'Saque via PIX',
-        status: w.status
+        description: "Saque via PIX",
+        status: w.status,
       }));
 
       const all = [...entries, ...exits].sort((a, b) => {
         return new Date(b.date) - new Date(a.date);
       });
 
-      // Paginação simples em memória (MVP)
-      const startIndex = (page - 1) * limit;
-      const paginated = all.slice(startIndex, startIndex + Number(limit));
+      // Paginacao simples em memoria (MVP)
+      const numericPage = Number(page) || 1;
+      const numericLimit = Number(limit) || 50;
+      const startIndex = (numericPage - 1) * numericLimit;
+      const paginated = all.slice(startIndex, startIndex + numericLimit);
 
-      res.json(paginated);
-
+      return res.json(paginated);
     } catch (error) {
-        console.error("Erro ao buscar extrato:", error);
-        res.status(500).json({ error: "Erro ao buscar extrato" });
+      console.error("Erro ao buscar extrato:", error);
+      return sendError(res, 500, "Erro ao buscar extrato");
     }
   }
 }

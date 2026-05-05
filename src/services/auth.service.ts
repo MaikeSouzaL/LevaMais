@@ -363,9 +363,14 @@ export async function sendPhoneVerification(
   phone: string,
 ): Promise<ApiResponse<{ message: string }>> {
   try {
+    const normalizedPhone = String(phone || "").replace(/\D/g, "");
+    if (normalizedPhone.length < 10 || normalizedPhone.length > 11) {
+      return { success: false, message: "Telefone invalido" };
+    }
+
     const response = await apiPost<ApiResponse<{ message: string }>>(
       "/auth/send-phone-code",
-      { phone },
+      { phone: normalizedPhone },
     );
     return response.data;
   } catch (error: any) {
@@ -379,9 +384,10 @@ export async function verifyPhoneCode(
   code: string,
 ): Promise<ApiResponse<{ verified: boolean }>> {
   try {
+    const normalizedPhone = String(phone || "").replace(/\D/g, "");
     const response = await apiPost<ApiResponse<{ verified: boolean }>>(
       "/auth/verify-phone-code",
-      { phone, code },
+      { phone: normalizedPhone, code: String(code || "").trim() },
     );
     return response.data;
   } catch (error: any) {

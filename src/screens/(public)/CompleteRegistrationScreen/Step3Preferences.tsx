@@ -17,7 +17,6 @@ import { registerUser } from "../../../services/auth.service";
 import { useAuthStore } from "../../../context/authStore";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
-  step3PreferencesSchema,
   completeRegistrationSchema,
 } from "../../../schemas/registration.schema";
 import OfflineErrorScreen from "./OfflineErrorScreen";
@@ -508,10 +507,21 @@ export default function Step3Preferences({
               </View>
             </TouchableOpacity>
 
-            {/* Cartão (Em breve) */}
-            <View
-              className="flex-row items-center justify-between p-4 rounded-xl opacity-50"
-              style={{ backgroundColor: theme.COLORS.SURFACE_SECONDARY }}
+            {/* Cartão */}
+            <TouchableOpacity
+              className="flex-row items-center justify-between p-4 rounded-xl"
+              style={{
+                backgroundColor:
+                  preferredPayment === "card"
+                    ? theme.COLORS.BRAND_LIGHT + "20"
+                    : theme.COLORS.SURFACE_SECONDARY,
+                borderWidth: preferredPayment === "card" ? 2 : 0,
+                borderColor:
+                  preferredPayment === "card"
+                    ? theme.COLORS.BRAND_LIGHT
+                    : "transparent",
+              }}
+              onPress={() => handlePaymentSelect("card")}
             >
               <View className="flex-row items-center flex-1">
                 <View
@@ -528,22 +538,28 @@ export default function Step3Preferences({
                   <Text className="text-white font-semibold text-base mr-2">
                     Cartão
                   </Text>
-                  <View
-                    className="px-2 py-1 rounded-full"
-                    style={{ backgroundColor: theme.COLORS.GRAY_700 }}
-                  >
-                    <Text className="text-gray-300 text-xs">Em breve</Text>
-                  </View>
                 </View>
               </View>
               <View
-                className="w-6 h-6 rounded-full"
+                className="w-6 h-6 rounded-full items-center justify-center"
                 style={{
-                  borderWidth: 2,
-                  borderColor: theme.COLORS.GRAY_500,
+                  borderWidth: preferredPayment === "card" ? 0 : 2,
+                  borderColor: theme.COLORS.WHITE,
+                  backgroundColor:
+                    preferredPayment === "card"
+                      ? theme.COLORS.BRAND_LIGHT
+                      : "transparent",
                 }}
-              />
-            </View>
+              >
+                {preferredPayment === "card" && (
+                  <MaterialCommunityIcons
+                    name="check"
+                    size={16}
+                    color={theme.COLORS.WHITE}
+                  />
+                )}
+              </View>
+            </TouchableOpacity>
           </View>
 
           {/* Notificações */}

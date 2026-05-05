@@ -22,6 +22,7 @@ const TERMINAL_STATUSES = [
   "cancelled_by_client",
   "cancelled_by_driver",
   "cancelled_no_driver",
+  "expired",
 ];
 
 const CANCELLABLE_STATUSES = [
@@ -82,6 +83,12 @@ function getStatusMeta(status?: string, serviceType?: string) {
       color: "#02de95",
       bg: "rgba(2,222,149,0.18)",
     },
+    cancelled: {
+      title: isDelivery ? "Entrega cancelada" : "Corrida cancelada",
+      subtitle: "O pedido foi cancelado.",
+      color: "#ef4444",
+      bg: "rgba(239,68,68,0.16)",
+    },
     cancelled_by_client: {
       title: isDelivery ? "Entrega cancelada" : "Corrida cancelada",
       subtitle: "Cancelada por voce.",
@@ -97,6 +104,12 @@ function getStatusMeta(status?: string, serviceType?: string) {
     cancelled_no_driver: {
       title: "Sem motorista disponivel",
       subtitle: "Nao foi possivel encontrar motorista.",
+      color: "#ef4444",
+      bg: "rgba(239,68,68,0.16)",
+    },
+    expired: {
+      title: "Busca expirada",
+      subtitle: "A solicitacao expirou por falta de aceite.",
       color: "#ef4444",
       bg: "rgba(239,68,68,0.16)",
     },
@@ -170,6 +183,11 @@ export default function RideTrackingScreen() {
     if (!rideId) return;
     let mounted = true;
 
+    const onSocketConnected = () => {
+      if (!mounted) return;
+      webSocketService.waitingDriver(rideId);
+    };
+
     const onStatusUpdated = (payload: any) => {
       if (!mounted) return;
       if (payload?.rideId && payload.rideId !== rideId) return;
@@ -219,11 +237,17 @@ export default function RideTrackingScreen() {
       if (data?.rideId !== rideId) return;
       if (String(data?.senderId) === currentUserId) return;
 
-      const sender = data?.senderName || data?.senderType === "driver" ? "Motorista" : "Cliente";
+      const sender =
+        data?.senderName || (data?.senderType === "driver" ? "Motorista" : "Cliente");
       const preview = String(data?.message || "").slice(0, 80);
-      const routeName = (route as any)?.name;
+      const navState = navigation.getState?.();
+      const activeRoute =
+        navState?.routes?.[
+          typeof navState?.index === "number" ? navState.index : (navState?.routes?.length || 1) - 1
+        ];
+      const activeRouteName = String(activeRoute?.name || "");
 
-      if (routeName !== "Chat") {
+      if (activeRouteName !== "Chat") {
         useChatStore.getState().incrementUnread(rideId);
         Toast.show({ type: "info", text1: sender, text2: preview });
       }
@@ -232,6 +256,7 @@ export default function RideTrackingScreen() {
     (async () => {
       try {
         await webSocketService.connect();
+        webSocketService.on("connect", onSocketConnected);
         webSocketService.waitingDriver(rideId);
         webSocketService.onRideStatusUpdated(onStatusUpdated);
         webSocketService.onRideCancelled(onCancelled);
@@ -252,8 +277,9 @@ export default function RideTrackingScreen() {
       webSocketService.off("driver-arrived", onArrived);
       webSocketService.off("ride-started", onStarted);
       webSocketService.off("new-message", onNewMsg);
+      webSocketService.off("connect", onSocketConnected);
     };
-  }, [rideId, loadRide, navigation]);
+  }, [rideId, loadRide, navigation, currentUserId]);
 
   const pickupCoord = useMemo(() => {
     if (!ride?.pickup?.latitude || !ride?.pickup?.longitude) return null;

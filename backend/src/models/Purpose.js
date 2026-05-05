@@ -23,6 +23,12 @@ const purposeSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  serviceMode: {
+    type: String,
+    enum: ['ride', 'delivery', 'frete'],
+    default: 'delivery',
+    index: true
+  },
   icon: {
     type: String,
     required: true,

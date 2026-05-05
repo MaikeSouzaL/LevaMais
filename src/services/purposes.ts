@@ -7,7 +7,8 @@ export interface PurposeItem {
   vehicleType: VehicleType;
   title: string;
   subtitle: string;
-  icon: string; // Nome do ícone Lucide (será convertido no app via iconMapper)
+  serviceMode?: "ride" | "delivery" | "frete";
+  icon: string; // Nome do icone Lucide (sera convertido no app via iconMapper)
   badges?: string[];
   isActive: boolean;
   createdAt?: string;

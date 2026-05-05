@@ -249,11 +249,17 @@ export default function DriverRideScreen() {
       if (data?.rideId !== rideId) return;
       if (String(data?.senderId) === currentUserId) return;
 
-      const sender = data?.senderName || data?.senderType === "client" ? "Cliente" : "Motorista";
+      const sender =
+        data?.senderName || (data?.senderType === "client" ? "Cliente" : "Motorista");
       const preview = String(data?.message || "").slice(0, 80);
-      const routeName = (route as any)?.name;
+      const navState = (navigation as any).getState?.();
+      const activeRoute =
+        navState?.routes?.[
+          typeof navState?.index === "number" ? navState.index : (navState?.routes?.length || 1) - 1
+        ];
+      const activeRouteName = String(activeRoute?.name || "");
 
-      if (routeName !== "DriverChat") {
+      if (activeRouteName !== "DriverChat") {
         useChatStore.getState().incrementUnread(rideId);
         Toast.show({ type: "info", text1: sender, text2: preview });
       }
@@ -274,7 +280,7 @@ export default function DriverRideScreen() {
       webSocketService.off("ride-cancelled", onRideCancelled);
       webSocketService.off("new-message", onNewMsg);
     };
-  }, [navigation, rideId]);
+  }, [navigation, rideId, currentUserId]);
 
   useEffect(() => {
     const start = async () => {

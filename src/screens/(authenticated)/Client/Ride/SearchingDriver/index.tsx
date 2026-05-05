@@ -16,6 +16,13 @@ import webSocketService from "@/services/websocket.service";
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
 
 const SEARCH_TIME = 30;
+const TERMINAL_CANCEL_STATUSES = [
+  "cancelled",
+  "cancelled_by_client",
+  "cancelled_by_driver",
+  "cancelled_no_driver",
+  "expired",
+];
 
 export default function SearchingDriverScreen() {
   const navigation = useNavigation<any>();
@@ -28,6 +35,7 @@ export default function SearchingDriverScreen() {
   const [adjusting, setAdjusting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [networkUnstable, setNetworkUnstable] = useState(false);
+  const [searchCycle, setSearchCycle] = useState(0);
 
   const intervalRef = useRef<any>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -114,7 +122,9 @@ export default function SearchingDriverScreen() {
 
         if (
           ride.driverId &&
-          ["accepted", "driver_arriving", "in_progress"].includes(ride.status)
+          ["accepted", "driver_arriving", "arrived", "in_progress"].includes(
+            ride.status,
+          )
         ) {
           doneRef.current = true;
           clearInterval(pollInterval);
@@ -122,10 +132,14 @@ export default function SearchingDriverScreen() {
           return;
         }
 
-        if (["cancelled", "expired"].includes(ride.status)) {
+        if (TERMINAL_CANCEL_STATUSES.includes(String(ride.status || ""))) {
           doneRef.current = true;
           clearInterval(pollInterval);
-          rideExpiredCallback();
+          if (String(ride.status) === "cancelled_no_driver") {
+            rideExpiredCallback();
+            return;
+          }
+          rideCancelledCallback({ reason: "Corrida encerrada", status: ride.status });
         }
       } catch {
         pollFailures += 1;
@@ -166,7 +180,7 @@ export default function SearchingDriverScreen() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, []);
+  }, [searchCycle]);
 
   useEffect(() => {
     const loop = Animated.loop(
@@ -211,6 +225,7 @@ export default function SearchingDriverScreen() {
     setTimeoutState(false);
     setSecondsLeft(SEARCH_TIME);
     doneRef.current = false;
+    setSearchCycle((prev) => prev + 1);
     cleanup();
     webSocketService.off("driver-found", driverFoundCallback);
     webSocketService.off("ride-expired", rideExpiredCallback);

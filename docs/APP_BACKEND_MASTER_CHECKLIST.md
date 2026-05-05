@@ -19,6 +19,12 @@
 - [x] Corrigir backend para suportar verificacao de telefone (envio e validacao de codigo)
 - [x] Conectar fluxo de verificacao de telefone no app com envio inicial automatico
 - [x] Impedir cadastro manual sem telefone valido (DDD + numero)
+- [x] Atualizar selecao de perfil para mensagem multiuso (corrida + entrega + comercio)
+- [x] Bloquear login Google em conta desativada
+- [x] Implementar reenvio real de codigo no fluxo de recuperacao de senha
+- [x] Preencher email automaticamente no login apos redefinir senha
+- [x] Unificar pos-cadastro do motorista com tela de permissao de notificacao
+- [x] Tratar projectId de push nao configurado sem quebrar onboarding
 - [ ] Revisar fluxo Intro -> Login -> Cadastro -> Selecao de perfil -> Conclusao
 - [ ] Validar login Google para conta existente x conta nova sem friccao
 - [ ] Garantir que todos os passos bloqueiem estados inconsistentes
@@ -46,6 +52,7 @@
 
 ## E. Realtime, mapa e resiliencia
 - [ ] Auditoria completa de websocket (conexao, reconexao, eventos zumbis)
+- [x] Ajuste inicial de reconexao no tracking (rejoin automatico na corrida apos reconnect)
 - [ ] Auditoria de atualizacao de localizacao (cliente/motorista)
 - [ ] Contingencias offline e retomada de corrida ativa
 - [ ] Normalizacao de estados de corrida entre app e backend
@@ -53,8 +60,11 @@
 ## F. Backend (dominio e API)
 - [x] Implementar endpoints publicos de telefone: `/auth/send-phone-code` e `/auth/verify-phone-code`
 - [ ] Revisar contrato de auth (payloads, mensagens, codigos HTTP)
+- [x] Hardening inicial do cadastro auth (normalizacao/validacao de email, telefone, userType, preferredPayment)
 - [ ] Revisar modulo de corridas (status, regras de transicao, validacoes)
 - [ ] Revisar precificacao por cidade/veiculo/servico e fallbacks
+- [x] Normalizar metodo de pagamento na criacao de corrida (mapper backend para `card/pix/cash/wallet`)
+- [x] Padronizacao inicial de erros HTTP em `rides` (endpoints criticos) e `wallet` (`success:false`, `message`, `error`)
 - [ ] Revisar carteira/saque/extrato e reconciliacao de valores
 - [ ] Revisar chat e seguranca de acesso por corrida
 - [ ] Revisar consistencia de modelos, indices e limpeza de dados
@@ -68,7 +78,8 @@
 - [ ] Revisar variaveis de ambiente e defaults de producao
 
 ## Proximos passos imediatos (Sprint App+Back #1)
-- [ ] Revisar e refatorar o fluxo de selecao de perfil para suportar melhor multiuso (pessoa, comercio/restaurante, motorista)
-- [ ] Fechar lacunas de navegacao do onboarding (sem telas "soltas" ou passos redundantes)
+- [x] Revisar e refatorar o fluxo de selecao de perfil para suportar melhor multiuso (pessoa, comercio/restaurante, motorista)
+- [x] Fechar lacunas de navegacao do onboarding (sem telas "soltas" ou passos redundantes)
 - [ ] Padronizar textos, nomes de rotas e estados de UI do onboarding
+- [x] Criar roteiro de testes manuais guiados ponta a ponta (cliente e motorista)
 - [ ] Rodar testes manuais guiados ponta a ponta (cliente e motorista)

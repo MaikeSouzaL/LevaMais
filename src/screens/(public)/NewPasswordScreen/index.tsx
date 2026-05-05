@@ -87,7 +87,7 @@ export default function NewPasswordScreen() {
         });
 
         // Navegar para tela de login
-        navigation.navigate("SignIn");
+        navigation.navigate("SignIn", { email });
       } else {
         Toast.show({
           type: "error",
@@ -241,7 +241,7 @@ export default function NewPasswordScreen() {
             {/* Link para voltar ao login */}
             <TouchableOpacity
               className="items-center py-4"
-              onPress={() => navigation.navigate("SignIn")}
+              onPress={() => navigation.navigate("SignIn", { email })}
               activeOpacity={0.7}
             >
               <Text className="text-base text-gray-400">

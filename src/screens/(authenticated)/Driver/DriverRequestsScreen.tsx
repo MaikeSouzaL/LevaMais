@@ -62,6 +62,26 @@ export default function DriverRequestsScreen() {
 
   useEffect(() => {
     let mounted = true;
+    const syncAvailableRequests = async () => {
+      try {
+        const available = await rideService.getAvailableRequests();
+        if (!mounted) return;
+        setRequests(
+          (available?.requests || []).map((item: any) => ({
+            rideId: item.rideId,
+            pickup: item.pickup,
+            dropoff: item.dropoff,
+            pricing: item.pricing,
+            distance: item.distance,
+            duration: item.duration,
+            serviceType: item.serviceType,
+            vehicleType: item.vehicleType,
+          })),
+        );
+      } catch {
+        // ignora para manter a tela responsiva em reconexao
+      }
+    };
 
     (async () => {
       try {
@@ -93,20 +113,7 @@ export default function DriverRequestsScreen() {
           return;
         }
 
-        const available = await rideService.getAvailableRequests();
-        if (!mounted) return;
-        setRequests(
-          (available?.requests || []).map((item: any) => ({
-            rideId: item.rideId,
-            pickup: item.pickup,
-            dropoff: item.dropoff,
-            pricing: item.pricing,
-            distance: item.distance,
-            duration: item.duration,
-            serviceType: item.serviceType,
-            vehicleType: item.vehicleType,
-          })),
-        );
+        await syncAvailableRequests();
       } catch {
         Toast.show({
           type: "info",
@@ -161,9 +168,14 @@ export default function DriverRequestsScreen() {
       setRequests((prev) => prev.filter((r) => r.rideId !== expiredId));
     };
 
+    const onSocketConnected = () => {
+      syncAvailableRequests().catch(() => {});
+    };
+
     (async () => {
       try {
         await webSocketService.connect();
+        webSocketService.on("connect", onSocketConnected);
         webSocketService.on("new-ride-request", onNewRide);
         webSocketService.on("ride-taken", onRideTaken);
         webSocketService.on("ride-expired", onRideExpired);
@@ -177,6 +189,7 @@ export default function DriverRequestsScreen() {
       webSocketService.off("new-ride-request", onNewRide);
       webSocketService.off("ride-taken", onRideTaken);
       webSocketService.off("ride-expired", onRideExpired);
+      webSocketService.off("connect", onSocketConnected);
       driverAlertService.stop().catch(() => {});
     };
   }, [navigation]);

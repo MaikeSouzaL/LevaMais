@@ -13,7 +13,10 @@ import { Feather } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import theme from "../../../theme";
-import { verifyResetCode } from "../../../services/auth.service";
+import {
+  requestPasswordReset,
+  verifyResetCode,
+} from "../../../services/auth.service";
 
 export default function VerifyCodeScreen() {
   const navigation = useNavigation();
@@ -22,23 +25,32 @@ export default function VerifyCodeScreen() {
 
   const [code, setCode] = useState(["", "", "", "", "", ""]);
   const [loading, setLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendCountdown, setResendCountdown] = useState(0);
   const inputRefs = useRef<(TextInput | null)[]>([]);
   const scrollViewRef = useRef<ScrollView>(null);
 
   useEffect(() => {
-    // Focar no primeiro input ao montar
     setTimeout(() => {
       inputRefs.current[0]?.focus();
       scrollViewRef.current?.scrollToEnd({ animated: true });
     }, 300);
   }, []);
 
+  useEffect(() => {
+    if (resendCountdown <= 0) return;
+
+    const timer = setInterval(() => {
+      setResendCountdown((prev) => Math.max(0, prev - 1));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [resendCountdown]);
+
   function handleCodeChange(text: string, index: number) {
-    // Aceitar apenas números
     const numericText = text.replace(/[^0-9]/g, "");
 
     if (numericText.length > 1) {
-      // Se colou múltiplos números, distribuir pelos inputs
       const digits = numericText.split("").slice(0, 6);
       const newCode = [...code];
       digits.forEach((digit, i) => {
@@ -47,26 +59,22 @@ export default function VerifyCodeScreen() {
         }
       });
       setCode(newCode);
-
-      // Focar no próximo input vazio ou no último
       const nextIndex = Math.min(index + digits.length, 5);
       inputRefs.current[nextIndex]?.focus();
-    } else {
-      // Atualizar apenas o input atual
-      const newCode = [...code];
-      newCode[index] = numericText;
-      setCode(newCode);
+      return;
+    }
 
-      // Focar no próximo input se digitou algo
-      if (numericText && index < 5) {
-        inputRefs.current[index + 1]?.focus();
-      }
+    const newCode = [...code];
+    newCode[index] = numericText;
+    setCode(newCode);
+
+    if (numericText && index < 5) {
+      inputRefs.current[index + 1]?.focus();
     }
   }
 
   function handleKeyPress(key: string, index: number) {
     if (key === "Backspace" && !code[index] && index > 0) {
-      // Se o input está vazio e pressionou backspace, voltar para o anterior
       inputRefs.current[index - 1]?.focus();
     }
   }
@@ -77,8 +85,8 @@ export default function VerifyCodeScreen() {
     if (codeString.length !== 6) {
       Toast.show({
         type: "error",
-        text1: "Código incompleto",
-        text2: "Digite o código de 6 dígitos",
+        text1: "Codigo incompleto",
+        text2: "Digite o codigo de 6 digitos",
       });
       return;
     }
@@ -86,38 +94,37 @@ export default function VerifyCodeScreen() {
     setLoading(true);
     try {
       const response = await verifyResetCode({
-        email: email,
+        email,
         code: codeString,
       });
 
       if (response.success) {
         Toast.show({
           type: "success",
-          text1: "Código verificado!",
-          text2: "Agora você pode criar uma nova senha",
+          text1: "Codigo verificado",
+          text2: "Agora voce pode criar uma nova senha",
         });
 
-        // Navegar para tela de nova senha
         navigation.navigate("NewPassword", {
-          email: email,
+          email,
           code: codeString,
         });
-      } else {
-        Toast.show({
-          type: "error",
-          text1: "Código inválido",
-          text2: response.message || "Verifique o código e tente novamente",
-        });
-        // Limpar código em caso de erro
-        setCode(["", "", "", "", "", ""]);
-        inputRefs.current[0]?.focus();
+        return;
       }
-    } catch (error: any) {
-      console.error("Erro ao verificar código:", error);
+
       Toast.show({
         type: "error",
-        text1: "Erro ao verificar código",
-        text2: error.message || "Verifique sua conexão e tente novamente",
+        text1: "Codigo invalido",
+        text2: response.message || "Verifique o codigo e tente novamente",
+      });
+      setCode(["", "", "", "", "", ""]);
+      inputRefs.current[0]?.focus();
+    } catch (error: any) {
+      console.error("Erro ao verificar codigo:", error);
+      Toast.show({
+        type: "error",
+        text1: "Erro ao verificar codigo",
+        text2: error.message || "Verifique sua conexao e tente novamente",
       });
     } finally {
       setLoading(false);
@@ -125,12 +132,38 @@ export default function VerifyCodeScreen() {
   }
 
   async function handleResendCode() {
-    // TODO: Implementar reenvio de código
-    Toast.show({
-      type: "info",
-      text1: "Código reenviado",
-      text2: "Verifique seu email",
-    });
+    if (resendLoading || resendCountdown > 0) return;
+
+    setResendLoading(true);
+    try {
+      const response = await requestPasswordReset({
+        email: email.trim().toLowerCase(),
+      });
+
+      if (!response.success) {
+        Toast.show({
+          type: "error",
+          text1: "Erro ao reenviar",
+          text2: response.message || "Tente novamente",
+        });
+        return;
+      }
+
+      setResendCountdown(60);
+      Toast.show({
+        type: "success",
+        text1: "Codigo reenviado",
+        text2: "Verifique seu email",
+      });
+    } catch (error: any) {
+      Toast.show({
+        type: "error",
+        text1: "Erro ao reenviar",
+        text2: error?.message || "Tente novamente",
+      });
+    } finally {
+      setResendLoading(false);
+    }
   }
 
   return (
@@ -140,7 +173,6 @@ export default function VerifyCodeScreen() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
       >
-        {/* Header fixo no topo */}
         <View className="flex-row items-center px-6 py-4">
           <TouchableOpacity
             onPress={() => navigation.goBack()}
@@ -159,18 +191,16 @@ export default function VerifyCodeScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View className="flex-1 px-6">
-            {/* Título e descrição */}
             <View className="mb-8 mt-4">
               <Text className="text-4xl font-bold text-white tracking-tight mb-3">
-                Verificar código
+                Verificar codigo
               </Text>
               <Text className="text-base text-gray-400 font-regular leading-6">
-                Digite o código de 6 dígitos enviado para{"\n"}
+                Digite o codigo de 6 digitos enviado para{"\n"}
                 <Text className="text-brand-light font-semibold">{email}</Text>
               </Text>
             </View>
 
-            {/* Inputs do código */}
             <View className="mb-8">
               <View className="flex-row justify-between mb-6">
                 {code.map((digit, index) => (
@@ -197,20 +227,25 @@ export default function VerifyCodeScreen() {
                 ))}
               </View>
 
-              {/* Botão reenviar código */}
               <TouchableOpacity
                 onPress={handleResendCode}
                 className="items-center py-2"
+                disabled={resendLoading || resendCountdown > 0}
                 activeOpacity={0.7}
               >
                 <Text className="text-base text-gray-400">
-                  Não recebeu o código?{" "}
-                  <Text className="text-brand-light font-bold">Reenviar</Text>
+                  Nao recebeu o codigo?{" "}
+                  <Text className="text-brand-light font-bold">
+                    {resendCountdown > 0
+                      ? `Reenviar em ${resendCountdown}s`
+                      : resendLoading
+                        ? "Enviando..."
+                        : "Reenviar"}
+                  </Text>
                 </Text>
               </TouchableOpacity>
             </View>
 
-            {/* Botão Verificar */}
             <TouchableOpacity
               className="h-14 bg-brand-light rounded-2xl items-center justify-center mb-6 shadow-lg shadow-brand-light/20"
               onPress={handleVerifyCode}
@@ -218,11 +253,10 @@ export default function VerifyCodeScreen() {
               activeOpacity={0.8}
             >
               <Text className="text-brand-dark font-bold text-lg">
-                {loading ? "Verificando..." : "Verificar código"}
+                {loading ? "Verificando..." : "Verificar codigo"}
               </Text>
             </TouchableOpacity>
 
-            {/* Link para voltar */}
             <TouchableOpacity
               className="items-center py-4"
               onPress={() => navigation.goBack()}
@@ -231,7 +265,7 @@ export default function VerifyCodeScreen() {
               <Text className="text-base text-gray-400">
                 Voltar para{" "}
                 <Text className="text-brand-light font-bold">
-                  esqueceu a senha
+                  esqueci a senha
                 </Text>
               </Text>
             </TouchableOpacity>

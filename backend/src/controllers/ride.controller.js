@@ -16,6 +16,32 @@ const NON_TERMINAL_STATUSES = [
   "in_progress",
 ];
 
+function normalizePaymentMethod(rawMethod) {
+  const value = String(rawMethod || "")
+    .trim()
+    .toLowerCase();
+
+  if (!value) return null;
+
+  if (["cash", "dinheiro"].includes(value)) return "cash";
+  if (["pix"].includes(value)) return "pix";
+  if (["wallet", "carteira"].includes(value)) return "wallet";
+  if (["card", "credit_card", "debit_card", "credit", "debit"].includes(value)) {
+    return "card";
+  }
+
+  return null;
+}
+
+function sendError(res, status, message, extras = {}) {
+  return res.status(status).json({
+    success: false,
+    message,
+    error: message,
+    ...extras,
+  });
+}
+
 class RideController {
   getNonTerminalStatuses() {
     return NON_TERMINAL_STATUSES;
@@ -94,8 +120,7 @@ class RideController {
       return res.json({ active: false, ride: null });
     } catch (error) {
       console.error("Erro ao buscar corrida ativa:", error);
-      return res.status(500).json({
-        error: "Erro ao buscar corrida ativa",
+      return sendError(res, 500, "Erro ao buscar corrida ativa", {
         details: error.message,
       });
     }
@@ -137,8 +162,7 @@ class RideController {
       return res.json({ active: false, count: 0, rides: [] });
     } catch (error) {
       console.error("Erro ao buscar lista de corridas ativas:", error);
-      return res.status(500).json({
-        error: "Erro ao buscar corridas ativas",
+      return sendError(res, 500, "Erro ao buscar corridas ativas", {
         details: error.message,
       });
     }
@@ -151,7 +175,7 @@ class RideController {
       const driverId = req.user.id;
 
       if (req.user.userType !== "driver") {
-        return res.status(403).json({ error: "Apenas motoristas podem buscar solicitacoes" });
+        return sendError(res, 403, "Apenas motoristas podem buscar solicitacoes");
       }
 
       const activeRide = await Ride.findOne({
@@ -229,8 +253,7 @@ class RideController {
       return res.json({ count: requests.length, requests });
     } catch (error) {
       console.error("Erro ao buscar solicitacoes disponiveis:", error);
-      return res.status(500).json({
-        error: "Erro ao buscar solicitacoes disponiveis",
+      return sendError(res, 500, "Erro ao buscar solicitacoes disponiveis", {
         details: error.message,
       });
     }
@@ -250,15 +273,14 @@ class RideController {
         distance,
         duration,
         details,
+        payment,
       } = req.body;
 
       const clientId = req.user.id; // Do middleware de autenticaÃ§Ã£o
 
       // ValidaÃ§Ãµes bÃ¡sicas
       if (!pickup || !dropoff) {
-        return res.status(400).json({
-          error: "Origem e destino sÃ£o obrigatÃ³rios",
-        });
+        return sendError(res, 400, "Origem e destino sao obrigatorios");
       }
 
       // Resolver purposeId (o app pode mandar slug, ex.: "documents")
@@ -290,8 +312,7 @@ class RideController {
       }).select("_id status");
 
       if (activeRide?._id) {
-        return res.status(400).json({
-          error: "VocÃª jÃ¡ possui uma corrida em andamento",
+        return sendError(res, 400, "Voce ja possui uma corrida em andamento", {
           rideId: activeRide._id,
           status: activeRide.status,
         });
@@ -359,6 +380,14 @@ class RideController {
         requestedAt: new Date(),
         cityId: cityId, // Importante salvar a cidade
       });
+
+      const paymentMethod = normalizePaymentMethod(payment?.method?.type || payment?.method || payment);
+      if (paymentMethod) {
+        ride.payment = {
+          ...(ride.payment || {}),
+          method: paymentMethod,
+        };
+      }
 
       // Calcular total
       ride.calculateTotal();
@@ -437,8 +466,7 @@ class RideController {
       });
     } catch (error) {
       console.error("Erro ao criar corrida:", error);
-      res.status(500).json({
-        error: "Erro ao criar corrida",
+      return sendError(res, 500, "Erro ao criar corrida", {
         details: error.message,
       });
     }
@@ -453,8 +481,7 @@ class RideController {
       // Impedir aceitar se o motorista jÃ¡ estiver em corrida
       const driverLocation = await DriverLocation.findOne({ driverId });
       if (driverLocation?.currentRideId) {
-        return res.status(400).json({
-          error: "VocÃª jÃ¡ possui uma corrida ativa",
+        return sendError(res, 400, "Voce ja possui uma corrida ativa", {
           currentRideId: driverLocation.currentRideId,
         });
       }
@@ -470,9 +497,7 @@ class RideController {
       );
 
       if (!lockedDriver) {
-        return res.status(400).json({
-          error: "VocÃª jÃ¡ possui uma corrida ativa",
-        });
+        return sendError(res, 400, "Voce ja possui uma corrida ativa");
       }
 
       // 2) Aceite atÃ´mico da corrida (evita dois motoristas aceitarem ao mesmo tempo)
@@ -504,9 +529,7 @@ class RideController {
           { status: "available", currentRideId: null },
         );
 
-        return res.status(400).json({
-          error: "Corrida nÃ£o estÃ¡ mais disponÃ­vel",
-        });
+        return sendError(res, 400, "Corrida nao esta mais disponivel");
       }
 
       // Popular dados
@@ -542,8 +565,7 @@ class RideController {
       });
     } catch (error) {
       console.error("Erro ao aceitar corrida:", error);
-      res.status(500).json({
-        error: "Erro ao aceitar corrida",
+      return sendError(res, 500, "Erro ao aceitar corrida", {
         details: error.message,
       });
     }
@@ -559,7 +581,7 @@ class RideController {
       const ride = await Ride.findById(rideId);
 
       if (!ride) {
-        return res.status(404).json({ error: "Corrida nÃ£o encontrada" });
+        return sendError(res, 404, "Corrida nao encontrada");
       }
 
       // Adicionar Ã  lista de rejeitados
@@ -623,8 +645,7 @@ class RideController {
       });
     } catch (error) {
       console.error("Erro ao rejeitar corrida:", error);
-      res.status(500).json({
-        error: "Erro ao rejeitar corrida",
+      return sendError(res, 500, "Erro ao rejeitar corrida", {
         details: error.message,
       });
     }
@@ -641,7 +662,7 @@ class RideController {
       const ride = await Ride.findById(rideId);
 
       if (!ride) {
-        return res.status(404).json({ error: "Corrida nÃ£o encontrada" });
+        return sendError(res, 404, "Corrida nao encontrada");
       }
 
       if (!ride.canBeCancelled()) {
@@ -655,9 +676,7 @@ class RideController {
       const isDriver = ride.driverId?.toString() === userIdStr;
 
       if (!isClient && !isDriver) {
-        return res.status(403).json({
-          error: "VocÃª nÃ£o tem permissÃ£o para cancelar esta corrida",
-        });
+        return sendError(res, 403, "Voce nao tem permissao para cancelar esta corrida");
       }
 
       // Calcular taxa de cancelamento
@@ -705,10 +724,7 @@ class RideController {
       });
     } catch (error) {
       console.error("Erro ao cancelar corrida:", error);
-      res.status(500).json({
-        error: "Erro ao cancelar corrida",
-        details: error.message,
-      });
+      return sendError(res, 500, "Erro ao cancelar corrida", { details: error.message });
     }
   }
 
@@ -724,21 +740,16 @@ class RideController {
       const ride = await Ride.findById(rideId);
 
       if (!ride) {
-        return res.status(404).json({ error: "Corrida não encontrada" });
+        return sendError(res, 404, "Corrida nao encontrada");
       }
 
       if (ride.driverId?.toString() !== driverIdStr) {
-        return res.status(403).json({
-          error: "Apenas o motorista pode atualizar o status",
-        });
+        return sendError(res, 403, "Apenas o motorista pode atualizar o status");
       }
 
       const allowedStatuses = ["arrived", "in_progress", "completed"];
       if (!allowedStatuses.includes(nextStatus)) {
-        return res.status(400).json({
-          error: "Status inválido para atualização do motorista",
-          allowed: allowedStatuses,
-        });
+        return sendError(res, 400, "Status invalido para atualizacao do motorista", { allowed: allowedStatuses });
       }
 
       const allowedTransitions = {
@@ -754,23 +765,15 @@ class RideController {
       );
 
       if (!canTransition) {
-        return res.status(400).json({
-          error: "Transição de status inválida",
-          current: currentStatus,
-          requested: nextStatus,
-        });
+        return sendError(res, 400, "Transicao de status invalida", { current: currentStatus, requested: nextStatus });
       }
 
       if (ride.serviceType === "delivery") {
         if (nextStatus === "in_progress" && !ride.proofs?.pickupPhoto) {
-          return res.status(400).json({
-            error: "Envie a foto da coleta antes de iniciar a entrega",
-          });
+          return sendError(res, 400, "Envie a foto da coleta antes de iniciar a entrega");
         }
         if (nextStatus === "completed" && !ride.proofs?.deliveryPhoto) {
-          return res.status(400).json({
-            error: "Envie a foto da entrega antes de finalizar",
-          });
+          return sendError(res, 400, "Envie a foto da entrega antes de finalizar");
         }
       }
 
@@ -809,10 +812,7 @@ class RideController {
       });
     } catch (error) {
       console.error("Erro ao atualizar status:", error);
-      res.status(500).json({
-        error: "Erro ao atualizar status",
-        details: error.message,
-      });
+      return sendError(res, 500, "Erro ao atualizar status", { details: error.message });
     }
   }
 
@@ -829,7 +829,7 @@ class RideController {
         .populate("purposeId");
 
       if (!ride) {
-        return res.status(404).json({ error: "Corrida nÃ£o encontrada" });
+        return sendError(res, 404, "Corrida nao encontrada");
       }
 
       // Verificar permissÃ£o
@@ -890,10 +890,7 @@ class RideController {
       });
     } catch (error) {
       console.error("Erro ao buscar histÃ³rico:", error);
-      res.status(500).json({
-        error: "Erro ao buscar histÃ³rico",
-        details: error.message,
-      });
+      return sendError(res, 500, "Erro ao buscar historico", { details: error.message });
     }
   }
 
@@ -1057,7 +1054,7 @@ class RideController {
       res.json(result);
     } catch (error) {
       console.error("Erro ao buscar histÃ³rico de ganhos:", error);
-      res.status(500).json({ error: "Erro interno ao buscar dados" });
+      return sendError(res, 500, "Erro interno ao buscar dados");
     }
   }
 
@@ -1067,9 +1064,7 @@ class RideController {
       const { pickup, dropoff, vehicleType, purposeId, cityId } = req.body;
 
       if (!pickup || !dropoff) {
-        return res.status(400).json({
-          error: "Origem e destino sÃ£o obrigatÃ³rios",
-        });
+        return sendError(res, 400, "Origem e destino sao obrigatorios");
       }
 
       // Validar se cityId foi enviado (agora Ã© obrigatÃ³rio para preÃ§o preciso)
@@ -1353,11 +1348,7 @@ class RideController {
       });
     } catch (error) {
       console.error("Erro ao calcular preÃ§o:", error);
-      res.status(500).json({
-        error: "Erro ao calcular preÃ§o",
-        details: error?.message,
-        stack: process.env.NODE_ENV === "production" ? undefined : error?.stack,
-      });
+      return sendError(res, 500, "Erro ao calcular preco", { details: error?.message, stack: process.env.NODE_ENV === "production" ? undefined : error?.stack });
     }
   }
 
@@ -1405,7 +1396,7 @@ class RideController {
       res.json(mapped);
     } catch (error) {
       console.error("Erro ao buscar motoristas prÃ³ximos:", error);
-      res.status(500).json({ error: "Erro interno", details: error.message });
+      return sendError(res, 500, "Erro interno", { details: error.message });
     }
   }
 }

@@ -9,7 +9,6 @@ import {
   View,
   BackHandler,
   TextInput,
-  Keyboard,
 } from "react-native";
 import Toast from "react-native-toast-message";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -26,7 +25,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import theme from "../../../theme";
 import { useAuthStore } from "../../../context/authStore";
 import { CLIENTE_WEB_ID } from "@env";
-import { googleAuth } from "../../../services/auth.service";
 import { getCurrentLocationAndAddress } from "../../../utils/location";
 import LocationPermissionScreen from "../CompleteRegistrationScreen/LocationPermissionScreen";
 import PasswordStrengthIndicator from "../../../components/PasswordStrengthIndicator";
@@ -88,11 +86,12 @@ export default function SignUp() {
     const backHandler = BackHandler.addEventListener(
       "hardwareBackPress",
       () => {
+        navigation.goBack();
         return true;
       },
     );
     return () => backHandler.remove();
-  }, []);
+  }, [navigation]);
 
   function handleBackToSignIn() {
     navigation.goBack();
@@ -224,6 +223,16 @@ export default function SignUp() {
   }
 
   async function handleGoogleSignUp() {
+    const sanitizedPhone = (localPhone || phone || "").replace(/\D/g, "");
+    if (sanitizedPhone.length < 10 || sanitizedPhone.length > 11) {
+      Toast.show({
+        type: "error",
+        text1: "Telefone invalido",
+        text2: "Informe um telefone com DDD antes de continuar com Google",
+      });
+      return;
+    }
+
     setGoogleLoading(true);
     try {
       await GoogleSignin.hasPlayServices();
@@ -247,7 +256,7 @@ export default function SignUp() {
           name: name || normalizedEmail.split("@")[0],
           email: normalizedEmail,
           password: generatedPassword,
-          phone: phone || "",
+          phone: sanitizedPhone,
           city: city || detectedCity || "",
           userType: undefined,
           googleId: id,
@@ -402,6 +411,25 @@ export default function SignUp() {
       Toast.show({
         type: "error",
         text1: "Por favor, preencha todos os campos.",
+      });
+      return;
+    }
+
+    if (name.trim().length < 2) {
+      Toast.show({
+        type: "error",
+        text1: "Nome invalido",
+        text2: "Informe seu nome completo para continuar",
+      });
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i;
+    if (!emailRegex.test(normalizedEmail)) {
+      Toast.show({
+        type: "error",
+        text1: "Email invalido",
+        text2: "Informe um email valido",
       });
       return;
     }

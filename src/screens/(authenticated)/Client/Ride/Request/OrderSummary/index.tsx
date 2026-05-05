@@ -128,9 +128,13 @@ export default function OrderSummaryScreen() {
             </View>
             <View style={{ flex: 1, marginLeft: spacing.lg }}>
               <Text style={styles.serviceName}>
-                {SERVICE_MODE_LABEL[data.serviceMode || "delivery"] || data.servicePurposeLabel}
+                {data.servicePurposeLabel ||
+                  SERVICE_MODE_LABEL[data.serviceMode || "delivery"]}
               </Text>
-              <Text style={styles.serviceVehicle}>{vehicle.label}</Text>
+              <Text style={styles.serviceVehicle}>
+                {vehicle.label} |{" "}
+                {SERVICE_MODE_LABEL[data.serviceMode || "delivery"] || "Servico"}
+              </Text>
             </View>
             {!!data.etaMinutes && (
               <View style={styles.etaBadge}>

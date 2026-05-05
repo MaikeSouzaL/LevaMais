@@ -5,6 +5,7 @@ export interface Purpose {
   id: string; // slug (ex: 'delivery', 'moto-taxi')
   title: string;
   subtitle: string;
+  serviceMode?: "ride" | "delivery" | "frete";
   vehicleType: 'motorcycle' | 'car' | 'van' | 'truck';
   icon: string;
   badges?: string[];

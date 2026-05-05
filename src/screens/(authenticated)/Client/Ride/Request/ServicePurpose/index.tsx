@@ -26,6 +26,10 @@ import {
 import { mapIconName } from "@/utils/iconMapper";
 import rideService from "@/services/ride.service";
 import { useClientCityStore } from "@/context/clientCityStore";
+import {
+  buildModeCounts,
+  inferPurposeServiceMode,
+} from "../../../Shared/utils";
 
 type RouteParams = {
   vehicleType?: VehicleType;
@@ -54,12 +58,6 @@ function resolveVehicleTypeForApi(raw: string): "motorcycle" | "car" | "van" | "
 function toSummaryVehicleType(raw: string): "moto" | "car" | "van" | "truck" {
   const normalized = resolveVehicleTypeForApi(raw);
   return normalized === "motorcycle" ? "moto" : normalized;
-}
-
-function inferServiceMode(purposeId: string, purposeLabel?: string): "ride" | "delivery" {
-  const text = `${purposeId || ""} ${purposeLabel || ""}`.toLowerCase();
-  const rideHints = ["ride", "taxi", "passageiro", "passageiros", "pessoa", "pessoas"];
-  return rideHints.some((hint) => text.includes(hint)) ? "ride" : "delivery";
 }
 
 export default function ServicePurposeScreen() {
@@ -123,6 +121,7 @@ export default function ServicePurposeScreen() {
     () => purposes.find((p) => p.id === selectedPurposeId) || null,
     [purposes, selectedPurposeId],
   );
+  const modeStats = useMemo(() => buildModeCounts(purposes), [purposes]);
 
   const handleBack = () => {
     navigation.navigate("SelectVehicle", { pickup, dropoff });
@@ -169,7 +168,13 @@ export default function ServicePurposeScreen() {
 
       const orderData = {
         vehicleType: toSummaryVehicleType(vehicleType),
-        serviceMode: inferServiceMode(selectedPurposeId, serviceLabel),
+        serviceMode: inferPurposeServiceMode({
+          id: selectedPurposeId,
+          title: serviceLabel,
+          subtitle: selectedPurpose?.subtitle,
+          badges: selectedPurpose?.badges,
+          serviceMode: selectedPurpose?.serviceMode,
+        }),
         purposeId: selectedPurposeId,
         pickupAddress: pickup.address || "Origem",
         pickupLatLng: {
@@ -244,6 +249,23 @@ export default function ServicePurposeScreen() {
               <Text style={styles.helperText}>
                 Selecione a opcao que melhor descreve seu pedido para calcular preco e tempo corretamente.
               </Text>
+              <View style={styles.modeChipsRow}>
+                {modeStats.ride > 0 && (
+                  <View style={styles.modeChip}>
+                    <Text style={styles.modeChipText}>{modeStats.ride} corrida</Text>
+                  </View>
+                )}
+                {modeStats.delivery > 0 && (
+                  <View style={styles.modeChip}>
+                    <Text style={styles.modeChipText}>{modeStats.delivery} entrega</Text>
+                  </View>
+                )}
+                {modeStats.frete > 0 && (
+                  <View style={styles.modeChip}>
+                    <Text style={styles.modeChipText}>{modeStats.frete} frete</Text>
+                  </View>
+                )}
+              </View>
             </View>
 
             <Text style={styles.sectionLabel}>Opcoes disponiveis</Text>
@@ -325,6 +347,25 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     fontSize: fontSize.sm,
     lineHeight: 20,
+  },
+  modeChipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs,
+    marginTop: spacing.md,
+  },
+  modeChip: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: "rgba(2,222,149,0.35)",
+    backgroundColor: "rgba(2,222,149,0.12)",
+  },
+  modeChipText: {
+    color: colors.primary[500],
+    fontSize: fontSize.xs,
+    fontWeight: fontWeight.semibold,
   },
   sectionLabel: {
     color: colors.text.tertiary,

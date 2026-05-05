@@ -15,7 +15,7 @@ import Toast from "react-native-toast-message";
 import theme from "../../../theme";
 import { sendPhoneVerification, verifyPhoneCode } from "../../../services/auth.service";
 
-let codeInputCount = 6;
+const CODE_INPUT_COUNT = 6;
 
 export default function PhoneVerificationScreen() {
   const navigation = useNavigation<any>();
@@ -24,7 +24,7 @@ export default function PhoneVerificationScreen() {
   const nextScreen = route.params?.nextScreen || "SelectProfile";
   const nextParams = route.params?.nextParams || {};
 
-  const [code, setCode] = useState<string[]>(Array(codeInputCount).fill(""));
+  const [code, setCode] = useState<string[]>(Array(CODE_INPUT_COUNT).fill(""));
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [countdown, setCountdown] = useState(0);
@@ -32,10 +32,20 @@ export default function PhoneVerificationScreen() {
   const inputRefs = useRef<(TextInput | null)[]>([]);
 
   useEffect(() => {
+    if (!phone) {
+      Toast.show({
+        type: "error",
+        text1: "Telefone nao encontrado",
+        text2: "Volte e informe seu telefone para continuar",
+      });
+      navigation.goBack();
+      return;
+    }
+
     setTimeout(() => {
       inputRefs.current[0]?.focus();
     }, 300);
-  }, []);
+  }, [navigation, phone]);
 
   useEffect(() => {
     if (!phone || hasSentInitialCode) return;
@@ -90,7 +100,7 @@ export default function PhoneVerificationScreen() {
     next[index] = numeric;
     setCode(next);
 
-    if (numeric && index < codeInputCount - 1) {
+    if (numeric && index < CODE_INPUT_COUNT - 1) {
       inputRefs.current[index + 1]?.focus();
     }
   }
@@ -126,7 +136,7 @@ export default function PhoneVerificationScreen() {
 
   async function handleVerify() {
     const fullCode = code.join("");
-    if (fullCode.length < codeInputCount) {
+    if (fullCode.length < CODE_INPUT_COUNT) {
       Toast.show({ type: "error", text1: "Codigo incompleto", text2: "Digite o codigo de 6 digitos" });
       return;
     }
@@ -147,9 +157,12 @@ export default function PhoneVerificationScreen() {
     }
   }
 
-  const formattedPhone = phone
-    ? phone.replace(/^(\d{2})(\d{5})(\d{4})$/, "($1) $2-$3")
-    : "";
+  const normalizedPhone = String(phone || "").replace(/\D/g, "");
+  const formattedPhone = normalizedPhone.length === 11
+    ? normalizedPhone.replace(/^(\d{2})(\d{5})(\d{4})$/, "($1) $2-$3")
+    : normalizedPhone.length === 10
+      ? normalizedPhone.replace(/^(\d{2})(\d{4})(\d{4})$/, "($1) $2-$3")
+      : phone;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.COLORS.BRAND_DARK }}>

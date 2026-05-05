@@ -10,6 +10,16 @@ function normalizePhone(phone) {
   return String(phone).replace(/\D/g, "");
 }
 
+function normalizePreferredPayment(value) {
+  const raw = String(value || "")
+    .trim()
+    .toLowerCase();
+  if (!raw) return undefined;
+  if (["pix", "cash", "card"].includes(raw)) return raw;
+  if (["credit", "credit_card", "debit", "debit_card"].includes(raw)) return "card";
+  return undefined;
+}
+
 class AuthController {
   // Gerar token JWT
   generateToken(user) {
@@ -58,6 +68,15 @@ class AuthController {
         profilePhoto,
       } = req.body;
 
+      const normalizedEmail = String(email || "")
+        .trim()
+        .toLowerCase();
+      const normalizedPhone = normalizePhone(phone);
+      const resolvedUserType = ["client", "driver"].includes(String(userType || ""))
+        ? String(userType)
+        : "client";
+      const normalizedPreferredPayment = normalizePreferredPayment(preferredPayment);
+
       // Validar campos obrigatórios
       if (!name || !email || !password) {
         return res.status(400).json({
@@ -67,7 +86,21 @@ class AuthController {
       }
 
       // Verificar se o email já existe
-      const existingUser = await User.findOne({ email: email.toLowerCase() });
+      if (!normalizedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(normalizedEmail)) {
+        return res.status(400).json({
+          success: false,
+          message: "Email invalido",
+        });
+      }
+
+      if (normalizedPhone && (normalizedPhone.length < 10 || normalizedPhone.length > 11)) {
+        return res.status(400).json({
+          success: false,
+          message: "Telefone invalido",
+        });
+      }
+
+      const existingUser = await User.findOne({ email: normalizedEmail });
       if (existingUser) {
         return res.status(400).json({
           success: false,
@@ -81,9 +114,9 @@ class AuthController {
       // Preparar objeto de criação do usuário (remover campos undefined/vazios)
       const userData = {
         name,
-        email: email.toLowerCase(),
+        email: normalizedEmail,
         password,
-        userType: userType || "client",
+        userType: resolvedUserType,
         acceptedTerms: acceptedTerms || false,
       };
 
@@ -92,7 +125,7 @@ class AuthController {
       if (profilePhoto) userData.profilePhoto = profilePhoto;
 
       // Adicionar campos opcionais apenas se tiverem valor
-      if (phone && phone.trim() !== "") userData.phone = phone.trim();
+      if (normalizedPhone) userData.phone = normalizedPhone;
       if (userCity && userCity.trim() !== "") userData.city = userCity.trim();
 
       // Documentos
@@ -130,12 +163,18 @@ class AuthController {
       }
 
       // Preferências
-      if (preferredPayment) userData.preferredPayment = preferredPayment;
+      if (normalizedPreferredPayment) userData.preferredPayment = normalizedPreferredPayment;
       userData.notificationsEnabled =
         notificationsEnabled !== undefined ? notificationsEnabled : true;
 
       // Dados do motorista
-      if ((userType || "client") === "driver") {
+      if (resolvedUserType === "driver") {
+        if (!vehicleType) {
+          return res.status(400).json({
+            success: false,
+            message: "Tipo de veiculo e obrigatorio para motorista",
+          });
+        }
         if (vehicleType) userData.vehicleType = vehicleType;
         if (vehicleInfo) userData.vehicleInfo = vehicleInfo;
       }
@@ -387,7 +426,14 @@ class AuthController {
       if (profilePhoto !== undefined) user.profilePhoto = String(profilePhoto);
 
       if (preferredPayment !== undefined) {
-        user.preferredPayment = preferredPayment;
+        const normalized = normalizePreferredPayment(preferredPayment);
+        if (!normalized) {
+          return res.status(400).json({
+            success: false,
+            message: "Metodo de pagamento invalido",
+          });
+        }
+        user.preferredPayment = normalized;
       }
       if (notificationsEnabled !== undefined) {
         user.notificationsEnabled = !!notificationsEnabled;
