@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from "react-native";
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { MaterialIcons, FontAwesome5, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -53,6 +53,10 @@ export default function PaymentScreen() {
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>(
     (order?.paymentMethodRaw as PaymentMethod) || "credit_card",
   );
+  const [scheduleEnabled, setScheduleEnabled] = useState(false);
+  const [scheduleOffsetMin, setScheduleOffsetMin] = useState(60);
+  const [offerEnabled, setOfferEnabled] = useState(false);
+  const [offerInput, setOfferInput] = useState(String(Math.round(Number(amount || 0))));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -67,6 +71,8 @@ export default function PaymentScreen() {
     return (detectedCity as any)?._id || (detectedCity as any)?.id || detectedCity?.cityId || undefined;
   }, [detectedCity]);
 
+  const suggestedMinOffer = useMemo(() => Number((Number(amount || 0) * 0.8).toFixed(2)), [amount]);
+
   const handleConfirmPayment = async () => {
     setError(null);
 
@@ -77,8 +83,14 @@ export default function PaymentScreen() {
       return;
     }
 
+    const parsedOffer = Number(String(offerInput || "").replace(",", "."));
+
     try {
       setLoading(true);
+
+      const scheduledFor = scheduleEnabled
+        ? new Date(Date.now() + scheduleOffsetMin * 60 * 1000).toISOString()
+        : undefined;
 
       const ride = await rideService.create({
         serviceType: mapServiceModeToApi(order.serviceMode),
@@ -120,7 +132,34 @@ export default function PaymentScreen() {
             type: selectedMethod,
           },
         },
+        scheduledFor,
+        negotiation: offerEnabled
+          ? {
+              enabled: true,
+              clientOffer: Number.isFinite(parsedOffer) && parsedOffer > 0 ? parsedOffer : Number(amount || 0),
+            }
+          : undefined,
       });
+
+      if (ride?.status === "scheduled") {
+        Toast.show({
+          type: "success",
+          text1: "Corrida agendada",
+          text2: "Acompanhe o pedido na tela de pedidos ativos.",
+        });
+        navigation.navigate("ActiveOrders");
+        return;
+      }
+
+      if (offerEnabled) {
+        Toast.show({
+          type: "success",
+          text1: "Oferta enviada",
+          text2: "Agora acompanhe as propostas dos motoristas.",
+        });
+        navigation.navigate("RideOffersMarketplace", { rideId: ride._id });
+        return;
+      }
 
       navigation.navigate("Home", {
         startSearch: true,
@@ -202,6 +241,69 @@ export default function PaymentScreen() {
             onPress={() => setSelectedMethod(method.id)}
           />
         ))}
+
+        <View style={styles.optionCard}>
+          <View style={styles.optionHeader}>
+            <Text style={styles.optionTitle}>Agendar corrida/entrega</Text>
+            <TouchableOpacity
+              onPress={() => setScheduleEnabled((prev) => !prev)}
+              style={[styles.toggleChip, scheduleEnabled && styles.toggleChipActive]}
+            >
+              <Text style={[styles.toggleText, scheduleEnabled && styles.toggleTextActive]}>
+                {scheduleEnabled ? "Ativado" : "Desativado"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {scheduleEnabled && (
+            <View style={styles.quickChoices}>
+              {[30, 60, 120].map((minutes) => (
+                <TouchableOpacity
+                  key={minutes}
+                  onPress={() => setScheduleOffsetMin(minutes)}
+                  style={[styles.choiceChip, scheduleOffsetMin === minutes && styles.choiceChipActive]}
+                >
+                  <Text style={[styles.choiceText, scheduleOffsetMin === minutes && styles.choiceTextActive]}>
+                    {minutes < 60 ? `${minutes} min` : `${minutes / 60}h`}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
+
+        <View style={styles.optionCard}>
+          <View style={styles.optionHeader}>
+            <Text style={styles.optionTitle}>Oferecer um valor</Text>
+            <TouchableOpacity
+              onPress={() => setOfferEnabled((prev) => !prev)}
+              style={[styles.toggleChip, offerEnabled && styles.toggleChipActive]}
+            >
+              <Text style={[styles.toggleText, offerEnabled && styles.toggleTextActive]}>
+                {offerEnabled ? "Ativado" : "Desativado"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {offerEnabled && (
+            <>
+              <Text style={styles.helperText}>
+                Valor sugerido minimo para motoristas: {formatBRL(suggestedMinOffer)}
+              </Text>
+              <TextInput
+                style={styles.offerInput}
+                value={offerInput}
+                onChangeText={setOfferInput}
+                keyboardType="numeric"
+                placeholder="Digite sua oferta"
+                placeholderTextColor={colors.text.tertiary}
+              />
+              <Text style={styles.helperText}>
+                Se sua oferta ficar muito abaixo, menos motoristas podem aceitar.
+              </Text>
+            </>
+          )}
+        </View>
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, spacing.lg) + spacing.sm }]}>
@@ -274,6 +376,67 @@ const styles = StyleSheet.create({
   },
   adjustText: { color: colors.primary[500], fontWeight: fontWeight.semibold, fontSize: fontSize.sm },
   sectionTitle: { color: colors.text.primary, fontSize: fontSize.lg, fontWeight: fontWeight.bold, marginBottom: spacing.md },
+  optionCard: {
+    marginTop: spacing.lg,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border.light,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.background.secondary,
+    gap: spacing.sm,
+  },
+  optionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.md,
+  },
+  optionTitle: {
+    color: colors.text.primary,
+    fontSize: fontSize.base,
+    fontWeight: fontWeight.semibold,
+    flex: 1,
+  },
+  toggleChip: {
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.border.light,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    backgroundColor: "rgba(255,255,255,0.05)",
+  },
+  toggleChipActive: {
+    borderColor: "rgba(2,222,149,0.4)",
+    backgroundColor: "rgba(2,222,149,0.14)",
+  },
+  toggleText: { color: colors.text.secondary, fontSize: fontSize.xs, fontWeight: fontWeight.semibold },
+  toggleTextActive: { color: colors.primary[500] },
+  quickChoices: { flexDirection: "row", gap: spacing.sm },
+  choiceChip: {
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.border.light,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    backgroundColor: "rgba(255,255,255,0.05)",
+  },
+  choiceChipActive: {
+    borderColor: "rgba(2,222,149,0.4)",
+    backgroundColor: "rgba(2,222,149,0.14)",
+  },
+  choiceText: { color: colors.text.secondary, fontSize: fontSize.xs, fontWeight: fontWeight.semibold },
+  choiceTextActive: { color: colors.primary[500] },
+  helperText: { color: colors.text.tertiary, fontSize: fontSize.xs },
+  offerInput: {
+    borderWidth: 1,
+    borderColor: colors.border.light,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.background.primary,
+    color: colors.text.primary,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    fontSize: fontSize.base,
+  },
   footer: {
     position: "absolute",
     bottom: 0,

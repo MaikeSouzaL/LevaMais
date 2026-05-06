@@ -7,18 +7,19 @@
 - [ ] Rodar validacao manual final do funil completo
 ## C. Cliente
 - [x] Busca e tracking com resiliencia melhorada
-- [ ] Fechar experiencia de pos-corrida (avaliacao/comprovante)
+- [x] Fechar experiencia de pos-corrida (avaliacao/comprovante)
+- [x] Completar menus de perfil/suporte/pagamentos com rotas funcionais
 ## D. Motorista
 - [x] Retomada de corrida ativa ao reabrir app
 - [x] Status operacionais consolidados
-- [ ] Revisar regras finais de ganhos/extrato/saque
+- [x] Revisar regras finais de ganhos/extrato/saque
+- [x] Completar menus de operacao (avaliacoes, documentos, preferencias, suporte)
 ## E. Backend
 - [x] Auth com validacoes e erros padronizados
 - [x] Rides com hardening de transicoes e erros
 - [x] Chat com seguranca por corrida (HTTP + WebSocket)
-- [ ] Padronizar erros e validacoes nos modulos restantes
+- [x] Padronizar erros e validacoes nos modulos restantes
 ## F. Qualidade
-- [x] Verificacao tecnica recorrente (	sc, 
-ode --check)
+- [x] Verificacao tecnica recorrente (`tsc`, `node --check`)
 - [ ] Rodar bateria de testes manuais ponta a ponta
-- [ ] Criar e executar regressao minima automatizada
+- [x] Criar e executar regressao minima automatizada

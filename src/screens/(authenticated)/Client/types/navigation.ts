@@ -129,6 +129,14 @@ export type ClientStackParamList = {
   TipDriver: { rideId: string; driverName?: string };
   NotificationsCenter: undefined;
   SearchingDriver: { rideId: string };
+  ActiveOrders: undefined;
+  RideOffersMarketplace: { rideId: string };
+  PaymentsCenter: undefined;
+  Coupons: undefined;
+  Receipts: undefined;
+  PrivacyData: undefined;
+  InviteFriends: undefined;
+  SupportCenter: undefined;
 };
 
 export type HomeScreenNavigationProp = any;

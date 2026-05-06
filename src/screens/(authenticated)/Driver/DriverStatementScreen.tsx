@@ -29,31 +29,42 @@ function formatBRL(value: number) {
 export default function DriverStatementScreen() {
   const [items, setItems] = useState<StatementItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<"all" | "credit" | "debit">("all");
+  const [page, setPage] = useState(1);
+  const [hasNext, setHasNext] = useState(false);
   const [fadeAnim] = useState(new Animated.Value(1));
 
-  const loadStatement = useCallback(async (isRefresh = false) => {
+  const loadStatement = useCallback(async (nextPage = 1, options?: { isRefresh?: boolean; append?: boolean }) => {
+    const isRefresh = Boolean(options?.isRefresh);
+    const append = Boolean(options?.append);
+
     try {
       if (isRefresh) {
         setRefreshing(true);
+      } else if (append) {
+        setLoadingMore(true);
       } else {
         setLoading(true);
       }
 
-      const data = await walletService.getStatement();
-      setItems(data || []);
+      const response = await walletService.getStatement(nextPage, 30);
+      setHasNext(Boolean(response?.pagination?.hasNext));
+      setPage(nextPage);
+      setItems((prev) => (append ? [...prev, ...(response?.items || [])] : response?.items || []));
     } catch {
       Toast.show({ type: "error", text1: "Erro ao carregar extrato" });
     } finally {
       setLoading(false);
+      setLoadingMore(false);
       setRefreshing(false);
     }
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      loadStatement();
+      loadStatement(1);
     }, [loadStatement]),
   );
 
@@ -103,6 +114,11 @@ export default function DriverStatementScreen() {
     ]).start();
 
     setFilter(next);
+  };
+
+  const handleLoadMore = () => {
+    if (loading || loadingMore || refreshing || !hasNext) return;
+    loadStatement(page + 1, { append: true });
   };
 
   return (
@@ -182,10 +198,12 @@ export default function DriverStatementScreen() {
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
-                onRefresh={() => loadStatement(true)}
+                onRefresh={() => loadStatement(1, { isRefresh: true })}
                 tintColor="#02de95"
               />
             }
+            onEndReachedThreshold={0.3}
+            onEndReached={handleLoadMore}
             renderSectionHeader={({ section: { title } }) => (
               <View style={{ backgroundColor: "#091A2F", paddingVertical: 12, marginTop: 8 }}>
                 <Text
@@ -265,6 +283,9 @@ export default function DriverStatementScreen() {
                 <MaterialIcons name="receipt-long" size={64} color="#fff" />
                 <Text style={{ color: "#fff", marginTop: 16, fontSize: 16 }}>Nenhuma movimentacao</Text>
               </View>
+            }
+            ListFooterComponent={
+              loadingMore ? <ActivityIndicator size="small" color="#02de95" style={{ marginVertical: 16 }} /> : null
             }
           />
         </Animated.View>

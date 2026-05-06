@@ -44,6 +44,11 @@ export interface CreateRideRequest {
       type?: "credit_card" | "pix" | "cash";
     };
   };
+  scheduledFor?: string;
+  negotiation?: {
+    enabled?: boolean;
+    clientOffer?: number;
+  };
 }
 
 export interface Ride {
@@ -66,6 +71,15 @@ export interface Ride {
   startedAt?: string;
   completedAt?: string;
   cancelledAt?: string;
+  scheduledFor?: string;
+  negotiation?: {
+    enabled?: boolean;
+    clientOffer?: number | null;
+    suggestedMinPrice?: number | null;
+    finalAgreedPrice?: number | null;
+    selectedDriverId?: string | null;
+    offers?: RideOffer[];
+  };
   payment?: {
     method?: {
       type?: string;
@@ -73,6 +87,15 @@ export interface Ride {
   };
   createdAt: string;
   updatedAt: string;
+}
+
+export interface RideOffer {
+  driverId: string | { _id: string; name?: string; profilePhoto?: string };
+  amount: number;
+  status: "accepted" | "countered" | "rejected";
+  message?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface CalculatePriceRequest {
@@ -116,6 +139,12 @@ export interface AvailableRideRequest {
     phone?: string;
     profilePhoto?: string;
     rating?: number;
+  };
+  negotiation?: {
+    enabled?: boolean;
+    clientOffer?: number | null;
+    suggestedMinPrice?: number | null;
+    finalAgreedPrice?: number | null;
   };
 }
 
@@ -235,8 +264,12 @@ class RideService {
   /**
    * Cancelar corrida
    */
-  async cancel(rideId: string, reason?: string): Promise<void> {
-    await api.post(`/rides/${rideId}/cancel`, { reason });
+  async cancel(
+    rideId: string,
+    reason?: string,
+  ): Promise<{ message?: string; cancellationFee?: number }> {
+    const response = await api.post(`/rides/${rideId}/cancel`, { reason });
+    return response.data || {};
   }
 
   /**
@@ -280,6 +313,44 @@ class RideService {
     payload: RatePayload,
   ): Promise<void> {
     await api.post(`/rides/${rideId}/rate-driver`, payload);
+  }
+
+  async addTip(rideId: string, amount: number): Promise<void> {
+    await api.post(`/rides/${rideId}/tip`, { amount });
+  }
+
+  async getOffers(rideId: string): Promise<{
+    negotiation: {
+      enabled: boolean;
+      clientOffer: number | null;
+      suggestedMinPrice: number | null;
+      finalAgreedPrice: number | null;
+      selectedDriverId?: string | null;
+    };
+    offers: RideOffer[];
+  }> {
+    const response = await api.get(`/rides/${rideId}/offers`);
+    return {
+      negotiation: response.data?.negotiation || {
+        enabled: false,
+        clientOffer: null,
+        suggestedMinPrice: null,
+        finalAgreedPrice: null,
+      },
+      offers: response.data?.offers || [],
+    };
+  }
+
+  async respondToOffer(
+    rideId: string,
+    payload: { action: "accept" | "counter" | "reject"; amount?: number; message?: string },
+  ): Promise<void> {
+    await api.post(`/rides/${rideId}/offers/respond`, payload);
+  }
+
+  async selectOffer(rideId: string, driverId: string): Promise<Ride> {
+    const response = await api.post(`/rides/${rideId}/offers/select`, { driverId });
+    return response.data?.ride;
   }
 
   /**

@@ -7,6 +7,7 @@ import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
 import { LoadingButton, ClientScreenHeader } from "../../../Shared/components";
 import { formatBRL } from "@/utils/mappers";
 import Toast from "react-native-toast-message";
+import rideService from "@/services/ride.service";
 
 const TIP_OPTIONS = [2, 5, 8, 12, 20];
 const CUSTOM_PRESETS = [5, 10, 15, 20, 25, 30, 50];
@@ -32,8 +33,7 @@ export default function TipDriverScreen() {
 
     setSending(true);
     try {
-      // TODO: integrar com endpoint de gorjeta (POST /rides/:id/tip)
-      await new Promise((r) => setTimeout(r, 800));
+      await rideService.addTip(rideId, tipValue);
       Toast.show({
         type: "success",
         text1: "Gorjeta enviada!",

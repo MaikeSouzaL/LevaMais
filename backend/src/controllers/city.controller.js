@@ -1,257 +1,301 @@
+﻿const mongoose = require("mongoose");
 const City = require("../models/City");
 const User = require("../models/User");
 
+function sendError(res, status, message, extras = {}) {
+  return res.status(status).json({
+    success: false,
+    message,
+    error: message,
+    ...extras,
+  });
+}
+
+function normalizeText(value) {
+  const normalized = String(value || "").trim();
+  return normalized || null;
+}
+
+function normalizeState(value) {
+  const normalized = String(value || "").trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(normalized)) return null;
+  return normalized;
+}
+
+function parseBooleanParam(value) {
+  if (value === undefined) return undefined;
+  if (typeof value === "boolean") return value;
+
+  const normalized = String(value).trim().toLowerCase();
+  if (["true", "1", "yes", "sim"].includes(normalized)) return true;
+  if (["false", "0", "no", "nao"].includes(normalized)) return false;
+  return null;
+}
+
+function ensureObjectId(value) {
+  return mongoose.Types.ObjectId.isValid(String(value || ""));
+}
+
 class CityController {
-  // Listar todas as cidades
   async index(req, res) {
     try {
       const { active, isActive, state } = req.query;
       const filter = {};
 
-      // Compatibilidade: aceitar 'active' (legado) e 'isActive' (atual)
-      if (active !== undefined) {
-        filter.isActive = active === "true";
-      }
-      if (isActive !== undefined) {
-        filter.isActive = isActive === "true";
+      const activeLegacy = parseBooleanParam(active);
+      if (activeLegacy === null) {
+        return sendError(res, 400, "Parametro active invalido");
       }
 
-      if (state) {
-        filter.state = state.toUpperCase();
+      const activeCurrent = parseBooleanParam(isActive);
+      if (activeCurrent === null) {
+        return sendError(res, 400, "Parametro isActive invalido");
+      }
+
+      if (activeLegacy !== undefined) filter.isActive = activeLegacy;
+      if (activeCurrent !== undefined) filter.isActive = activeCurrent;
+
+      if (state !== undefined) {
+        const stateValue = normalizeState(state);
+        if (!stateValue) {
+          return sendError(res, 400, "UF invalida");
+        }
+        filter.state = stateValue;
       }
 
       const cities = await City.find(filter).sort({ name: 1 });
-
       return res.json(cities);
     } catch (error) {
       console.error("Erro ao listar cidades:", error);
-      return res.status(500).json({
-        error: "Erro ao listar cidades",
-        message: error.message,
-      });
+      return sendError(res, 500, "Erro ao listar cidades");
     }
   }
 
-  // Buscar cidade por ID
   async show(req, res) {
     try {
       const { id } = req.params;
 
-      const city = await City.findById(id);
+      if (!ensureObjectId(id)) {
+        return sendError(res, 400, "Cidade invalida");
+      }
 
+      const city = await City.findById(id);
       if (!city) {
-        return res.status(404).json({ error: "Cidade não encontrada" });
+        return sendError(res, 404, "Cidade nao encontrada");
       }
 
       return res.json(city);
     } catch (error) {
       console.error("Erro ao buscar cidade:", error);
-      return res.status(500).json({
-        error: "Erro ao buscar cidade",
-        message: error.message,
-      });
+      return sendError(res, 500, "Erro ao buscar cidade");
     }
   }
 
-  // Criar nova cidade
   async store(req, res) {
     try {
-      const cityData = req.body;
+      const cityData = { ...(req.body || {}) };
 
-      // Verificar se já existe cidade com mesmo nome e estado
+      const nameValue = normalizeText(cityData.name);
+      const stateValue = normalizeState(cityData.state);
+      const timezoneValue = normalizeText(cityData.timezone);
+
+      if (!nameValue || !stateValue || !timezoneValue) {
+        return sendError(res, 400, "Nome, estado e fuso horario sao obrigatorios");
+      }
+
+      cityData.name = nameValue;
+      cityData.state = stateValue;
+      cityData.timezone = timezoneValue;
+
       const existingCity = await City.findOne({
-        name: cityData.name,
-        state: cityData.state,
+        name: new RegExp(`^${nameValue.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}$`, "i"),
+        state: stateValue,
       });
 
       if (existingCity) {
-        return res.status(400).json({
-          error: "Já existe uma cidade cadastrada com este nome neste estado",
-        });
+        return sendError(res, 409, "Ja existe uma cidade cadastrada com este nome neste estado");
       }
 
       const city = await City.create(cityData);
-
       return res.status(201).json(city);
     } catch (error) {
       console.error("Erro ao criar cidade:", error);
-      return res.status(400).json({
-        error: "Erro ao criar cidade",
-        message: error.message,
-      });
+      return sendError(res, 400, "Erro ao criar cidade", { details: error.message });
     }
   }
 
-  // Atualizar cidade
   async update(req, res) {
     try {
       const { id } = req.params;
-      const updateData = req.body;
+      const updateData = { ...(req.body || {}) };
 
-      const city = await City.findByIdAndUpdate(id, updateData, {
+      if (!ensureObjectId(id)) {
+        return sendError(res, 400, "Cidade invalida");
+      }
+
+      const city = await City.findById(id);
+      if (!city) {
+        return sendError(res, 404, "Cidade nao encontrada");
+      }
+
+      if (updateData.name !== undefined) {
+        const nameValue = normalizeText(updateData.name);
+        if (!nameValue) {
+          return sendError(res, 400, "Nome da cidade invalido");
+        }
+        updateData.name = nameValue;
+      }
+
+      if (updateData.state !== undefined) {
+        const stateValue = normalizeState(updateData.state);
+        if (!stateValue) {
+          return sendError(res, 400, "UF invalida");
+        }
+        updateData.state = stateValue;
+      }
+
+      if (updateData.timezone !== undefined) {
+        const timezoneValue = normalizeText(updateData.timezone);
+        if (!timezoneValue) {
+          return sendError(res, 400, "Fuso horario invalido");
+        }
+        updateData.timezone = timezoneValue;
+      }
+
+      const nextName = updateData.name || city.name;
+      const nextState = updateData.state || city.state;
+
+      const duplicate = await City.findOne({
+        _id: { $ne: city._id },
+        name: new RegExp(`^${String(nextName).replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}$`, "i"),
+        state: nextState,
+      });
+
+      if (duplicate) {
+        return sendError(res, 409, "Ja existe uma cidade cadastrada com este nome neste estado");
+      }
+
+      const updated = await City.findByIdAndUpdate(id, updateData, {
         new: true,
         runValidators: true,
       });
 
-      if (!city) {
-        return res.status(404).json({ error: "Cidade não encontrada" });
-      }
-
-      return res.json(city);
+      return res.json(updated);
     } catch (error) {
       console.error("Erro ao atualizar cidade:", error);
-      return res.status(400).json({
-        error: "Erro ao atualizar cidade",
-        message: error.message,
-      });
+      return sendError(res, 400, "Erro ao atualizar cidade", { details: error.message });
     }
   }
 
-  // Deletar cidade
   async delete(req, res) {
     try {
       const { id } = req.params;
 
-      // Verificar se existem usuários vinculados a esta cidade
-      const usersInCity = await User.countDocuments({ city: id });
+      if (!ensureObjectId(id)) {
+        return sendError(res, 400, "Cidade invalida");
+      }
+
+      const city = await City.findById(id);
+      if (!city) {
+        return sendError(res, 404, "Cidade nao encontrada");
+      }
+
+      const cityRegex = new RegExp(`^${String(city.name).replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}$`, "i");
+      const usersInCity = await User.countDocuments({
+        $or: [
+          { city: cityRegex },
+          { "address.city": cityRegex },
+        ],
+      });
 
       if (usersInCity > 0) {
-        return res.status(400).json({
-          error: "Não é possível excluir cidade com usuários vinculados",
+        return sendError(res, 400, "Nao e possivel excluir cidade com usuarios vinculados", {
           usersCount: usersInCity,
         });
       }
 
-      const city = await City.findByIdAndDelete(id);
-
-      if (!city) {
-        return res.status(404).json({ error: "Cidade não encontrada" });
-      }
-
-      return res.json({ message: "Cidade excluída com sucesso" });
+      await City.findByIdAndDelete(id);
+      return res.json({ message: "Cidade excluida com sucesso" });
     } catch (error) {
       console.error("Erro ao deletar cidade:", error);
-      return res.status(500).json({
-        error: "Erro ao deletar cidade",
-        message: error.message,
-      });
+      return sendError(res, 500, "Erro ao deletar cidade");
     }
   }
 
-  // Obter estatísticas da cidade
   async stats(req, res) {
     try {
       const { id } = req.params;
 
-      const city = await City.findById(id);
-
-      if (!city) {
-        return res.status(404).json({ error: "Cidade não encontrada" });
+      if (!ensureObjectId(id)) {
+        return sendError(res, 400, "Cidade invalida");
       }
 
-      // Buscar estatísticas reais
+      const city = await City.findById(id);
+      if (!city) {
+        return sendError(res, 404, "Cidade nao encontrada");
+      }
+
+      const cityRegex = new RegExp(`^${String(city.name).replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}$`, "i");
+
+      const locationMatch = {
+        $or: [{ city: cityRegex }, { "address.city": cityRegex }],
+      };
+
       const totalDrivers = await User.countDocuments({
-        "address.city": city.name,
+        ...locationMatch,
         userType: "driver",
       });
 
       const activeDrivers = await User.countDocuments({
-        "address.city": city.name,
+        ...locationMatch,
         userType: "driver",
         isActive: true,
       });
 
       const totalClients = await User.countDocuments({
-        "address.city": city.name,
+        ...locationMatch,
         userType: "client",
       });
 
-      // Atualizar estatísticas da cidade
       city.stats = {
         totalDrivers,
         activeDrivers,
         totalClients,
-        totalRides: city.stats.totalRides || 0,
+        totalRides: city.stats?.totalRides || 0,
+        monthlyRevenue: city.stats?.monthlyRevenue || 0,
       };
 
       await city.save();
-
       return res.json(city.stats);
     } catch (error) {
-      console.error("Erro ao buscar estatísticas:", error);
-      return res.status(500).json({
-        error: "Erro ao buscar estatísticas",
-        message: error.message,
-      });
+      console.error("Erro ao buscar estatisticas:", error);
+      return sendError(res, 500, "Erro ao buscar estatisticas");
     }
   }
 
-  // Listar fusos horários disponíveis
   async timezones(req, res) {
     try {
       const timezones = [
         { value: "America/Rio_Branco", label: "Acre - Rio Branco (UTC-5)" },
-        {
-          value: "America/Manaus",
-          label: "Amazonas - Manaus (UTC-4)",
-        },
-        {
-          value: "America/Porto_Velho",
-          label: "Rondônia - Porto Velho (UTC-4)",
-        },
-        {
-          value: "America/Boa_Vista",
-          label: "Roraima - Boa Vista (UTC-4)",
-        },
-        {
-          value: "America/Cuiaba",
-          label: "Mato Grosso - Cuiabá (UTC-4)",
-        },
-        {
-          value: "America/Sao_Paulo",
-          label: "São Paulo - São Paulo (UTC-3)",
-        },
-        {
-          value: "America/Bahia",
-          label: "Bahia - Salvador (UTC-3)",
-        },
-        {
-          value: "America/Belem",
-          label: "Pará - Belém (UTC-3)",
-        },
-        {
-          value: "America/Fortaleza",
-          label: "Ceará - Fortaleza (UTC-3)",
-        },
-        {
-          value: "America/Recife",
-          label: "Pernambuco - Recife (UTC-3)",
-        },
-        {
-          value: "America/Maceio",
-          label: "Alagoas - Maceió (UTC-3)",
-        },
-        {
-          value: "America/Araguaina",
-          label: "Tocantins - Palmas (UTC-3)",
-        },
-        {
-          value: "America/Santarem",
-          label: "Pará - Santarém (UTC-3)",
-        },
-        {
-          value: "America/Noronha",
-          label: "Fernando de Noronha (UTC-2)",
-        },
+        { value: "America/Manaus", label: "Amazonas - Manaus (UTC-4)" },
+        { value: "America/Porto_Velho", label: "Rondonia - Porto Velho (UTC-4)" },
+        { value: "America/Boa_Vista", label: "Roraima - Boa Vista (UTC-4)" },
+        { value: "America/Cuiaba", label: "Mato Grosso - Cuiaba (UTC-4)" },
+        { value: "America/Sao_Paulo", label: "Sao Paulo - Sao Paulo (UTC-3)" },
+        { value: "America/Bahia", label: "Bahia - Salvador (UTC-3)" },
+        { value: "America/Belem", label: "Para - Belem (UTC-3)" },
+        { value: "America/Fortaleza", label: "Ceara - Fortaleza (UTC-3)" },
+        { value: "America/Recife", label: "Pernambuco - Recife (UTC-3)" },
+        { value: "America/Maceio", label: "Alagoas - Maceio (UTC-3)" },
+        { value: "America/Araguaina", label: "Tocantins - Palmas (UTC-3)" },
+        { value: "America/Santarem", label: "Para - Santarem (UTC-3)" },
+        { value: "America/Noronha", label: "Fernando de Noronha (UTC-2)" },
       ];
 
       return res.json(timezones);
     } catch (error) {
-      console.error("Erro ao listar fusos horários:", error);
-      return res.status(500).json({
-        error: "Erro ao listar fusos horários",
-        message: error.message,
-      });
+      console.error("Erro ao listar fusos horarios:", error);
+      return sendError(res, 500, "Erro ao listar fusos horarios");
     }
   }
 }

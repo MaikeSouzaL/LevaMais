@@ -6,9 +6,17 @@ import { MaterialIcons } from "@expo/vector-icons";
 
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
 import rideService, { Ride } from "@/services/ride.service";
+import { formatBRL } from "@/utils/mappers";
 
 function rideTitle(ride: Ride) {
   return ride.serviceType === "delivery" ? "Entrega" : "Corrida";
+}
+
+function mapStatusLabel(status?: string) {
+  const normalized = String(status || "").toLowerCase();
+  if (normalized === "scheduled") return "agendada";
+  if (normalized === "driver_assigned") return "motorista selecionado";
+  return normalized.replaceAll("_", " ");
 }
 
 export default function ActiveOrdersScreen() {
@@ -76,7 +84,7 @@ export default function ActiveOrdersScreen() {
             <View key={ride._id} style={styles.rideCard}>
               <View style={styles.cardTop}>
                 <Text style={styles.rideType}>{rideTitle(ride)}</Text>
-                <Text style={styles.rideStatus}>{String(ride.status || "").replaceAll("_", " ")}</Text>
+                <Text style={styles.rideStatus}>{mapStatusLabel(ride.status)}</Text>
               </View>
               <Text style={styles.address} numberOfLines={1}>
                 Coleta: {ride.pickup?.address || "-"}
@@ -84,13 +92,40 @@ export default function ActiveOrdersScreen() {
               <Text style={styles.address} numberOfLines={1}>
                 Destino: {ride.dropoff?.address || "-"}
               </Text>
+              {!!ride.scheduledFor && (
+                <Text style={styles.address} numberOfLines={1}>
+                  Agendada para: {new Date(ride.scheduledFor).toLocaleString("pt-BR")}
+                </Text>
+              )}
+              {ride.negotiation?.enabled && (
+                <Text style={styles.address} numberOfLines={1}>
+                  Oferta atual: {formatBRL(ride.negotiation.finalAgreedPrice || ride.negotiation.clientOffer || 0)}
+                </Text>
+              )}
               <View style={styles.cardActions}>
-                <TouchableOpacity
-                  style={styles.trackBtn}
-                  onPress={() => navigation.navigate("RideTracking", { rideId: ride._id })}
-                >
-                  <Text style={styles.trackBtnText}>Acompanhar</Text>
-                </TouchableOpacity>
+                {ride.negotiation?.enabled &&
+                ["requesting", "driver_assigned"].includes(String(ride.status || "")) ? (
+                  <TouchableOpacity
+                    style={styles.trackBtn}
+                    onPress={() => navigation.navigate("RideOffersMarketplace", { rideId: ride._id })}
+                  >
+                    <Text style={styles.trackBtnText}>Ver ofertas</Text>
+                  </TouchableOpacity>
+                ) : String(ride.status || "") === "scheduled" ? (
+                  <TouchableOpacity
+                    style={styles.trackBtn}
+                    onPress={() => navigation.navigate("OrderDetails", { rideId: ride._id })}
+                  >
+                    <Text style={styles.trackBtnText}>Ver agendamento</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.trackBtn}
+                    onPress={() => navigation.navigate("RideTracking", { rideId: ride._id })}
+                  >
+                    <Text style={styles.trackBtnText}>Acompanhar</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
           ))

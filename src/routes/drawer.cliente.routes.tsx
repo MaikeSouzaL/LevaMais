@@ -20,12 +20,17 @@ const menuItems = [
   { route: "Home", label: "Inicio", icon: "home" },
   { route: "History", label: "Historico", icon: "history" },
   { route: "ActiveOrders", label: "Pedidos ativos", icon: "map-marker-path" },
+  { route: "Receipts", label: "Comprovantes", icon: "receipt-text-outline" },
   { route: "Wallet", label: "Carteira", icon: "wallet" },
+  { route: "PaymentsCenter", label: "Pagamentos", icon: "credit-card-outline" },
+  { route: "Coupons", label: "Cupons", icon: "ticket-percent-outline" },
   { route: "Profile", label: "Perfil", icon: "account-circle" },
   { route: "NotificationsCenter", label: "Notificacoes", icon: "bell" },
   { route: "Favorites", label: "Favoritos", icon: "star" },
   { route: "SafetyCenter", label: "Seguranca", icon: "shield-check" },
-  { route: "Help", label: "Ajuda", icon: "help-circle" },
+  { route: "SupportCenter", label: "Suporte", icon: "lifebuoy" },
+  { route: "PrivacyData", label: "Privacidade", icon: "shield-account-outline" },
+  { route: "InviteFriends", label: "Convidar amigos", icon: "account-multiple-plus-outline" },
   { route: "Settings", label: "Configuracoes", icon: "cog" },
 ];
 

@@ -10,12 +10,18 @@ import { ClientScreenHeader } from '../../Shared/components';
 
 const MENU_ITEMS = [
   { icon: 'history', label: 'Historico', screen: 'History' },
+  { icon: 'receipt-long', label: 'Comprovantes', screen: 'Receipts' },
   { icon: 'star', label: 'Favoritos', screen: 'Favorites' },
   { icon: 'account-balance-wallet', label: 'Carteira', screen: 'Wallet' },
+  { icon: 'credit-card', label: 'Pagamentos', screen: 'PaymentsCenter' },
+  { icon: 'local-offer', label: 'Cupons', screen: 'Coupons' },
   { icon: 'shield', label: 'Seguranca', screen: 'SafetyCenter' },
   { icon: 'notifications', label: 'Notificacoes', screen: 'NotificationsCenter' },
+  { icon: 'support-agent', label: 'Suporte', screen: 'SupportCenter' },
+  { icon: 'privacy-tip', label: 'Privacidade', screen: 'PrivacyData' },
+  { icon: 'group-add', label: 'Convidar amigos', screen: 'InviteFriends' },
   { icon: 'settings', label: 'Configuracoes', screen: 'Settings' },
-  { icon: 'help', label: 'Ajuda', screen: 'Help' },
+  { icon: 'help', label: 'Ajuda rapida', screen: 'Help' },
 ] as const;
 
 export default function ProfileScreen() {

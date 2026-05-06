@@ -15,7 +15,7 @@ import rideService from "@/services/ride.service";
 import webSocketService from "@/services/websocket.service";
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
 
-const SEARCH_TIME = 30;
+const SEARCH_TIME = 60;
 const TERMINAL_CANCEL_STATUSES = [
   "cancelled",
   "cancelled_by_client",

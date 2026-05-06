@@ -210,7 +210,10 @@ export default function RideTrackingScreen() {
       if (!mounted) return;
       if (payload?.rideId && payload.rideId !== rideId) return;
       const loc = payload?.location;
-      if (loc?.latitude && loc?.longitude) {
+      if (
+        Number.isFinite(Number(loc?.latitude)) &&
+        Number.isFinite(Number(loc?.longitude))
+      ) {
         setDriverLocation({
           latitude: Number(loc.latitude),
           longitude: Number(loc.longitude),
@@ -282,18 +285,32 @@ export default function RideTrackingScreen() {
   }, [rideId, loadRide, navigation, currentUserId]);
 
   const pickupCoord = useMemo(() => {
-    if (!ride?.pickup?.latitude || !ride?.pickup?.longitude) return null;
+    const pickupLat = Number(ride?.pickup?.latitude);
+    const pickupLng = Number(ride?.pickup?.longitude);
+    if (
+      !Number.isFinite(pickupLat) ||
+      !Number.isFinite(pickupLng)
+    ) {
+      return null;
+    }
     return {
-      latitude: Number(ride.pickup.latitude),
-      longitude: Number(ride.pickup.longitude),
+      latitude: pickupLat,
+      longitude: pickupLng,
     };
   }, [ride?.pickup?.latitude, ride?.pickup?.longitude]);
 
   const dropoffCoord = useMemo(() => {
-    if (!ride?.dropoff?.latitude || !ride?.dropoff?.longitude) return null;
+    const dropoffLat = Number(ride?.dropoff?.latitude);
+    const dropoffLng = Number(ride?.dropoff?.longitude);
+    if (
+      !Number.isFinite(dropoffLat) ||
+      !Number.isFinite(dropoffLng)
+    ) {
+      return null;
+    }
     return {
-      latitude: Number(ride.dropoff.latitude),
-      longitude: Number(ride.dropoff.longitude),
+      latitude: dropoffLat,
+      longitude: dropoffLng,
     };
   }, [ride?.dropoff?.latitude, ride?.dropoff?.longitude]);
 

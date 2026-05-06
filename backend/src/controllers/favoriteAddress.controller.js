@@ -1,15 +1,54 @@
+﻿const mongoose = require("mongoose");
 const User = require("../models/User");
 
+function sendError(res, status, message, extras = {}) {
+  return res.status(status).json({
+    success: false,
+    message,
+    error: message,
+    ...extras,
+  });
+}
+
+function normalizeText(value) {
+  const normalized = String(value || "").trim();
+  return normalized || null;
+}
+
+function normalizeOptionalText(value) {
+  if (value === undefined) return undefined;
+  const normalized = String(value || "").trim();
+  return normalized || "";
+}
+
+function normalizeState(value) {
+  if (value === undefined) return undefined;
+  const normalized = String(value || "").trim().toUpperCase();
+  if (!normalized) return "";
+  if (!/^[A-Z]{2}$/.test(normalized)) return null;
+  return normalized;
+}
+
+function parseCoordinate(value, min, max) {
+  if (value === undefined) return undefined;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return null;
+  if (parsed < min || parsed > max) return null;
+  return parsed;
+}
+
+function findFavoriteIndexById(favorites, favoriteId) {
+  return favorites.findIndex((fav) => String(fav._id) === String(favoriteId));
+}
+
 class FavoriteAddressController {
-  
-  // Listar endereços favoritos do usuário
   async list(req, res) {
     try {
       const userId = req.user.id;
       const user = await User.findById(userId).select("favoriteAddresses");
 
       if (!user) {
-        return res.status(404).json({ error: "Usuário não encontrado" });
+        return sendError(res, 404, "Usuario nao encontrado");
       }
 
       return res.json({
@@ -17,62 +56,18 @@ class FavoriteAddressController {
       });
     } catch (error) {
       console.error("Erro ao listar favoritos:", error);
-      return res.status(500).json({
-        error: "Erro ao listar endereços favoritos",
-        details: error.message,
-      });
+      return sendError(res, 500, "Erro ao listar enderecos favoritos");
     }
   }
 
-  // Adicionar novo endereço favorito
   async create(req, res) {
     try {
       const userId = req.user.id;
-      const { 
-        name, 
-        icon, 
-        address, 
-        formattedAddress,
-        street,
-        streetNumber,
-        neighborhood, 
-        city, 
-        state, 
-        region,
-        postalCode,
-        latitude, 
-        longitude 
-      } = req.body;
-
-      // Validações
-      if (!name || !address || !latitude || !longitude) {
-        return res.status(400).json({
-          error: "Nome, endereço e coordenadas são obrigatórios",
-        });
-      }
-
-      const user = await User.findById(userId);
-      if (!user) {
-        return res.status(404).json({ error: "Usuário não encontrado" });
-      }
-
-      // Verificar se já existe favorito com mesmo nome
-      const existingFavorite = user.favoriteAddresses?.find(
-        (fav) => fav.name.toLowerCase() === name.toLowerCase()
-      );
-
-      if (existingFavorite) {
-        return res.status(400).json({
-          error: `Você já possui um favorito com o nome "${name}"`,
-        });
-      }
-
-      // Adicionar novo favorito
-      const newFavorite = {
+      const {
         name,
-        icon: icon || "home",
+        icon,
         address,
-        formattedAddress: formattedAddress || address,
+        formattedAddress,
         street,
         streetNumber,
         neighborhood,
@@ -82,54 +77,167 @@ class FavoriteAddressController {
         postalCode,
         latitude,
         longitude,
+      } = req.body;
+
+      const nameValue = normalizeText(name);
+      const addressValue = normalizeText(address);
+      const latValue = parseCoordinate(latitude, -90, 90);
+      const lngValue = parseCoordinate(longitude, -180, 180);
+      const stateValue = normalizeState(state);
+
+      if (!nameValue || !addressValue) {
+        return sendError(res, 400, "Nome e endereco sao obrigatorios");
+      }
+
+      if (latValue === undefined || lngValue === undefined) {
+        return sendError(res, 400, "Latitude e longitude sao obrigatorias");
+      }
+
+      if (latValue === null || lngValue === null) {
+        return sendError(res, 400, "Coordenadas invalidas");
+      }
+
+      if (stateValue === null) {
+        return sendError(res, 400, "Estado invalido");
+      }
+
+      const user = await User.findById(userId);
+      if (!user) {
+        return sendError(res, 404, "Usuario nao encontrado");
+      }
+
+      const favorites = user.favoriteAddresses || [];
+      const duplicate = favorites.find(
+        (fav) =>
+          String(fav.name || "").trim().toLowerCase() === nameValue.toLowerCase(),
+      );
+
+      if (duplicate) {
+        return sendError(res, 409, `Voce ja possui um favorito com o nome \"${nameValue}\"`);
+      }
+
+      const newFavorite = {
+        name: nameValue,
+        icon: normalizeText(icon) || "home",
+        address: addressValue,
+        formattedAddress: normalizeText(formattedAddress) || addressValue,
+        street: normalizeOptionalText(street),
+        streetNumber: normalizeOptionalText(streetNumber),
+        neighborhood: normalizeOptionalText(neighborhood),
+        city: normalizeOptionalText(city),
+        state: stateValue,
+        region: normalizeOptionalText(region),
+        postalCode: normalizeOptionalText(postalCode),
+        latitude: latValue,
+        longitude: lngValue,
         createdAt: new Date(),
       };
 
-      user.favoriteAddresses = user.favoriteAddresses || [];
+      user.favoriteAddresses = favorites;
       user.favoriteAddresses.push(newFavorite);
-
       await user.save();
+
+      const created = user.favoriteAddresses[user.favoriteAddresses.length - 1];
 
       return res.status(201).json({
         message: "Favorito adicionado com sucesso",
-        favorite: newFavorite,
+        favorite: created,
         favorites: user.favoriteAddresses,
       });
     } catch (error) {
       console.error("Erro ao adicionar favorito:", error);
-      return res.status(500).json({
-        error: "Erro ao adicionar endereço favorito",
-        details: error.message,
-      });
+      return sendError(res, 500, "Erro ao adicionar endereco favorito");
     }
   }
 
-  // Atualizar endereço favorito
   async update(req, res) {
     try {
       const userId = req.user.id;
       const { favoriteId } = req.params;
-      const { name, icon, address, neighborhood, city, state, latitude, longitude } = req.body;
+
+      if (!mongoose.Types.ObjectId.isValid(favoriteId)) {
+        return sendError(res, 400, "Favorito invalido");
+      }
 
       const user = await User.findById(userId);
       if (!user) {
-        return res.status(404).json({ error: "Usuário não encontrado" });
+        return sendError(res, 404, "Usuario nao encontrado");
       }
 
-      const favorite = user.favoriteAddresses?.id(favoriteId);
-      if (!favorite) {
-        return res.status(404).json({ error: "Favorito não encontrado" });
+      const favorites = user.favoriteAddresses || [];
+      const favoriteIndex = findFavoriteIndexById(favorites, favoriteId);
+      if (favoriteIndex < 0) {
+        return sendError(res, 404, "Favorito nao encontrado");
       }
 
-      // Atualizar campos
-      if (name) favorite.name = name;
-      if (icon) favorite.icon = icon;
-      if (address) favorite.address = address;
-      if (neighborhood !== undefined) favorite.neighborhood = neighborhood;
-      if (city !== undefined) favorite.city = city;
-      if (state !== undefined) favorite.state = state;
-      if (latitude) favorite.latitude = latitude;
-      if (longitude) favorite.longitude = longitude;
+      const favorite = favorites[favoriteIndex];
+      const payload = req.body || {};
+
+      if (payload.name !== undefined) {
+        const nameValue = normalizeText(payload.name);
+        if (!nameValue) {
+          return sendError(res, 400, "Nome do favorito invalido");
+        }
+
+        const duplicate = favorites.find(
+          (fav, index) =>
+            index !== favoriteIndex &&
+            String(fav.name || "").trim().toLowerCase() === nameValue.toLowerCase(),
+        );
+
+        if (duplicate) {
+          return sendError(res, 409, `Voce ja possui um favorito com o nome \"${nameValue}\"`);
+        }
+
+        favorite.name = nameValue;
+      }
+
+      if (payload.icon !== undefined) {
+        favorite.icon = normalizeText(payload.icon) || "home";
+      }
+
+      if (payload.address !== undefined) {
+        const addressValue = normalizeText(payload.address);
+        if (!addressValue) {
+          return sendError(res, 400, "Endereco invalido");
+        }
+        favorite.address = addressValue;
+      }
+
+      if (payload.formattedAddress !== undefined) {
+        favorite.formattedAddress = normalizeOptionalText(payload.formattedAddress);
+      }
+
+      if (payload.street !== undefined) favorite.street = normalizeOptionalText(payload.street);
+      if (payload.streetNumber !== undefined) favorite.streetNumber = normalizeOptionalText(payload.streetNumber);
+      if (payload.neighborhood !== undefined) favorite.neighborhood = normalizeOptionalText(payload.neighborhood);
+      if (payload.city !== undefined) favorite.city = normalizeOptionalText(payload.city);
+      if (payload.region !== undefined) favorite.region = normalizeOptionalText(payload.region);
+      if (payload.postalCode !== undefined) favorite.postalCode = normalizeOptionalText(payload.postalCode);
+
+      if (payload.state !== undefined) {
+        const stateValue = normalizeState(payload.state);
+        if (stateValue === null) {
+          return sendError(res, 400, "Estado invalido");
+        }
+        favorite.state = stateValue;
+      }
+
+      if (payload.latitude !== undefined) {
+        const latValue = parseCoordinate(payload.latitude, -90, 90);
+        if (latValue === null) {
+          return sendError(res, 400, "Latitude invalida");
+        }
+        favorite.latitude = latValue;
+      }
+
+      if (payload.longitude !== undefined) {
+        const lngValue = parseCoordinate(payload.longitude, -180, 180);
+        if (lngValue === null) {
+          return sendError(res, 400, "Longitude invalida");
+        }
+        favorite.longitude = lngValue;
+      }
 
       await user.save();
 
@@ -140,30 +248,29 @@ class FavoriteAddressController {
       });
     } catch (error) {
       console.error("Erro ao atualizar favorito:", error);
-      return res.status(500).json({
-        error: "Erro ao atualizar endereço favorito",
-        details: error.message,
-      });
+      return sendError(res, 500, "Erro ao atualizar endereco favorito");
     }
   }
 
-  // Deletar endereço favorito
   async delete(req, res) {
     try {
       const userId = req.user.id;
       const { favoriteId } = req.params;
 
-      const user = await User.findById(userId);
-      if (!user) {
-        return res.status(404).json({ error: "Usuário não encontrado" });
+      if (!mongoose.Types.ObjectId.isValid(favoriteId)) {
+        return sendError(res, 400, "Favorito invalido");
       }
 
-      const favoriteIndex = user.favoriteAddresses?.findIndex(
-        (fav) => fav._id.toString() === favoriteId
-      );
+      const user = await User.findById(userId);
+      if (!user) {
+        return sendError(res, 404, "Usuario nao encontrado");
+      }
 
-      if (favoriteIndex === -1 || favoriteIndex === undefined) {
-        return res.status(404).json({ error: "Favorito não encontrado" });
+      const favorites = user.favoriteAddresses || [];
+      const favoriteIndex = findFavoriteIndexById(favorites, favoriteId);
+
+      if (favoriteIndex < 0) {
+        return sendError(res, 404, "Favorito nao encontrado");
       }
 
       user.favoriteAddresses.splice(favoriteIndex, 1);
@@ -175,10 +282,7 @@ class FavoriteAddressController {
       });
     } catch (error) {
       console.error("Erro ao deletar favorito:", error);
-      return res.status(500).json({
-        error: "Erro ao deletar endereço favorito",
-        details: error.message,
-      });
+      return sendError(res, 500, "Erro ao deletar endereco favorito");
     }
   }
 }

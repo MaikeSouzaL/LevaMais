@@ -395,3 +395,76 @@ export async function verifyPhoneCode(
     return { success: false, message: error.message || "Erro ao verificar codigo" };
   }
 }
+
+export type PaymentMethod = {
+  _id: string;
+  brand: string;
+  last4: string;
+  holderName: string;
+  expiryMonth: number;
+  expiryYear: number;
+  isDefault: boolean;
+  createdAt: string;
+};
+
+export type WalletTransaction = {
+  _id: string;
+  type: "topup" | "ride_payment" | "refund" | "adjustment";
+  amount: number;
+  description?: string;
+  createdAt: string;
+  referenceId?: string;
+};
+
+export type AppNotification = {
+  id: string;
+  title: string;
+  body: string;
+  type: "ride" | "promo" | "system" | "payment";
+  createdAt: string;
+  read: boolean;
+};
+
+export async function getPaymentMethods(): Promise<PaymentMethod[]> {
+  const response = await apiGet("/auth/payment-methods");
+  return response.data?.paymentMethods || [];
+}
+
+export async function addPaymentMethod(payload: {
+  cardNumber: string;
+  holderName: string;
+  expiry: string;
+  isDefault?: boolean;
+}): Promise<PaymentMethod> {
+  const response = await apiPost("/auth/payment-methods", payload);
+  return response.data?.paymentMethod;
+}
+
+export async function deletePaymentMethod(methodId: string): Promise<void> {
+  await apiDelete(`/auth/payment-methods/${methodId}`);
+}
+
+export async function getClientWallet(): Promise<{
+  balance: number;
+  transactions: WalletTransaction[];
+}> {
+  const response = await apiGet("/auth/wallet");
+  return {
+    balance: Number(response.data?.balance || 0),
+    transactions: response.data?.transactions || [],
+  };
+}
+
+export async function topupClientWallet(amount: number): Promise<{
+  balance: number;
+}> {
+  const response = await apiPost("/auth/wallet/topup", { amount });
+  return {
+    balance: Number(response.data?.balance || 0),
+  };
+}
+
+export async function getNotifications(): Promise<AppNotification[]> {
+  const response = await apiGet("/auth/notifications");
+  return response.data?.notifications || [];
+}

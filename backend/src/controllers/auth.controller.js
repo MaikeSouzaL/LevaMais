@@ -1,9 +1,11 @@
 const User = require("../models/User");
 const PasswordReset = require("../models/PasswordReset");
 const PhoneVerification = require("../models/PhoneVerification");
+const Ride = require("../models/Ride");
 const jwt = require("jsonwebtoken");
 const emailService = require("../services/email.service");
 const crypto = require("crypto");
+const mongoose = require("mongoose");
 
 function normalizePhone(phone) {
   if (!phone) return "";
@@ -31,6 +33,29 @@ function sendError(res, status, message, extras = {}) {
     error: message,
     ...extras,
   });
+}
+
+function detectCardBrand(cardNumber) {
+  const digits = String(cardNumber || "").replace(/\D/g, "");
+  if (/^4/.test(digits)) return "visa";
+  if (/^5[1-5]/.test(digits)) return "mastercard";
+  if (/^3[47]/.test(digits)) return "amex";
+  if (/^6(?:011|5)/.test(digits)) return "discover";
+  return "card";
+}
+
+function parseExpiry(expiry) {
+  const cleaned = String(expiry || "").replace(/\D/g, "");
+  if (cleaned.length < 4) return null;
+  const month = Number(cleaned.slice(0, 2));
+  const year = Number(cleaned.slice(2, 4));
+  if (!Number.isFinite(month) || month < 1 || month > 12) return null;
+  if (!Number.isFinite(year) || year < 0 || year > 99) return null;
+  return { month, year };
+}
+
+function toMoney(value) {
+  return Number(Number(value || 0).toFixed(2));
 }
 
 class AuthController {
@@ -407,6 +432,253 @@ class AuthController {
     } catch (error) {
       console.error("Erro ao atualizar perfil:", error);
       return sendError(res, 500, "Erro ao atualizar perfil", { details: error.message });
+    }
+  }
+
+  async listPaymentMethods(req, res) {
+    try {
+      const userId = req.user.id;
+      const user = await User.findById(userId).select("paymentMethods");
+      if (!user) return sendError(res, 404, "Usuario nao encontrado");
+
+      const methods = (user.paymentMethods || []).map((method) => ({
+        _id: method._id,
+        brand: method.brand || "card",
+        last4: method.last4 || "",
+        holderName: method.holderName || "",
+        expiryMonth: method.expiryMonth,
+        expiryYear: method.expiryYear,
+        isDefault: Boolean(method.isDefault),
+        createdAt: method.createdAt,
+      }));
+
+      return res.json({
+        success: true,
+        paymentMethods: methods,
+      });
+    } catch (error) {
+      console.error("Erro ao listar cartoes:", error);
+      return sendError(res, 500, "Erro ao listar cartoes", { details: error.message });
+    }
+  }
+
+  async addPaymentMethod(req, res) {
+    try {
+      const userId = req.user.id;
+      const { cardNumber, holderName, expiry, isDefault } = req.body || {};
+
+      const digits = String(cardNumber || "").replace(/\D/g, "");
+      if (digits.length < 13 || digits.length > 19) {
+        return sendError(res, 400, "Numero do cartao invalido");
+      }
+
+      const holder = String(holderName || "").trim();
+      if (!holder) {
+        return sendError(res, 400, "Nome do titular obrigatorio");
+      }
+
+      const parsedExpiry = parseExpiry(expiry);
+      if (!parsedExpiry) {
+        return sendError(res, 400, "Validade invalida");
+      }
+
+      const user = await User.findById(userId);
+      if (!user) return sendError(res, 404, "Usuario nao encontrado");
+
+      user.paymentMethods = user.paymentMethods || [];
+      if (user.paymentMethods.length >= 8) {
+        return sendError(res, 400, "Limite de cartoes atingido");
+      }
+
+      const last4 = digits.slice(-4);
+      const brand = detectCardBrand(digits);
+      const shouldBeDefault = Boolean(isDefault) || user.paymentMethods.length === 0;
+
+      if (shouldBeDefault) {
+        user.paymentMethods.forEach((method) => {
+          method.isDefault = false;
+        });
+      }
+
+      user.paymentMethods.push({
+        brand,
+        last4,
+        holderName: holder,
+        expiryMonth: parsedExpiry.month,
+        expiryYear: parsedExpiry.year,
+        token: `pm_${crypto.randomBytes(12).toString("hex")}`,
+        isDefault: shouldBeDefault,
+      });
+
+      await user.save();
+      const created = user.paymentMethods[user.paymentMethods.length - 1];
+
+      return res.status(201).json({
+        success: true,
+        message: "Cartao adicionado com sucesso",
+        paymentMethod: {
+          _id: created._id,
+          brand: created.brand,
+          last4: created.last4,
+          holderName: created.holderName,
+          expiryMonth: created.expiryMonth,
+          expiryYear: created.expiryYear,
+          isDefault: created.isDefault,
+          createdAt: created.createdAt,
+        },
+      });
+    } catch (error) {
+      console.error("Erro ao adicionar cartao:", error);
+      return sendError(res, 500, "Erro ao adicionar cartao", { details: error.message });
+    }
+  }
+
+  async deletePaymentMethod(req, res) {
+    try {
+      const userId = req.user.id;
+      const { methodId } = req.params;
+
+      if (!mongoose.Types.ObjectId.isValid(methodId)) {
+        return sendError(res, 400, "Cartao invalido");
+      }
+
+      const user = await User.findById(userId);
+      if (!user) return sendError(res, 404, "Usuario nao encontrado");
+
+      const methods = user.paymentMethods || [];
+      const index = methods.findIndex((method) => String(method._id) === String(methodId));
+      if (index < 0) return sendError(res, 404, "Cartao nao encontrado");
+
+      const removedWasDefault = Boolean(methods[index].isDefault);
+      methods.splice(index, 1);
+
+      if (removedWasDefault && methods.length > 0) {
+        methods[0].isDefault = true;
+      }
+
+      user.paymentMethods = methods;
+      await user.save();
+
+      return res.json({
+        success: true,
+        message: "Cartao removido com sucesso",
+      });
+    } catch (error) {
+      console.error("Erro ao remover cartao:", error);
+      return sendError(res, 500, "Erro ao remover cartao", { details: error.message });
+    }
+  }
+
+  async getClientWallet(req, res) {
+    try {
+      const userId = req.user.id;
+      const user = await User.findById(userId).select("wallet userType");
+      if (!user) return sendError(res, 404, "Usuario nao encontrado");
+
+      const wallet = user.wallet || { balance: 0, transactions: [] };
+      const transactions = (wallet.transactions || [])
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+        .slice(0, 100);
+
+      return res.json({
+        success: true,
+        balance: toMoney(wallet.balance || 0),
+        transactions,
+      });
+    } catch (error) {
+      console.error("Erro ao buscar carteira:", error);
+      return sendError(res, 500, "Erro ao buscar carteira", { details: error.message });
+    }
+  }
+
+  async topupClientWallet(req, res) {
+    try {
+      const userId = req.user.id;
+      const amount = Number(req.body?.amount);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        return sendError(res, 400, "Valor invalido");
+      }
+
+      const roundedAmount = toMoney(amount);
+      const user = await User.findById(userId);
+      if (!user) return sendError(res, 404, "Usuario nao encontrado");
+
+      user.wallet = user.wallet || { balance: 0, transactions: [] };
+      user.wallet.balance = toMoney((user.wallet.balance || 0) + roundedAmount);
+      user.wallet.transactions = user.wallet.transactions || [];
+      user.wallet.transactions.push({
+        type: "topup",
+        amount: roundedAmount,
+        description: "Recarga de saldo",
+        referenceId: `topup_${Date.now()}`,
+      });
+
+      await user.save();
+
+      return res.json({
+        success: true,
+        message: "Saldo atualizado com sucesso",
+        balance: toMoney(user.wallet.balance),
+      });
+    } catch (error) {
+      console.error("Erro ao recarregar carteira:", error);
+      return sendError(res, 500, "Erro ao recarregar carteira", { details: error.message });
+    }
+  }
+
+  async listNotifications(req, res) {
+    try {
+      const userId = req.user.id;
+      const userType = String(req.user.userType || "");
+
+      const rideQuery =
+        userType === "driver"
+          ? { driverId: userId }
+          : { clientId: userId };
+
+      const rides = await Ride.find(rideQuery)
+        .select("status serviceType pricing.total updatedAt createdAt pickup dropoff")
+        .sort({ updatedAt: -1 })
+        .limit(40)
+        .lean();
+
+      const notifications = rides.map((ride) => {
+        const serviceLabel = ride.serviceType === "delivery" ? "Entrega" : "Corrida";
+        let title = `${serviceLabel} atualizada`;
+        let body = `${ride.pickup?.address || "Origem"} -> ${ride.dropoff?.address || "Destino"}`;
+        let type = "ride";
+
+        if (ride.status === "completed") {
+          title = `${serviceLabel} finalizada`;
+          body = `Total: R$ ${Number(ride?.pricing?.total || 0).toFixed(2)}`;
+          type = "payment";
+        } else if (String(ride.status || "").startsWith("cancelled")) {
+          title = `${serviceLabel} cancelada`;
+          body = "Seu pedido foi encerrado.";
+          type = "system";
+        } else if (ride.status === "accepted" || ride.status === "driver_arriving") {
+          title = "Motorista a caminho";
+          body = serviceLabel === "Entrega" ? "Seu entregador esta chegando." : "Seu motorista esta chegando.";
+          type = "ride";
+        }
+
+        return {
+          id: String(ride._id),
+          title,
+          body,
+          type,
+          createdAt: ride.updatedAt || ride.createdAt || new Date(),
+          read: false,
+        };
+      });
+
+      return res.json({
+        success: true,
+        notifications,
+      });
+    } catch (error) {
+      console.error("Erro ao listar notificacoes:", error);
+      return sendError(res, 500, "Erro ao listar notificacoes", { details: error.message });
     }
   }
 

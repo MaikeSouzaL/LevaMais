@@ -34,7 +34,7 @@ function parseCurrencyToNumber(raw: string): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function inferPixKeyType(value: string): "cpf" | "email" | "phone" | "evp" {
+function inferPixKeyType(value: string): "cpf" | "email" | "phone" | "random" {
   const v = String(value || "").trim();
 
   if (/^[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}$/.test(v)) return "email";
@@ -43,7 +43,7 @@ function inferPixKeyType(value: string): "cpf" | "email" | "phone" | "evp" {
   if (digits.length === 11) return "cpf";
   if (digits.length >= 10 && digits.length <= 13) return "phone";
 
-  return "evp";
+  return "random";
 }
 
 export default function DriverWithdrawScreen() {

@@ -1,29 +1,77 @@
-import React from "react";
+﻿import React, { useCallback, useState } from "react";
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import Toast from "react-native-toast-message";
 
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
-import { useAuthStore } from "@/context/authStore";
 import { formatBRL } from "@/utils/mappers";
 import { ClientScreenHeader, LoadingButton } from "../../Shared/components";
+import { getClientWallet, topupClientWallet, WalletTransaction } from "@/services/auth.service";
+
+function transactionLabel(type: WalletTransaction["type"]) {
+  const map = {
+    topup: "Recarga",
+    ride_payment: "Pagamento de corrida",
+    refund: "Estorno",
+    adjustment: "Ajuste",
+  } as const;
+
+  return map[type] || "Movimentacao";
+}
 
 export default function WalletScreen() {
   const navigation = useNavigation<any>();
-  const balance = useAuthStore((s) => s.walletBalance || 0);
-  const creditWallet = useAuthStore((s) => s.creditWallet);
+  const [balance, setBalance] = useState(0);
+  const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
+  const [loading, setLoading] = useState(false);
 
   const quickTopups = [10, 20, 50];
 
-  const handleTopup = (value: number) => {
-    creditWallet(value);
-    Toast.show({
-      type: "success",
-      text1: "Saldo atualizado",
-      text2: `+ ${formatBRL(value)} adicionado`,
-    });
+  const loadWallet = useCallback(async () => {
+    try {
+      setLoading(true);
+      const wallet = await getClientWallet();
+      setBalance(Number(wallet?.balance || 0));
+      setTransactions(wallet?.transactions || []);
+    } catch (error: any) {
+      Toast.show({
+        type: "error",
+        text1: "Erro ao carregar carteira",
+        text2: error?.message || "Tente novamente",
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadWallet();
+    }, [loadWallet]),
+  );
+
+  const handleTopup = async (value: number) => {
+    try {
+      setLoading(true);
+      const response = await topupClientWallet(value);
+      setBalance(Number(response?.balance || 0));
+      Toast.show({
+        type: "success",
+        text1: "Saldo atualizado",
+        text2: `+ ${formatBRL(value)} adicionado`,
+      });
+      await loadWallet();
+    } catch (error: any) {
+      Toast.show({
+        type: "error",
+        text1: "Erro ao recarregar",
+        text2: error?.message || "Tente novamente",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -38,17 +86,32 @@ export default function WalletScreen() {
         </View>
 
         <View style={styles.actions}>
-          <LoadingButton title="Adicionar saldo rapido" onPress={() => handleTopup(20)} variant="primary" />
+          <LoadingButton
+            title="Adicionar saldo rapido"
+            onPress={() => handleTopup(20)}
+            variant="primary"
+            loading={loading}
+          />
 
           <View style={styles.quickTopupRow}>
             {quickTopups.map((value) => (
-              <TouchableOpacity key={value} style={styles.quickTopupChip} onPress={() => handleTopup(value)}>
+              <TouchableOpacity
+                key={value}
+                style={styles.quickTopupChip}
+                onPress={() => handleTopup(value)}
+                disabled={loading}
+              >
                 <Text style={styles.quickTopupText}>+ {formatBRL(value)}</Text>
               </TouchableOpacity>
             ))}
           </View>
 
-          <LoadingButton title="Historico completo" onPress={() => {}} variant="secondary" />
+          <LoadingButton
+            title="Historico completo"
+            onPress={() => navigation.navigate("History")}
+            variant="secondary"
+            disabled={loading}
+          />
         </View>
 
         <Text style={styles.sectionTitle}>METODOS DE PAGAMENTO</Text>
@@ -62,10 +125,26 @@ export default function WalletScreen() {
         </TouchableOpacity>
 
         <Text style={styles.sectionTitle}>TRANSACOES RECENTES</Text>
-        <View style={styles.emptyState}>
-          <MaterialIcons name="receipt" size={42} color={colors.text.tertiary} />
-          <Text style={styles.emptyText}>Nenhuma transacao ainda</Text>
-        </View>
+        {transactions.length === 0 ? (
+          <View style={styles.emptyState}>
+            <MaterialIcons name="receipt" size={42} color={colors.text.tertiary} />
+            <Text style={styles.emptyText}>Nenhuma transacao ainda</Text>
+          </View>
+        ) : (
+          <View style={styles.transactionsList}>
+            {transactions.slice(0, 6).map((item) => (
+              <View key={String(item._id)} style={styles.transactionItem}>
+                <View>
+                  <Text style={styles.transactionTitle}>{transactionLabel(item.type)}</Text>
+                  <Text style={styles.transactionDate}>
+                    {new Date(item.createdAt).toLocaleDateString("pt-BR")}
+                  </Text>
+                </View>
+                <Text style={styles.transactionAmount}>{formatBRL(Number(item.amount || 0))}</Text>
+              </View>
+            ))}
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -142,5 +221,35 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   paymentMethodText: { color: colors.text.primary, fontSize: fontSize.base, flex: 1, fontWeight: fontWeight.semibold },
+  transactionsList: {
+    backgroundColor: colors.background.secondary,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border.light,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  transactionItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.05)",
+  },
+  transactionTitle: {
+    color: colors.text.primary,
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.semibold,
+  },
+  transactionDate: {
+    color: colors.text.tertiary,
+    fontSize: fontSize.xs,
+    marginTop: 2,
+  },
+  transactionAmount: {
+    color: colors.primary[500],
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.bold,
+  },
 });
-

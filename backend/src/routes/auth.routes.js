@@ -53,6 +53,36 @@ router.delete(
   authenticateToken,
   authController.removePushToken.bind(authController),
 );
+router.get(
+  "/payment-methods",
+  authenticateToken,
+  authController.listPaymentMethods.bind(authController),
+);
+router.post(
+  "/payment-methods",
+  authenticateToken,
+  authController.addPaymentMethod.bind(authController),
+);
+router.delete(
+  "/payment-methods/:methodId",
+  authenticateToken,
+  authController.deletePaymentMethod.bind(authController),
+);
+router.get(
+  "/wallet",
+  authenticateToken,
+  authController.getClientWallet.bind(authController),
+);
+router.post(
+  "/wallet/topup",
+  authenticateToken,
+  authController.topupClientWallet.bind(authController),
+);
+router.get(
+  "/notifications",
+  authenticateToken,
+  authController.listNotifications.bind(authController),
+);
 
 // Rotas admin
 router.get(

@@ -24,6 +24,12 @@ import DriverRideDetailsScreen from "../screens/(authenticated)/Driver/DriverRid
 import DriverHelpScreen from "../screens/(authenticated)/Driver/DriverHelpScreen";
 import DriverChatScreen from "../screens/(authenticated)/Driver/DriverChatScreen";
 import DriverSafetyScreen from "../screens/(authenticated)/Driver/DriverSafetyScreen";
+import DriverPayoutsScreen from "../screens/(authenticated)/Driver/DriverPayoutsScreen";
+import DriverIncentivesScreen from "../screens/(authenticated)/Driver/DriverIncentivesScreen";
+import DriverWorkPreferencesScreen from "../screens/(authenticated)/Driver/DriverWorkPreferencesScreen";
+import DriverDocumentsScreen from "../screens/(authenticated)/Driver/DriverDocumentsScreen";
+import DriverRatingsScreen from "../screens/(authenticated)/Driver/DriverRatingsScreen";
+import DriverSupportCenterScreen from "../screens/(authenticated)/Driver/DriverSupportCenterScreen";
 
 import { useAuthStore } from "../context/authStore";
 
@@ -40,6 +46,8 @@ function DriverFinanceStack() {
       <Stack.Screen name="DriverEarnings" component={DriverEarningsScreen} />
       <Stack.Screen name="DriverWithdraw" component={DriverWithdrawScreen} />
       <Stack.Screen name="DriverStatement" component={DriverStatementScreen} />
+      <Stack.Screen name="DriverPayouts" component={DriverPayoutsScreen} />
+      <Stack.Screen name="DriverIncentives" component={DriverIncentivesScreen} />
       <Stack.Screen name="DriverRideDetails" component={DriverRideDetailsScreen} />
     </Stack.Navigator>
   );
@@ -49,11 +57,15 @@ const menuItems = [
   { name: "DriverHome", label: "Mapa", icon: "map" },
   { name: "DriverRequests", label: "Solicitacoes", icon: "car" },
   { name: "DriverFinance", label: "Ganhos e carteira", icon: "cash" },
+  { name: "DriverRatings", label: "Avaliacoes", icon: "star-circle" },
   { name: "DriverHistory", label: "Historico", icon: "history" },
   { name: "DriverVehicle", label: "Veiculo", icon: "car-info" },
+  { name: "DriverDocuments", label: "Documentos", icon: "file-document-outline" },
+  { name: "DriverWorkPreferences", label: "Preferencias", icon: "tune" },
   { name: "DriverProfile", label: "Perfil", icon: "account" },
   { name: "DriverSafety", label: "Seguranca", icon: "shield" },
-  { name: "DriverHelp", label: "Ajuda", icon: "help-circle" },
+  { name: "DriverSupportCenter", label: "Suporte", icon: "lifebuoy" },
+  { name: "DriverHelp", label: "Ajuda rapida", icon: "help-circle" },
   { name: "DriverSettings", label: "Configuracoes", icon: "cog" },
 ] as const;
 
@@ -172,8 +184,12 @@ export default function DrawerDriverRoutes({ initialRideId }: DrawerDriverRoutes
       <Drawer.Screen name="DriverFinance" component={DriverFinanceStack} options={{ title: "Ganhos e carteira" }} />
       <Drawer.Screen name="DriverHistory" component={DriverHistoryScreen} options={{ title: "Historico" }} />
       <Drawer.Screen name="DriverVehicle" component={DriverVehicleScreen} options={{ title: "Veiculo" }} />
+      <Drawer.Screen name="DriverRatings" component={DriverRatingsScreen} options={{ title: "Avaliacoes" }} />
+      <Drawer.Screen name="DriverDocuments" component={DriverDocumentsScreen} options={{ title: "Documentos" }} />
+      <Drawer.Screen name="DriverWorkPreferences" component={DriverWorkPreferencesScreen} options={{ title: "Preferencias" }} />
       <Drawer.Screen name="DriverProfile" component={DriverProfileScreen} options={{ title: "Perfil" }} />
       <Drawer.Screen name="DriverSafety" component={DriverSafetyScreen} options={{ title: "Seguranca" }} />
+      <Drawer.Screen name="DriverSupportCenter" component={DriverSupportCenterScreen} options={{ title: "Suporte" }} />
       <Drawer.Screen name="DriverHelp" component={DriverHelpScreen} options={{ title: "Ajuda" }} />
       <Drawer.Screen name="DriverSettings" component={DriverSettingsScreen} options={{ title: "Configuracoes" }} />
 

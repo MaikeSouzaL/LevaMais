@@ -15,6 +15,7 @@ import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
 import { ClientScreenHeader, LoadingButton } from "../../Shared/components";
+import { addPaymentMethod } from "@/services/auth.service";
 
 export default function AddPaymentMethodScreen() {
   const navigation = useNavigation<any>();
@@ -70,8 +71,11 @@ export default function AddPaymentMethodScreen() {
 
     setSaving(true);
     try {
-      // TODO: integrar com backend quando endpoint existir
-      await new Promise((r) => setTimeout(r, 1000));
+      await addPaymentMethod({
+        cardNumber,
+        holderName,
+        expiry,
+      });
       Toast.show({ type: "success", text1: "Cartao salvo com sucesso!" });
       navigation.goBack();
     } catch (e: any) {

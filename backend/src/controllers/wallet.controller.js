@@ -20,6 +20,7 @@ function normalizePixKeyType(value) {
     .trim()
     .toLowerCase();
   if (!type) return "cpf";
+  if (type === "evp") return "random";
   if (["cpf", "email", "phone", "random"].includes(type)) return type;
   return null;
 }
@@ -28,6 +29,13 @@ function parseAmount(value) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric <= 0) return null;
   return toMoney(numeric);
+}
+
+function normalizePositiveInteger(value, fallback, options = {}) {
+  const { min = 1, max = 100 } = options;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, Math.floor(parsed)));
 }
 
 function getDriverNetValueFromRide(ride) {
@@ -173,6 +181,9 @@ class WalletController {
     try {
       const userId = req.user.id;
       const { limit = 50, page = 1 } = req.query;
+      const numericPage = normalizePositiveInteger(page, 1, { min: 1, max: 100000 });
+      const numericLimit = normalizePositiveInteger(limit, 50, { min: 1, max: 100 });
+      const fetchWindow = Math.min(1000, Math.max(100, numericPage * numericLimit * 2));
 
       // Buscar Corridas (Entradas)
       const rides = await Ride.find({
@@ -181,13 +192,13 @@ class WalletController {
       })
         .select("pricing completedAt pickup dropoff")
         .sort({ completedAt: -1 })
-        .limit(100) // limit hardcoded for merge logic MVP
+        .limit(fetchWindow)
         .lean();
 
       // Buscar Saques (Saidas)
       const withdrawals = await Withdrawal.find({ userId })
         .sort({ createdAt: -1 })
-        .limit(50)
+        .limit(fetchWindow)
         .lean();
 
       // Normalizar e mergear
@@ -213,13 +224,22 @@ class WalletController {
         return new Date(b.date) - new Date(a.date);
       });
 
-      // Paginacao simples em memoria (MVP)
-      const numericPage = Math.max(1, Number(page) || 1);
-      const numericLimit = Math.min(100, Math.max(1, Number(limit) || 50));
+      // Paginacao simples em memoria
       const startIndex = (numericPage - 1) * numericLimit;
-      const paginated = all.slice(startIndex, startIndex + numericLimit);
+      const items = all.slice(startIndex, startIndex + numericLimit);
+      const total = all.length;
+      const totalPages = Math.max(1, Math.ceil(total / numericLimit));
 
-      return res.json(paginated);
+      return res.json({
+        items,
+        pagination: {
+          page: numericPage,
+          limit: numericLimit,
+          total,
+          totalPages,
+          hasNext: numericPage < totalPages,
+        },
+      });
     } catch (error) {
       console.error("Erro ao buscar extrato:", error);
       return sendError(res, 500, "Erro ao buscar extrato");

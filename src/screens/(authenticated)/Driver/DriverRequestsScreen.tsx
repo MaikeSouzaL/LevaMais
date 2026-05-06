@@ -10,6 +10,7 @@ import Toast from "react-native-toast-message";
 import { DriverScreen } from "./components/DriverScreen";
 import { DriverEmptyState } from "./components/DriverEmptyState";
 import { DriverRequestCard } from "./components/DriverRequestCard";
+import { formatBRL } from "@/utils/mappers";
 
 type RideRequestItem = {
   rideId: string;
@@ -20,6 +21,11 @@ type RideRequestItem = {
   duration?: { text?: string };
   serviceType?: string;
   vehicleType?: string;
+  negotiation?: {
+    enabled?: boolean;
+    clientOffer?: number | null;
+    suggestedMinPrice?: number | null;
+  };
 };
 
 export default function DriverRequestsScreen() {
@@ -76,6 +82,7 @@ export default function DriverRequestsScreen() {
             duration: item.duration,
             serviceType: item.serviceType,
             vehicleType: item.vehicleType,
+            negotiation: item.negotiation,
           })),
         );
       } catch {
@@ -138,6 +145,7 @@ export default function DriverRequestsScreen() {
         duration: payload?.duration,
         serviceType: payload?.serviceType,
         vehicleType: payload?.vehicleType,
+        negotiation: payload?.negotiation,
       };
 
       if (!item.rideId) return;
@@ -201,6 +209,28 @@ export default function DriverRequestsScreen() {
   }, [requests.length]);
 
   const accept = async (rideId: string) => {
+    const request = requests.find((item) => item.rideId === rideId);
+    if (request?.negotiation?.enabled) {
+      try {
+        await rideService.respondToOffer(rideId, { action: "accept" });
+        Toast.show({
+          type: "success",
+          text1: "Oferta aceita",
+          text2: "Aguardando cliente selecionar sua proposta.",
+        });
+      } catch (e: any) {
+        Toast.show({
+          type: "error",
+          text1: "Falha ao enviar oferta",
+          text2: e?.response?.data?.error || e?.message || "Tente novamente",
+        });
+      } finally {
+        setRequests((prev) => prev.filter((r) => r.rideId !== rideId));
+        driverAlertService.stop().catch(() => {});
+      }
+      return;
+    }
+
     try {
       const ride = await rideService.accept(rideId);
       await driverAlertService.stop();
@@ -220,6 +250,35 @@ export default function DriverRequestsScreen() {
 
       setRequests((prev) => prev.filter((r) => r.rideId !== rideId));
       driverAlertService.stop().catch(() => {});
+    }
+  };
+
+  const counterOffer = async (rideId: string) => {
+    const request = requests.find((item) => item.rideId === rideId);
+    if (!request?.negotiation?.enabled) return;
+
+    const base = Number(request.negotiation.suggestedMinPrice || request.negotiation.clientOffer || 0);
+    const amount = Number((base + 5).toFixed(2));
+
+    try {
+      await rideService.respondToOffer(rideId, {
+        action: "counter",
+        amount,
+        message: "Contraoferta enviada automaticamente pelo app.",
+      });
+      Toast.show({
+        type: "success",
+        text1: "Contraoferta enviada",
+        text2: `Valor sugerido: ${formatBRL(amount)}`,
+      });
+      setRequests((prev) => prev.filter((r) => r.rideId !== rideId));
+      driverAlertService.stop().catch(() => {});
+    } catch (e: any) {
+      Toast.show({
+        type: "error",
+        text1: "Falha na contraoferta",
+        text2: e?.response?.data?.error || e?.message || "Tente novamente",
+      });
     }
   };
 
@@ -253,6 +312,7 @@ export default function DriverRequestsScreen() {
             item={r}
             onAccept={accept}
             onReject={reject}
+            onCounterOffer={counterOffer}
           />
         ))
       )}

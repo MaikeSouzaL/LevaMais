@@ -1,9 +1,67 @@
-const DriverLocation = require("../models/DriverLocation");
+﻿const DriverLocation = require("../models/DriverLocation");
+
+const DRIVER_STATUSES = new Set(["offline", "available", "busy", "on_ride"]);
+const VEHICLE_TYPES = new Set(["motorcycle", "car", "van", "truck"]);
+const SERVICE_TYPES = new Set(["ride", "delivery"]);
+
+function sendError(res, status, message, extras = {}) {
+  return res.status(status).json({
+    success: false,
+    message,
+    error: message,
+    ...extras,
+  });
+}
+
+function parseCoordinate(value, min, max) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return null;
+  if (parsed < min || parsed > max) return null;
+  return parsed;
+}
+
+function parseOptionalNumber(value) {
+  if (value === undefined || value === null || value === "") return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizeServiceTypes(raw) {
+  if (raw === undefined || raw === null) return undefined;
+  if (!Array.isArray(raw)) return null;
+
+  const normalized = [...new Set(raw.map((item) => String(item || "").trim().toLowerCase()))]
+    .filter((item) => SERVICE_TYPES.has(item));
+
+  if (!normalized.length) return null;
+  return normalized;
+}
+
+function normalizeStatus(value) {
+  if (value === undefined || value === null || value === "") return undefined;
+  const normalized = String(value).trim().toLowerCase();
+  if (!DRIVER_STATUSES.has(normalized)) return null;
+  return normalized;
+}
+
+function normalizeVehicleType(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (!VEHICLE_TYPES.has(normalized)) return null;
+  return normalized;
+}
+
+function isDriverOrAdmin(req) {
+  const type = String(req?.user?.userType || "").toLowerCase();
+  return type === "driver" || type === "admin";
+}
 
 class DriverLocationController {
-  // Atualizar localização do motorista
   async updateLocation(req, res) {
     try {
+      if (!isDriverOrAdmin(req)) {
+        return sendError(res, 403, "Apenas motoristas podem atualizar localizacao");
+      }
+
       const driverId = req.user.id;
       const {
         latitude,
@@ -16,38 +74,65 @@ class DriverLocationController {
         serviceTypes,
       } = req.body;
 
-      if (!latitude || !longitude) {
-        return res.status(400).json({
-          error: "Latitude e longitude são obrigatórios",
-        });
+      const latValue = parseCoordinate(latitude, -90, 90);
+      const lngValue = parseCoordinate(longitude, -180, 180);
+
+      if (latValue === null || lngValue === null) {
+        return sendError(res, 400, "Latitude e longitude invalidas");
       }
 
-      // Atualizar ou criar localização
+      const normalizedVehicleType = normalizeVehicleType(vehicleType);
+      if (!normalizedVehicleType) {
+        return sendError(res, 400, "Tipo de veiculo invalido");
+      }
+
+      const normalizedStatus = normalizeStatus(status);
+      if (normalizedStatus === null) {
+        return sendError(res, 400, "Status de motorista invalido");
+      }
+
+      const normalizedServiceTypes = normalizeServiceTypes(serviceTypes);
+      if (normalizedServiceTypes === null) {
+        return sendError(res, 400, "Tipos de servico invalidos");
+      }
+
+      const headingValue = parseOptionalNumber(heading);
+      if (headingValue === null || headingValue < 0 || headingValue > 360) {
+        return sendError(res, 400, "Heading invalido");
+      }
+
+      const speedValue = parseOptionalNumber(speed);
+      if (speedValue === null || speedValue < 0) {
+        return sendError(res, 400, "Velocidade invalida");
+      }
+
+      const updatePayload = {
+        location: {
+          type: "Point",
+          coordinates: [lngValue, latValue],
+        },
+        status: normalizedStatus || "available",
+        vehicleType: normalizedVehicleType,
+        lastUpdated: new Date(),
+      };
+
+      if (headingValue !== undefined) updatePayload.heading = headingValue;
+      if (speedValue !== undefined) updatePayload.speed = speedValue;
+      if (vehicle && typeof vehicle === "object") updatePayload.vehicle = vehicle;
+      if (normalizedServiceTypes) updatePayload.serviceTypes = normalizedServiceTypes;
+
       const driverLocation = await DriverLocation.findOneAndUpdate(
         { driverId },
-        {
-          location: {
-            type: "Point",
-            coordinates: [longitude, latitude], // MongoDB usa [lng, lat]
-          },
-          heading,
-          speed,
-          status: status || "available",
-          vehicleType,
-          vehicle,
-          ...(serviceTypes && { serviceTypes }),
-          lastUpdated: new Date(),
-        },
+        updatePayload,
         {
           new: true,
-          upsert: true, // Criar se não existir
+          upsert: true,
+          runValidators: true,
         },
       );
 
-      // Broadcast atualização via WebSocket para clientes interessados
       const io = req.app.get("io");
       if (io && driverLocation.currentRideId) {
-        // Se motorista está em corrida, notificar o cliente
         const Ride = require("../models/Ride");
         const ride = await Ride.findById(driverLocation.currentRideId);
 
@@ -55,55 +140,48 @@ class DriverLocationController {
           io.to(`client-${ride.clientId}`).emit("driver-location-updated", {
             rideId: ride._id,
             location: {
-              latitude,
-              longitude,
+              latitude: latValue,
+              longitude: lngValue,
             },
-            heading,
-            speed,
+            heading: headingValue,
+            speed: speedValue,
           });
         }
       }
 
-      res.json({
-        message: "Localização atualizada",
+      return res.json({
+        message: "Localizacao atualizada",
         location: driverLocation,
       });
     } catch (error) {
-      console.error("Erro ao atualizar localização:", error);
-      res.status(500).json({
-        error: "Erro ao atualizar localização",
-        details: error.message,
-      });
+      console.error("Erro ao atualizar localizacao:", error);
+      return sendError(res, 500, "Erro ao atualizar localizacao");
     }
   }
 
-  // Buscar localização do motorista autenticado (para restaurar estado online/offline)
   async getMe(req, res) {
     try {
-      const driverId = req.user.id;
+      if (!isDriverOrAdmin(req)) {
+        return sendError(res, 403, "Apenas motoristas podem consultar esta rota");
+      }
 
+      const driverId = req.user.id;
       const location = await DriverLocation.findOne({ driverId }).populate(
         "driverId",
         "name phone profilePhoto",
       );
 
       if (!location) {
-        return res.status(404).json({
-          error: "Localização do motorista não encontrada",
-        });
+        return sendError(res, 404, "Localizacao do motorista nao encontrada");
       }
 
-      res.json(location);
+      return res.json(location);
     } catch (error) {
-      console.error("Erro ao buscar localização do motorista:", error);
-      res.status(500).json({
-        error: "Erro ao buscar localização do motorista",
-        details: error.message,
-      });
+      console.error("Erro ao buscar localizacao do motorista:", error);
+      return sendError(res, 500, "Erro ao buscar localizacao do motorista");
     }
   }
 
-  // Buscar localização de um motorista específico
   async getLocation(req, res) {
     try {
       const { driverId } = req.params;
@@ -114,34 +192,39 @@ class DriverLocationController {
       );
 
       if (!location) {
-        return res.status(404).json({
-          error: "Localização do motorista não encontrada",
-        });
+        return sendError(res, 404, "Localizacao do motorista nao encontrada");
       }
 
-      res.json(location);
+      return res.json(location);
     } catch (error) {
-      console.error("Erro ao buscar localização:", error);
-      res.status(500).json({
-        error: "Erro ao buscar localização",
-        details: error.message,
-      });
+      console.error("Erro ao buscar localizacao:", error);
+      return sendError(res, 500, "Erro ao buscar localizacao");
     }
   }
 
-  // Buscar todas as localizações (para dashboard admin)
   async getAllLocations(req, res) {
     try {
-      const { status, vehicleType } = req.query;
-
-      const query = {};
-
-      if (status) {
-        query.status = status;
+      if (String(req.user?.userType || "").toLowerCase() !== "admin") {
+        return sendError(res, 403, "Apenas admin pode listar todas as localizacoes");
       }
 
-      if (vehicleType) {
-        query.vehicleType = vehicleType;
+      const { status, vehicleType } = req.query;
+      const query = {};
+
+      const normalizedStatus = normalizeStatus(status);
+      if (normalizedStatus === null) {
+        return sendError(res, 400, "Status de motorista invalido");
+      }
+      if (normalizedStatus) {
+        query.status = normalizedStatus;
+      }
+
+      if (vehicleType !== undefined) {
+        const normalizedVehicleType = normalizeVehicleType(vehicleType);
+        if (!normalizedVehicleType) {
+          return sendError(res, 400, "Tipo de veiculo invalido");
+        }
+        query.vehicleType = normalizedVehicleType;
       }
 
       const locations = await DriverLocation.find(query).populate(
@@ -149,87 +232,104 @@ class DriverLocationController {
         "name phone profilePhoto email",
       );
 
-      res.json({
+      return res.json({
         success: true,
         locations,
         count: locations.length,
       });
     } catch (error) {
-      console.error("Erro ao buscar localizações:", error);
-      res.status(500).json({
-        error: "Erro ao buscar localizações",
-        details: error.message,
-      });
+      console.error("Erro ao buscar localizacoes:", error);
+      return sendError(res, 500, "Erro ao buscar localizacoes");
     }
   }
 
-  // Buscar motoristas próximos (para debug/admin)
   async getNearby(req, res) {
     try {
-      const {
-        latitude,
-        longitude,
-        maxDistance = 5000,
-        vehicleType,
-      } = req.query;
+      if (String(req.user?.userType || "").toLowerCase() !== "admin") {
+        return sendError(res, 403, "Apenas admin pode usar busca de proximidade");
+      }
 
-      if (!latitude || !longitude) {
-        return res.status(400).json({
-          error: "Latitude e longitude são obrigatórios",
-        });
+      const { latitude, longitude, maxDistance = 5000, vehicleType } = req.query;
+
+      const latValue = parseCoordinate(latitude, -90, 90);
+      const lngValue = parseCoordinate(longitude, -180, 180);
+      if (latValue === null || lngValue === null) {
+        return sendError(res, 400, "Latitude e longitude invalidas");
+      }
+
+      const distanceValue = Number(maxDistance);
+      if (!Number.isFinite(distanceValue) || distanceValue <= 0) {
+        return sendError(res, 400, "Distancia maxima invalida");
+      }
+
+      let normalizedVehicleType;
+      if (vehicleType !== undefined) {
+        normalizedVehicleType = normalizeVehicleType(vehicleType);
+        if (!normalizedVehicleType) {
+          return sendError(res, 400, "Tipo de veiculo invalido");
+        }
       }
 
       const drivers = await DriverLocation.findNearby(
-        parseFloat(latitude),
-        parseFloat(longitude),
-        parseInt(maxDistance),
-        vehicleType,
+        latValue,
+        lngValue,
+        Math.floor(distanceValue),
+        normalizedVehicleType,
       ).populate("driverId", "name phone profilePhoto");
 
-      res.json({
+      return res.json({
         count: drivers.length,
         drivers,
       });
     } catch (error) {
-      console.error("Erro ao buscar motoristas próximos:", error);
-      res.status(500).json({
-        error: "Erro ao buscar motoristas próximos",
-        details: error.message,
-      });
+      console.error("Erro ao buscar motoristas proximos:", error);
+      return sendError(res, 500, "Erro ao buscar motoristas proximos");
     }
   }
 
-  // Atualizar status do motorista (online/offline)
   async updateStatus(req, res) {
     try {
+      if (!isDriverOrAdmin(req)) {
+        return sendError(res, 403, "Apenas motoristas podem atualizar status");
+      }
+
       const driverId = req.user.id;
       const { status, serviceTypes } = req.body;
 
+      const normalizedStatus = normalizeStatus(status);
+      if (!normalizedStatus) {
+        return sendError(res, 400, "Status de motorista invalido");
+      }
+
+      const normalizedServiceTypes = normalizeServiceTypes(serviceTypes);
+      if (normalizedServiceTypes === null) {
+        return sendError(res, 400, "Tipos de servico invalidos");
+      }
+
+      const updatePayload = {
+        status: normalizedStatus,
+      };
+      if (normalizedServiceTypes) {
+        updatePayload.serviceTypes = normalizedServiceTypes;
+      }
+
       const driverLocation = await DriverLocation.findOneAndUpdate(
         { driverId },
-        {
-          status,
-          ...(serviceTypes && { serviceTypes }),
-        },
-        { new: true },
+        updatePayload,
+        { new: true, runValidators: true },
       );
 
       if (!driverLocation) {
-        return res.status(404).json({
-          error: "Motorista não encontrado. Atualize sua localização primeiro.",
-        });
+        return sendError(res, 404, "Motorista nao encontrado. Atualize sua localizacao primeiro.");
       }
 
-      res.json({
+      return res.json({
         message: "Status atualizado",
         location: driverLocation,
       });
     } catch (error) {
       console.error("Erro ao atualizar status:", error);
-      res.status(500).json({
-        error: "Erro ao atualizar status",
-        details: error.message,
-      });
+      return sendError(res, 500, "Erro ao atualizar status");
     }
   }
 }

@@ -142,6 +142,7 @@ const rideSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: [
+        "scheduled", // Pedido agendado
         "requesting", // Cliente solicitou, buscando motorista
         "driver_assigned", // Motorista atribuído, aguardando aceitação
         "accepted", // Motorista aceitou
@@ -178,6 +179,37 @@ const rideSchema = new mongoose.Schema(
     cancelledAt: Date,
     // Agendamento (futuro)
     scheduledFor: Date,
+    // Negociacao de preco
+    negotiation: {
+      enabled: { type: Boolean, default: false },
+      clientOffer: { type: Number, default: null },
+      suggestedMinPrice: { type: Number, default: null },
+      finalAgreedPrice: { type: Number, default: null },
+      selectedDriverId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        default: null,
+      },
+      selectedAt: Date,
+      offers: [
+        {
+          driverId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+            required: true,
+          },
+          amount: { type: Number, required: true },
+          status: {
+            type: String,
+            enum: ["accepted", "countered", "rejected"],
+            default: "countered",
+          },
+          message: String,
+          createdAt: { type: Date, default: Date.now },
+          updatedAt: Date,
+        },
+      ],
+    },
     // Avaliação
     rating: {
       clientRating: {
@@ -273,6 +305,7 @@ rideSchema.methods.calculateTotal = function () {
 // Método para verificar se pode ser cancelada
 rideSchema.methods.canBeCancelled = function () {
   const cancellableStatuses = [
+    "scheduled",
     "requesting",
     "driver_assigned",
     "accepted",
@@ -295,3 +328,7 @@ rideSchema.methods.calculateCancellationFee = function () {
 const Ride = mongoose.model("Ride", rideSchema);
 
 module.exports = Ride;
+
+
+
+

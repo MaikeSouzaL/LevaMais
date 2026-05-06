@@ -167,6 +167,21 @@ export default function OrderDetailsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Pagamento</Text>
           <Row label="Metodo" value={ride.payment?.method?.type || "-"} />
+          {ride.scheduledFor && (
+            <Row label="Agendada para" value={formatDateTime(ride.scheduledFor)} />
+          )}
+          {ride.negotiation?.enabled && (
+            <Row
+              label="Oferta do cliente"
+              value={formatBRL(ride.negotiation?.clientOffer || 0)}
+            />
+          )}
+          {ride.negotiation?.enabled && ride.negotiation?.finalAgreedPrice && (
+            <Row
+              label="Preco fechado"
+              value={formatBRL(ride.negotiation?.finalAgreedPrice || 0)}
+            />
+          )}
           <Row label="Tarifa base" value={formatBRL(ride.pricing?.basePrice || 0)} />
           <Row label="Distancia" value={formatBRL(ride.pricing?.distancePrice || 0)} />
           <Row label="Taxa de servico" value={formatBRL(ride.pricing?.serviceFee || 0)} />

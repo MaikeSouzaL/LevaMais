@@ -12,6 +12,7 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
 import { ClientScreenHeader, EmptyState } from "../Shared/components";
+import { getNotifications } from "@/services/auth.service";
 
 type NotificationItem = {
   id: string;
@@ -40,45 +41,8 @@ export default function NotificationsCenterScreen() {
       if (isRefresh) setRefreshing(true);
       else setLoading(true);
 
-      // TODO: integrar com endpoint de notificacoes (GET /notifications)
-      await new Promise((r) => setTimeout(r, 600));
-
-      // Mock data para demonstracao
-      const mock: NotificationItem[] = [
-        {
-          id: "1",
-          title: "Corrida concluida",
-          body: "Sua corrida para Av. Paulista foi finalizada. Avalie o motorista!",
-          type: "ride",
-          createdAt: new Date().toISOString(),
-          read: false,
-        },
-        {
-          id: "2",
-          title: "Promocao especial",
-          body: "Use o cupom LEVA10 e ganhe R$ 10 de desconto na proxima corrida!",
-          type: "promo",
-          createdAt: new Date(Date.now() - 86400000).toISOString(),
-          read: true,
-        },
-        {
-          id: "3",
-          title: "Motorista a caminho",
-          body: "Joao esta a caminho da coleta. Chegada estimada em 3 min.",
-          type: "ride",
-          createdAt: new Date(Date.now() - 172800000).toISOString(),
-          read: true,
-        },
-        {
-          id: "4",
-          title: "Pagamento confirmado",
-          body: "Pagamento de R$ 14,90 processado com sucesso pelo cartao de credito.",
-          type: "payment",
-          createdAt: new Date(Date.now() - 259200000).toISOString(),
-          read: true,
-        },
-      ];
-      setNotifications(mock);
+      const items = await getNotifications();
+      setNotifications((items || []) as NotificationItem[]);
     } catch {
       // silent
     } finally {

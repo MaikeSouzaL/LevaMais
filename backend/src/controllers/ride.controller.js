@@ -42,9 +42,141 @@ function sendError(res, status, message, extras = {}) {
   });
 }
 
+const SCHEDULED_DISPATCH_TIMEOUTS = new Map();
+
+function toMoney(value) {
+  return Number(Number(value || 0).toFixed(2));
+}
+
+function parseScheduledDate(rawValue) {
+  if (!rawValue) return null;
+  const value = new Date(rawValue);
+  if (Number.isNaN(value.getTime())) return null;
+  return value;
+}
+
+function isScheduledForFuture(scheduledFor) {
+  if (!scheduledFor) return false;
+  return scheduledFor.getTime() > Date.now() + 60 * 1000;
+}
+
+function calculateSuggestedMinPrice(total) {
+  const safeTotal = Math.max(0, Number(total || 0));
+  return toMoney(safeTotal * 0.8);
+}
+
+function applyFinalPriceOnRide(ride, finalPrice, appFeePercentage) {
+  const total = toMoney(finalPrice);
+  const platformFee = toMoney(total * ((Number(appFeePercentage || 0) || 0) / 100));
+  const driverValue = toMoney(total - platformFee);
+
+  ride.pricing.total = total;
+  ride.pricing.platformFee = platformFee;
+  ride.pricing.driverValue = driverValue;
+
+  if (ride.splitDetails) {
+    const repShare = toMoney(Number(ride.splitDetails.representativeShare || 0));
+    const repRatio =
+      Number(ride.splitDetails.totalAppFee || 0) > 0
+        ? repShare / Number(ride.splitDetails.totalAppFee || 1)
+        : 0;
+    const representativeShare = toMoney(platformFee * repRatio);
+    ride.splitDetails.totalAppFee = platformFee;
+    ride.splitDetails.representativeShare = representativeShare;
+    ride.splitDetails.platformShare = toMoney(platformFee - representativeShare);
+  }
+}
+
 class RideController {
   getNonTerminalStatuses() {
     return NON_TERMINAL_STATUSES;
+  }
+
+  async dispatchRideToNearbyDrivers(ride, io) {
+    if (!io || !ride) return;
+
+    let searchRadius = 15000;
+    try {
+      if (ride.cityId) {
+        const city = await City.findById(ride.cityId).select("searchRadius");
+        if (city?.searchRadius) {
+          searchRadius = city.searchRadius;
+        }
+      }
+    } catch {
+      searchRadius = 15000;
+    }
+
+    const nearbyDrivers = await DriverLocation.findNearby(
+      ride.pickup.latitude,
+      ride.pickup.longitude,
+      searchRadius,
+      ride.vehicleType,
+      50,
+      ride.serviceType,
+    );
+
+    nearbyDrivers.forEach((driver) => {
+      io.to(`driver-${driver.driverId}`).emit(
+        "new-ride-request",
+        buildRideRequestPayload(ride, {
+          distanceToPickup: driver.distanceTo(
+            ride.pickup.latitude,
+            ride.pickup.longitude,
+          ),
+        }),
+      );
+    });
+
+    setTimeout(async () => {
+      const updatedRide = await Ride.findById(ride._id);
+      if (
+        updatedRide &&
+        ["requesting", "driver_assigned"].includes(updatedRide.status)
+      ) {
+        updatedRide.status = "cancelled_no_driver";
+        updatedRide.cancelledAt = new Date();
+        await updatedRide.save();
+
+        io.to(`client-${ride.clientId._id || ride.clientId}`).emit("ride-cancelled", {
+          rideId: ride._id,
+          reason: "no_driver_found",
+        });
+      }
+    }, 60000);
+  }
+
+  scheduleRideDispatch(rideId, scheduledFor, io) {
+    const key = String(rideId);
+    const previous = SCHEDULED_DISPATCH_TIMEOUTS.get(key);
+    if (previous) {
+      clearTimeout(previous);
+      SCHEDULED_DISPATCH_TIMEOUTS.delete(key);
+    }
+
+    const delay = Math.max(0, new Date(scheduledFor).getTime() - Date.now());
+    const timeoutRef = setTimeout(async () => {
+      try {
+        const ride = await Ride.findById(rideId)
+          .populate("clientId", "name phone profilePhoto")
+          .populate("driverId", "name phone profilePhoto")
+          .populate("purposeId");
+
+        if (!ride || ride.status !== "scheduled") return;
+
+        ride.status = "requesting";
+        ride.requestedAt = new Date();
+        await ride.save();
+
+        await this.dispatchRideToNearbyDrivers(ride, io);
+      } catch (error) {
+        console.error("Erro ao disparar corrida agendada:", error);
+      } finally {
+        SCHEDULED_DISPATCH_TIMEOUTS.delete(key);
+      }
+    }, delay);
+
+    SCHEDULED_DISPATCH_TIMEOUTS.set(key, timeoutRef);
   }
   // Buscar corrida ativa do usuÃ¡rio autenticado
   async getActive(req, res) {
@@ -134,9 +266,10 @@ class RideController {
       const statuses = NON_TERMINAL_STATUSES;
 
       if (userType === "client") {
+        const clientStatuses = [...NON_TERMINAL_STATUSES, "scheduled"];
         const rides = await Ride.find({
           clientId: userId,
-          status: { $in: statuses },
+          status: { $in: clientStatuses },
         })
           .sort({ createdAt: -1 })
           .populate("clientId", "name phone profilePhoto")
@@ -209,6 +342,10 @@ class RideController {
         serviceType: { $in: serviceTypes },
         requestedAt: { $gte: requestedAfter },
         "rejectedBy.driverId": { $ne: driverId },
+        $or: [
+          { status: "requesting", driverId: null },
+          { status: "driver_assigned", driverId },
+        ],
       })
         .sort({ requestedAt: -1 })
         .limit(30)
@@ -274,6 +411,8 @@ class RideController {
         duration,
         details,
         payment,
+        scheduledFor,
+        negotiation,
       } = req.body;
 
       const clientId = req.user.id; // Do middleware de autenticaÃ§Ã£o
@@ -281,6 +420,11 @@ class RideController {
       // ValidaÃ§Ãµes bÃ¡sicas
       if (!pickup || !dropoff) {
         return sendError(res, 400, "Origem e destino sao obrigatorios");
+      }
+
+      const scheduledDate = parseScheduledDate(scheduledFor);
+      if (scheduledFor && !scheduledDate) {
+        return sendError(res, 400, "Data de agendamento invalida");
       }
 
       // Resolver purposeId (o app pode mandar slug, ex.: "documents")
@@ -330,6 +474,13 @@ class RideController {
       }
       const appFeePercentage = config.appFeePercentage || 20;
 
+      const suggestedMinPrice = calculateSuggestedMinPrice(pricing?.total);
+      const requestedOffer = Number(negotiation?.clientOffer);
+      const wantsNegotiation = Boolean(negotiation?.enabled) && Number.isFinite(requestedOffer);
+      if (wantsNegotiation && requestedOffer <= 0) {
+        return sendError(res, 400, "Oferta do cliente invalida");
+      }
+
       // 2. Calcula Taxa da Plataforma (Valor Bruto que sai do motorista)
       const total = pricing.total;
       const platformFee = total * (appFeePercentage / 100);
@@ -376,8 +527,16 @@ class RideController {
         distance,
         duration,
         details,
-        status: "requesting",
+        status: isScheduledForFuture(scheduledDate) ? "scheduled" : "requesting",
         requestedAt: new Date(),
+        scheduledFor: scheduledDate || undefined,
+        negotiation: {
+          enabled: wantsNegotiation,
+          clientOffer: wantsNegotiation ? toMoney(requestedOffer) : null,
+          suggestedMinPrice: wantsNegotiation ? suggestedMinPrice : null,
+          finalAgreedPrice: null,
+          offers: [],
+        },
         cityId: cityId, // Importante salvar a cidade
       });
 
@@ -399,70 +558,19 @@ class RideController {
 
       // Iniciar busca por motorista (via WebSocket)
       const io = req.app.get("io");
-      if (io) {
-        // Buscar raio de busca configurado na cidade (ou usar 15km padrÃ£o)
-        let searchRadius = 15000;
-        try {
-          if (cityId) {
-            const city = await City.findById(cityId).select("searchRadius");
-            if (city?.searchRadius) {
-              searchRadius = city.searchRadius;
-            }
-          }
-        } catch (e) {
-          console.log("Erro ao buscar raio da cidade, usando padrÃ£o 15km");
-        }
-
-        // Encontrar motoristas disponÃ­veis na regiÃ£o (raio dinÃ¢mico por cidade)
-        const nearbyDrivers = await DriverLocation.findNearby(
-          pickup.latitude,
-          pickup.longitude,
-          searchRadius, 
-          vehicleType,
-          50, // Limite para broadcast
-          serviceType,
-        );
-
-        console.log(
-          `ðŸ” Broadcast: Enviando para ${nearbyDrivers.length} motoristas na regiÃ£o`,
-        );
-
-        // Broadcast: Notifica todos os motoristas disponÃ­veis ao mesmo tempo
-        nearbyDrivers.forEach((driver) => {
-          io.to(`driver-${driver.driverId}`).emit(
-            "new-ride-request",
-            buildRideRequestPayload(ride, {
-              distanceToPickup: driver.distanceTo(
-                ride.pickup.latitude,
-                ride.pickup.longitude,
-              ),
-            }),
-          );
-        });
-
-        // Definir timeout para cancelar se nenhum motorista aceitar (ex: 60 segundos)
-        setTimeout(async () => {
-          const updatedRide = await Ride.findById(ride._id);
-          if (
-            updatedRide &&
-            ["requesting", "driver_assigned"].includes(updatedRide.status)
-          ) {
-            updatedRide.status = "cancelled_no_driver";
-            updatedRide.cancelledAt = new Date();
-            await updatedRide.save();
-
-            // Notificar cliente
-            io.to(`client-${ride.clientId._id}`).emit("ride-cancelled", {
-              rideId: ride._id,
-              reason: "no_driver_found",
-            });
-          }
-        }, 60000);
+      if (io && ride.status === "scheduled" && scheduledDate) {
+        this.scheduleRideDispatch(ride._id, scheduledDate, io);
+      } else if (io) {
+        await this.dispatchRideToNearbyDrivers(ride, io);
       }
 
       res.status(201).json({
         message: "Corrida solicitada com sucesso",
         ride,
+        negotiationWarning:
+          wantsNegotiation && Number(requestedOffer) < Number(suggestedMinPrice)
+            ? `Oferta abaixo do sugerido (${suggestedMinPrice.toFixed(2)})`
+            : null,
       });
     } catch (error) {
       console.error("Erro ao criar corrida:", error);
@@ -530,6 +638,18 @@ class RideController {
         );
 
         return sendError(res, 400, "Corrida nao esta mais disponivel");
+      }
+
+      if (ride.negotiation?.enabled && !ride.negotiation?.finalAgreedPrice) {
+        await DriverLocation.findOneAndUpdate(
+          { driverId, currentRideId: rideId },
+          { status: "available", currentRideId: null },
+        );
+        return sendError(
+          res,
+          400,
+          "Aguardando cliente selecionar a oferta antes do aceite final",
+        );
       }
 
       // Popular dados
@@ -651,6 +771,233 @@ class RideController {
     }
   }
 
+  async listOffers(req, res) {
+    try {
+      const { rideId } = req.params;
+      const userId = String(req.user.id);
+      const userType = String(req.user.userType || "");
+
+      const ride = await Ride.findById(rideId)
+        .populate("clientId", "name")
+        .populate("driverId", "name")
+        .populate("negotiation.offers.driverId", "name profilePhoto");
+
+      if (!ride) return sendError(res, 404, "Corrida nao encontrada");
+
+      const isClient = String(ride.clientId?._id || ride.clientId) === userId;
+      const isDriver = String(ride.driverId?._id || ride.driverId) === userId;
+      const isParticipant = isClient || isDriver || userType === "driver";
+      if (!isParticipant) {
+        return sendError(res, 403, "Sem permissao para esta corrida");
+      }
+
+      const negotiation = ride.negotiation || {};
+      const offers = Array.isArray(negotiation.offers) ? negotiation.offers : [];
+
+      let responseOffers = offers;
+      if (!isClient && userType === "driver") {
+        responseOffers = offers.filter(
+          (item) => String(item.driverId?._id || item.driverId) === userId,
+        );
+      }
+
+      responseOffers.sort((a, b) => Number(a.amount || 0) - Number(b.amount || 0));
+
+      return res.json({
+        success: true,
+        negotiation: {
+          enabled: Boolean(negotiation.enabled),
+          clientOffer: negotiation.clientOffer ?? null,
+          suggestedMinPrice: negotiation.suggestedMinPrice ?? null,
+          finalAgreedPrice: negotiation.finalAgreedPrice ?? null,
+          selectedDriverId: negotiation.selectedDriverId ?? null,
+        },
+        offers: responseOffers,
+      });
+    } catch (error) {
+      console.error("Erro ao listar ofertas:", error);
+      return sendError(res, 500, "Erro ao listar ofertas", {
+        details: error.message,
+      });
+    }
+  }
+
+  async submitOfferResponse(req, res) {
+    try {
+      const { rideId } = req.params;
+      const driverId = String(req.user.id);
+
+      if (req.user.userType !== "driver") {
+        return sendError(res, 403, "Apenas motoristas podem responder ofertas");
+      }
+
+      const ride = await Ride.findById(rideId).populate("clientId", "name");
+      if (!ride) return sendError(res, 404, "Corrida nao encontrada");
+
+      if (!["requesting", "driver_assigned"].includes(String(ride.status || ""))) {
+        return sendError(res, 400, "Corrida nao esta aberta para negociacao");
+      }
+
+      if (!ride.negotiation?.enabled) {
+        return sendError(res, 400, "Negociacao nao habilitada para esta corrida");
+      }
+
+      const action = String(req.body?.action || "").toLowerCase();
+      const message = String(req.body?.message || "").slice(0, 300);
+      const now = new Date();
+      const clientOffer = Number(ride.negotiation.clientOffer || ride.pricing.total || 0);
+      const providedAmount = Number(req.body?.amount);
+
+      let status = "countered";
+      let amount = clientOffer;
+
+      if (action === "accept") {
+        status = "accepted";
+        amount = clientOffer;
+      } else if (action === "counter") {
+        if (!Number.isFinite(providedAmount) || providedAmount <= 0) {
+          return sendError(res, 400, "Valor de contraoferta invalido");
+        }
+        status = "countered";
+        amount = toMoney(providedAmount);
+      } else if (action === "reject") {
+        status = "rejected";
+        amount = clientOffer;
+      } else {
+        return sendError(res, 400, "Acao invalida");
+      }
+
+      ride.negotiation.offers = Array.isArray(ride.negotiation.offers)
+        ? ride.negotiation.offers
+        : [];
+
+      const existingIndex = ride.negotiation.offers.findIndex(
+        (item) => String(item.driverId) === driverId,
+      );
+
+      const payload = {
+        driverId,
+        amount,
+        status,
+        message,
+        createdAt:
+          existingIndex >= 0
+            ? ride.negotiation.offers[existingIndex].createdAt || now
+            : now,
+        updatedAt: now,
+      };
+
+      if (existingIndex >= 0) {
+        ride.negotiation.offers[existingIndex] = payload;
+      } else {
+        ride.negotiation.offers.push(payload);
+      }
+
+      await ride.save();
+      await ride.populate("negotiation.offers.driverId", "name profilePhoto");
+
+      const io = req.app.get("io");
+      if (io) {
+        io.to(`client-${ride.clientId._id || ride.clientId}`).emit("ride-offers-updated", {
+          rideId: ride._id,
+        });
+      }
+
+      return res.json({
+        success: true,
+        message: "Oferta enviada",
+        offer: payload,
+      });
+    } catch (error) {
+      console.error("Erro ao enviar oferta:", error);
+      return sendError(res, 500, "Erro ao enviar oferta", {
+        details: error.message,
+      });
+    }
+  }
+
+  async selectOffer(req, res) {
+    try {
+      const { rideId } = req.params;
+      const clientId = String(req.user.id);
+      const selectedDriverId = String(req.body?.driverId || "");
+
+      if (!selectedDriverId) {
+        return sendError(res, 400, "Motorista da oferta e obrigatorio");
+      }
+
+      const ride = await Ride.findById(rideId)
+        .populate("clientId", "name")
+        .populate("negotiation.offers.driverId", "name profilePhoto");
+
+      if (!ride) return sendError(res, 404, "Corrida nao encontrada");
+      if (String(ride.clientId?._id || ride.clientId) !== clientId) {
+        return sendError(res, 403, "Somente o cliente pode selecionar oferta");
+      }
+      if (!ride.negotiation?.enabled) {
+        return sendError(res, 400, "Negociacao nao habilitada para esta corrida");
+      }
+      if (!["requesting", "driver_assigned"].includes(String(ride.status || ""))) {
+        return sendError(res, 400, "Corrida nao esta aberta para selecao de oferta");
+      }
+
+      const offer = (ride.negotiation.offers || []).find(
+        (item) => String(item.driverId?._id || item.driverId) === selectedDriverId,
+      );
+
+      if (!offer) {
+        return sendError(res, 404, "Oferta do motorista nao encontrada");
+      }
+
+      if (!["accepted", "countered"].includes(String(offer.status || ""))) {
+        return sendError(res, 400, "Oferta nao pode ser selecionada");
+      }
+
+      const finalPrice = toMoney(offer.amount || ride.pricing.total);
+      applyFinalPriceOnRide(
+        ride,
+        finalPrice,
+        Number(ride.splitDetails?.platformConfigUsed || 20),
+      );
+
+      ride.negotiation.finalAgreedPrice = finalPrice;
+      ride.negotiation.selectedDriverId = selectedDriverId;
+      ride.negotiation.selectedAt = new Date();
+      ride.driverId = selectedDriverId;
+      ride.status = "driver_assigned";
+      ride.requestedAt = new Date();
+
+      await ride.save();
+      await ride.populate("driverId", "name phone profilePhoto");
+
+      const io = req.app.get("io");
+      if (io) {
+        io.to(`driver-${selectedDriverId}`).emit(
+          "new-ride-request",
+          buildRideRequestPayload(ride, {
+            negotiationSelected: true,
+          }),
+        );
+        io.to(`client-${ride.clientId._id || ride.clientId}`).emit("ride-offer-selected", {
+          rideId: ride._id,
+          driverId: selectedDriverId,
+          finalPrice,
+        });
+      }
+
+      return res.json({
+        success: true,
+        message: "Oferta selecionada com sucesso",
+        ride,
+      });
+    } catch (error) {
+      console.error("Erro ao selecionar oferta:", error);
+      return sendError(res, 500, "Erro ao selecionar oferta", {
+        details: error.message,
+      });
+    }
+  }
+
   // Cancelar corrida (cliente ou motorista)
   async cancel(req, res) {
     try {
@@ -723,6 +1070,67 @@ class RideController {
     } catch (error) {
       console.error("Erro ao cancelar corrida:", error);
       return sendError(res, 500, "Erro ao cancelar corrida", { details: error.message });
+    }
+  }
+
+  async addTip(req, res) {
+    try {
+      const { rideId } = req.params;
+      const userId = String(req.user.id || "");
+      const amount = Number(req.body?.amount);
+
+      if (!Number.isFinite(amount) || amount <= 0) {
+        return sendError(res, 400, "Valor de gorjeta invalido");
+      }
+
+      const roundedAmount = Number(amount.toFixed(2));
+      if (roundedAmount > 500) {
+        return sendError(res, 400, "Valor de gorjeta acima do permitido");
+      }
+
+      const ride = await Ride.findById(rideId);
+      if (!ride) {
+        return sendError(res, 404, "Corrida nao encontrada");
+      }
+
+      if (String(ride.clientId || "") !== userId) {
+        return sendError(res, 403, "Voce nao tem permissao para enviar gorjeta nesta corrida");
+      }
+
+      if (ride.status !== "completed") {
+        return sendError(res, 400, "A gorjeta so pode ser enviada apos a corrida finalizada");
+      }
+
+      if (Number(ride?.rating?.clientRating?.tips || 0) > 0) {
+        return sendError(res, 400, "Gorjeta ja enviada para esta corrida");
+      }
+
+      ride.rating = ride.rating || {};
+      ride.rating.clientRating = ride.rating.clientRating || {};
+      ride.rating.clientRating.tips = roundedAmount;
+      ride.rating.clientRating.createdAt =
+        ride.rating.clientRating.createdAt || new Date();
+
+      await ride.save();
+
+      const io = req.app.get("io");
+      if (io && ride.driverId) {
+        io.to(`driver-${ride.driverId}`).emit("ride-tip-added", {
+          rideId: ride._id,
+          amount: roundedAmount,
+        });
+      }
+
+      return res.json({
+        success: true,
+        message: "Gorjeta enviada com sucesso",
+        tip: roundedAmount,
+      });
+    } catch (error) {
+      console.error("Erro ao enviar gorjeta:", error);
+      return sendError(res, 500, "Erro ao enviar gorjeta", {
+        details: error.message,
+      });
     }
   }
 
@@ -1407,6 +1815,8 @@ class RideController {
 }
 
 function buildRideRequestPayload(ride, extras = {}) {
+  const negotiation = ride.negotiation || {};
+  const enabled = Boolean(negotiation.enabled);
   const client = ride.clientId || {};
   return {
     rideId: ride._id,
@@ -1418,7 +1828,17 @@ function buildRideRequestPayload(ride, extras = {}) {
     serviceType: ride.serviceType,
     vehicleType: ride.vehicleType,
     requestedAt: ride.requestedAt,
+    scheduledFor: ride.scheduledFor || null,
     distanceToPickup: extras.distanceToPickup,
+    negotiation: enabled
+      ? {
+          enabled: true,
+          clientOffer: negotiation.clientOffer ?? null,
+          suggestedMinPrice: negotiation.suggestedMinPrice ?? null,
+          finalAgreedPrice: negotiation.finalAgreedPrice ?? null,
+        }
+      : { enabled: false },
+    negotiationSelected: Boolean(extras.negotiationSelected),
     client: {
       name: client.name,
       phone: client.phone,
@@ -1479,3 +1899,5 @@ function isTimeInRange(current, start, end) {
 ratingProofMixin.attach(RideController, { Ride, DriverLocation });
 
 module.exports = new RideController();
+
+

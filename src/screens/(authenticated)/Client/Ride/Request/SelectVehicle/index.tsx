@@ -94,7 +94,11 @@ export default function SelectVehicleScreen() {
   const handleContinue = () => {
     if (!selectedType) return;
 
-    if (!params?.dropoff?.latitude) {
+    const hasDropoffCoords =
+      Number.isFinite(Number(params?.dropoff?.latitude)) &&
+      Number.isFinite(Number(params?.dropoff?.longitude));
+
+    if (!hasDropoffCoords) {
       navigation.navigate("LocationPicker", {
         initialVehicle: selectedType,
         selectionMode: "home_dropoff",
@@ -143,7 +147,10 @@ export default function SelectVehicleScreen() {
             <Text style={styles.routeText} numberOfLines={1}>{summaryLines.dropoff}</Text>
           </View>
 
-          {!params?.dropoff?.latitude && (
+          {!(
+            Number.isFinite(Number(params?.dropoff?.latitude)) &&
+            Number.isFinite(Number(params?.dropoff?.longitude))
+          ) && (
             <TouchableOpacity
               style={styles.missingDestinationBtn}
               onPress={() =>

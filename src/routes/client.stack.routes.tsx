@@ -28,6 +28,13 @@ import TipDriverScreen from "../screens/(authenticated)/Client/Ride/Completion/T
 import NotificationsCenterScreen from "../screens/(authenticated)/Client/Notifications/NotificationsCenter";
 import SearchingDriverScreen from "../screens/(authenticated)/Client/Ride/SearchingDriver";
 import ActiveOrdersScreen from "../screens/(authenticated)/Client/Orders/ActiveOrders";
+import RideOffersMarketplaceScreen from "../screens/(authenticated)/Client/Orders/RideOffersMarketplaceScreen";
+import PaymentsCenterScreen from "../screens/(authenticated)/Client/Profile/PaymentsCenter";
+import CouponsScreen from "../screens/(authenticated)/Client/Profile/CouponsScreen";
+import ReceiptsScreen from "../screens/(authenticated)/Client/Profile/ReceiptsScreen";
+import PrivacyDataScreen from "../screens/(authenticated)/Client/Profile/PrivacyDataScreen";
+import InviteFriendsScreen from "../screens/(authenticated)/Client/Profile/InviteFriendsScreen";
+import SupportCenterScreen from "../screens/(authenticated)/Client/Profile/SupportCenterScreen";
 
 type ClientStackRoutesProps = {
   initialRideId?: string | null;
@@ -61,7 +68,15 @@ export default function ClientStackRoutes({
       <Stack.Screen name="Payment" component={PaymentScreen} />
       <Stack.Screen name="SearchingDriver" component={SearchingDriverScreen} />
       <Stack.Screen name="ActiveOrders" component={ActiveOrdersScreen} />
-      <Stack.Screen name="RideTracking" component={RideTrackingScreen} />
+      <Stack.Screen
+        name="RideOffersMarketplace"
+        component={RideOffersMarketplaceScreen}
+      />
+      <Stack.Screen
+        name="RideTracking"
+        component={RideTrackingScreen}
+        initialParams={initialRideId ? { rideId: initialRideId } : undefined}
+      />
       <Stack.Screen name="Chat" component={ChatScreen} />
       <Stack.Screen name="ClientCancelRide" component={CancelRideScreen} />
       <Stack.Screen name="CancelFee" component={CancelFeeScreen} />
@@ -78,6 +93,12 @@ export default function ClientStackRoutes({
         name="NotificationsCenter"
         component={NotificationsCenterScreen}
       />
+      <Stack.Screen name="PaymentsCenter" component={PaymentsCenterScreen} />
+      <Stack.Screen name="Coupons" component={CouponsScreen} />
+      <Stack.Screen name="Receipts" component={ReceiptsScreen} />
+      <Stack.Screen name="PrivacyData" component={PrivacyDataScreen} />
+      <Stack.Screen name="InviteFriends" component={InviteFriendsScreen} />
+      <Stack.Screen name="SupportCenter" component={SupportCenterScreen} />
     </Stack.Navigator>
   );
 }

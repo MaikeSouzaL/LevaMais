@@ -81,7 +81,6 @@ const driverLocationSchema = new mongoose.Schema(
 
 // Índice geoespacial para busca por proximidade
 driverLocationSchema.index({ location: "2dsphere" });
-driverLocationSchema.index({ driverId: 1 });
 driverLocationSchema.index({ status: 1, vehicleType: 1, serviceTypes: 1 });
 
 // Middleware para atualizar lastUpdated

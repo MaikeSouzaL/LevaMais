@@ -17,6 +17,19 @@ export interface StatementItem {
   status?: string;
 }
 
+export interface StatementPagination {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNext: boolean;
+}
+
+export interface StatementResponse {
+  items: StatementItem[];
+  pagination: StatementPagination;
+}
+
 export interface Balance {
   totalEarnings: number;
   totalWithdrawn: number;
@@ -47,11 +60,22 @@ class WalletService {
   /**
    * Get statement (extrato)
    */
-  async getStatement(page = 1, limit = 50): Promise<StatementItem[]> {
+  async getStatement(page = 1, limit = 50): Promise<StatementResponse> {
     const response = await api.get("/wallet/statement", {
       params: { page, limit },
     });
-    return response.data;
+
+    const payload = response.data || {};
+    const items = Array.isArray(payload) ? payload : payload.items || [];
+    const pagination = payload.pagination || {
+      page,
+      limit,
+      total: items.length,
+      totalPages: 1,
+      hasNext: false,
+    };
+
+    return { items, pagination };
   }
 }
 

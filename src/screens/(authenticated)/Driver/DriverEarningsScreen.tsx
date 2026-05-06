@@ -275,6 +275,37 @@ export default function DriverEarningsScreen() {
               <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>EXTRATO</Text>
             </TouchableOpacity>
           </View>
+
+          <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
+            <TouchableOpacity
+              onPress={() => navigation.navigate("DriverPayouts")}
+              style={{
+                flex: 1,
+                backgroundColor: "rgba(255,255,255,0.06)",
+                paddingVertical: 10,
+                borderRadius: 12,
+                alignItems: "center",
+                borderWidth: 1,
+                borderColor: "rgba(255,255,255,0.1)",
+              }}
+            >
+              <Text style={{ color: "#fff", fontWeight: "700" }}>Repasses</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => navigation.navigate("DriverIncentives")}
+              style={{
+                flex: 1,
+                backgroundColor: "rgba(2,222,149,0.14)",
+                paddingVertical: 10,
+                borderRadius: 12,
+                alignItems: "center",
+                borderWidth: 1,
+                borderColor: "rgba(2,222,149,0.35)",
+              }}
+            >
+              <Text style={{ color: "#02de95", fontWeight: "800" }}>Incentivos</Text>
+            </TouchableOpacity>
+          </View>
         </LinearGradient>
 
         <View style={{ marginTop: 24 }}>

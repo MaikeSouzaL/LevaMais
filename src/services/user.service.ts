@@ -6,6 +6,8 @@ export type UserProfile = {
   email: string;
   phone?: string;
   city?: string;
+  cpf?: string;
+  cnpj?: string;
   userType?: "client" | "driver" | "admin";
   profilePhoto?: string;
   preferredPayment?: "pix" | "cash" | "card";

@@ -199,6 +199,9 @@ export default function HomeScreen() {
   const handleSelectFlow = useCallback(
     (vehicleId: string, serviceId?: string) => {
       const nextPickup = ensurePickup();
+      const hasDropoffCoords =
+        Number.isFinite(Number(dropoff?.latitude)) &&
+        Number.isFinite(Number(dropoff?.longitude));
 
       if (!nextPickup) {
         navigation.navigate("LocationPicker", {
@@ -208,7 +211,7 @@ export default function HomeScreen() {
         return;
       }
 
-      if (!dropoff?.latitude || !dropoff?.longitude) {
+      if (!hasDropoffCoords) {
         navigation.navigate("LocationPicker", {
           selectionMode: "home_dropoff",
           returnScreen: "Home",

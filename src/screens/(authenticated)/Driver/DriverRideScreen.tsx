@@ -88,7 +88,10 @@ export default function DriverRideScreen() {
   const canStart = status === "arrived";
   const canComplete = status === "in_progress";
   const canCancel =
-    status === "accepted" || status === "arrived" || status === "in_progress";
+    status === "accepted" ||
+    status === "driver_arriving" ||
+    status === "arrived" ||
+    status === "in_progress";
 
   const isDelivery = ride?.serviceType === "delivery";
 
@@ -546,7 +549,10 @@ export default function DriverRideScreen() {
     setActionLoading("cancel");
     try {
       await rideService.cancel(rideId, reasonId);
-      Toast.show({ type: "success", text1: "Entrega cancelada" });
+      Toast.show({
+        type: "success",
+        text1: isDelivery ? "Entrega cancelada" : "Corrida cancelada",
+      });
       setCancelModalOpen(false);
       setSelectedCancelReason(null);
       try {
@@ -571,19 +577,25 @@ export default function DriverRideScreen() {
     latitudeDelta: 0.02,
     longitudeDelta: 0.02,
   };
+  const pickupLat = Number(ride?.pickup?.latitude);
+  const pickupLng = Number(ride?.pickup?.longitude);
+  const dropoffLat = Number(ride?.dropoff?.latitude);
+  const dropoffLng = Number(ride?.dropoff?.longitude);
+  const hasPickupCoords = Number.isFinite(pickupLat) && Number.isFinite(pickupLng);
+  const hasDropoffCoords = Number.isFinite(dropoffLat) && Number.isFinite(dropoffLng);
 
   const targetCoords =
     status === "in_progress"
-      ? ride?.dropoff?.latitude && ride?.dropoff?.longitude
+      ? hasDropoffCoords
         ? {
-            latitude: ride.dropoff.latitude,
-            longitude: ride.dropoff.longitude,
+            latitude: dropoffLat,
+            longitude: dropoffLng,
           }
         : null
-      : ride?.pickup?.latitude && ride?.pickup?.longitude
+      : hasPickupCoords
         ? {
-            latitude: ride.pickup.latitude,
-            longitude: ride.pickup.longitude,
+            latitude: pickupLat,
+            longitude: pickupLng,
           }
         : null;
 
@@ -672,24 +684,24 @@ export default function DriverRideScreen() {
               strokeColor="#02de95"
             />
           ) : null}
-          {!!ride?.pickup?.latitude && !!ride?.pickup?.longitude && (
+          {hasPickupCoords && (
             <Marker
               coordinate={{
-                latitude: ride.pickup.latitude,
-                longitude: ride.pickup.longitude,
+                latitude: pickupLat,
+                longitude: pickupLng,
               }}
               title="Coleta"
               tracksViewChanges={false}
               anchor={{ x: 0.5, y: 1 }}
             >
-              <MapMarker type={getClientMarkerType(ride.serviceType, ride.purposeId)} />
+              <MapMarker type={getClientMarkerType(ride?.serviceType, ride?.purposeId)} />
             </Marker>
           )}
-          {!!ride?.dropoff?.latitude && !!ride?.dropoff?.longitude && (
+          {hasDropoffCoords && (
             <Marker
               coordinate={{
-                latitude: ride.dropoff.latitude,
-                longitude: ride.dropoff.longitude,
+                latitude: dropoffLat,
+                longitude: dropoffLng,
               }}
               title="Destino"
               tracksViewChanges={false}

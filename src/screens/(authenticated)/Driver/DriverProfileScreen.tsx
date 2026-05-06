@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { View, Text } from "react-native";
+import { TouchableOpacity, View, Text } from "react-native";
 import Toast from "react-native-toast-message";
+import { MaterialIcons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
 
 import SectionCard from "../../../components/ui/SectionCard";
 import TextField from "../../../components/ui/TextField";
@@ -9,6 +11,7 @@ import userService from "../../../services/user.service";
 import { DriverScreen } from "./components/DriverScreen";
 
 export default function DriverProfileScreen() {
+  const navigation = useNavigation<any>();
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -74,6 +77,31 @@ export default function DriverProfileScreen() {
         <TextField label="Cidade" value={city} onChangeText={setCity} />
       </SectionCard>
 
+      <SectionCard>
+        <Text style={{ color: "#fff", fontWeight: "900", marginBottom: 8 }}>
+          Atalhos de conta
+        </Text>
+
+        <QuickAccessRow
+          icon="description"
+          title="Documentos"
+          subtitle="Status da sua documentacao"
+          onPress={() => navigation.navigate("DriverDocuments")}
+        />
+        <QuickAccessRow
+          icon="tune"
+          title="Preferencias"
+          subtitle="Corridas, entregas e aceite"
+          onPress={() => navigation.navigate("DriverWorkPreferences")}
+        />
+        <QuickAccessRow
+          icon="star"
+          title="Avaliacoes"
+          subtitle="Notas e feedback dos clientes"
+          onPress={() => navigation.navigate("DriverRatings")}
+        />
+      </SectionCard>
+
       <ActionButton
         title={loading ? "Salvando..." : "Salvar"}
         variant="primary"
@@ -81,5 +109,34 @@ export default function DriverProfileScreen() {
         disabled={!canSave || loading}
       />
     </DriverScreen>
+  );
+}
+
+function QuickAccessRow(props: {
+  icon: keyof typeof MaterialIcons.glyphMap;
+  title: string;
+  subtitle: string;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      activeOpacity={0.85}
+      onPress={props.onPress}
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+        paddingVertical: 10,
+      }}
+    >
+      <MaterialIcons name={props.icon} size={20} color="#02de95" />
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: "#fff", fontWeight: "800" }}>{props.title}</Text>
+        <Text style={{ color: "rgba(255,255,255,0.6)", marginTop: 2 }}>
+          {props.subtitle}
+        </Text>
+      </View>
+      <MaterialIcons name="chevron-right" size={20} color="rgba(255,255,255,0.5)" />
+    </TouchableOpacity>
   );
 }

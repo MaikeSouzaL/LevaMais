@@ -130,7 +130,14 @@ export default function ServicePurposeScreen() {
   const handleContinue = async () => {
     if (!selectedPurposeId || !vehicleType) return;
 
-    if (!pickup?.latitude || !dropoff?.latitude) {
+    const hasPickupCoords =
+      Number.isFinite(Number(pickup?.latitude)) &&
+      Number.isFinite(Number(pickup?.longitude));
+    const hasDropoffCoords =
+      Number.isFinite(Number(dropoff?.latitude)) &&
+      Number.isFinite(Number(dropoff?.longitude));
+
+    if (!hasPickupCoords || !hasDropoffCoords) {
       navigation.navigate("LocationPicker", {
         initialVehicle: vehicleType,
         initialService: selectedPurposeId,
@@ -140,19 +147,22 @@ export default function ServicePurposeScreen() {
       return;
     }
 
+    const safePickup = pickup as NonNullable<RouteParams["pickup"]>;
+    const safeDropoff = dropoff as NonNullable<RouteParams["dropoff"]>;
+
     try {
       setCalculating(true);
 
       const calculatePayload = {
         pickup: {
-          address: pickup.address || "Origem",
-          latitude: Number(pickup.latitude),
-          longitude: Number(pickup.longitude),
+          address: safePickup.address || "Origem",
+          latitude: Number(safePickup.latitude),
+          longitude: Number(safePickup.longitude),
         },
         dropoff: {
-          address: dropoff.address || "Destino",
-          latitude: Number(dropoff.latitude),
-          longitude: Number(dropoff.longitude),
+          address: safeDropoff.address || "Destino",
+          latitude: Number(safeDropoff.latitude),
+          longitude: Number(safeDropoff.longitude),
         },
         vehicleType: resolveVehicleTypeForApi(vehicleType),
         cityId:
@@ -176,15 +186,15 @@ export default function ServicePurposeScreen() {
           serviceMode: selectedPurpose?.serviceMode,
         }),
         purposeId: selectedPurposeId,
-        pickupAddress: pickup.address || "Origem",
+        pickupAddress: safePickup.address || "Origem",
         pickupLatLng: {
-          latitude: Number(pickup.latitude),
-          longitude: Number(pickup.longitude),
+          latitude: Number(safePickup.latitude),
+          longitude: Number(safePickup.longitude),
         },
-        dropoffAddress: dropoff.address || "Destino",
+        dropoffAddress: safeDropoff.address || "Destino",
         dropoffLatLng: {
-          latitude: Number(dropoff.latitude),
-          longitude: Number(dropoff.longitude),
+          latitude: Number(safeDropoff.latitude),
+          longitude: Number(safeDropoff.longitude),
         },
         etaMinutes: resp?.duration?.value ? Math.ceil(resp.duration.value / 60) : undefined,
         etaText: resp?.duration?.text || undefined,
