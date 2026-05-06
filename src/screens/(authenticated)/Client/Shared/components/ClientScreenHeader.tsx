@@ -25,7 +25,15 @@ export default function ClientScreenHeader({
             <MaterialIcons name="arrow-back" size={22} color={colors.text.primary} />
           </TouchableOpacity>
         ) : (
-          <View style={styles.backPlaceholder} />
+          <TouchableOpacity style={styles.backButton} onPress={() => {
+            try {
+              navigation.openDrawer();
+            } catch {
+              navigation.navigate("Home");
+            }
+          }}>
+            <MaterialIcons name="menu" size={22} color={colors.text.primary} />
+          </TouchableOpacity>
         )}
       </View>
 

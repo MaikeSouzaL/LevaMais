@@ -399,13 +399,19 @@ class RideController {
         vehicleType: driverLocation.vehicleType,
         serviceType: { $in: serviceTypes },
         "rejectedBy.driverId": { $ne: driverId },
-        $or: [
-          { status: "requesting", driverId: null },
-          { status: "driver_assigned", driverId },
-        ],
-        $or: [
-          { isWaitingInQueue: true },
-          { requestedAt: { $gte: requestedAfter } },
+        $and: [
+          {
+            $or: [
+              { status: "requesting", driverId: null },
+              { status: "driver_assigned", driverId },
+            ],
+          },
+          {
+            $or: [
+              { isWaitingInQueue: true },
+              { requestedAt: { $gte: requestedAfter } },
+            ],
+          },
         ],
       })
         .sort({ requestedAt: -1 })

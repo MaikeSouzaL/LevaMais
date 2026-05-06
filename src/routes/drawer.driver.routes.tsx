@@ -164,6 +164,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
 
 function HiddenScreenOptions() {
   return {
+    headerShown: false,
     drawerLabel: () => null,
     title: "",
     drawerItemStyle: { display: "none" as const },
@@ -178,13 +179,25 @@ export default function DrawerDriverRoutes({ initialRideId }: DrawerDriverRoutes
       initialRouteName={initialRoute}
       drawerContent={(props) => <CustomDrawerContent {...props} />}
       screenOptions={{
-        headerShown: false,
+        headerShown: true,
+        headerStyle: {
+          backgroundColor: "#091A2F",
+          borderBottomWidth: 1,
+          borderBottomColor: "rgba(255,255,255,0.08)",
+          shadowColor: "transparent",
+          elevation: 0,
+        },
+        headerTintColor: "#fff",
+        headerTitleStyle: {
+          fontWeight: "700",
+          fontSize: 16,
+        },
         drawerStyle: { backgroundColor: "#091A2F", width: 280 },
         drawerType: "slide",
         overlayColor: "rgba(0, 0, 0, 0.5)",
       }}
     >
-      <Drawer.Screen name="DriverHome" component={DriverHomeScreen} options={{ title: "Inicio" }} />
+      <Drawer.Screen name="DriverHome" component={DriverHomeScreen} options={{ title: "Inicio", headerShown: false }} />
       <Drawer.Screen name="DriverRequests" component={DriverRequestsScreen} options={{ title: "Solicitacoes" }} />
       <Drawer.Screen name="DriverFinance" component={DriverFinanceStack} options={{ title: "Ganhos e carteira" }} />
       <Drawer.Screen name="DriverShiftOffers" component={DriverShiftOffersScreen} options={{ title: "Plantoes" }} />

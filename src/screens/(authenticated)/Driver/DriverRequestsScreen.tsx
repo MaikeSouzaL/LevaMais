@@ -211,8 +211,15 @@ export default function DriverRequestsScreen() {
       }
     })();
 
+    const pollInterval = setInterval(() => {
+      if (mounted) {
+        syncAvailableRequests().catch(() => {});
+      }
+    }, 6000);
+
     return () => {
       mounted = false;
+      clearInterval(pollInterval);
       webSocketService.off("new-ride-request", onNewRide);
       webSocketService.off("ride-taken", onRideTaken);
       webSocketService.off("ride-expired", onRideExpired);
