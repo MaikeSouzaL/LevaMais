@@ -389,6 +389,22 @@ class RideService {
     });
     return response.data;
   }
+
+  /**
+   * Buscar agendamentos disponíveis sem motoristas (para motoristas)
+   */
+  async getAvailableScheduledRides(): Promise<{ rides: Ride[] }> {
+    const response = await api.get("/rides/scheduled/available");
+    return response.data;
+  }
+
+  /**
+   * Aceitar corrida agendada antecipadamente
+   */
+  async acceptScheduledRide(rideId: string): Promise<Ride> {
+    const response = await api.post(`/rides/${rideId}/accept-scheduled`);
+    return response.data?.ride;
+  }
 }
 
 export default new RideService();

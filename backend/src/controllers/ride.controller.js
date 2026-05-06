@@ -1872,6 +1872,52 @@ class RideController {
       return sendError(res, 500, "Erro interno", { details: error.message });
     }
   }
+
+  async getAvailableScheduledRides(req, res) {
+    try {
+      const rides = await Ride.find({
+        status: "scheduled",
+        $or: [{ driverId: { $exists: false } }, { driverId: null }],
+      })
+        .populate("clientId", "name phone profilePhoto rating")
+        .sort({ scheduledFor: 1 });
+
+      return res.json({ count: rides.length, rides });
+    } catch (error) {
+      console.error("Erro ao buscar agendamentos disponiveis:", error);
+      return sendError(res, 500, "Erro ao buscar agendamentos disponiveis", { details: error.message });
+    }
+  }
+
+  async acceptScheduled(req, res) {
+    try {
+      const { rideId } = req.params;
+      const driverId = req.user.id;
+
+      const ride = await Ride.findOneAndUpdate(
+        {
+          _id: rideId,
+          status: "scheduled",
+          $or: [{ driverId: { $exists: false } }, { driverId: null }],
+        },
+        {
+          driverId,
+          status: "driver_assigned",
+          acceptedAt: new Date(),
+        },
+        { new: true }
+      ).populate("clientId", "name phone profilePhoto rating");
+
+      if (!ride) {
+        return sendError(res, 400, "Corrida agendada nao esta mais disponivel");
+      }
+
+      return res.json({ message: "Corrida agendada aceita com sucesso", ride });
+    } catch (error) {
+      console.error("Erro ao aceitar corrida agendada:", error);
+      return sendError(res, 500, "Erro ao aceitar corrida agendada", { details: error.message });
+    }
+  }
 }
 
 function buildRideRequestPayload(ride, extras = {}) {
