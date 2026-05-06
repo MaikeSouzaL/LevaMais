@@ -9,11 +9,13 @@
 - [x] Busca e tracking com resiliencia melhorada
 - [x] Fechar experiencia de pos-corrida (avaliacao/comprovante)
 - [x] Completar menus de perfil/suporte/pagamentos com rotas funcionais
+- [x] Implementar agendamento e oferta de preco no fluxo de pedido
 ## D. Motorista
 - [x] Retomada de corrida ativa ao reabrir app
 - [x] Status operacionais consolidados
 - [x] Revisar regras finais de ganhos/extrato/saque
 - [x] Completar menus de operacao (avaliacoes, documentos, preferencias, suporte)
+- [x] Fluxo de resposta a oferta (aceite/contraoferta)
 ## E. Backend
 - [x] Auth com validacoes e erros padronizados
 - [x] Rides com hardening de transicoes e erros

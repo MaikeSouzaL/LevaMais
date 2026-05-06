@@ -15,6 +15,7 @@ Data de atualizacao: 2026-05-05
 - Integracoes cliente que estavam em mock agora possuem backend real (gorjeta, notificacoes, cartao, carteira)
 - Menus cliente expandidos e funcionais (comprovantes, pagamentos, cupons, suporte, privacidade, convite)
 - Menus motorista expandidos e funcionais (avaliacoes, documentos, preferencias, suporte, repasses e incentivos)
+- Fluxo novo de agendamento e negociacao de preco implementado (cliente e motorista)
 ## Em andamento
 - Rodada manual ponta a ponta (cliente + motorista)
 - Expansao da suite automatizada alem do smoke inicial

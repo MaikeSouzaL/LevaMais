@@ -78,3 +78,28 @@
   - `npm run test:smoke`
 - Correcao de warning de schema Mongo:
   - remocao de indice duplicado em `DriverLocation`
+## 13) Agendamento e negociacao de preco (cliente x motorista)
+- Backend:
+  - Novo status de corrida `scheduled`
+  - Suporte a `scheduledFor` no create de corrida
+  - Disparo automatico no horario agendado com busca de motoristas
+  - Marketplace de ofertas por corrida:
+    - `GET /rides/:rideId/offers`
+    - `POST /rides/:rideId/offers/respond` (aceite/contraoferta/rejeicao do motorista)
+    - `POST /rides/:rideId/offers/select` (cliente escolhe motorista/oferta)
+  - Preco final negociado aplicado na corrida com recalc de taxa/plataforma
+  - Payload de solicitacao para motorista passou a incluir dados de negociacao
+- App cliente:
+  - Tela de pagamento agora permite:
+    - Agendar corrida/entrega (atalhos de horario)
+    - Ofertar valor para corrida/entrega
+    - Exibir alerta quando oferta estiver abaixo do sugerido
+  - Nova tela de ofertas:
+    - `RideOffersMarketplace` para cliente comparar e selecionar propostas
+  - `ActiveOrders` atualizado para:
+    - Mostrar agendamentos
+    - Entrar na tela de ofertas quando negociacao estiver ativa
+- App motorista:
+  - `DriverRequests` e card de solicitacao atualizados para negociacao:
+    - Aceitar oferta do cliente
+    - Enviar contraoferta (fluxo rapido)

@@ -72,6 +72,10 @@ export default function PaymentScreen() {
   }, [detectedCity]);
 
   const suggestedMinOffer = useMemo(() => Number((Number(amount || 0) * 0.8).toFixed(2)), [amount]);
+  const parsedOfferValue = useMemo(
+    () => Number(String(offerInput || "").replace(",", ".")),
+    [offerInput],
+  );
 
   const handleConfirmPayment = async () => {
     setError(null);
@@ -83,7 +87,7 @@ export default function PaymentScreen() {
       return;
     }
 
-    const parsedOffer = Number(String(offerInput || "").replace(",", "."));
+    const parsedOffer = parsedOfferValue;
 
     try {
       setLoading(true);
@@ -301,6 +305,13 @@ export default function PaymentScreen() {
               <Text style={styles.helperText}>
                 Se sua oferta ficar muito abaixo, menos motoristas podem aceitar.
               </Text>
+              {Number.isFinite(parsedOfferValue) &&
+                parsedOfferValue > 0 &&
+                parsedOfferValue < suggestedMinOffer && (
+                  <Text style={styles.warningText}>
+                    Oferta abaixo do minimo sugerido.
+                  </Text>
+                )}
             </>
           )}
         </View>
@@ -427,6 +438,7 @@ const styles = StyleSheet.create({
   choiceText: { color: colors.text.secondary, fontSize: fontSize.xs, fontWeight: fontWeight.semibold },
   choiceTextActive: { color: colors.primary[500] },
   helperText: { color: colors.text.tertiary, fontSize: fontSize.xs },
+  warningText: { color: "#fbbf24", fontSize: fontSize.xs, fontWeight: fontWeight.semibold },
   offerInput: {
     borderWidth: 1,
     borderColor: colors.border.light,

@@ -775,7 +775,6 @@ class RideController {
     try {
       const { rideId } = req.params;
       const userId = String(req.user.id);
-      const userType = String(req.user.userType || "");
 
       const ride = await Ride.findById(rideId)
         .populate("clientId", "name")
@@ -786,7 +785,7 @@ class RideController {
 
       const isClient = String(ride.clientId?._id || ride.clientId) === userId;
       const isDriver = String(ride.driverId?._id || ride.driverId) === userId;
-      const isParticipant = isClient || isDriver || userType === "driver";
+      const isParticipant = isClient || isDriver;
       if (!isParticipant) {
         return sendError(res, 403, "Sem permissao para esta corrida");
       }
@@ -794,14 +793,9 @@ class RideController {
       const negotiation = ride.negotiation || {};
       const offers = Array.isArray(negotiation.offers) ? negotiation.offers : [];
 
-      let responseOffers = offers;
-      if (!isClient && userType === "driver") {
-        responseOffers = offers.filter(
-          (item) => String(item.driverId?._id || item.driverId) === userId,
-        );
-      }
-
-      responseOffers.sort((a, b) => Number(a.amount || 0) - Number(b.amount || 0));
+      const responseOffers = [...offers].sort(
+        (a, b) => Number(a.amount || 0) - Number(b.amount || 0),
+      );
 
       return res.json({
         success: true,
