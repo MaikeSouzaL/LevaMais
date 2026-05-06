@@ -86,7 +86,33 @@ function stopVibrationLoop() {
   }
 }
 
+async function playOneShot(asset: any) {
+  try {
+    const { Audio } = await ensureExpoAv();
+    const { sound: shotSound } = await Audio.Sound.createAsync(asset, {
+      shouldPlay: true,
+      volume: 1,
+    });
+    // Auto-unload after playback to avoid memory leaks
+    shotSound.setOnPlaybackStatusUpdate((status: any) => {
+      if (status.didJustFinish) {
+        shotSound.unloadAsync().catch(() => {});
+      }
+    });
+  } catch (error) {
+    console.log("[SoundEffects] Erro ao reproduzir som de efeito:", error);
+  }
+}
+
 class DriverAlertService {
+  async playOnlineSound() {
+    await playOneShot(require("../assets/sound/pluckOn.mp3"));
+  }
+
+  async playOfflineSound() {
+    await playOneShot(require("../assets/sound/pluckOff.mp3"));
+  }
+
   isRunning() {
     return running;
   }

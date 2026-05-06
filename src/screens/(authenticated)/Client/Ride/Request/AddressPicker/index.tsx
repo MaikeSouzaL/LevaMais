@@ -361,6 +361,7 @@ export default function AddressPickerScreen() {
             onRegionChange={mapLocation.handleRegionChange}
             onRegionChangeComplete={onRegionChangeComplete}
             showsUserLocation
+            showsMyLocationButton={false}
             showsBuildings={true}
             pitchEnabled={true}
             showsIndoors={true}

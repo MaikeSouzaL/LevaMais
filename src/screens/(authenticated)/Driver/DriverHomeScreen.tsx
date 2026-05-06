@@ -285,6 +285,7 @@ export default function DriverHomeScreen() {
     } catch {}
 
     setOnline(false);
+    driverAlertService.playOfflineSound().catch(() => {});
   };
 
   // Região inicial do mapa deve ser sempre a localização do usuário.
@@ -395,6 +396,7 @@ export default function DriverHomeScreen() {
     }, 10000);
 
     setOnline(true);
+    driverAlertService.playOnlineSound().catch(() => {});
   };
 
   // Badge de solicitacoes novas (new-ride-request)
@@ -688,11 +690,27 @@ export default function DriverHomeScreen() {
     }
 
     try {
+      if (incomingRequest?.negotiation?.enabled) {
+        await rideService.respondToOffer(incomingRequest.rideId, { action: "accept" });
+        Toast.show({
+          type: "success",
+          text1: "Oferta aceita",
+          text2: "Aguardando cliente selecionar sua proposta.",
+        });
+        await clearIncoming();
+        return;
+      }
+
       const ride = await rideService.accept(incomingRequest.rideId);
       await clearIncoming();
       (navigation as any).navigate("DriverRide", { rideId: ride._id });
-    } catch (e) {
+    } catch (e: any) {
       console.log("Falha ao aceitar", e);
+      Toast.show({
+        type: "error",
+        text1: "Falha ao aceitar",
+        text2: e?.response?.data?.error || e?.message || "Tente novamente",
+      });
     }
   };
 
@@ -1028,8 +1046,18 @@ export default function DriverHomeScreen() {
               zIndex: 55,
             }}
           >
-            <Text style={{ color: "white", fontWeight: "900", fontSize: 16 }}>
-              {incomingRequest?.pricing?.total != null
+            {incomingRequest?.negotiation?.enabled ? (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                <View style={{ backgroundColor: "rgba(2,222,149,0.18)", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: "rgba(2,222,149,0.3)" }}>
+                  <Text style={{ color: "#02de95", fontSize: 11, fontWeight: "900" }}>OFERTA DE NEGOCIAÇÃO</Text>
+                </View>
+              </View>
+            ) : null}
+
+            <Text style={{ color: "white", fontWeight: "900", fontSize: 18 }}>
+              {incomingRequest?.negotiation?.enabled && incomingRequest?.negotiation?.clientOffer != null
+                ? `R$ ${Number(incomingRequest.negotiation.clientOffer).toFixed(2)}`
+                : incomingRequest?.pricing?.total != null
                 ? `R$ ${Number(incomingRequest.pricing.total).toFixed(2)}`
                 : "Nova solicitação"}
             </Text>
@@ -1071,10 +1099,33 @@ export default function DriverHomeScreen() {
                 }}
               >
                 <Text style={{ color: "#091A2F", fontWeight: "900" }}>
-                  Aceitar
+                  {incomingRequest?.negotiation?.enabled ? "Aceitar Oferta" : "Aceitar"}
                 </Text>
               </TouchableOpacity>
             </View>
+
+            {incomingRequest?.negotiation?.enabled ? (
+              <TouchableOpacity
+                onPress={async () => {
+                  await clearIncoming();
+                  (navigation as any).navigate("DriverRequests");
+                }}
+                activeOpacity={0.85}
+                style={{
+                  marginTop: 10,
+                  paddingVertical: 12,
+                  borderRadius: 14,
+                  borderWidth: 1,
+                  borderColor: "rgba(2,222,149,0.35)",
+                  alignItems: "center",
+                  backgroundColor: "rgba(2,222,149,0.08)",
+                }}
+              >
+                <Text style={{ color: "#02de95", fontWeight: "900" }}>
+                  Fazer contraoferta / Ver negociação
+                </Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
         )}
 

@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, RefreshControl } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, RefreshControl, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { MaterialIcons } from "@expo/vector-icons";
+import Toast from "react-native-toast-message";
 
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
 import rideService, { Ride } from "@/services/ride.service";
@@ -48,6 +49,33 @@ export default function ActiveOrdersScreen() {
       setRefreshing(false);
     }
   }, [load]);
+
+  const handleCancel = async (rideId: string) => {
+    Alert.alert(
+      "Cancelar Agendamento",
+      "Deseja realmente cancelar esta entrega agendada?",
+      [
+        { text: "Não", style: "cancel" },
+        {
+          text: "Sim, Cancelar",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await rideService.cancel(rideId);
+              Toast.show({ type: "success", text1: "Agendamento cancelado com sucesso" });
+              await load();
+            } catch (err: any) {
+              Toast.show({
+                type: "error",
+                text1: "Não foi possível cancelar",
+                text2: err?.message || "Tente novamente",
+              });
+            }
+          },
+        },
+      ]
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -112,12 +140,20 @@ export default function ActiveOrdersScreen() {
                     <Text style={styles.trackBtnText}>Ver ofertas</Text>
                   </TouchableOpacity>
                 ) : String(ride.status || "") === "scheduled" ? (
-                  <TouchableOpacity
-                    style={styles.trackBtn}
-                    onPress={() => navigation.navigate("OrderDetails", { rideId: ride._id })}
-                  >
-                    <Text style={styles.trackBtnText}>Ver agendamento</Text>
-                  </TouchableOpacity>
+                  <View style={{ flexDirection: "row", gap: 10 }}>
+                    <TouchableOpacity
+                      style={[styles.trackBtn, { flex: 1 }]}
+                      onPress={() => navigation.navigate("OrderDetails", { rideId: ride._id })}
+                    >
+                      <Text style={styles.trackBtnText}>Ver agendamento</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.trackBtn, { flex: 1, backgroundColor: "rgba(239, 68, 68, 0.12)", borderColor: "rgba(239, 68, 68, 0.4)" }]}
+                      onPress={() => handleCancel(ride._id)}
+                    >
+                      <Text style={[styles.trackBtnText, { color: "#ef4444" }]}>Cancelar</Text>
+                    </TouchableOpacity>
+                  </View>
                 ) : (
                   <TouchableOpacity
                     style={styles.trackBtn}

@@ -58,7 +58,7 @@ export default function ActionButton(props: ActionButtonProps) {
       disabled={disabled}
       style={{
         height: 48,
-        borderRadius: 999,
+        borderRadius: 14,
         alignItems: "center",
         justifyContent: "center",
         paddingHorizontal: 14,
