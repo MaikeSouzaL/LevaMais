@@ -271,6 +271,11 @@ const rideSchema = new mongoose.Schema(
         reason: String,
       },
     ],
+    // Indica se a corrida está na fila de espera pública para entregas/corridas
+    isWaitingInQueue: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,

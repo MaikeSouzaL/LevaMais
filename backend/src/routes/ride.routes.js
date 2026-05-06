@@ -29,11 +29,13 @@ router.post("/:rideId/cancel", rideController.cancel);
 // Atualizar status da corrida
 router.patch("/:rideId/status", rideController.updateStatus);
 
+// Colocar corrida na fila de espera
+router.post("/:rideId/queue", rideController.enterWaitingQueue);
+
 // Avaliações
 router.post("/:rideId/rate-client", rideController.rateClientToDriver);
 router.post("/:rideId/rate-driver", rideController.rateDriverToClient);
 router.post("/:rideId/tip", rideController.addTip);
-
 // Provas de entrega (fotos)
 router.post("/:rideId/proof/pickup", rideController.uploadPickupProof);
 router.post("/:rideId/proof/delivery", rideController.uploadDeliveryProof);

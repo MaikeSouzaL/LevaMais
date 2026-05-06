@@ -36,6 +36,8 @@ export default function SearchingDriverScreen() {
   const [error, setError] = useState<string | null>(null);
   const [networkUnstable, setNetworkUnstable] = useState(false);
   const [searchCycle, setSearchCycle] = useState(0);
+  const [waitingInQueue, setWaitingInQueue] = useState(false);
+  const [enteringQueue, setEnteringQueue] = useState(false);
 
   const intervalRef = useRef<any>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -204,6 +206,29 @@ export default function SearchingDriverScreen() {
     return () => loop.stop();
   }, [pulseAnim]);
 
+  const handleEnterQueue = async () => {
+    if (!rideId || enteringQueue) return;
+    setEnteringQueue(true);
+    try {
+      await rideService.enterWaitingQueue(rideId);
+      setWaitingInQueue(true);
+      setTimeoutState(false);
+      Toast.show({
+        type: "success",
+        text1: "Fila de Espera Ativada!",
+        text2: "Os motoristas estão visualizando seu pedido.",
+      });
+    } catch (e: any) {
+      Toast.show({
+        type: "error",
+        text1: "Erro ao entrar na fila de espera",
+        text2: e?.message || "Tente novamente",
+      });
+    } finally {
+      setEnteringQueue(false);
+    }
+  };
+
   const handleCancel = async () => {
     if (cancelling) return;
     setCancelling(true);
@@ -223,6 +248,7 @@ export default function SearchingDriverScreen() {
   const handleRetry = async () => {
     if (!rideId) return;
     setTimeoutState(false);
+    setWaitingInQueue(false);
     setSecondsLeft(SEARCH_TIME);
     doneRef.current = false;
     setSearchCycle((prev) => prev + 1);
@@ -281,14 +307,38 @@ export default function SearchingDriverScreen() {
           <View style={styles.timeoutIconWrap}>
             <MaterialIcons name="person-search" size={48} color="#fbbf24" />
           </View>
-          <Text style={styles.timeoutTitle}>Nao encontramos motorista</Text>
+          <Text style={styles.timeoutTitle}>Não encontramos motorista</Text>
           <Text style={styles.timeoutSub}>
-            Nenhum motorista aceitou o pedido nesse momento. Voce pode tentar novamente ou ajustar o pedido.
+            Nenhum motorista aceitou o pedido nesse momento. Você pode tentar novamente ou colocar o seu pedido na fila de espera pública.
           </Text>
 
           <TouchableOpacity style={styles.retryButton} onPress={handleRetry} activeOpacity={0.85}>
             <MaterialIcons name="refresh" size={20} color={colors.background.primary} />
             <Text style={styles.retryText}>Buscar novamente</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={{
+              width: "100%",
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: "rgba(2,222,149,0.08)",
+              borderWidth: 1,
+              borderColor: "rgba(2,222,149,0.3)",
+              paddingVertical: spacing.md,
+              borderRadius: borderRadius.md,
+              gap: spacing.sm,
+              marginBottom: spacing.sm,
+            }} 
+            onPress={handleEnterQueue} 
+            activeOpacity={0.85}
+            disabled={enteringQueue}
+          >
+            <MaterialIcons name="hourglass-empty" size={18} color="#02de95" />
+            <Text style={{ color: "#02de95", fontSize: fontSize.base, fontWeight: "bold" }}>
+              {enteringQueue ? "Ativando fila..." : "Deixar na fila de espera"}
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -302,7 +352,38 @@ export default function SearchingDriverScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.cancelLink} onPress={handleCancel} activeOpacity={0.85}>
-            <Text style={styles.cancelLinkText}>Cancelar e voltar para inicio</Text>
+            <Text style={styles.cancelLinkText}>Cancelar e voltar para início</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (waitingInQueue) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.content}>
+          <Text style={styles.stepLabel}>FILA DE ESPERA ATIVA</Text>
+
+          <Animated.View style={[styles.pulseCircle, { transform: [{ scale: pulseAnim }], borderColor: "rgba(2,222,149,0.4)", backgroundColor: "rgba(2,222,149,0.12)" }]}>
+            <MaterialIcons name="hourglass-empty" size={46} color="#02de95" />
+          </Animated.View>
+
+          <Text style={styles.title}>Pedido em espera</Text>
+          <Text style={[styles.subtitle, { paddingHorizontal: 10 }]}>
+            Seu pedido foi colocado na Fila de Espera pública de entregas. Todos os motoristas e motoboys da cidade estão visualizando-o e podem aceitar a qualquer momento!
+          </Text>
+
+          <View style={[styles.timerCard, { borderColor: "rgba(2,222,149,0.4)", backgroundColor: "rgba(2,222,149,0.08)" }]}>
+            <Text style={styles.timerHint}>Aguardando aceitação...</Text>
+            <View style={styles.timerRow}>
+              <MaterialIcons name="visibility" size={20} color="#02de95" style={{ marginRight: 4 }} />
+              <Text style={[styles.timerValue, { fontSize: 20 }]}>Visível no Mapa</Text>
+            </View>
+          </View>
+
+          <TouchableOpacity style={styles.cancelFab} onPress={handleCancel} disabled={cancelling} activeOpacity={0.85}>
+            <Text style={styles.cancelFabText}>{cancelling ? "Cancelando..." : "Cancelar busca"}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>

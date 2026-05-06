@@ -407,6 +407,14 @@ class RideService {
     const response = await api.post(`/rides/${rideId}/accept-scheduled`);
     return response.data;
   }
+
+  /**
+   * Colocar a corrida na fila de espera pública
+   */
+  async enterWaitingQueue(rideId: string): Promise<any> {
+    const response = await api.post(`/rides/${rideId}/queue`);
+    return response.data;
+  }
 }
 
 export default new RideService();

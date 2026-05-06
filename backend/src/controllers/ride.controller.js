@@ -384,11 +384,14 @@ class RideController {
         status: { $in: ["requesting", "driver_assigned"] },
         vehicleType: driverLocation.vehicleType,
         serviceType: { $in: serviceTypes },
-        requestedAt: { $gte: requestedAfter },
         "rejectedBy.driverId": { $ne: driverId },
         $or: [
           { status: "requesting", driverId: null },
           { status: "driver_assigned", driverId },
+        ],
+        $or: [
+          { isWaitingInQueue: true },
+          { requestedAt: { $gte: requestedAfter } },
         ],
       })
         .sort({ requestedAt: -1 })
@@ -770,14 +773,19 @@ class RideController {
         return sendError(res, 404, "Corrida nao encontrada");
       }
 
-      // Adicionar Ã  lista de rejeitados
-      ride.rejectedBy.push({
-        driverId,
-        rejectedAt: new Date(),
-        reason,
-      });
+      // Adicionar à lista de rejeitados se não estiver lá
+      const alreadyRejected = ride.rejectedBy.some(
+        (r) => String(r.driverId) === String(driverId)
+      );
+      if (!alreadyRejected) {
+        ride.rejectedBy.push({
+          driverId,
+          rejectedAt: new Date(),
+          reason,
+        });
+      }
 
-      // Se a corrida estava reservada para este motorista, libera e tenta o prÃ³ximo
+      // Se a corrida estava reservada para este motorista, libera e tenta o próximo
       const isAssignedToMe =
         ride.status === "driver_assigned" &&
         ride.driverId &&
@@ -790,15 +798,16 @@ class RideController {
 
       await ride.save();
 
-      // Tenta oferecer para o prÃ³ximo motorista (MVP)
+      // Tenta oferecer para o próximo motorista
       const io = req.app.get("io");
       if (io && ["requesting", "driver_assigned"].includes(ride.status)) {
+        const searchRadius = 15000; // Buscar motoristas num raio de 15km
         const nearbyDrivers = await DriverLocation.findNearby(
           ride.pickup.latitude,
           ride.pickup.longitude,
-          5000,
+          searchRadius,
           ride.vehicleType,
-          10,
+          100, // tenta buscar até 100 próximos
           ride.serviceType,
         );
 
@@ -823,6 +832,17 @@ class RideController {
             distance: ride.distance,
             vehicleType: ride.vehicleType,
           });
+        } else {
+          // Se todos os motoristas disponíveis na região recusaram e está na fila de espera
+          if (ride.isWaitingInQueue) {
+            ride.status = "cancelled_no_driver";
+            await ride.save();
+
+            io.to(`client-${ride.clientId}`).emit("ride-cancelled", {
+              rideId: ride._id,
+              reason: "Seu pedido foi cancelado automaticamente porque todos os motoristas e motoboys disponíveis na sua região recusaram a solicitação no momento.",
+            });
+          }
         }
       }
 
@@ -1189,6 +1209,62 @@ class RideController {
     } catch (error) {
       console.error("Erro ao enviar gorjeta:", error);
       return sendError(res, 500, "Erro ao enviar gorjeta", {
+        details: error.message,
+      });
+    }
+  }
+
+  // Colocar a corrida na fila de espera
+  async enterWaitingQueue(req, res) {
+    try {
+      const { rideId } = req.params;
+      const userId = req.user.id;
+
+      const ride = await Ride.findById(rideId);
+      if (!ride) {
+        return sendError(res, 404, "Corrida nao encontrada");
+      }
+
+      if (String(ride.clientId) !== String(userId)) {
+        return sendError(res, 403, "Apenas o cliente proprietario pode colocar a corrida na fila de espera");
+      }
+
+      ride.status = "requesting";
+      ride.driverId = null;
+      ride.isWaitingInQueue = true;
+      ride.requestedAt = new Date();
+      // Limpa os motoristas que rejeitaram para dar uma nova chance a todos na fila de espera
+      ride.rejectedBy = [];
+      await ride.save();
+
+      const io = req.app.get("io");
+      if (io) {
+        io.to(`client-${ride.clientId}`).emit("ride-status-changed", {
+          rideId: ride._id,
+          status: "requesting",
+          isWaitingInQueue: true,
+        });
+
+        // Notifica todos os motoristas
+        io.emit("new-ride-request", {
+          rideId: ride._id,
+          pickup: ride.pickup,
+          dropoff: ride.dropoff,
+          pricing: ride.pricing,
+          distance: ride.distance,
+          vehicleType: ride.vehicleType,
+          isWaitingInQueue: true,
+        });
+      }
+
+      return res.json({
+        success: true,
+        message: "Corrida adicionada a fila de espera com sucesso",
+        ride,
+      });
+    } catch (error) {
+      console.error("Erro ao entrar na fila de espera:", error);
+      return sendError(res, 500, "Erro ao entrar na fila de espera", {
         details: error.message,
       });
     }
