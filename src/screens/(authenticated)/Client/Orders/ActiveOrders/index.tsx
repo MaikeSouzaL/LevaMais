@@ -243,6 +243,7 @@ const styles = StyleSheet.create({
   address: { color: colors.text.secondary, fontSize: fontSize.sm, marginBottom: 4 },
   cardActions: { marginTop: spacing.sm },
   trackBtn: {
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: spacing.sm,
