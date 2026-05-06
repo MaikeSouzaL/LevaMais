@@ -170,11 +170,9 @@ export default function SearchingDriverScreen() {
       setSecondsLeft((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          if (!doneRef.current) {
-            doneRef.current = true;
-            cleanup();
-            setTimeoutState(true);
-          }
+          doneRef.current = true;
+          cleanup();
+          setTimeoutState(true);
           return 0;
         }
         return prev - 1;

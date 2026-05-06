@@ -1091,11 +1091,11 @@ export default function DriverHomeScreen() {
               left: 14,
               right: 14,
               bottom: 140,
-              backgroundColor: "rgba(17,24,22,0.96)",
+              backgroundColor: "rgba(42,54,50,0.98)",
               borderRadius: 18,
               padding: 14,
               borderWidth: 1,
-              borderColor: "rgba(255,255,255,0.10)",
+              borderColor: "rgba(255,255,255,0.22)",
               zIndex: 55,
             }}
           >
