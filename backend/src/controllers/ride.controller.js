@@ -151,6 +151,34 @@ class RideController {
         }
       });
 
+      // Enviar Notificação Push para motoristas em segundo plano ou fechados
+      try {
+        const driverIds = nearbyDrivers.map(d => d.driverId).filter(Boolean);
+        if (driverIds.length > 0) {
+          User.find({ _id: { $in: driverIds } }).select("pushToken")
+            .then(users => {
+              const pushTokens = users.map(u => u.pushToken).filter(Boolean);
+              if (pushTokens.length > 0) {
+                const pushNotificationService = require("../services/push-notification.service");
+                pushNotificationService.sendPushNotifications(
+                  pushTokens,
+                  "🚀 Novo pedido disponível!",
+                  `Nova solicitação de ${ride.serviceType === "delivery" ? "entrega" : "corrida"} por R$ ${Number(ride.pricing?.total || 0).toFixed(2).replace(".", ",")}`,
+                  {
+                    type: "new_order",
+                    rideId: String(ride._id),
+                    serviceType: ride.serviceType,
+                  },
+                  "urgent_delivery"
+                ).catch(err => console.error("Erro ao enviar push:", err));
+              }
+            })
+            .catch(err => console.error("Erro ao buscar pushTokens:", err));
+        }
+      } catch (pushErr) {
+        console.error("Erro ao enviar notificações push em lote para motoristas:", pushErr);
+      }
+
       setTimeout(async () => {
         try {
           const updatedRide = await Ride.findById(ride._id);
@@ -1272,16 +1300,8 @@ class RideController {
           isWaitingInQueue: true,
         });
 
-        // Notifica todos os motoristas
-        io.emit("new-ride-request", {
-          rideId: ride._id,
-          pickup: ride.pickup,
-          dropoff: ride.dropoff,
-          pricing: ride.pricing,
-          distance: ride.distance,
-          vehicleType: ride.vehicleType,
-          isWaitingInQueue: true,
-        });
+        // Despacha e envia notificações push para os motoristas próximos
+        await this.dispatchRideToNearbyDrivers(ride, io);
       }
 
       return res.json({
