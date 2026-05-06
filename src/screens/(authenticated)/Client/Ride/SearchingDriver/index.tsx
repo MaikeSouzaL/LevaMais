@@ -368,9 +368,39 @@ export default function SearchingDriverScreen() {
           </Animated.View>
 
           <Text style={styles.title}>Pedido em espera</Text>
-          <Text style={[styles.subtitle, { paddingHorizontal: 10 }]}>
+          <Text style={[styles.subtitle, { paddingHorizontal: 10, marginBottom: 8 }]}>
             Seu pedido foi colocado na Fila de Espera pública de entregas. Todos os motoristas e motoboys da cidade estão visualizando-o e podem aceitar a qualquer momento!
           </Text>
+          
+          <Text style={{ color: "rgba(255,255,255,0.65)", fontSize: 13, textAlign: "center", paddingHorizontal: 24, lineHeight: 18, marginBottom: 12 }}>
+            💡 <Text style={{ fontWeight: "bold", color: "#fff" }}>Como funciona:</Text> Os motoristas próximos serão alertados periodicamente sobre sua entrega para que possam aceitar.
+          </Text>
+
+          <TouchableOpacity
+            style={{
+              backgroundColor: "rgba(2,222,149,0.12)",
+              borderColor: "rgba(2,222,149,0.35)",
+              borderWidth: 1,
+              paddingHorizontal: 14,
+              paddingVertical: 8,
+              borderRadius: 20,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 6,
+              marginBottom: 16,
+            }}
+            activeOpacity={0.8}
+            onPress={() => {
+              doneRef.current = true;
+              cleanup();
+              navigation.navigate("Settings");
+            }}
+          >
+            <MaterialIcons name="settings" size={16} color="#02de95" />
+            <Text style={{ color: "#02de95", fontSize: 12, fontWeight: "bold" }}>
+              Ajustar frequência nas Configurações
+            </Text>
+          </TouchableOpacity>
 
           <View style={[styles.timerCard, { borderColor: "rgba(2,222,149,0.4)", backgroundColor: "rgba(2,222,149,0.08)" }]}>
             <Text style={styles.timerHint}>Aguardando aceitação...</Text>

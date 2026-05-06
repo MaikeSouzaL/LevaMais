@@ -24,6 +24,10 @@ const platformConfigSchema = new mongoose.Schema(
     defaultSearchRadius: {
       type: Number,
       default: 5000 // metros
+    },
+    queueRedispatchInterval: {
+      type: Number,
+      default: 60 // segundos entre reenvios da fila de espera
     }
   },
   {

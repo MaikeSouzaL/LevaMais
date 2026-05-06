@@ -12,6 +12,7 @@ export type UserProfile = {
   profilePhoto?: string;
   preferredPayment?: "pix" | "cash" | "card";
   notificationsEnabled?: boolean;
+  queueRedispatchInterval?: number | null;
   vehicleType?: "motorcycle" | "car" | "van" | "truck";
   vehicleInfo?: {
     plate?: string;
@@ -32,6 +33,7 @@ export type UpdateProfilePayload = Partial<
     | "profilePhoto"
     | "preferredPayment"
     | "notificationsEnabled"
+    | "queueRedispatchInterval"
     | "vehicleType"
     | "vehicleInfo"
   >

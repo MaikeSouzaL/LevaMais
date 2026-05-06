@@ -1,4 +1,4 @@
-﻿const mongoose = require("mongoose");
+const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 
 const userSchema = new mongoose.Schema(
@@ -135,6 +135,10 @@ const userSchema = new mongoose.Schema(
     notificationsEnabled: {
       type: Boolean,
       default: true,
+    },
+    queueRedispatchInterval: {
+      type: Number,
+      default: null // null significa usar o padrão do sistema (PlatformConfig)
     },
     userType: {
       type: String,

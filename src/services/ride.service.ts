@@ -86,8 +86,8 @@ export interface Ride {
     };
   };
   createdAt: string;
-  updatedAt: string;
   isWaitingInQueue?: boolean;
+  updatedAt: string;
 }
 
 export interface RideOffer {
@@ -152,6 +152,7 @@ export interface AvailableRideRequest {
 export interface AvailableRideRequestsResponse {
   count: number;
   requests: AvailableRideRequest[];
+  waitingQueueCount?: number;
 }
 
 export type RatePayload = {

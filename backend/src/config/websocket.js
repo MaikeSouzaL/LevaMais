@@ -236,6 +236,105 @@ function initializeWebSocket(server) {
     });
   });
 
+  // Loop de re-envio periódico de corridas da Fila de Espera (roda a cada 15s)
+  setInterval(async () => {
+    try {
+      const activeQueuedRides = await Ride.find({
+        status: "requesting",
+        isWaitingInQueue: true,
+      }).populate("clientId");
+
+      if (activeQueuedRides.length === 0) return;
+
+      const PlatformConfig = require("../models/PlatformConfig");
+      const systemConfig = await PlatformConfig.findOne().sort({ createdAt: -1 });
+      const defaultInterval = systemConfig?.queueRedispatchInterval || 60;
+
+      for (const ride of activeQueuedRides) {
+        const now = Date.now();
+        const lastDispatched = new Date(ride.lastDispatchedAt || ride.createdAt).getTime();
+        const clientInterval = ride.clientId?.queueRedispatchInterval;
+        const intervalSeconds = clientInterval !== null && clientInterval !== undefined ? clientInterval : defaultInterval;
+
+        if (now - lastDispatched >= intervalSeconds * 1000) {
+          ride.lastDispatchedAt = new Date();
+          ride.redispatchInterval = intervalSeconds;
+          await ride.save();
+
+          let searchRadius = 15000;
+          try {
+            if (ride.cityId) {
+              const City = require("../models/City");
+              const city = await City.findById(ride.cityId).select("searchRadius");
+              if (city?.searchRadius) {
+                searchRadius = city.searchRadius;
+              }
+            }
+          } catch (cityErr) {}
+
+          const nearbyDrivers = await DriverLocation.findNearby(
+            ride.pickup.latitude,
+            ride.pickup.longitude,
+            searchRadius,
+            ride.vehicleType,
+            50,
+            ride.serviceType
+          );
+
+          const rejectedDriverIds = (ride.rejectedBy || []).map(r => String(r.driverId));
+
+          nearbyDrivers.forEach(driver => {
+            if (!driver || !driver.driverId) return;
+            if (rejectedDriverIds.includes(String(driver.driverId))) {
+              // Respeita a recusa do motorista (alerta não aparece de novo para quem já recusou)
+              return;
+            }
+
+            let distanceToPickup = 0;
+            try {
+              if (typeof driver.distanceTo === "function") {
+                distanceToPickup = driver.distanceTo(
+                  ride.pickup.latitude,
+                  ride.pickup.longitude
+                );
+              }
+            } catch (distErr) {}
+
+            io.to(`driver-${driver.driverId}`).emit("new-ride-request", {
+              rideId: ride._id,
+              pickup: ride.pickup,
+              dropoff: ride.dropoff,
+              pricing: ride.pricing,
+              distance: ride.distance,
+              duration: ride.duration,
+              serviceType: ride.serviceType,
+              vehicleType: ride.vehicleType,
+              requestedAt: ride.requestedAt,
+              scheduledFor: ride.scheduledFor || null,
+              distanceToPickup,
+              negotiation: ride.negotiation?.enabled
+                ? {
+                    enabled: true,
+                    clientOffer: ride.negotiation.clientOffer ?? null,
+                    suggestedMinPrice: ride.negotiation.suggestedMinPrice ?? null,
+                    finalAgreedPrice: ride.negotiation.finalAgreedPrice ?? null,
+                  }
+                : { enabled: false },
+              client: {
+                name: ride.clientId?.name,
+                phone: ride.clientId?.phone,
+                profilePhoto: ride.clientId?.profilePhoto,
+                rating: ride.clientId?.rating || 5.0,
+              },
+            });
+          });
+        }
+      }
+    } catch (err) {
+      console.error("Erro no loop de re-despacho da fila de espera:", err);
+    }
+  }, 15000);
+
   return io;
 }
 

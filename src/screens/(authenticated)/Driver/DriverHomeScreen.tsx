@@ -53,6 +53,7 @@ export default function DriverHomeScreen() {
   const [showMapStyleHint, setShowMapStyleHint] = useState(false);
   const [isTogglingOnline, setIsTogglingOnline] = useState(false);
   const [pendingRequests, setPendingRequests] = useState(0);
+  const [waitingQueueCount, setWaitingQueueCount] = useState(0);
   const [scheduledCount, setScheduledCount] = useState(0);
   const [todayEarnings, setTodayEarnings] = useState(0);
   const [incomingRequest, setIncomingRequest] = useState<any>(null);
@@ -200,6 +201,8 @@ export default function DriverHomeScreen() {
 
       const response = await rideService.getAvailableRequests();
       const requests = response?.requests || [];
+      const qCount = response?.waitingQueueCount || 0;
+      setWaitingQueueCount(qCount);
 
       if (!requests.length) {
         setPendingRequests(0);
@@ -985,16 +988,49 @@ export default function DriverHomeScreen() {
             <View
               style={{ position: "absolute", top: 14, left: 74, right: 14 }}
             >
-              <DriverTopHud
+               <DriverTopHud
                 driverName={userData?.name}
                 vehicleTypeLabel={vehicleType.toUpperCase()}
                 plate={vehicleInfo?.plate}
                 todayEarnings={todayEarnings}
-                pendingRequests={pendingRequests}
+                pendingRequests={pendingRequests || waitingQueueCount}
                 scheduledCount={scheduledCount}
                 onPressNotifications={handleNotifications}
                 online={online}
               />
+
+              {waitingQueueCount > 0 && pendingRequests === 0 && (
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={handleNotifications}
+                  style={{
+                    backgroundColor: "rgba(239, 68, 68, 0.98)",
+                    borderColor: "rgba(255, 255, 255, 0.22)",
+                    borderWidth: 1,
+                    borderRadius: 20,
+                    paddingHorizontal: 16,
+                    paddingVertical: 10,
+                    marginTop: 10,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 8,
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.3,
+                    shadowRadius: 4,
+                    elevation: 5,
+                  }}
+                >
+                  <MaterialIcons name="warning" size={16} color="white" />
+                  <Text style={{ color: "white", fontSize: 13, fontWeight: "bold" }}>
+                    {waitingQueueCount === 1
+                      ? "1 pedido urgente na Fila de Espera!"
+                      : `${waitingQueueCount} pedidos urgentes na Fila de Espera!`}
+                  </Text>
+                  <MaterialIcons name="chevron-right" size={18} color="white" />
+                </TouchableOpacity>
+              )}
 
               {!!error && (
                 <Text

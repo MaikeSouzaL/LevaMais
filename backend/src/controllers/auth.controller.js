@@ -390,6 +390,7 @@ class AuthController {
         profilePhoto,
         preferredPayment,
         notificationsEnabled,
+        queueRedispatchInterval,
         // driver
         vehicleType,
         vehicleInfo,
@@ -415,6 +416,9 @@ class AuthController {
       }
       if (notificationsEnabled !== undefined) {
         user.notificationsEnabled = !!notificationsEnabled;
+      }
+      if (queueRedispatchInterval !== undefined) {
+        user.queueRedispatchInterval = queueRedispatchInterval === null ? null : Number(queueRedispatchInterval);
       }
 
       if (user.userType === "driver") {

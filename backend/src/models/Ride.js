@@ -276,6 +276,14 @@ const rideSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    lastDispatchedAt: {
+      type: Date,
+      default: Date.now,
+    },
+    redispatchInterval: {
+      type: Number,
+      default: 60,
+    },
   },
   {
     timestamps: true,

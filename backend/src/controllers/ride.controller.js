@@ -370,14 +370,27 @@ class RideController {
         driverLocation.status !== "available" ||
         driverLocation.currentRideId
       ) {
-        return res.json({ count: 0, requests: [] });
+        let waitingQueueCount = 0;
+        if (driverLocation) {
+          waitingQueueCount = await Ride.countDocuments({
+            status: "requesting",
+            isWaitingInQueue: true,
+            vehicleType: driverLocation.vehicleType,
+          });
+        }
+        return res.json({ count: 0, requests: [], waitingQueueCount });
       }
 
       const serviceTypes = Array.isArray(driverLocation.serviceTypes)
         ? driverLocation.serviceTypes
         : [];
       if (!serviceTypes.length) {
-        return res.json({ count: 0, requests: [] });
+        const waitingQueueCount = await Ride.countDocuments({
+          status: "requesting",
+          isWaitingInQueue: true,
+          vehicleType: driverLocation.vehicleType,
+        });
+        return res.json({ count: 0, requests: [], waitingQueueCount });
       }
 
       const requestedAfter = new Date(Date.now() - 2 * 60 * 1000);
@@ -435,7 +448,14 @@ class RideController {
         `[rides/available-requests] driver=${driverId} requests=${requests.length}`,
       );
 
-      return res.json({ count: requests.length, requests });
+      const waitingQueueCount = await Ride.countDocuments({
+        status: "requesting",
+        isWaitingInQueue: true,
+        vehicleType: driverLocation.vehicleType,
+        serviceType: { $in: serviceTypes },
+      });
+
+      return res.json({ count: requests.length, requests, waitingQueueCount });
     } catch (error) {
       console.error("Erro ao buscar solicitacoes disponiveis:", error);
       return sendError(res, 500, "Erro ao buscar solicitacoes disponiveis", {

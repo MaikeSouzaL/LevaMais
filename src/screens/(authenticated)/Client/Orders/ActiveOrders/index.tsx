@@ -125,8 +125,8 @@ export default function ActiveOrdersScreen() {
                 </View>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                   {ride.isWaitingInQueue && (
-                    <View style={{ backgroundColor: "rgba(2,222,149,0.12)", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, borderWidth: 1, borderColor: "rgba(2,222,149,0.3)" }}>
-                      <Text style={{ color: "#02de95", fontSize: 9, fontWeight: "bold" }}>FILA DE ESPERA</Text>
+                    <View style={{ backgroundColor: "rgba(239,68,68,0.12)", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, borderWidth: 1, borderColor: "rgba(239,68,68,0.4)" }}>
+                      <Text style={{ color: "#ef4444", fontSize: 9, fontWeight: "bold" }}>FILA DE ESPERA URGENTE</Text>
                     </View>
                   )}
                   <Text style={[styles.rideStatus, { color: ride.status === "requesting" ? "#02de95" : colors.primary[500] }]}>
