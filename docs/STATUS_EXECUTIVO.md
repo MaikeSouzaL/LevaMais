@@ -16,6 +16,7 @@ Data de atualizacao: 2026-05-05
 - Menus cliente expandidos e funcionais (comprovantes, pagamentos, cupons, suporte, privacidade, convite)
 - Menus motorista expandidos e funcionais (avaliacoes, documentos, preferencias, suporte, repasses e incentivos)
 - Fluxo novo de agendamento e negociacao de preco implementado (cliente e motorista)
+- Fluxo de plantao de motoboy implementado (publicacao por comercio + aceite do motoboy + bloqueio operacional em horario ativo)
 ## Em andamento
 - Rodada manual ponta a ponta (cliente + motorista)
 - Expansao da suite automatizada alem do smoke inicial

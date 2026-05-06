@@ -103,3 +103,21 @@
   - `DriverRequests` e card de solicitacao atualizados para negociacao:
     - Aceitar oferta do cliente
     - Enviar contraoferta (fluxo rapido)
+## 14) Fluxo de plantao para restaurantes/lanchonetes
+- Backend:
+  - Novo modulo `ShiftOffer` com proposta de diaria (valor, horario, gasolina inclusa)
+  - Endpoints:
+    - `POST /shift-offers` (cliente cria plantao)
+    - `GET /shift-offers/client` (cliente lista seus plantoes)
+    - `GET /shift-offers/available` (motoboy lista plantoes abertos)
+    - `GET /shift-offers/driver` (motoboy lista plantoes aceitos)
+    - `POST /shift-offers/:offerId/accept` (motoboy aceita plantao)
+  - Regra de bloqueio operacional:
+    - motoboy com plantao ativo (dentro do horario) nao recebe/aceita novas corridas
+- App:
+  - Cliente/comercio:
+    - nova tela `ShiftOffersClient` para publicar e acompanhar plantoes
+    - menu atualizado com acesso a `Plantoes motoboy`
+  - Motoboy:
+    - nova tela `DriverShiftOffers` para ver e aceitar plantoes
+    - menu atualizado com acesso a `Plantoes`

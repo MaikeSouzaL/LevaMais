@@ -11,6 +11,7 @@ import { ClientScreenHeader } from '../../Shared/components';
 const MENU_ITEMS = [
   { icon: 'history', label: 'Historico', screen: 'History' },
   { icon: 'receipt-long', label: 'Comprovantes', screen: 'Receipts' },
+  { icon: 'delivery-dining', label: 'Plantoes motoboy', screen: 'ShiftOffersClient' },
   { icon: 'star', label: 'Favoritos', screen: 'Favorites' },
   { icon: 'account-balance-wallet', label: 'Carteira', screen: 'Wallet' },
   { icon: 'credit-card', label: 'Pagamentos', screen: 'PaymentsCenter' },

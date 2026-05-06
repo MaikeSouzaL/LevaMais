@@ -3,6 +3,7 @@ const DriverLocation = require("../models/DriverLocation");
 const User = require("../models/User");
 const PricingConfig = require("../models/PricingConfig");
 const City = require("../models/City");
+const ShiftOffer = require("../models/ShiftOffer");
 
 // mixins (rating + proofs)
 const ratingProofMixin = require("./ride.ratingProof.mixin");
@@ -319,6 +320,17 @@ class RideController {
         return res.json({ count: 0, requests: [] });
       }
 
+      const now = new Date();
+      const activeShift = await ShiftOffer.findOne({
+        acceptedBy: driverId,
+        status: "accepted",
+        startAt: { $lte: now },
+        endAt: { $gt: now },
+      }).select("_id");
+      if (activeShift?._id) {
+        return res.json({ count: 0, requests: [] });
+      }
+
       const driverLocation = await DriverLocation.findOne({ driverId });
       if (
         !driverLocation ||
@@ -586,6 +598,29 @@ class RideController {
       const { rideId } = req.params;
       const driverId = req.user.id;
 
+      const now = new Date();
+      const activeShift = await ShiftOffer.findOne({
+        acceptedBy: driverId,
+        status: "accepted",
+        startAt: { $lte: now },
+        endAt: { $gt: now },
+      }).select("title startAt endAt");
+      if (activeShift?._id) {
+        return sendError(
+          res,
+          400,
+          "Voce esta em plantao ativo e nao pode aceitar outras corridas agora",
+          {
+            shift: {
+              id: activeShift._id,
+              title: activeShift.title,
+              startAt: activeShift.startAt,
+              endAt: activeShift.endAt,
+            },
+          },
+        );
+      }
+
       // Impedir aceitar se o motorista jÃ¡ estiver em corrida
       const driverLocation = await DriverLocation.findOne({ driverId });
       if (driverLocation?.currentRideId) {
@@ -609,7 +644,6 @@ class RideController {
       }
 
       // 2) Aceite atÃ´mico da corrida (evita dois motoristas aceitarem ao mesmo tempo)
-      const now = new Date();
       const ride = await Ride.findOneAndUpdate(
         {
           _id: rideId,

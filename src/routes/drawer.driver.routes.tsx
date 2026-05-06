@@ -30,6 +30,7 @@ import DriverWorkPreferencesScreen from "../screens/(authenticated)/Driver/Drive
 import DriverDocumentsScreen from "../screens/(authenticated)/Driver/DriverDocumentsScreen";
 import DriverRatingsScreen from "../screens/(authenticated)/Driver/DriverRatingsScreen";
 import DriverSupportCenterScreen from "../screens/(authenticated)/Driver/DriverSupportCenterScreen";
+import DriverShiftOffersScreen from "../screens/(authenticated)/Driver/DriverShiftOffersScreen";
 
 import { useAuthStore } from "../context/authStore";
 
@@ -57,6 +58,7 @@ const menuItems = [
   { name: "DriverHome", label: "Mapa", icon: "map" },
   { name: "DriverRequests", label: "Solicitacoes", icon: "car" },
   { name: "DriverFinance", label: "Ganhos e carteira", icon: "cash" },
+  { name: "DriverShiftOffers", label: "Plantoes", icon: "store-clock-outline" },
   { name: "DriverRatings", label: "Avaliacoes", icon: "star-circle" },
   { name: "DriverHistory", label: "Historico", icon: "history" },
   { name: "DriverVehicle", label: "Veiculo", icon: "car-info" },
@@ -182,6 +184,7 @@ export default function DrawerDriverRoutes({ initialRideId }: DrawerDriverRoutes
       <Drawer.Screen name="DriverHome" component={DriverHomeScreen} options={{ title: "Inicio" }} />
       <Drawer.Screen name="DriverRequests" component={DriverRequestsScreen} options={{ title: "Solicitacoes" }} />
       <Drawer.Screen name="DriverFinance" component={DriverFinanceStack} options={{ title: "Ganhos e carteira" }} />
+      <Drawer.Screen name="DriverShiftOffers" component={DriverShiftOffersScreen} options={{ title: "Plantoes" }} />
       <Drawer.Screen name="DriverHistory" component={DriverHistoryScreen} options={{ title: "Historico" }} />
       <Drawer.Screen name="DriverVehicle" component={DriverVehicleScreen} options={{ title: "Veiculo" }} />
       <Drawer.Screen name="DriverRatings" component={DriverRatingsScreen} options={{ title: "Avaliacoes" }} />

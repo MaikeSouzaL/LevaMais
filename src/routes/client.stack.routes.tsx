@@ -29,6 +29,7 @@ import NotificationsCenterScreen from "../screens/(authenticated)/Client/Notific
 import SearchingDriverScreen from "../screens/(authenticated)/Client/Ride/SearchingDriver";
 import ActiveOrdersScreen from "../screens/(authenticated)/Client/Orders/ActiveOrders";
 import RideOffersMarketplaceScreen from "../screens/(authenticated)/Client/Orders/RideOffersMarketplaceScreen";
+import ShiftOffersClientScreen from "../screens/(authenticated)/Client/Orders/ShiftOffersClientScreen";
 import PaymentsCenterScreen from "../screens/(authenticated)/Client/Profile/PaymentsCenter";
 import CouponsScreen from "../screens/(authenticated)/Client/Profile/CouponsScreen";
 import ReceiptsScreen from "../screens/(authenticated)/Client/Profile/ReceiptsScreen";
@@ -68,6 +69,7 @@ export default function ClientStackRoutes({
       <Stack.Screen name="Payment" component={PaymentScreen} />
       <Stack.Screen name="SearchingDriver" component={SearchingDriverScreen} />
       <Stack.Screen name="ActiveOrders" component={ActiveOrdersScreen} />
+      <Stack.Screen name="ShiftOffersClient" component={ShiftOffersClientScreen} />
       <Stack.Screen
         name="RideOffersMarketplace"
         component={RideOffersMarketplaceScreen}

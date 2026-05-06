@@ -130,6 +130,7 @@ export type ClientStackParamList = {
   NotificationsCenter: undefined;
   SearchingDriver: { rideId: string };
   ActiveOrders: undefined;
+  ShiftOffersClient: undefined;
   RideOffersMarketplace: { rideId: string };
   PaymentsCenter: undefined;
   Coupons: undefined;

@@ -14,6 +14,7 @@ const walletRoutes = require("./routes/wallet.routes");
 const representativeRoutes = require("./routes/representative.routes");
 const platformConfigRoutes = require("./routes/platformConfig.routes");
 const chatRoutes = require("./routes/chat.routes");
+const shiftOfferRoutes = require("./routes/shiftOffer.routes");
 
 function applyMiddlewares(app) {
   app.use(
@@ -41,6 +42,7 @@ function applyRoutes(app) {
   app.use("/api/representatives", representativeRoutes);
   app.use("/api/platform-config", platformConfigRoutes);
   app.use("/api/chat", chatRoutes);
+  app.use("/api/shift-offers", shiftOfferRoutes);
 
   app.get("/api/health", (req, res) => {
     res.json({

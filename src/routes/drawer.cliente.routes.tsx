@@ -20,6 +20,7 @@ const menuItems = [
   { route: "Home", label: "Inicio", icon: "home" },
   { route: "History", label: "Historico", icon: "history" },
   { route: "ActiveOrders", label: "Pedidos ativos", icon: "map-marker-path" },
+  { route: "ShiftOffersClient", label: "Plantoes motoboy", icon: "store-clock-outline" },
   { route: "Receipts", label: "Comprovantes", icon: "receipt-text-outline" },
   { route: "Wallet", label: "Carteira", icon: "wallet" },
   { route: "PaymentsCenter", label: "Pagamentos", icon: "credit-card-outline" },
