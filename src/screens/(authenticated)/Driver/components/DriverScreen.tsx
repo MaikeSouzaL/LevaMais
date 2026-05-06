@@ -21,12 +21,6 @@ export function DriverScreen({
   scroll = false,
   children,
 }: DriverScreenProps) {
-  const content = (
-    <View style={{ padding: padded ? 16 : 0, gap: padded ? 12 : 0 }}>
-      {children}
-    </View>
-  );
-
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#091A2F" }}>
       <DriverHeader title={title} right={headerRight} />
@@ -40,8 +34,11 @@ export function DriverScreen({
           {children}
         </ScrollView>
       ) : (
-        content
+        <View style={{ flex: 1, padding: padded ? 16 : 0, gap: padded ? 12 : 0 }}>
+          {children}
+        </View>
       )}
     </SafeAreaView>
   );
 }
+

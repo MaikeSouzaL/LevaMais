@@ -117,13 +117,14 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
               <MaterialCommunityIcons
                 name={item.icon as any}
                 size={22}
-                color={isFocused ? "#02de95" : "#9ca5a3"}
+                color={isFocused ? "#02de95" : "rgba(255,255,255,0.75)"}
               />
               <Text
                 style={{
-                  color: isFocused ? "#02de95" : "#9ca5a3",
+                  color: isFocused ? "#02de95" : "rgba(255,255,255,0.85)",
                   marginLeft: 12,
                   fontWeight: "700",
+                  fontSize: 15,
                 }}
               >
                 {item.label}

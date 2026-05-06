@@ -177,9 +177,38 @@ export const DashboardView = ({
         </TouchableOpacity>
         <View style={styles.topRight}>
           {activeOrdersCount > 0 && (
-            <TouchableOpacity style={styles.activeOrdersBadge} onPress={onPressActiveOrders} activeOpacity={0.85}>
-              <MaterialIcons name="local-shipping" size={14} color={colors.primary[500]} />
-              <Text style={styles.activeOrdersText}>{activeOrdersCount} ativos</Text>
+            <TouchableOpacity
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: "rgba(2,222,149,0.35)",
+                backgroundColor: "rgba(2,222,149,0.18)",
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+              }}
+              onPress={onPressActiveOrders}
+              activeOpacity={0.85}
+            >
+              <View
+                style={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: 999,
+                  backgroundColor: "#02de95",
+                }}
+              />
+              <Text
+                style={{
+                  color: "#02de95",
+                  fontWeight: "900",
+                  fontSize: 14,
+                }}
+              >
+                {activeOrdersCount} {activeOrdersCount === 1 ? "ativo" : "ativos"}
+              </Text>
             </TouchableOpacity>
           )}
         </View>
@@ -328,18 +357,24 @@ const styles = StyleSheet.create({
   activeOrdersBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    borderRadius: borderRadius.full,
+    gap: 8,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "rgba(2,222,149,0.35)",
-    backgroundColor: "rgba(2,222,149,0.1)",
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 6,
+    backgroundColor: "rgba(2,222,149,0.18)",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  activeOrdersDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: "#02de95",
   },
   activeOrdersText: {
-    color: colors.primary[500],
-    fontSize: 11,
-    fontWeight: "700",
+    color: "#02de95",
+    fontSize: 14,
+    fontWeight: "900",
   },
   content: {
     paddingHorizontal: spacing.lg,

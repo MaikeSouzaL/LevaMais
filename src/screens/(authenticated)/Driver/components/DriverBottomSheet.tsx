@@ -112,7 +112,7 @@ export function DriverBottomSheet({
         }}
       >
         <View style={{ flex: 1, minWidth: 220 }}>
-          <Text style={{ color: "white", fontSize: 18, fontWeight: "900" }}>
+          <Text style={{ color: online ? "#02de95" : "white", fontSize: 18, fontWeight: "900" }}>
             {online ? "Você está online" : "Você está offline"}
           </Text>
           <Text style={{ color: "rgba(255,255,255,0.65)", marginTop: 4 }}>

@@ -140,12 +140,37 @@ export default function ActiveOrdersScreen() {
                     <Text style={styles.trackBtnText}>Ver ofertas</Text>
                   </TouchableOpacity>
                 ) : String(ride.status || "") === "scheduled" ? (
-                  <View style={{ flexDirection: "row", gap: 10 }}>
+                  <View style={{ flexDirection: "row", gap: 8 }}>
                     <TouchableOpacity
                       style={[styles.trackBtn, { flex: 1 }]}
-                      onPress={() => navigation.navigate("OrderDetails", { rideId: ride._id })}
+                      onPress={() => {
+                        Alert.alert(
+                          "Editar agendamento",
+                          "Para editar, o agendamento atual será cancelado e você poderá criar um novo. Deseja continuar?",
+                          [
+                            { text: "Não", style: "cancel" },
+                            {
+                              text: "Sim, editar",
+                              onPress: async () => {
+                                try {
+                                  await rideService.cancel(ride._id, "Editado pelo cliente");
+                                  navigation.navigate("Home", {
+                                    home_dropoff: ride.dropoff,
+                                    currentLocation: ride.pickup,
+                                    initialVehicle: ride.vehicleType,
+                                    initialService: ride.serviceType,
+                                  });
+                                } catch (err: any) {
+                                  Toast.show({ type: "error", text1: "Não foi possível editar", text2: err?.message });
+                                }
+                              },
+                            },
+                          ]
+                        );
+                      }}
                     >
-                      <Text style={styles.trackBtnText}>Ver agendamento</Text>
+                      <MaterialIcons name="edit" size={14} color={colors.primary[500]} style={{ marginRight: 4 }} />
+                      <Text style={styles.trackBtnText}>Editar</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.trackBtn, { flex: 1, backgroundColor: "rgba(239, 68, 68, 0.12)", borderColor: "rgba(239, 68, 68, 0.4)" }]}

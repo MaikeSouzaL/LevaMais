@@ -7,7 +7,7 @@ import Toast from "react-native-toast-message";
 
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
 import { ClientScreenHeader, LoadingButton } from "../../../Shared/components";
-import rideService from "../../../../services/ride.service";
+import rideService from "@/services/ride.service";
 
 type Params = {
   RideCompleted: {

@@ -352,6 +352,7 @@ export default function DriverRequestsScreen() {
   return (
     <DriverScreen
       title="Solicitações"
+      padded={false}
       scroll={activeTab === "realtime"}
       headerRight={
         <Text style={{ color: "rgba(255,255,255,0.7)", fontWeight: "800" }}>
@@ -360,7 +361,7 @@ export default function DriverRequestsScreen() {
       }
     >
       {/* Abas Personalizadas Premium */}
-      <View style={{ flexDirection: "row", backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 14, padding: 4, marginHorizontal: 16, marginBottom: 16, borderWidth: 1, borderColor: "rgba(255,255,255,0.06)" }}>
+      <View style={{ flexDirection: "row", backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 14, padding: 4, marginHorizontal: 16, marginTop: 12, marginBottom: 12, borderWidth: 1, borderColor: "rgba(255,255,255,0.06)" }}>
         <TouchableOpacity
           onPress={() => setActiveTab("realtime")}
           style={{
@@ -411,7 +412,7 @@ export default function DriverRequestsScreen() {
           ))
         )
       ) : (
-        <ScrollView style={{ flex: 1, paddingHorizontal: 16 }}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}>
           {loadingScheduled ? (
             <View style={{ padding: 40, alignItems: "center" }}>
               <ActivityIndicator size="large" color="#02de95" />

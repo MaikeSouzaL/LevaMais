@@ -1,10 +1,9 @@
 import React from "react";
+import { TouchableOpacity } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-
-import { MapFabButton } from "../../../../components/ui/MapFabButton";
+import { MaterialIcons } from "@expo/vector-icons";
 
 export type DriverMapMenuButtonProps = {
-  /** absolute positioning handled by parent; expose only onPress override when needed */
   onPress?: () => void;
 };
 
@@ -12,15 +11,23 @@ export function DriverMapMenuButton({ onPress }: DriverMapMenuButtonProps) {
   const navigation = useNavigation();
 
   return (
-    <MapFabButton
-      icon="menu"
+    <TouchableOpacity
       onPress={onPress ?? (() => (navigation as any).openDrawer?.())}
-      size={48}
-      iconSize={24}
-      backgroundColor="rgba(17,24,22,0.88)"
-      activeBackgroundColor="#1b2723"
-      iconColor="#02de95"
+      activeOpacity={0.85}
       accessibilityLabel="Abrir menu"
-    />
+      style={{
+        width: 42,
+        height: 42,
+        borderRadius: 21,
+        backgroundColor: "rgba(17,24,22,0.88)",
+        alignItems: "center",
+        justifyContent: "center",
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.10)",
+      }}
+    >
+      <MaterialIcons name="menu" size={24} color="#02de95" />
+    </TouchableOpacity>
   );
 }
+
