@@ -25,6 +25,8 @@ export default function ActiveOrdersScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [rides, setRides] = useState<Ride[]>([]);
+  const [editingRideId, setEditingRideId] = useState<string | null>(null);
+  const [cancellingRideId, setCancellingRideId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const res = await rideService.getActiveList();
@@ -51,30 +53,32 @@ export default function ActiveOrdersScreen() {
   }, [load]);
 
   const handleCancel = async (rideId: string) => {
-    Alert.alert(
-      "Cancelar Agendamento",
-      "Deseja realmente cancelar esta entrega agendada?",
-      [
-        { text: "Não", style: "cancel" },
-        {
-          text: "Sim, Cancelar",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await rideService.cancel(rideId);
-              Toast.show({ type: "success", text1: "Agendamento cancelado com sucesso" });
-              await load();
-            } catch (err: any) {
-              Toast.show({
-                type: "error",
-                text1: "Não foi possível cancelar",
-                text2: err?.message || "Tente novamente",
-              });
-            }
+    setTimeout(() => {
+      Alert.alert(
+        "Cancelar Agendamento",
+        "Deseja realmente cancelar esta entrega agendada?",
+        [
+          { text: "Não", style: "cancel" },
+          {
+            text: "Sim, Cancelar",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                await rideService.cancel(rideId);
+                Toast.show({ type: "success", text1: "Agendamento cancelado com sucesso" });
+                await load();
+              } catch (err: any) {
+                Toast.show({
+                  type: "error",
+                  text1: "Não foi possível cancelar",
+                  text2: err?.message || "Tente novamente",
+                });
+              }
+            },
           },
-        },
-      ]
-    );
+        ]
+      );
+    }, 100);
   };
 
   return (
@@ -140,45 +144,91 @@ export default function ActiveOrdersScreen() {
                     <Text style={styles.trackBtnText}>Ver ofertas</Text>
                   </TouchableOpacity>
                 ) : String(ride.status || "") === "scheduled" ? (
-                  <View style={{ flexDirection: "row", gap: 8 }}>
-                    <TouchableOpacity
-                      style={[styles.trackBtn, { flex: 1 }]}
-                      onPress={() => {
-                        Alert.alert(
-                          "Editar agendamento",
-                          "Para editar, o agendamento atual será cancelado e você poderá criar um novo. Deseja continuar?",
-                          [
-                            { text: "Não", style: "cancel" },
-                            {
-                              text: "Sim, editar",
-                              onPress: async () => {
-                                try {
-                                  await rideService.cancel(ride._id, "Editado pelo cliente");
-                                  navigation.navigate("Home", {
-                                    home_dropoff: ride.dropoff,
-                                    currentLocation: ride.pickup,
-                                    initialVehicle: ride.vehicleType,
-                                    initialService: ride.serviceType,
-                                  });
-                                } catch (err: any) {
-                                  Toast.show({ type: "error", text1: "Não foi possível editar", text2: err?.message });
-                                }
-                              },
-                            },
-                          ]
-                        );
-                      }}
-                    >
-                      <MaterialIcons name="edit" size={14} color={colors.primary[500]} style={{ marginRight: 4 }} />
-                      <Text style={styles.trackBtnText}>Editar</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.trackBtn, { flex: 1, backgroundColor: "rgba(239, 68, 68, 0.12)", borderColor: "rgba(239, 68, 68, 0.4)" }]}
-                      onPress={() => handleCancel(ride._id)}
-                    >
-                      <Text style={[styles.trackBtnText, { color: "#ef4444" }]}>Cancelar</Text>
-                    </TouchableOpacity>
-                  </View>
+                  editingRideId === ride._id ? (
+                    <View style={{ width: "100%", gap: 6 }}>
+                      <Text style={{ color: colors.text.secondary, fontSize: 12, fontWeight: "700", marginBottom: 2 }}>
+                        Quer mesmo editar? O agendamento atual será cancelado para iniciar um novo.
+                      </Text>
+                      <View style={{ flexDirection: "row", gap: 8 }}>
+                        <TouchableOpacity
+                          style={[styles.trackBtn, { flex: 1, backgroundColor: "#02de95", borderColor: "#02de95" }]}
+                          onPress={async () => {
+                            try {
+                              await rideService.cancel(ride._id, "Editado pelo cliente");
+                              setEditingRideId(null);
+                              navigation.navigate("Home", {
+                                home_dropoff: ride.dropoff,
+                                currentLocation: ride.pickup,
+                                initialVehicle: ride.vehicleType,
+                                initialService: ride.serviceType,
+                              });
+                            } catch (err: any) {
+                              Toast.show({ type: "error", text1: "Não foi possível editar", text2: err?.message });
+                            }
+                          }}
+                        >
+                          <Text style={[styles.trackBtnText, { color: "#091A2F", fontWeight: "900" }]}>Confirmar</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.trackBtn, { flex: 1, backgroundColor: "rgba(255, 255, 255, 0.08)", borderColor: "rgba(255, 255, 255, 0.15)" }]}
+                          onPress={() => setEditingRideId(null)}
+                        >
+                          <Text style={styles.trackBtnText}>Voltar</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ) : cancellingRideId === ride._id ? (
+                    <View style={{ width: "100%", gap: 6 }}>
+                      <Text style={{ color: colors.text.secondary, fontSize: 12, fontWeight: "700", marginBottom: 2 }}>
+                        Deseja realmente cancelar esta entrega agendada?
+                      </Text>
+                      <View style={{ flexDirection: "row", gap: 8 }}>
+                        <TouchableOpacity
+                          style={[styles.trackBtn, { flex: 1, backgroundColor: "rgba(239, 68, 68, 0.16)", borderColor: "rgba(239, 68, 68, 0.4)" }]}
+                          onPress={async () => {
+                            try {
+                              await rideService.cancel(ride._id);
+                              setCancellingRideId(null);
+                              Toast.show({ type: "success", text1: "Agendamento cancelado com sucesso" });
+                              await load();
+                            } catch (err: any) {
+                              Toast.show({ type: "error", text1: "Não foi possível cancelar", text2: err?.message });
+                            }
+                          }}
+                        >
+                          <Text style={[styles.trackBtnText, { color: "#ef4444", fontWeight: "900" }]}>Confirmar</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.trackBtn, { flex: 1, backgroundColor: "rgba(255, 255, 255, 0.08)", borderColor: "rgba(255, 255, 255, 0.15)" }]}
+                          onPress={() => setCancellingRideId(null)}
+                        >
+                          <Text style={styles.trackBtnText}>Voltar</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ) : (
+                    <View style={{ flexDirection: "row", gap: 8 }}>
+                      <TouchableOpacity
+                        style={[styles.trackBtn, { flex: 1 }]}
+                        onPress={() => {
+                          setEditingRideId(ride._id);
+                          setCancellingRideId(null);
+                        }}
+                      >
+                        <MaterialIcons name="edit" size={14} color={colors.primary[500]} style={{ marginRight: 4 }} />
+                        <Text style={styles.trackBtnText}>Editar</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.trackBtn, { flex: 1, backgroundColor: "rgba(239, 68, 68, 0.12)", borderColor: "rgba(239, 68, 68, 0.4)" }]}
+                        onPress={() => {
+                          setCancellingRideId(ride._id);
+                          setEditingRideId(null);
+                        }}
+                      >
+                        <Text style={[styles.trackBtnText, { color: "#ef4444" }]}>Cancelar</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )
                 ) : (
                   <TouchableOpacity
                     style={styles.trackBtn}

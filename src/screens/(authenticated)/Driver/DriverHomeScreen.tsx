@@ -53,11 +53,14 @@ export default function DriverHomeScreen() {
   const [showMapStyleHint, setShowMapStyleHint] = useState(false);
   const [isTogglingOnline, setIsTogglingOnline] = useState(false);
   const [pendingRequests, setPendingRequests] = useState(0);
+  const [scheduledCount, setScheduledCount] = useState(0);
   const [todayEarnings, setTodayEarnings] = useState(0);
   const [incomingRequest, setIncomingRequest] = useState<any>(null);
+  const [countdown, setCountdown] = useState<number | null>(null);
   const [routeCoords, setRouteCoords] = useState<LatLng[]>([]);
   const intervalRef = useRef<any>(null);
   const pendingSyncIntervalRef = useRef<any>(null);
+  const countdownIntervalRef = useRef<any>(null);
   const mapRef = useRef<MapView | null>(null);
   const hasIncomingRequestRef = useRef(false);
   const didSetInitialRegionRef = useRef(false);
@@ -488,8 +491,47 @@ export default function DriverHomeScreen() {
         clearInterval(pendingSyncIntervalRef.current);
         pendingSyncIntervalRef.current = null;
       }
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+      }
     };
   }, []);
+
+  useEffect(() => {
+    if (incomingRequest) {
+      setCountdown(60);
+      countdownIntervalRef.current = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev === null || prev <= 1) {
+            clearInterval(countdownIntervalRef.current);
+            countdownIntervalRef.current = null;
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else {
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+      }
+      setCountdown(null);
+    }
+
+    return () => {
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+      }
+    };
+  }, [incomingRequest]);
+
+  useEffect(() => {
+    if (countdown === 0) {
+      rejectIncoming();
+    }
+  }, [countdown]);
 
   const toggleOnline = async () => {
     if (isTogglingOnline) return;
@@ -641,6 +683,13 @@ export default function DriverHomeScreen() {
     })();
   }, []);
 
+  const refreshScheduledCount = async () => {
+    try {
+      const res = await rideService.getAvailableScheduledRides();
+      setScheduledCount(res?.count || 0);
+    } catch {}
+  };
+
   const handleNotifications = async () => {
     try {
       (navigation as any).navigate("DriverRequests");
@@ -674,10 +723,11 @@ export default function DriverHomeScreen() {
     const run = async () => {
       if (!mounted) return;
       await refreshTodayEarnings();
+      await refreshScheduledCount();
     };
 
     run();
-    const timer = setInterval(run, 15000);
+    const timer = setInterval(run, 60000);
 
     return () => {
       mounted = false;
@@ -941,6 +991,7 @@ export default function DriverHomeScreen() {
                 plate={vehicleInfo?.plate}
                 todayEarnings={todayEarnings}
                 pendingRequests={pendingRequests}
+                scheduledCount={scheduledCount}
                 onPressNotifications={handleNotifications}
                 online={online}
               />
@@ -1056,13 +1107,21 @@ export default function DriverHomeScreen() {
               </View>
             ) : null}
 
-            <Text style={{ color: "white", fontWeight: "900", fontSize: 18 }}>
-              {incomingRequest?.negotiation?.enabled && incomingRequest?.negotiation?.clientOffer != null
-                ? `R$ ${Number(incomingRequest.negotiation.clientOffer).toFixed(2)}`
-                : incomingRequest?.pricing?.total != null
-                ? `R$ ${Number(incomingRequest.pricing.total).toFixed(2)}`
-                : "Nova solicitação"}
-            </Text>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+              <Text style={{ color: "white", fontWeight: "900", fontSize: 18 }}>
+                {incomingRequest?.negotiation?.enabled && incomingRequest?.negotiation?.clientOffer != null
+                  ? `R$ ${Number(incomingRequest.negotiation.clientOffer).toFixed(2)}`
+                  : incomingRequest?.pricing?.total != null
+                  ? `R$ ${Number(incomingRequest.pricing.total).toFixed(2)}`
+                  : "Nova solicitação"}
+              </Text>
+              {countdown !== null ? (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(253,216,53,0.15)", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: "rgba(253,216,53,0.3)" }}>
+                  <MaterialIcons name="timer" size={14} color="#fdd835" />
+                  <Text style={{ color: "#fdd835", fontSize: 12, fontWeight: "900" }}>{countdown}s</Text>
+                </View>
+              ) : null}
+            </View>
 
             <Text style={{ color: "rgba(255,255,255,0.7)", marginTop: 8 }}>
               Coleta: {incomingRequest?.pickup?.address || "—"}

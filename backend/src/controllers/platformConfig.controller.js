@@ -5,7 +5,7 @@ class PlatformConfigController {
     try {
       let config = await PlatformConfig.findOne().sort({ createdAt: -1 });
       if (!config) {
-        config = await PlatformConfig.create({ appFeePercentage: 20 });
+        config = await PlatformConfig.create({ appFeePercentage: 15 });
       }
       res.json(config);
     } catch (error) {

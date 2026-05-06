@@ -233,6 +233,8 @@ class RideService {
     return response.data;
   }
 
+
+
   /**
    * Buscar corrida por ID
    */
@@ -393,7 +395,7 @@ class RideService {
   /**
    * Buscar agendamentos disponíveis sem motoristas (para motoristas)
    */
-  async getAvailableScheduledRides(): Promise<{ rides: Ride[] }> {
+  async getAvailableScheduledRides(): Promise<{ count: number; rides: Ride[] }> {
     const response = await api.get("/rides/scheduled/available");
     return response.data;
   }
@@ -401,9 +403,9 @@ class RideService {
   /**
    * Aceitar corrida agendada antecipadamente
    */
-  async acceptScheduledRide(rideId: string): Promise<Ride> {
+  async acceptScheduledRide(rideId: string): Promise<{ message: string; ride: Ride }> {
     const response = await api.post(`/rides/${rideId}/accept-scheduled`);
-    return response.data?.ride;
+    return response.data;
   }
 }
 

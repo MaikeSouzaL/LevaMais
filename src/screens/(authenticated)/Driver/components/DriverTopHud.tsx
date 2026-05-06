@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 
@@ -8,6 +8,7 @@ export type DriverTopHudProps = {
   plate?: string | null;
   todayEarnings?: number;
   pendingRequests?: number;
+  scheduledCount?: number;
   onPressNotifications: () => void;
   online?: boolean;
 };
@@ -17,6 +18,7 @@ export function DriverTopHud({
   plate,
   todayEarnings = 0,
   pendingRequests = 0,
+  scheduledCount = 0,
   onPressNotifications,
   online = false,
 }: DriverTopHudProps) {
@@ -87,6 +89,7 @@ export function DriverTopHud({
               color="rgba(255,255,255,0.9)"
             />
 
+            {/* Badge vermelho — solicitações em tempo real */}
             {pendingRequests > 0 && (
               <View
                 style={{
@@ -112,6 +115,36 @@ export function DriverTopHud({
                   }}
                 >
                   {pendingRequests > 9 ? "9+" : String(pendingRequests)}
+                </Text>
+              </View>
+            )}
+
+            {/* Badge verde — corridas agendadas disponíveis */}
+            {scheduledCount > 0 && pendingRequests === 0 && (
+              <View
+                style={{
+                  position: "absolute",
+                  bottom: -6,
+                  right: -6,
+                  minWidth: 18,
+                  height: 18,
+                  paddingHorizontal: 4,
+                  borderRadius: 999,
+                  backgroundColor: "#02de95",
+                  borderWidth: 2,
+                  borderColor: "#091A2F",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Text
+                  style={{
+                    color: "#091A2F",
+                    fontSize: 10,
+                    fontWeight: "900",
+                  }}
+                >
+                  {scheduledCount > 9 ? "9+" : String(scheduledCount)}
                 </Text>
               </View>
             )}
@@ -157,3 +190,5 @@ export function DriverTopHud({
     </View>
   );
 }
+
+

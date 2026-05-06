@@ -514,9 +514,9 @@ class RideController {
       let config = await PlatformConfig.findOne().sort({ createdAt: -1 });
       if (!config) {
         // Cria default se nÃ£o existir
-        config = await PlatformConfig.create({ appFeePercentage: 20 });
+        config = await PlatformConfig.create({ appFeePercentage: 15 });
       }
-      const appFeePercentage = config.appFeePercentage || 20;
+      const appFeePercentage = config.appFeePercentage || 15;
 
       const suggestedMinPrice = calculateSuggestedMinPrice(pricing?.total);
       const requestedOffer = Number(negotiation?.clientOffer);
@@ -1017,7 +1017,7 @@ class RideController {
       applyFinalPriceOnRide(
         ride,
         finalPrice,
-        Number(ride.splitDetails?.platformConfigUsed || 20),
+        Number(ride.splitDetails?.platformConfigUsed || 15),
       );
 
       ride.negotiation.finalAgreedPrice = finalPrice;

@@ -6,7 +6,7 @@ import { platformConfigService } from "@/services/platformConfigService";
 import { useToast } from "@/components/ui/Toast";
 
 export default function GeneralSettingsPage() {
-  const [config, setConfig] = useState({ appFeePercentage: 20 });
+  const [config, setConfig] = useState({ appFeePercentage: 15 });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const { showToast, ToastContainer } = useToast();
@@ -76,7 +76,7 @@ export default function GeneralSettingsPage() {
                 <span className="absolute right-3 top-2 text-gray-500 font-medium">%</span>
               </div>
               <p className="text-sm text-gray-500 max-w-md">
-                Porcentagem retida de cada corrida. Ex: Se a corrida for R$ 20,00 e a taxa for 20%, o motorista recebe R$ 16,00.
+                Porcentagem retida de cada corrida. Ex: Se a corrida for R$ 20,00 e a taxa for 15%, o motorista recebe R$ 17,00.
               </p>
             </div>
           </div>
