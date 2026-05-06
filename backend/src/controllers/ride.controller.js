@@ -156,7 +156,8 @@ class RideController {
           const updatedRide = await Ride.findById(ride._id);
           if (
             updatedRide &&
-            ["requesting", "driver_assigned"].includes(updatedRide.status)
+            ["requesting", "driver_assigned"].includes(updatedRide.status) &&
+            !updatedRide.isWaitingInQueue
           ) {
             updatedRide.status = "cancelled_no_driver";
             updatedRide.cancelledAt = new Date();
@@ -173,7 +174,7 @@ class RideController {
         } catch (timeoutErr) {
           console.error("Erro no timeout de cancelamento por falta de motorista:", timeoutErr);
         }
-      }, 60000);
+      }, 180000);
     } catch (dispatchErr) {
       console.error("Erro critico em dispatchRideToNearbyDrivers:", dispatchErr);
     }

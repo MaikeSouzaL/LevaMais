@@ -380,6 +380,36 @@ export default function SearchingDriverScreen() {
             </View>
           </View>
 
+          <TouchableOpacity 
+            style={{
+              width: "80%",
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: colors.primary[500],
+              paddingVertical: spacing.md,
+              borderRadius: borderRadius.md,
+              gap: spacing.sm,
+              marginBottom: spacing.md,
+            }} 
+            onPress={() => {
+              doneRef.current = true;
+              cleanup();
+              Toast.show({
+                type: "success",
+                text1: "Pedido ativo em segundo plano!",
+                text2: "Você pode acompanhá-lo no menu 'Minhas Corridas'."
+              });
+              navigation.reset({ index: 0, routes: [{ name: "Home" }] });
+            }} 
+            activeOpacity={0.85}
+          >
+            <MaterialIcons name="home" size={20} color={colors.background.primary} />
+            <Text style={{ color: colors.background.primary, fontSize: fontSize.base, fontWeight: "bold" }}>
+              Voltar para o início
+            </Text>
+          </TouchableOpacity>
+
           <TouchableOpacity style={styles.cancelFab} onPress={handleCancel} disabled={cancelling} activeOpacity={0.85}>
             <Text style={styles.cancelFabText}>{cancelling ? "Cancelando..." : "Cancelar busca"}</Text>
           </TouchableOpacity>

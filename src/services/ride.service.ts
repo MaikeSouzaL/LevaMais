@@ -87,6 +87,7 @@ export interface Ride {
   };
   createdAt: string;
   updatedAt: string;
+  isWaitingInQueue?: boolean;
 }
 
 export interface RideOffer {

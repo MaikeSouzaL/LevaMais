@@ -113,27 +113,64 @@ export default function ActiveOrdersScreen() {
           </View>
         ) : (
           rides.map((ride) => (
-            <View key={ride._id} style={styles.rideCard}>
+            <View key={ride._id} style={[styles.rideCard, ride.isWaitingInQueue && { borderColor: "rgba(2,222,149,0.4)", borderWidth: 1.5 }]}>
               <View style={styles.cardTop}>
-                <Text style={styles.rideType}>{rideTitle(ride)}</Text>
-                <Text style={styles.rideStatus}>{mapStatusLabel(ride.status)}</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <MaterialIcons 
+                    name={ride.serviceType === "delivery" ? "local-shipping" : "local-taxi"} 
+                    size={22} 
+                    color={colors.primary[500]} 
+                  />
+                  <Text style={styles.rideType}>{rideTitle(ride)}</Text>
+                </View>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  {ride.isWaitingInQueue && (
+                    <View style={{ backgroundColor: "rgba(2,222,149,0.12)", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, borderWidth: 1, borderColor: "rgba(2,222,149,0.3)" }}>
+                      <Text style={{ color: "#02de95", fontSize: 9, fontWeight: "bold" }}>FILA DE ESPERA</Text>
+                    </View>
+                  )}
+                  <Text style={[styles.rideStatus, { color: ride.status === "requesting" ? "#02de95" : colors.primary[500] }]}>
+                    {mapStatusLabel(ride.status)}
+                  </Text>
+                </View>
               </View>
-              <Text style={styles.address} numberOfLines={1}>
-                Coleta: {ride.pickup?.address || "-"}
-              </Text>
-              <Text style={styles.address} numberOfLines={1}>
-                Destino: {ride.dropoff?.address || "-"}
-              </Text>
+
+              {/* Endereço de Coleta */}
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8, marginTop: 10 }}>
+                <MaterialIcons name="trip-origin" size={14} color="#02de95" />
+                <Text style={[styles.address, { marginBottom: 0, flex: 1 }]} numberOfLines={1}>
+                  Coleta: {ride.pickup?.address || "-"}
+                </Text>
+              </View>
+
+              {/* Endereço de Destino */}
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <MaterialIcons name="place" size={14} color="#ef4444" />
+                <Text style={[styles.address, { marginBottom: 0, flex: 1 }]} numberOfLines={1}>
+                  Destino: {ride.dropoff?.address || "-"}
+                </Text>
+              </View>
+
+              {/* Agendada para */}
               {!!ride.scheduledFor && (
-                <Text style={styles.address} numberOfLines={1}>
-                  Agendada para: {new Date(ride.scheduledFor).toLocaleString("pt-BR")}
-                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                  <MaterialIcons name="event" size={14} color={colors.text.tertiary} />
+                  <Text style={[styles.address, { marginBottom: 0, flex: 1 }]} numberOfLines={1}>
+                    Agendada para: {new Date(ride.scheduledFor).toLocaleString("pt-BR")}
+                  </Text>
+                </View>
               )}
-              {ride.negotiation?.enabled && (
-                <Text style={styles.address} numberOfLines={1}>
-                  Oferta atual: {formatBRL(ride.negotiation.finalAgreedPrice || ride.negotiation.clientOffer || 0)}
-                </Text>
+
+              {/* Valor / Oferta atual */}
+              {(ride.negotiation?.enabled || (ride.pricing?.total || 0) > 0) && (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4, marginTop: 4 }}>
+                  <MaterialIcons name="attach-money" size={14} color="#fbbf24" />
+                  <Text style={[styles.address, { marginBottom: 0, color: "#fbbf24", fontWeight: "bold" }]} numberOfLines={1}>
+                    Valor: {formatBRL(ride.negotiation?.finalAgreedPrice || ride.negotiation?.clientOffer || ride.pricing?.total || 0)}
+                  </Text>
+                </View>
               )}
+
               <View style={styles.cardActions}>
                 {ride.negotiation?.enabled &&
                 ["requesting", "driver_assigned"].includes(String(ride.status || "")) ? (
