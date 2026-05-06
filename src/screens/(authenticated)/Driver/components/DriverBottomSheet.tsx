@@ -124,42 +124,44 @@ export function DriverBottomSheet({
 
         <TouchableOpacity
           onPress={onToggleOnline}
-          activeOpacity={0.9}
+          activeOpacity={0.8}
           disabled={!!isTogglingOnline}
           style={{
-            backgroundColor: online ? "rgba(239,68,68,0.18)" : "#02de95",
-            borderRadius: 14,
-            paddingHorizontal: 12,
-            paddingVertical: 10,
+            width: 58,
+            height: 32,
+            borderRadius: 16,
+            backgroundColor: online ? "#02de95" : "rgba(255,255,255,0.12)",
             borderWidth: 1,
-            borderColor: online ? "rgba(239,68,68,0.35)" : "rgba(0,0,0,0.10)",
-            // garante que não seja cortado e ocupe apenas o necessário
+            borderColor: online ? "rgba(2,222,149,0.3)" : "rgba(255,255,255,0.1)",
+            padding: 3,
+            justifyContent: "center",
             flexShrink: 0,
-            alignSelf: "flex-start",
-            opacity: isTogglingOnline ? 0.9 : 1,
+            alignSelf: "center",
           }}
         >
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            {isTogglingOnline ? (
+          <View
+            style={{
+              width: 24,
+              height: 24,
+              borderRadius: 12,
+              backgroundColor: online ? "#091A2F" : "#fff",
+              alignSelf: online ? "flex-end" : "flex-start",
+              alignItems: "center",
+              justifyContent: "center",
+              elevation: 3,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 1 },
+              shadowOpacity: 0.25,
+              shadowRadius: 1.8,
+            }}
+          >
+            {isTogglingOnline && (
               <ActivityIndicator
                 size="small"
-                color={online ? "#ef4444" : "#091A2F"}
-              />
-            ) : (
-              <MaterialIcons
-                name={online ? "toggle-off" : "toggle-on"}
-                size={20}
-                color={online ? "#ef4444" : "#091A2F"}
+                color={online ? "#02de95" : "#091A2F"}
+                style={{ transform: [{ scale: 0.7 }] }}
               />
             )}
-            <Text
-              style={{
-                color: online ? "#ef4444" : "#091A2F",
-                fontWeight: "900",
-              }}
-            >
-              {online ? "Parar" : "Ativar"}
-            </Text>
           </View>
         </TouchableOpacity>
       </View>
