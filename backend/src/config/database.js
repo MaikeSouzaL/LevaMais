@@ -9,10 +9,7 @@ class Database {
     try {
       const mongoURI = process.env.MONGODB_URI || 'mongodb://localhost:27017/leva-mais';
       
-      this.connection = await mongoose.connect(mongoURI, {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
-      });
+      this.connection = await mongoose.connect(mongoURI);
 
       console.log('📦 Conectando ao MongoDB...');
       return this.connection;

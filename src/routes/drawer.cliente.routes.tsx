@@ -50,7 +50,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
   return (
     <DrawerContentScrollView
       {...props}
-      contentContainerStyle={{ flex: 1, backgroundColor: "#091A2F" }}
+      contentContainerStyle={{ flexGrow: 1, backgroundColor: "#091A2F" }}
     >
       <View style={{ paddingHorizontal: 20, paddingVertical: 24 }}>
         <Text style={{ color: "white", fontSize: 20, fontWeight: "800" }}>

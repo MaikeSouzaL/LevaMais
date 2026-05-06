@@ -116,21 +116,32 @@ driverLocationSchema.statics.findNearby = async function (
 
 // Método para calcular distância até um ponto
 driverLocationSchema.methods.distanceTo = function (latitude, longitude) {
-  const [driverLng, driverLat] = this.location.coordinates;
+  try {
+    if (!this.location || !Array.isArray(this.location.coordinates) || this.location.coordinates.length < 2) {
+      return 0;
+    }
+    const [driverLng, driverLat] = this.location.coordinates;
+    if (driverLng == null || driverLat == null || Number.isNaN(driverLng) || Number.isNaN(driverLat)) {
+      return 0;
+    }
 
-  // Fórmula de Haversine para calcular distância
-  const R = 6371e3; // Raio da Terra em metros
-  const φ1 = (driverLat * Math.PI) / 180;
-  const φ2 = (latitude * Math.PI) / 180;
-  const Δφ = ((latitude - driverLat) * Math.PI) / 180;
-  const Δλ = ((longitude - driverLng) * Math.PI) / 180;
+    // Fórmula de Haversine para calcular distância
+    const R = 6371e3; // Raio da Terra em metros
+    const φ1 = (driverLat * Math.PI) / 180;
+    const φ2 = (latitude * Math.PI) / 180;
+    const Δφ = ((latitude - driverLat) * Math.PI) / 180;
+    const Δλ = ((longitude - driverLng) * Math.PI) / 180;
 
-  const a =
-    Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const a =
+      Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
-  return R * c; // Distância em metros
+    return R * c; // Distância em metros
+  } catch (error) {
+    console.error("Erro no cálculo de distância do motorista:", error);
+    return 0;
+  }
 };
 
 const DriverLocation = mongoose.model("DriverLocation", driverLocationSchema);

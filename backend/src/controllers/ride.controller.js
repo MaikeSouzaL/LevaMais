@@ -94,57 +94,89 @@ class RideController {
   }
 
   async dispatchRideToNearbyDrivers(ride, io) {
-    if (!io || !ride) return;
-
-    let searchRadius = 15000;
     try {
-      if (ride.cityId) {
-        const city = await City.findById(ride.cityId).select("searchRadius");
-        if (city?.searchRadius) {
-          searchRadius = city.searchRadius;
+      if (!io || !ride) return;
+
+      let searchRadius = 15000;
+      try {
+        if (ride.cityId) {
+          const city = await City.findById(ride.cityId).select("searchRadius");
+          if (city?.searchRadius) {
+            searchRadius = city.searchRadius;
+          }
         }
+      } catch (cityErr) {
+        console.error("Erro ao buscar raio de busca da cidade:", cityErr);
+        searchRadius = 15000;
       }
-    } catch {
-      searchRadius = 15000;
+
+      let nearbyDrivers = [];
+      try {
+        nearbyDrivers = await DriverLocation.findNearby(
+          ride.pickup.latitude,
+          ride.pickup.longitude,
+          searchRadius,
+          ride.vehicleType,
+          50,
+          ride.serviceType,
+        );
+      } catch (findDriversErr) {
+        console.error("Erro ao buscar motoristas proximos:", findDriversErr);
+      }
+
+      nearbyDrivers.forEach((driver) => {
+        try {
+          if (!driver || !driver.driverId) return;
+
+          let distanceToPickup = 0;
+          try {
+            if (typeof driver.distanceTo === "function") {
+              distanceToPickup = driver.distanceTo(
+                ride.pickup.latitude,
+                ride.pickup.longitude,
+              );
+            }
+          } catch (distErr) {
+            console.error(`Erro ao calcular distancia para driver=${driver.driverId}:`, distErr);
+          }
+
+          io.to(`driver-${driver.driverId}`).emit(
+            "new-ride-request",
+            buildRideRequestPayload(ride, {
+              distanceToPickup,
+            }),
+          );
+        } catch (driverEmitErr) {
+          console.error(`Erro ao despachar requisicao para driver=${driver?.driverId}:`, driverEmitErr);
+        }
+      });
+
+      setTimeout(async () => {
+        try {
+          const updatedRide = await Ride.findById(ride._id);
+          if (
+            updatedRide &&
+            ["requesting", "driver_assigned"].includes(updatedRide.status)
+          ) {
+            updatedRide.status = "cancelled_no_driver";
+            updatedRide.cancelledAt = new Date();
+            await updatedRide.save();
+
+            const clientId = ride.clientId?._id || ride.clientId;
+            if (clientId) {
+              io.to(`client-${clientId}`).emit("ride-cancelled", {
+                rideId: ride._id,
+                reason: "no_driver_found",
+              });
+            }
+          }
+        } catch (timeoutErr) {
+          console.error("Erro no timeout de cancelamento por falta de motorista:", timeoutErr);
+        }
+      }, 60000);
+    } catch (dispatchErr) {
+      console.error("Erro critico em dispatchRideToNearbyDrivers:", dispatchErr);
     }
-
-    const nearbyDrivers = await DriverLocation.findNearby(
-      ride.pickup.latitude,
-      ride.pickup.longitude,
-      searchRadius,
-      ride.vehicleType,
-      50,
-      ride.serviceType,
-    );
-
-    nearbyDrivers.forEach((driver) => {
-      io.to(`driver-${driver.driverId}`).emit(
-        "new-ride-request",
-        buildRideRequestPayload(ride, {
-          distanceToPickup: driver.distanceTo(
-            ride.pickup.latitude,
-            ride.pickup.longitude,
-          ),
-        }),
-      );
-    });
-
-    setTimeout(async () => {
-      const updatedRide = await Ride.findById(ride._id);
-      if (
-        updatedRide &&
-        ["requesting", "driver_assigned"].includes(updatedRide.status)
-      ) {
-        updatedRide.status = "cancelled_no_driver";
-        updatedRide.cancelledAt = new Date();
-        await updatedRide.save();
-
-        io.to(`client-${ride.clientId._id || ride.clientId}`).emit("ride-cancelled", {
-          rideId: ride._id,
-          reason: "no_driver_found",
-        });
-      }
-    }, 60000);
   }
 
   scheduleRideDispatch(rideId, scheduledFor, io) {
@@ -571,9 +603,9 @@ class RideController {
       // Iniciar busca por motorista (via WebSocket)
       const io = req.app.get("io");
       if (io && ride.status === "scheduled" && scheduledDate) {
-        this.scheduleRideDispatch(ride._id, scheduledDate, io);
+        module.exports.scheduleRideDispatch(ride._id, scheduledDate, io);
       } else if (io) {
-        await this.dispatchRideToNearbyDrivers(ride, io);
+        await module.exports.dispatchRideToNearbyDrivers(ride, io);
       }
 
       res.status(201).json({

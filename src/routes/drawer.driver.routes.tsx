@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import {
   createDrawerNavigator,
   DrawerContentComponentProps,
@@ -79,7 +79,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
   return (
     <DrawerContentScrollView
       {...props}
-      contentContainerStyle={{ flex: 1, backgroundColor: "#091A2F" }}
+      contentContainerStyle={{ flexGrow: 1, backgroundColor: "#091A2F" }}
     >
       <View
         style={{
@@ -135,8 +135,10 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
 
       <View
         style={{
+          marginTop: "auto",
           paddingHorizontal: 20,
-          paddingVertical: 12,
+          paddingBottom: 24,
+          paddingTop: 12,
           borderTopWidth: 1,
           borderTopColor: "rgba(255,255,255,0.08)",
         }}

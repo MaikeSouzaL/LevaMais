@@ -1,10 +1,10 @@
-﻿import io, { Socket } from "socket.io-client";
+import io, { Socket } from "socket.io-client";
 import { useAuthStore } from "../context/authStore";
 
 // Manter o WebSocket usando a MESMA base da API, para evitar divergÃªncia em emulador/dispositivo.
 const RAW_BASE =
   process.env.EXPO_PUBLIC_API_URL ||
-  "http://192.168.1.9:3001";
+  "http://192.168.1.7:3001";
 
 const SOCKET_URL = RAW_BASE.replace(/\/$/, "");
 
