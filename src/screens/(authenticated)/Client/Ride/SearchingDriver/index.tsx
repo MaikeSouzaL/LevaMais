@@ -38,6 +38,7 @@ export default function SearchingDriverScreen() {
   const [searchCycle, setSearchCycle] = useState(0);
   const [waitingInQueue, setWaitingInQueue] = useState(false);
   const [enteringQueue, setEnteringQueue] = useState(false);
+  const [queueCancelled, setQueueCancelled] = useState(false);
 
   const intervalRef = useRef<any>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -76,6 +77,10 @@ export default function SearchingDriverScreen() {
       if (doneRef.current) return;
       doneRef.current = true;
       cleanup();
+      if (waitingInQueue || data?.reason?.includes("fila de espera")) {
+        setQueueCancelled(true);
+        return;
+      }
       Toast.show({
         type: "info",
         text1: "Corrida cancelada",
@@ -83,7 +88,7 @@ export default function SearchingDriverScreen() {
       });
       navigation.goBack();
     },
-    [navigation],
+    [navigation, waitingInQueue],
   );
 
   const connectAndSearch = useCallback(async () => {
@@ -138,7 +143,11 @@ export default function SearchingDriverScreen() {
           doneRef.current = true;
           clearInterval(pollInterval);
           if (String(ride.status) === "cancelled_no_driver") {
-            rideExpiredCallback();
+            if (ride.isWaitingInQueue || waitingInQueue) {
+              setQueueCancelled(true);
+            } else {
+              rideExpiredCallback();
+            }
             return;
           }
           rideCancelledCallback({ reason: "Corrida encerrada", status: ride.status });
@@ -297,6 +306,36 @@ export default function SearchingDriverScreen() {
       setAdjusting(false);
     }
   };
+
+  if (queueCancelled) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.timeoutCard}>
+          <View style={[styles.timeoutIconWrap, { backgroundColor: "rgba(239, 68, 68, 0.12)" }]}>
+            <MaterialIcons name="error-outline" size={48} color="#ef4444" />
+          </View>
+          <Text style={[styles.timeoutTitle, { color: "#ef4444" }]}>Busca Cancelada</Text>
+          <Text style={styles.timeoutSub}>
+            Nenhum motorista aceitou seu pedido na Fila de Espera pública. A busca foi cancelada por falta de motoboys disponíveis no momento.
+          </Text>
+
+          <TouchableOpacity
+            style={[styles.retryButton, { backgroundColor: "#ef4444" }]}
+            onPress={() => {
+              setQueueCancelled(false);
+              setWaitingInQueue(false);
+              setTimeoutState(false);
+              navigation.reset({ index: 0, routes: [{ name: "Home" }] });
+            }}
+            activeOpacity={0.85}
+          >
+            <MaterialIcons name="home" size={20} color="white" />
+            <Text style={[styles.retryText, { color: "white" }]}>Voltar para início</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (timeout) {
     return (
