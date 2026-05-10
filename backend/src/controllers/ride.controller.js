@@ -1805,7 +1805,7 @@ class RideController {
   // Calcular preÃ§o (antes de criar a corrida)
   async calculatePrice(req, res) {
     try {
-      const { pickup, dropoff, vehicleType, purposeId, cityId } = req.body;
+      const { pickup, dropoff, vehicleType, purposeId, cityId, serviceType = "ride" } = req.body;
 
       if (!pickup || !dropoff) {
         return sendError(res, 400, "Origem e destino sao obrigatorios");
@@ -1981,19 +1981,28 @@ class RideController {
       }
 
       if (!rule) {
-        console.log(
-          "[calculatePrice] âŒ ERRO: Nenhuma regra encontrada!",
-          {
-            cityId,
-            vehicleType,
-            purposeId,
-          },
-        );
-        return res.status(400).json({
-          error:
-            "ServiÃ§o nÃ£o disponÃ­vel ou sem preÃ§o configurado nesta regiÃ£o.",
-          details: "Nenhuma regra de preÃ§o encontrada (PricingRule).",
-        });
+        if (serviceType === "delivery") {
+          console.log("[calculatePrice] ⚠️ Regra de Banco não encontrada para logística. Ativando fallback AUTÓNOMO da Smart Engine.");
+          // Inicializa rule fake para não quebrar o restante do código, permitindo fluxo seguir para injeção smart
+          rule = {
+            name: "SMART_ENGINE_AUTONOMOUS_DEFAULTS",
+            pricing: { minimumKm: 0, minimumFee: 0, pricePerKm: 0, basePrice: 0 }
+          };
+        } else {
+          console.log(
+            "[calculatePrice] ❌ ERRO: Nenhuma regra encontrada!",
+            {
+              cityId,
+              vehicleType,
+              purposeId,
+            },
+          );
+          return res.status(400).json({
+            error:
+              "Serviço não disponível ou sem preço configurado nesta região.",
+            details: "Nenhuma regra de preço encontrada (PricingRule).",
+          });
+        }
       }
 
       console.log("[calculatePrice] âœ… Regra encontrada:", {
@@ -2066,7 +2075,55 @@ class RideController {
     const finalTotal = Math.round(rawTotal * 10) / 10;
     
     // Ajusta a taxa de serviÃ§o para que o total bata exatamente (Total - Base - DistÃ¢ncia)
+    // Ajusta a taxa de serviço para que o total bata exatamente (Total - Base - Distância)
     const adjustedServiceFee = parseFloat((finalTotal - baseRidePrice - distanceExtraPrice).toFixed(2));
+
+    // ==============================================================================
+    // SMART LOGISTICS ENGINE INJECTION ⚡
+    // ==============================================================================
+    const { 
+      deliveryType, 
+      cargoSize, 
+      priority, 
+      needsHelper
+    } = req.body;
+
+    if (serviceType === "delivery" || deliveryType || cargoSize) {
+      const PricingEngine = require("../services/pricing-engine");
+      
+      const smartCalculation = PricingEngine.calculate({
+        basePriceRule: baseRidePrice > 0 ? baseRidePrice : 5.00,
+        pricePerKmRule: pricePerKm > 0 ? pricePerKm : 1.50,
+        distanceKm,
+        vehicleType,
+        deliveryType,
+        cargoSize,
+        priority: Number(priority || 0),
+        needsHelper: Boolean(needsHelper),
+        demandLevel: "medium"
+      });
+
+      return res.json({
+        pricing: {
+          basePrice: baseRidePrice,
+          distancePrice: distanceExtraPrice,
+          serviceFee: adjustedServiceFee,
+          total: smartCalculation.suggestedPrice, // Anchor offer
+          currency: "BRL",
+          breakdown: { ...breakdown, smartDetails: smartCalculation.details },
+          ruleUsed: rule.name,
+        },
+        distance: {
+          value: Math.round(distance * 1000) / 1000,
+          text: `${distanceKm.toFixed(1)} km`,
+        },
+        duration: {
+          value: durationMinutes * 60,
+          text: `${durationMinutes} min`,
+        },
+        smartPricing: smartCalculation,
+      });
+    }
 
     return res.json({
       pricing: {

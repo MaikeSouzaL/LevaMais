@@ -117,12 +117,26 @@ export interface CalculatePriceRequest {
   vehicleType: "motorcycle" | "car" | "van" | "truck";
   cityId?: string;
   purposeId?: string;
+  // Logistic Extensions for Smart Engine ⚡
+  serviceType?: "ride" | "delivery";
+  deliveryType?: string;
+  cargoSize?: string;
+  priority?: number;
+  needsHelper?: boolean;
 }
 
 export interface CalculatePriceResponse {
   pricing: PricingCalculation;
   distance: DistanceDuration;
   duration: DistanceDuration;
+  smartPricing?: {
+    minimumPrice: number;
+    suggestedPrice: number;
+    priorityPrice: number;
+    distanceKm: number;
+    demandLevel: string;
+    deliveryScore: number;
+  };
 }
 
 export interface ActiveRideResponse {

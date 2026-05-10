@@ -17,7 +17,6 @@ import { VehicleSelector, LogisticsVehicleType } from "@/components/client/deliv
 import { DeliveryTypeSelector, DeliveryType } from "@/components/client/delivery-setup/DeliveryTypeSelector";
 import { CargoDescriptionInput } from "@/components/client/delivery-setup/CargoDescriptionInput";
 import { CargoSizeSelector, CargoSize } from "@/components/client/delivery-setup/CargoSizeSelector";
-import { HelperSwitch } from "@/components/client/delivery-setup/HelperSwitch";
 import { DeliveryOfferCard } from "@/components/client/delivery-setup/DeliveryOfferCard";
 import { DeliveryPrioritySelector, DeliveryPriority } from "@/components/client/delivery-setup/DeliveryPrioritySelector";
 import { SearchDeliveryButton } from "@/components/client/delivery-setup/SearchDeliveryButton";
@@ -66,12 +65,19 @@ export default function DeliverySetupScreen() {
           pickup: params.pickup,
           dropoff: params.dropoff,
           vehicleType: vehicleType,
+          deliveryType: deliveryType,
+          cargoSize: cargoSize,
+          priority: priority,
+          needsHelper: needsHelper,
+          serviceType: "delivery",
           cityId: (detectedCity as any)?._id || undefined
         });
+        
         setPriceData(res);
-        // Set initial floor for manual client offer
-        const baseline = res.pricing?.total || 20;
-        setOfferValue(Math.round(baseline));
+        
+        // Update floor for initial pricing based on dynamic backend recommendation
+        const smartSuggestion = res.smartPricing?.suggestedPrice || res.pricing?.total || 20;
+        setOfferValue(Math.round(smartSuggestion));
       } catch (e) {
         console.log("Logistics compute error", e);
       } finally {
@@ -79,7 +85,12 @@ export default function DeliverySetupScreen() {
       }
     };
     refreshPricing();
-  }, [vehicleType, params.pickup?.latitude, params.dropoff?.latitude]);
+  }, [
+    vehicleType, 
+    priority, 
+    params.pickup?.latitude, 
+    params.dropoff?.latitude
+  ]);
 
   const handlePathReady = (res: any) => {
     setPath(res.coordinates);
@@ -134,9 +145,9 @@ export default function DeliverySetupScreen() {
     }
   };
 
-  // Dynamic Hint Ranges
-  const minHint = priceData?.pricing?.total ? Math.max(10, Math.round(priceData.pricing.total * 0.85)) : 15;
-  const maxHint = priceData?.pricing?.total ? Math.round(priceData.pricing.total * 1.25) : 30;
+  // Leverage Smart Dynamic Backend Hint Ranges
+  const minHint = priceData?.smartPricing?.minimumPrice || 15;
+  const maxHint = priceData?.smartPricing?.priorityPrice || 35;
 
   return (
     <KeyboardAvoidingView 
@@ -194,13 +205,16 @@ export default function DeliverySetupScreen() {
 
         <View className="h-[1px] bg-white/[0.03] w-full mb-6" />
 
-        <DeliveryTypeSelector selected={deliveryType} onSelect={setDeliveryType} />
+        <DeliveryTypeSelector 
+          selected={deliveryType} 
+          onSelect={setDeliveryType} 
+          vehicleType={vehicleType} 
+        />
 
         <CargoDescriptionInput value={cargoDescription} onChange={setCargoDescription} />
 
         <CargoSizeSelector value={cargoSize} onChange={setCargoSize} />
 
-        <HelperSwitch enabled={needsHelper} onToggle={setNeedsHelper} />
         
         <View className="h-[1px] bg-white/[0.03] w-full mb-6 mt-2" />
 

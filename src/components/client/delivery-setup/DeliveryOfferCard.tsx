@@ -12,8 +12,15 @@ interface DeliveryOfferCardProps {
 }
 
 export const DeliveryOfferCard = ({ value, suggestedMin, suggestedMax, onChange }: DeliveryOfferCardProps) => {
-  const increment = () => onChange(value + 2);
-  const decrement = () => value > 5 && onChange(value - 2);
+  const isAtMin = value <= suggestedMin;
+  
+  const increment = () => onChange(value + 1);
+  const decrement = () => {
+    if (!isAtMin) {
+      // Auto-clamp to minimum never exceeding visual floor
+      onChange(Math.max(suggestedMin, value - 1));
+    }
+  };
 
   return (
     <View className="px-6 mb-6">
@@ -26,9 +33,14 @@ export const DeliveryOfferCard = ({ value, suggestedMin, suggestedMax, onChange 
           <TouchableOpacity
             onPress={decrement}
             activeOpacity={0.7}
-            className="w-12 h-12 rounded-full bg-white/5 border border-white/10 items-center justify-center active:bg-white/10"
+            disabled={isAtMin}
+            className={`w-12 h-12 rounded-full border items-center justify-center ${
+              isAtMin 
+              ? 'bg-white/[0.02] border-white/[0.03] opacity-40' 
+              : 'bg-white/5 border-white/10 active:bg-white/10'
+            }`}
           >
-            <Minus size={22} color="#fff" />
+            <Minus size={22} color={isAtMin ? "#64748b" : "#fff"} />
           </TouchableOpacity>
 
           <View className="items-center flex-row items-baseline">
@@ -46,16 +58,6 @@ export const DeliveryOfferCard = ({ value, suggestedMin, suggestedMax, onChange 
           >
             <Plus size={22} color="#fff" />
           </TouchableOpacity>
-        </View>
-
-        <View className="items-center border-t border-white/[0.03] pt-4 mt-2">
-          <MotiView from={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-row items-center bg-[#1E2D3D] px-3 py-1.5 rounded-full shadow-sm">
-            <Zap size={12} color="#fbbf24" fill="#fbbf24" className="mr-1.5" />
-            <Text className="text-slate-400 text-xs font-medium mr-1">Faixa sugerida:</Text>
-            <Text className="text-white text-xs font-bold">
-               R$ {suggestedMin.toFixed(0)} - R$ {suggestedMax.toFixed(0)}
-            </Text>
-          </MotiView>
         </View>
       </View>
     </View>
