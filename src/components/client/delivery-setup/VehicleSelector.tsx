@@ -49,23 +49,24 @@ export const VehicleSelector = ({ selected, onSelect }: VehicleSelectorProps) =>
             >
               <MotiView
                 animate={{
-                  scale: isSelected ? 1.04 : 0.98,
-                  borderColor: isSelected ? "rgba(2, 222, 149, 0.45)" : "rgba(255, 255, 255, 0.08)",
-                  backgroundColor: isSelected ? "rgba(2, 222, 149, 0.12)" : "rgba(255, 255, 255, 0.03)"
+                  scale: isSelected ? 1.02 : 0.98,
+                  borderColor: isSelected ? "#02de95" : "transparent",
+                  backgroundColor: isSelected ? "#1E2D3D" : "#11253E",
+                  elevation: isSelected ? 8 : 2,
                 }}
-                transition={{ type: "spring", damping: 15 }}
-                className="w-36 p-4 rounded-[24px] border overflow-hidden relative"
+                transition={{ type: "spring", damping: 18 }}
+                className="w-36 p-4 rounded-3xl border-[1.5px] overflow-hidden relative shadow-2xl shadow-black"
               >
                 {isSelected && (
                   <MotiView
-                    from={{ opacity: 0.2, scale: 0.6 }}
-                    animate={{ opacity: 0.5, scale: 1.2 }}
-                    className="absolute top-0 right-0 w-16 h-16 rounded-full bg-primary/25 blur-2xl"
+                    from={{ opacity: 0, scale: 0.5 }}
+                    animate={{ opacity: 0.4, scale: 1.2 }}
+                    className="absolute top-0 right-0 w-20 h-20 rounded-full bg-primary/10 blur-2xl"
                   />
                 )}
 
-                <View className={`w-12 h-12 rounded-2xl items-center justify-center mb-4 border ${isSelected ? 'bg-primary/20 border-primary/40' : 'bg-white/5 border-white/10'}`}>
-                  <Icon size={24} color={isSelected ? "#02de95" : "#cbd5e1"} strokeWidth={isSelected ? 2.5 : 2} />
+                <View className={`w-12 h-12 rounded-2xl items-center justify-center mb-4 border ${isSelected ? 'bg-[#02de95]/10 border-[#02de95]/30' : 'bg-[#1E2D3D] border-white/[0.03]'}`}>
+                  <Icon size={24} color={isSelected ? "#02de95" : "#94a3b8"} strokeWidth={isSelected ? 2.5 : 2} />
                 </View>
 
                 <Text className={`text-base font-bold ${isSelected ? 'text-white' : 'text-slate-200'}`}>

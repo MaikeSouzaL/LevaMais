@@ -141,10 +141,10 @@ export default function DeliverySetupScreen() {
   return (
     <KeyboardAvoidingView 
       behavior={Platform.OS === "ios" ? "padding" : undefined} 
-      className="flex-1 bg-[#070c0a]"
+      className="flex-1 bg-[#091A2F]"
     >
-      {/* 🗺️ Foundation: Active Blurred Map Path context */}
-      <View className="absolute inset-0 opacity-50">
+      {/* 🗺️ Cinema Backdrop: Map with Double Heavy Dark Overlay for contrast separation */}
+      <View className="absolute inset-0 opacity-60">
         <MapView
           ref={mapRef}
           provider={PROVIDER_GOOGLE}
@@ -154,7 +154,7 @@ export default function DeliverySetupScreen() {
         >
           {path.length > 0 && (
              <>
-               <Polyline coordinates={path} strokeColor="rgba(2, 222, 149, 0.25)" strokeWidth={7} />
+               <Polyline coordinates={path} strokeColor="rgba(2, 222, 149, 0.2)" strokeWidth={7} />
                <Polyline coordinates={path} strokeColor="#02de95" strokeWidth={2} lineDashPattern={[2, 8]} />
              </>
           )}
@@ -168,14 +168,18 @@ export default function DeliverySetupScreen() {
           />
         </MapView>
       </View>
-      <BlurView intensity={80} tint="dark" className="absolute inset-0" />
+      
+      {/* Increased Blur Intensity + Heavy Dark Fade overlay */}
+      <BlurView intensity={95} tint="dark" className="absolute inset-0" />
+      <View className="absolute inset-0 bg-[#091A2F]/60" />
 
       <DeliverySetupHeader />
 
+      {/* The Operation Panel Scroll wrapper now breathes more and groups items elegantly */}
       <ScrollView 
         className="flex-1 pt-28" 
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 160 }}
+        contentContainerStyle={{ paddingBottom: 180, paddingTop: 16 }}
       >
         <DeliverySummaryCard 
           originAddress={params.pickup.address} 
@@ -183,8 +187,12 @@ export default function DeliverySetupScreen() {
           distance={priceData?.distance?.text}
           duration={priceData?.duration?.text}
         />
+        
+        <View className="h-[1px] bg-white/[0.03] w-full my-2" />
 
         <VehicleSelector selected={vehicleType} onSelect={setVehicleType} />
+
+        <View className="h-[1px] bg-white/[0.03] w-full mb-6" />
 
         <DeliveryTypeSelector selected={deliveryType} onSelect={setDeliveryType} />
 
@@ -193,6 +201,8 @@ export default function DeliverySetupScreen() {
         <CargoSizeSelector value={cargoSize} onChange={setCargoSize} />
 
         <HelperSwitch enabled={needsHelper} onToggle={setNeedsHelper} />
+        
+        <View className="h-[1px] bg-white/[0.03] w-full mb-6 mt-2" />
 
         {loadingPricing ? (
           <View className="h-32 items-center justify-center"><ActivityIndicator color="#02de95" /></View>

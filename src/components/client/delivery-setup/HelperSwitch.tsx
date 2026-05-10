@@ -12,10 +12,10 @@ export const HelperSwitch = ({ enabled, onToggle }: HelperSwitchProps) => {
     <TouchableOpacity 
       activeOpacity={0.85}
       onPress={() => onToggle(!enabled)}
-      className="mx-6 mb-6 bg-white/5 border border-white/10 rounded-2xl p-4 flex-row items-center justify-between"
+      className="mx-6 mb-6 bg-[#11253E] border border-white/[0.05] rounded-2xl p-4 flex-row items-center justify-between shadow-md elevation-3"
     >
       <View className="flex-row items-center flex-1 mr-4">
-        <View className={`w-9 h-9 rounded-full items-center justify-center mr-3 ${enabled ? 'bg-primary/20' : 'bg-white/5'}`}>
+        <View className={`w-9 h-9 rounded-full items-center justify-center mr-3 ${enabled ? 'bg-primary/15' : 'bg-[#1E2D3D]'}`}>
           <Users size={16} color={enabled ? "#02de95" : "#94a3b8"} />
         </View>
         <View>

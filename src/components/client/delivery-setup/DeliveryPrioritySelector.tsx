@@ -19,12 +19,12 @@ export const DeliveryPrioritySelector = ({ value, onChange }: DeliveryPrioritySe
     <View className="px-6 mb-8">
       <Text className="text-slate-400 text-[11px] font-bold uppercase tracking-widest mb-2.5">Prioridade da Entrega</Text>
       
-      <View className="h-12 bg-white/5 border border-white/10 rounded-2xl flex-row relative overflow-hidden">
+      <View className="h-12 bg-[#1E2D3D] border border-white/[0.03] rounded-2xl flex-row relative overflow-hidden p-1 shadow-sm">
         <MotiView
           animate={{
-            translateX: value * buttonWidth,
-            backgroundColor: value === 2 ? "rgba(239, 68, 68, 0.15)" : value === 1 ? "rgba(2, 222, 149, 0.15)" : "rgba(255, 255, 255, 0.08)",
-            borderColor: value === 2 ? "rgba(239, 68, 68, 0.4)" : value === 1 ? "rgba(2, 222, 149, 0.4)" : "rgba(255, 255, 255, 0.2)"
+            translateX: value * (buttonWidth - 2),
+            backgroundColor: value === 2 ? "rgba(239, 68, 68, 0.15)" : value === 1 ? "rgba(2, 222, 149, 0.15)" : "#11253E",
+            borderColor: value === 2 ? "#ef4444" : value === 1 ? "#02de95" : "rgba(255,255,255,0.1)"
           }}
           transition={{ type: "spring", damping: 22, stiffness: 200 }}
           className="absolute top-0 left-0 bottom-0 border rounded-xl m-1"

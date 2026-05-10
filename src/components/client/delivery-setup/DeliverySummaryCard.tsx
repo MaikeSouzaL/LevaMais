@@ -17,7 +17,7 @@ export const DeliverySummaryCard = ({
   duration 
 }: DeliverySummaryCardProps) => {
   return (
-    <BlurView intensity={50} tint="dark" className="rounded-3xl bg-slate-900/40 border border-white/5 p-5 shadow-2xl mx-6 mb-4 elevation-10">
+    <View className="bg-[#11253E] border border-white/[0.05] rounded-3xl p-5 shadow-2xl shadow-black mx-6 mb-4 elevation-5">
       <View className="flex-row mb-4">
         <View className="items-center mr-3.5 pt-1.5">
           <View className="w-3 h-3 rounded-full bg-primary shadow-glow" />
@@ -53,6 +53,6 @@ export const DeliverySummaryCard = ({
           <Text className="text-slate-200 text-xs font-bold">{distance || "-- km"}</Text>
         </View>
       </View>
-    </BlurView>
+    </View>
   );
 };

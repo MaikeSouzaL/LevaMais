@@ -17,7 +17,7 @@ export const DeliveryOfferCard = ({ value, suggestedMin, suggestedMax, onChange 
 
   return (
     <View className="px-6 mb-6">
-      <BlurView intensity={40} tint="dark" className="rounded-3xl bg-slate-900/50 border border-white/10 p-6 shadow-2xl elevation-10 relative overflow-hidden">
+      <View className="rounded-3xl bg-[#11253E] border border-white/[0.05] p-6 shadow-2xl shadow-black elevation-10 relative overflow-hidden">
         <View className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-3xl" />
         
         <Text className="text-slate-400 text-[11px] font-bold uppercase tracking-widest mb-4">Quanto deseja pagar?</Text>
@@ -48,8 +48,8 @@ export const DeliveryOfferCard = ({ value, suggestedMin, suggestedMax, onChange 
           </TouchableOpacity>
         </View>
 
-        <View className="items-center border-t border-white/5 pt-4 mt-2">
-          <MotiView from={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-row items-center bg-white/5 px-3 py-1.5 rounded-full">
+        <View className="items-center border-t border-white/[0.03] pt-4 mt-2">
+          <MotiView from={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-row items-center bg-[#1E2D3D] px-3 py-1.5 rounded-full shadow-sm">
             <Zap size={12} color="#fbbf24" fill="#fbbf24" className="mr-1.5" />
             <Text className="text-slate-400 text-xs font-medium mr-1">Faixa sugerida:</Text>
             <Text className="text-white text-xs font-bold">
@@ -57,7 +57,7 @@ export const DeliveryOfferCard = ({ value, suggestedMin, suggestedMax, onChange 
             </Text>
           </MotiView>
         </View>
-      </BlurView>
+      </View>
     </View>
   );
 };

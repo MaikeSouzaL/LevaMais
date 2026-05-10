@@ -14,14 +14,14 @@ export const SearchDeliveryButton = ({ onPress, loading = false }: SearchDeliver
 
   return (
     <View 
-      className="absolute bottom-0 left-0 right-0 bg-slate-950/90 border-t border-white/5 px-6 pt-4 shadow-2xl shadow-black"
+      className="absolute bottom-0 left-0 right-0 bg-[#091A2F] border-t border-white/[0.05] px-6 pt-4 shadow-2xl shadow-black"
       style={{ paddingBottom: insets.bottom + 16 }}
     >
       <TouchableOpacity
         onPress={onPress}
         disabled={loading}
         activeOpacity={0.85}
-        className="h-14 w-full rounded-[20px] bg-primary overflow-hidden shadow-xl elevation-10 items-center justify-center active:scale-[0.98]"
+        className="h-14 w-full rounded-[20px] bg-primary overflow-hidden shadow-2xl shadow-primary/30 elevation-12 items-center justify-center active:scale-[0.97]"
       >
         {!loading && (
           <MotiView

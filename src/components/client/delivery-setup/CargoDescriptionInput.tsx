@@ -15,16 +15,16 @@ export const CargoDescriptionInput = ({ value, onChange }: CargoDescriptionInput
         <Text className="text-slate-400 text-[11px] font-bold uppercase tracking-widest">Detalhes dos Itens</Text>
       </View>
       
-      <View className="w-full bg-white/5 border border-white/10 rounded-2xl p-3 focus:border-primary/50">
+      <View className="w-full bg-[#1E2D3D] border border-white/[0.03] rounded-2xl p-4 focus:border-primary/40 shadow-sm">
         <TextInput
           value={value}
           onChangeText={onChange}
-          placeholder="Descreva o que será entregue, fragilidade ou observações especiais..."
-          placeholderTextColor="rgba(255,255,255,0.3)"
+          placeholder="Descreva o que será entregue, fragilidade ou observações..."
+          placeholderTextColor="rgba(255,255,255,0.25)"
           multiline
           numberOfLines={3}
           textAlignVertical="top"
-          className="text-white text-sm h-20 p-0"
+          className="text-white text-sm h-20 p-0 font-medium"
         />
       </View>
     </View>

@@ -41,13 +41,13 @@ export const DeliveryTypeSelector = ({ selected, onSelect }: DeliveryTypeSelecto
               key={item.id}
               onPress={() => onSelect(item.id)}
               activeOpacity={0.8}
-              className={`px-5 py-2.5 rounded-full border transition-colors ${
+              className={`px-5 py-2.5 rounded-full border transition-colors shadow-md ${
                 isSelected 
-                ? 'bg-primary border-primary' 
-                : 'bg-white/5 border-white/10'
+                ? 'bg-primary border-primary shadow-primary/20' 
+                : 'bg-[#11253E] border-white/[0.05]'
               }`}
             >
-              <Text className={`text-xs font-bold ${isSelected ? 'text-slate-950' : 'text-slate-300'}`}>
+              <Text className={`text-xs font-extrabold tracking-wide ${isSelected ? 'text-slate-950' : 'text-slate-300'}`}>
                 {item.label}
               </Text>
             </TouchableOpacity>
