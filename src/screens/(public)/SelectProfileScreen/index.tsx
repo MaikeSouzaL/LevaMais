@@ -11,6 +11,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { MotiView } from "moti";
 import { Car, Briefcase } from "lucide-react-native";
+import Toast from "react-native-toast-message";
+
+// API & State Hooks
+import { useAuthStore } from "../../../context/authStore";
+import { registerUser } from "../../../services/auth.service";
 
 // UI Tokens
 import { colors } from "../../../theme/colors";
@@ -49,10 +54,13 @@ export default function SelectProfileScreen() {
   const insets = useSafeAreaInsets();
 
   // Parameter parsing preserving upstream lifecycle safety
-  const { user, token } = (route.params || {}) as SelectProfileParams;
+  const { user, token: initialToken } = (route.params || {}) as SelectProfileParams;
   const [selectedProfile, setSelectedProfile] = useState<ProfileType | null>(null);
+  const [loading, setLoading] = useState(false);
+  
+  const { login } = useAuthStore();
 
-  function handleProceed() {
+  async function handleProceed() {
     if (!user) {
       console.error("Profile Data missing upstream");
       return;
@@ -61,13 +69,88 @@ export default function SelectProfileScreen() {
     const choice = selectedProfile || "client";
 
     if (choice === "client") {
-      navigation.navigate("CompleteRegistrationClient", { user, token });
+      setLoading(true);
+      try {
+        // 🌐 Scenerio A: User originated from Google (Already in DB, has _id and token)
+        if (user._id && user._id.length > 5) {
+          login(
+            "client",
+            {
+              id: user._id,
+              name: user.name,
+              nome: user.name,
+              email: user.email,
+              telefone: user.phone || "",
+              cidade: user.city || "",
+              fotoPerfil: user.profilePhoto,
+              googleId: user.googleId,
+              aceitouTermos: true,
+            },
+            initialToken || "",
+          );
+          Toast.show({
+            type: "success",
+            text1: "Acesso liberado!",
+            text2: `Bem-vindo ao Leva+, ${user.name}!`,
+          });
+          return;
+        }
+
+        // 📝 Scenerio B: Manual User Signup (Needs to be persisted in backend)
+        const response = await registerUser({
+          name: user.name,
+          email: user.email,
+          password: user.password || "",
+          phone: user.phone,
+          city: user.city,
+          userType: "client",
+          acceptedTerms: true,
+        });
+
+        if (response.success && response.data) {
+          const { user: registeredUser, token } = response.data;
+          login(
+            "client",
+            {
+              id: registeredUser._id,
+              name: registeredUser.name,
+              nome: registeredUser.name,
+              email: registeredUser.email,
+              telefone: registeredUser.phone || "",
+              cidade: registeredUser.city || "",
+              fotoPerfil: registeredUser.profilePhoto,
+              googleId: registeredUser.googleId,
+              aceitouTermos: true,
+            },
+            token,
+          );
+          Toast.show({
+            type: "success",
+            text1: "Conta criada!",
+            text2: "Seja bem-vindo!",
+          });
+        } else {
+          Toast.show({
+            type: "error",
+            text1: "Erro ao finalizar acesso",
+            text2: response.message || "Tente novamente em instantes",
+          });
+        }
+      } catch (error: any) {
+        Toast.show({
+          type: "error",
+          text1: "Falha na conexão",
+          text2: "Verifique sua internet e tente novamente",
+        });
+      } finally {
+        setLoading(false);
+      }
     } else {
       // Diverting into High-Conversion Benefits Intro Screen first!
       navigation.navigate("DriverIntro", {
         selectedProfile: choice,
         user,
-        token,
+        token: initialToken,
       });
     }
   }
@@ -146,9 +229,9 @@ export default function SelectProfileScreen() {
 
         {/* 🚀 Modularized Action Footer */}
         <ModeFooter 
-          isEnabled={!!selectedProfile}
+          isEnabled={!!selectedProfile && !loading}
           onPress={handleProceed}
-          buttonLabel={currentLabel}
+          buttonLabel={loading ? "Acessando..." : currentLabel}
         />
 
       </ScrollView>
