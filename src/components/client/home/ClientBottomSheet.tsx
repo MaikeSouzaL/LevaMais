@@ -1,0 +1,284 @@
+import React, { useMemo, useRef, useCallback } from "react";
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Dimensions } from "react-native";
+import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
+import { MotiView } from "moti";
+import { Car, Package, Star, Clock, Home, Briefcase, ChevronRight } from "lucide-react-native";
+import { colors, spacing, borderRadius, fontSize } from "@/theme";
+
+interface ClientBottomSheetProps {
+  onSelectService: (service: "ride" | "delivery") => void;
+  favorites: any[];
+  onSelectFavorite: (fav: any) => void;
+  onChangeSnap: (index: number) => void;
+}
+
+export const ClientBottomSheet = ({
+  onSelectService,
+  favorites = [],
+  onSelectFavorite,
+  onChangeSnap,
+}: ClientBottomSheetProps) => {
+  const bottomSheetRef = useRef<BottomSheet>(null);
+  
+  // Snaps de 30% (inicial/fechado) e 75% (expandido)
+  const snapPoints = useMemo(() => ["32%", "80%"], []);
+
+  const renderHandle = useCallback(() => (
+    <View style={styles.handleContainer}>
+      <View style={styles.handleIndicator} />
+    </View>
+  ), []);
+
+  return (
+    <BottomSheet
+      ref={bottomSheetRef}
+      index={0}
+      snapPoints={snapPoints}
+      onChange={onChangeSnap}
+      handleComponent={renderHandle}
+      backgroundStyle={styles.sheetBackground}
+    >
+      <BottomSheetScrollView contentContainerStyle={styles.container}>
+        
+        {/* 🚀 Main Services (ALWAYS VISIBLE) */}
+        <View style={styles.servicesGrid}>
+          <TouchableOpacity 
+            style={[styles.serviceCard, styles.primaryCard]} 
+            onPress={() => onSelectService("ride")}
+            activeOpacity={0.85}
+          >
+            <View style={styles.glowOverlay} />
+            <View style={[styles.iconCircle, { backgroundColor: "rgba(2, 222, 149, 0.15)" }]}>
+              <Car size={32} color={colors.primary[500]} strokeWidth={1.5} />
+            </View>
+            <Text style={styles.serviceTitle}>Corrida</Text>
+            <Text style={styles.serviceDesc}>Viagens seguras e rapidas</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.serviceCard} 
+            onPress={() => onSelectService("delivery")}
+            activeOpacity={0.85}
+          >
+            <View style={[styles.iconCircle, { backgroundColor: "rgba(56, 189, 248, 0.15)" }]}>
+              <Package size={30} color="#38bdf8" strokeWidth={1.5} />
+            </View>
+            <Text style={styles.serviceTitle}>Entrega</Text>
+            <Text style={styles.serviceDesc}>Envie pacotes agora</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.divider} />
+
+        {/* 🏷️ Quick Shortcuts Horizontal */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionLabel}>Favoritos rapidos</Text>
+        </View>
+        
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false} 
+          contentContainerStyle={styles.shortcutsContainer}
+        >
+          <TouchableOpacity style={styles.pillShortcut} activeOpacity={0.7}>
+            <Home size={16} color={colors.text.tertiary} />
+            <Text style={styles.pillText}>Casa</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.pillShortcut} activeOpacity={0.7}>
+            <Briefcase size={16} color={colors.text.tertiary} />
+            <Text style={styles.pillText}>Trabalho</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={[styles.pillShortcut, { borderColor: colors.primary[500] + "40" }]} activeOpacity={0.7}>
+            <Star size={16} color={colors.primary[500]} />
+            <Text style={[styles.pillText, { color: colors.primary[500] }]}>Adicionar</Text>
+          </TouchableOpacity>
+        </ScrollView>
+
+        {/* 🕒 Recent Searches / Detailed Favorites */}
+        <View style={[styles.sectionHeader, { marginTop: spacing.xl }]}>
+          <Text style={styles.sectionLabel}>Locais recentes</Text>
+        </View>
+
+        <View style={styles.listContainer}>
+          {/* Example item - will load from favorites if present */}
+          {favorites.length > 0 ? favorites.map((item, idx) => (
+            <TouchableOpacity 
+              key={item._id || idx} 
+              style={styles.listItem} 
+              activeOpacity={0.7}
+              onPress={() => onSelectFavorite(item)}
+            >
+              <View style={styles.listIconWrap}>
+                <Clock size={18} color={colors.text.tertiary} />
+              </View>
+              <View style={styles.listTextWrap}>
+                <Text style={styles.itemTitle} numberOfLines={1}>{item.name || item.address}</Text>
+                <Text style={styles.itemSub} numberOfLines={1}>{item.formattedAddress || item.address}</Text>
+              </View>
+              <ChevronRight size={18} color={colors.text.quaternary} />
+            </TouchableOpacity>
+          )) : (
+            <View style={styles.emptyState}>
+              <Clock size={40} color={colors.text.quaternary} strokeWidth={1} />
+              <Text style={styles.emptyText}>Nenhuma viagem recente ainda.</Text>
+            </View>
+          )}
+        </View>
+
+      </BottomSheetScrollView>
+    </BottomSheet>
+  );
+};
+
+const styles = StyleSheet.create({
+  sheetBackground: {
+    backgroundColor: "#091A2F", // Brand Dark Core
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -10 },
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    elevation: 24,
+  },
+  handleContainer: {
+    alignItems: "center",
+    paddingVertical: 12,
+  },
+  handleIndicator: {
+    width: 40,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+  },
+  container: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: 40,
+  },
+  servicesGrid: {
+    flexDirection: "row",
+    gap: spacing.md,
+    paddingTop: spacing.sm,
+  },
+  serviceCard: {
+    flex: 1,
+    height: 140,
+    backgroundColor: "#11253E", // Surface Primary
+    borderRadius: 24,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.05)",
+    justifyContent: "flex-end",
+    overflow: "hidden",
+  },
+  primaryCard: {
+    borderColor: "rgba(2, 222, 149, 0.15)",
+  },
+  glowOverlay: {
+    position: "absolute",
+    top: -20,
+    right: -20,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "rgba(2, 222, 149, 0.05)",
+  },
+  iconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: "auto",
+  },
+  serviceTitle: {
+    color: colors.text.primary,
+    fontSize: 17,
+    fontWeight: "700",
+    marginBottom: 2,
+  },
+  serviceDesc: {
+    color: colors.text.tertiary,
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  divider: {
+    height: 1,
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    marginVertical: spacing.xl,
+  },
+  sectionHeader: {
+    marginBottom: spacing.md,
+  },
+  sectionLabel: {
+    color: colors.text.primary,
+    fontSize: fontSize.md,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+  },
+  shortcutsContainer: {
+    gap: spacing.sm,
+  },
+  pillShortcut: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  pillText: {
+    color: colors.text.secondary,
+    fontSize: fontSize.sm,
+    fontWeight: "600",
+  },
+  listContainer: {
+    gap: spacing.xs,
+  },
+  listItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.03)",
+  },
+  listIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: spacing.md,
+  },
+  listTextWrap: {
+    flex: 1,
+    marginRight: spacing.sm,
+  },
+  itemTitle: {
+    color: colors.text.primary,
+    fontSize: 15,
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  itemSub: {
+    color: colors.text.tertiary,
+    fontSize: 13,
+  },
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: spacing.xl,
+    gap: spacing.sm,
+    opacity: 0.6,
+  },
+  emptyText: {
+    color: colors.text.tertiary,
+    fontSize: fontSize.sm,
+  }
+});

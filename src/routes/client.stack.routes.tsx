@@ -1,17 +1,19 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
-import HomeScreen from "../screens/(authenticated)/Client/Home";
-import HistoryScreen from "../screens/(authenticated)/Client/History/HistoryList";
-import WalletScreen from "../screens/(authenticated)/Client/Profile/Wallet";
-import ProfileScreen from "../screens/(authenticated)/Client/Profile/ProfileView";
-import HelpScreen from "../screens/(authenticated)/Client/Profile/Help";
-import SettingsScreen from "../screens/(authenticated)/Client/Profile/Settings";
+import HomeScreen from "@/screens/(authenticated)/Client/Home";
+import HistoryScreen from "@/screens/(authenticated)/Client/History/HistoryList";
+import WalletScreen from "@/screens/(authenticated)/Client/Profile/Wallet";
+import ProfileScreen from "@/screens/(authenticated)/Client/Profile/ProfileView";
+import HelpScreen from "@/screens/(authenticated)/Client/Profile/Help";
+import SettingsScreen from "@/screens/(authenticated)/Client/Profile/Settings";
 import EditAccountScreen from "../screens/(authenticated)/Client/Profile/EditAccountScreen";
 import AddressPickerScreen from "../screens/(authenticated)/Client/Ride/Request/AddressPicker";
+import DestinationSearchScreen from "../screens/(authenticated)/Client/Ride/Request/DestinationSearch";
 import FavoritesScreen from "../screens/(authenticated)/Client/Favorites/FavoritesList";
 import SelectVehicleScreen from "../screens/(authenticated)/Client/Ride/Request/SelectVehicle";
 import ServicePurposeScreen from "../screens/(authenticated)/Client/Ride/Request/ServicePurpose";
+import RideSetupScreen from "../screens/(authenticated)/Client/Ride/Request/RideSetup";
 import OrderSummaryScreen from "../screens/(authenticated)/Client/Ride/Request/OrderSummary";
 import CancelFeeScreen from "../screens/(authenticated)/Client/Ride/Cancellation/CancelFee";
 import ChatScreen from "../screens/(authenticated)/Client/Ride/Tracking/Chat";
@@ -63,9 +65,11 @@ export default function ClientStackRoutes({
       <Stack.Screen name="EditAccount" component={EditAccountScreen} />
 
       <Stack.Screen name="LocationPicker" component={AddressPickerScreen} />
+      <Stack.Screen name="DestinationSearch" component={DestinationSearchScreen} />
       <Stack.Screen name="EditFavorite" component={AddressPickerScreen} />
       <Stack.Screen name="Favorites" component={FavoritesScreen} />
       <Stack.Screen name="SelectVehicle" component={SelectVehicleScreen} />
+      <Stack.Screen name="RideSetup" component={RideSetupScreen} />
       <Stack.Screen name="ServicePurpose" component={ServicePurposeScreen} />
       <Stack.Screen name="FinalOrderSummary" component={OrderSummaryScreen} />
       <Stack.Screen name="Payment" component={PaymentScreen} />

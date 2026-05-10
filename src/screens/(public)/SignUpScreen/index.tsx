@@ -32,7 +32,7 @@ import {
   statusCodes,
 } from "@react-native-google-signin/google-signin";
 import { getCurrentLocationAndAddress } from "../../../utils/location";
-import LocationPermissionScreen from "../CompleteRegistrationScreen/LocationPermissionScreen";
+import LocationPermissionScreen from "../LocationPermissionScreen";
 import { googleAuth } from "../../../services/auth.service";
 import { useAuthStore } from "../../../context/authStore";
 

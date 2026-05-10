@@ -5,8 +5,6 @@ import IntroScreen from "../screens/(public)/IntroScreen";
 import SingnIn from "../screens/(public)/SignInScreen";
 import SingnUp from "../screens/(public)/SignUpScreen";
 import SelectProfileScreen from "../screens/(public)/SelectProfileScreen";
-import ClientCompleteRegistrationScreen from "../screens/(public)/CompleteRegistrationScreen/ClientCompleteRegistrationScreen";
-import DriverCompleteRegistrationScreen from "../screens/(public)/CompleteRegistrationScreen/DriverCompleteRegistrationScreen";
 import ForgotPasswordScreen from "../screens/(public)/ForgotPasswordScreen";
 import VerifyCodeScreen from "../screens/(public)/VerifyCodeScreen";
 import NewPasswordScreen from "../screens/(public)/NewPasswordScreen";
@@ -18,7 +16,7 @@ import DriverIntroScreen from "../screens/(public)/DriverIntroScreen";
 import DriverCategoryScreen from "../screens/(public)/DriverCategoryScreen";
 import DriverDocumentsScreen from "../screens/(public)/DriverDocumentsScreen";
 import DriverSelfieScreen from "../screens/(public)/DriverSelfieScreen";
-import DriverAnalysisScreen from "@/screens/analysis";
+import DriverAnalysisScreen from "@/screens/(public)/Analysis";  
 // import Terms from "../screens/(public)/TermsScreen";
 // import Notificacoes from "../screens/ScreenClient/Notificacao/Notificacoes";
 // import EsqueciSenhaScreen from "../screens/(public)/esqueciSenhaScreen/EsqueciSenhaScreen";
@@ -40,19 +38,11 @@ export default function AuthRoutes() {
       <Screen name="SignUp" component={SingnUp} />
       <Screen name="GooglePhonePrompt" component={GooglePhonePromptScreen} />
       <Screen name="SelectProfile" component={SelectProfileScreen} />
-      <Screen
-        name="CompleteRegistrationClient"
-        component={ClientCompleteRegistrationScreen}
-      />
       <Screen name="DriverIntro" component={DriverIntroScreen} />
       <Screen name="DriverCategory" component={DriverCategoryScreen} />
       <Screen name="DriverDocuments" component={DriverDocumentsScreen} />
       <Screen name="DriverSelfie" component={DriverSelfieScreen} />
       <Screen name="DriverAnalysis" component={DriverAnalysisScreen} />
-      <Screen
-        name="CompleteRegistrationDriver"
-        component={DriverCompleteRegistrationScreen}
-      />
       <Screen name="ForgotPassword" component={ForgotPasswordScreen} />
       <Screen name="VerifyCode" component={VerifyCodeScreen} />
       <Screen name="NewPassword" component={NewPasswordScreen} />

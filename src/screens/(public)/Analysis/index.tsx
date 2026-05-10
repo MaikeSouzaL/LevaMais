@@ -2,20 +2,20 @@ import React from "react";
 import { View, Text, StyleSheet, StatusBar, ScrollView, Alert } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { MotiView } from "moti";
-import { colors } from "../../theme/colors";
-import { fonts } from "../../theme/typography";
-import { spacing } from "../../theme/dimensions";
+import { colors } from "@/theme";
+import { fonts } from "@/theme";
+import { spacing } from "@/theme";
 import { useNavigation } from "@react-navigation/native";
 
 // Visual foundation
-import { BackgroundMap } from "../../components/visuals/BackgroundMap";
+import { BackgroundMap } from "../../../components/visuals/BackgroundMap";
 
 // Modular components
-import { AnalysisHeader } from "../../components/driver/analysis/AnalysisHeader";
-import { AnalysisIllustration } from "../../components/driver/analysis/AnalysisIllustration";
-import { VerificationStatusCard } from "../../components/driver/analysis/VerificationStatusCard";
-import { AnalysisEstimate } from "../../components/driver/analysis/AnalysisEstimate";
-import { AnalysisFooter } from "../../components/driver/analysis/AnalysisFooter";
+import { AnalysisHeader } from "../../../components/driver/analysis/AnalysisHeader";
+import { AnalysisIllustration } from "../../../components/driver/analysis/AnalysisIllustration";
+import { VerificationStatusCard } from "../../../components/driver/analysis/VerificationStatusCard";
+import { AnalysisEstimate } from "../../../components/driver/analysis/AnalysisEstimate";
+import { AnalysisFooter } from "../../../components/driver/analysis/AnalysisFooter";
 
 export default function DriverAnalysisScreen() {
   const navigation = useNavigation<any>();
