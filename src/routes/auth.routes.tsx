@@ -1,7 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { View, ActivityIndicator } from "react-native";
 
 import IntroScreen from "../screens/(public)/IntroScreen";
 import SingnIn from "../screens/(public)/SignInScreen";
@@ -15,7 +13,12 @@ import NewPasswordScreen from "../screens/(public)/NewPasswordScreen";
 import TermsScreen from "../screens/(public)/TermsScreen";
 import NotificationPermissionScreen from "../screens/(public)/NotificationPermissionScreen";
 import PhoneVerificationScreen from "../screens/(public)/PhoneVerificationScreen";
-import theme from "../theme";
+import GooglePhonePromptScreen from "../screens/(public)/GooglePhonePromptScreen";
+import DriverIntroScreen from "../screens/(public)/DriverIntroScreen";
+import DriverCategoryScreen from "../screens/(public)/DriverCategoryScreen";
+import DriverDocumentsScreen from "../screens/(public)/DriverDocumentsScreen";
+import DriverSelfieScreen from "../screens/(public)/DriverSelfieScreen";
+import DriverAnalysisScreen from "@/screens/analysis";
 // import Terms from "../screens/(public)/TermsScreen";
 // import Notificacoes from "../screens/ScreenClient/Notificacao/Notificacoes";
 // import EsqueciSenhaScreen from "../screens/(public)/esqueciSenhaScreen/EsqueciSenhaScreen";
@@ -27,61 +30,25 @@ import theme from "../theme";
 const { Navigator, Screen } = createNativeStackNavigator();
 
 export default function AuthRoutes() {
-  const [hasViewedIntro, setHasViewedIntro] = useState<boolean | null>(null);
-  const [initialRoute, setInitialRoute] = useState<string>("IntroScreen");
-
-  useEffect(() => {
-    async function checkIntroStatus() {
-      try {
-        const introViewed = await AsyncStorage.getItem(
-          "@leva_mais:intro_viewed",
-        );
-        if (introViewed === "true") {
-          setHasViewedIntro(true);
-          setInitialRoute("SignIn");
-        } else {
-          setHasViewedIntro(false);
-          setInitialRoute("IntroScreen");
-        }
-      } catch (error) {
-        console.error("Erro ao verificar status da intro:", error);
-        setHasViewedIntro(false);
-        setInitialRoute("IntroScreen");
-      }
-    }
-
-    checkIntroStatus();
-  }, []);
-
-  // Mostrar loading enquanto verifica
-  if (hasViewedIntro === null) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          backgroundColor: theme.COLORS.BRAND_DARK,
-          justifyContent: "center",
-          alignItems: "center",
-        }}
-      >
-        <ActivityIndicator size="large" color={theme.COLORS.BRAND_LIGHT} />
-      </View>
-    );
-  }
-
   return (
     <Navigator
       screenOptions={{ headerShown: false }}
-      initialRouteName={initialRoute}
+      initialRouteName="IntroScreen"
     >
       <Screen name="IntroScreen" component={IntroScreen} />
       <Screen name="SignIn" component={SingnIn} />
       <Screen name="SignUp" component={SingnUp} />
+      <Screen name="GooglePhonePrompt" component={GooglePhonePromptScreen} />
       <Screen name="SelectProfile" component={SelectProfileScreen} />
       <Screen
         name="CompleteRegistrationClient"
         component={ClientCompleteRegistrationScreen}
       />
+      <Screen name="DriverIntro" component={DriverIntroScreen} />
+      <Screen name="DriverCategory" component={DriverCategoryScreen} />
+      <Screen name="DriverDocuments" component={DriverDocumentsScreen} />
+      <Screen name="DriverSelfie" component={DriverSelfieScreen} />
+      <Screen name="DriverAnalysis" component={DriverAnalysisScreen} />
       <Screen
         name="CompleteRegistrationDriver"
         component={DriverCompleteRegistrationScreen}

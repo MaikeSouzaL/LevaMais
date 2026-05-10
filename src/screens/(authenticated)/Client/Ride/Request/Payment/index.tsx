@@ -10,6 +10,7 @@ import { FlowStepHeader, PaymentMethodCard, LoadingButton } from "../../../Share
 import rideService from "@/services/ride.service";
 import { useClientCityStore } from "@/context/clientCityStore";
 import { mapServiceModeToApi, mapVehicleTypeToApi, formatBRL } from "@/utils/mappers";
+import promotionService, { ValidatedPromotion } from "@/services/promotion.service";
 
 type FinalOrderSummaryData = any;
 type PaymentMethod = "credit_card" | "pix" | "cash";
@@ -57,6 +58,9 @@ export default function PaymentScreen() {
   const [scheduleOffsetMin, setScheduleOffsetMin] = useState(60);
   const [offerEnabled, setOfferEnabled] = useState(false);
   const [offerInput, setOfferInput] = useState(String(Math.round(Number(amount || 0))));
+  const [promoCodeInput, setPromoCodeInput] = useState("");
+  const [promoLoading, setPromoLoading] = useState(false);
+  const [appliedPromotion, setAppliedPromotion] = useState<ValidatedPromotion | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -76,6 +80,49 @@ export default function PaymentScreen() {
     () => Number(String(offerInput || "").replace(",", ".")),
     [offerInput],
   );
+  const serviceType = useMemo(
+    () => mapServiceModeToApi(order?.serviceMode) as "ride" | "delivery",
+    [order?.serviceMode],
+  );
+  const discountAmount = Number(appliedPromotion?.discountAmount || 0);
+  const estimatedTotal = useMemo(
+    () => Math.max(0, Number(amount || 0) - discountAmount),
+    [amount, discountAmount],
+  );
+
+  const handleApplyCoupon = async () => {
+    const code = String(promoCodeInput || "").trim().toUpperCase();
+    if (!code) {
+      Toast.show({ type: "info", text1: "Informe um cupom" });
+      return;
+    }
+
+    setPromoLoading(true);
+    try {
+      const promotion = await promotionService.validateCode({
+        code,
+        amount: Number(amount || 0),
+        serviceType,
+      });
+      setAppliedPromotion(promotion);
+      setPromoCodeInput(code);
+      Toast.show({
+        type: "success",
+        text1: "Cupom aplicado",
+        text2: `Desconto de ${formatBRL(Number(promotion.discountAmount || 0))}`,
+      });
+    } catch (couponError: any) {
+      const apiMessage =
+        couponError?.response?.data?.message ||
+        couponError?.response?.data?.error ||
+        couponError?.message ||
+        "Cupom invalido";
+      Toast.show({ type: "error", text1: apiMessage });
+      setAppliedPromotion(null);
+    } finally {
+      setPromoLoading(false);
+    }
+  };
 
   const handleConfirmPayment = async () => {
     setError(null);
@@ -143,6 +190,7 @@ export default function PaymentScreen() {
               clientOffer: Number.isFinite(parsedOffer) && parsedOffer > 0 ? parsedOffer : Number(amount || 0),
             }
           : undefined,
+        promotionCode: appliedPromotion?.code,
       });
 
       if (ride?.status === "scheduled") {
@@ -206,7 +254,12 @@ export default function PaymentScreen() {
       <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom, spacing.xl) + 170 }]}>
         <View style={styles.totalCard}>
           <Text style={styles.totalLabel}>Total estimado</Text>
-          <Text style={styles.totalValue}>{formatBRL(amount)}</Text>
+          <Text style={styles.totalValue}>{formatBRL(estimatedTotal)}</Text>
+          {!!appliedPromotion && (
+            <Text style={styles.couponAppliedText}>
+              Cupom {appliedPromotion.code} aplicado: -{formatBRL(discountAmount)}
+            </Text>
+          )}
         </View>
 
         {!!order && (
@@ -245,6 +298,29 @@ export default function PaymentScreen() {
             onPress={() => setSelectedMethod(method.id)}
           />
         ))}
+
+        <View style={styles.optionCard}>
+          <View style={styles.optionHeader}>
+            <Text style={styles.optionTitle}>Cupom promocional</Text>
+          </View>
+          <TextInput
+            style={styles.offerInput}
+            value={promoCodeInput}
+            onChangeText={(text) => {
+              setPromoCodeInput(text.toUpperCase());
+              if (appliedPromotion) setAppliedPromotion(null);
+            }}
+            autoCapitalize="characters"
+            placeholder="Ex: LEVA10"
+            placeholderTextColor={colors.text.tertiary}
+          />
+          <LoadingButton
+            title={promoLoading ? "Validando..." : "Aplicar cupom"}
+            onPress={handleApplyCoupon}
+            loading={promoLoading}
+            variant="secondary"
+          />
+        </View>
 
         <View style={styles.optionCard}>
           <View style={styles.optionHeader}>
@@ -308,7 +384,7 @@ export default function PaymentScreen() {
               {Number.isFinite(parsedOfferValue) &&
                 parsedOfferValue > 0 &&
                 parsedOfferValue < suggestedMinOffer && (
-                  <Text style={styles.warningText}>
+          <Text style={styles.warningText}>
                     Oferta abaixo do minimo sugerido.
                   </Text>
                 )}
@@ -325,7 +401,7 @@ export default function PaymentScreen() {
         )}
 
         <LoadingButton
-          title={loading ? "Confirmando..." : `Confirmar e pedir ${formatBRL(amount)}`}
+          title={loading ? "Confirmando..." : `Confirmar e pedir ${formatBRL(estimatedTotal)}`}
           onPress={handleConfirmPayment}
           loading={loading}
           variant="primary"
@@ -352,6 +428,12 @@ const styles = StyleSheet.create({
   },
   totalLabel: { color: colors.text.secondary, fontSize: fontSize.sm, marginBottom: spacing.xs },
   totalValue: { color: colors.primary[500], fontSize: 38, fontWeight: fontWeight.bold },
+  couponAppliedText: {
+    marginTop: spacing.sm,
+    color: colors.primary[500],
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.semibold,
+  },
   tripCard: {
     backgroundColor: "rgba(17,37,62,0.64)",
     borderWidth: 1,

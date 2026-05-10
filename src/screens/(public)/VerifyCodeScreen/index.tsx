@@ -1,92 +1,82 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
+  StyleSheet,
+  StatusBar,
+  ActivityIndicator,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import { Feather } from "@expo/vector-icons";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
+import { MotiView, MotiText } from "moti";
 import Toast from "react-native-toast-message";
-import theme from "../../../theme";
+
+// Core Services
 import {
   requestPasswordReset,
   verifyResetCode,
 } from "../../../services/auth.service";
 
-export default function VerifyCodeScreen() {
-  const navigation = useNavigation();
-  const route = useRoute();
-  const { email } = route.params as { email: string };
+// Unified System & Components
+import { colors } from "../../../theme/colors";
+import { fonts, fontSize } from "../../../theme/typography";
+import { spacing, borderRadius } from "../../../theme/dimensions";
 
-  const [code, setCode] = useState(["", "", "", "", "", ""]);
+import { AuthHeader } from "../../../components/auth/AuthHeader";
+import { OTPIllustration } from "../../../components/auth/OTPIllustration";
+import { OTPInput } from "../../../components/auth/OTPInput";
+import { BackgroundMap } from "../../../components/visuals/BackgroundMap";
+import { Particles } from "../../../components/visuals/Particles";
+
+export default function VerifyCodeScreen() {
+  const navigation = useNavigation<any>();
+  const route = useRoute<any>();
+  const insets = useSafeAreaInsets();
+
+  // Extract Email Param
+  const { email } = (route.params || {}) as { email: string };
+
+  // State Hooks
+  const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
   const [resendCountdown, setResendCountdown] = useState(0);
-  const inputRefs = useRef<(TextInput | null)[]>([]);
-  const scrollViewRef = useRef<ScrollView>(null);
 
+  // Verify Parameter Presence on Start
   useEffect(() => {
-    setTimeout(() => {
-      inputRefs.current[0]?.focus();
-      scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, 300);
-  }, []);
+    if (!email) {
+      Toast.show({
+        type: "error",
+        text1: "E-mail ausente",
+        text2: "Volte e informe o e-mail novamente",
+      });
+      navigation.goBack();
+    }
+  }, [email, navigation]);
 
+  // Timer Handler Effect
   useEffect(() => {
-    if (resendCountdown <= 0) return;
-
-    const timer = setInterval(() => {
-      setResendCountdown((prev) => Math.max(0, prev - 1));
-    }, 1000);
-
+    let timer: NodeJS.Timeout;
+    if (resendCountdown > 0) {
+      timer = setInterval(() => {
+        setResendCountdown((prev) => Math.max(0, prev - 1));
+      }, 1000);
+    }
     return () => clearInterval(timer);
   }, [resendCountdown]);
 
-  function handleCodeChange(text: string, index: number) {
-    const numericText = text.replace(/[^0-9]/g, "");
-
-    if (numericText.length > 1) {
-      const digits = numericText.split("").slice(0, 6);
-      const newCode = [...code];
-      digits.forEach((digit, i) => {
-        if (index + i < 6) {
-          newCode[index + i] = digit;
-        }
-      });
-      setCode(newCode);
-      const nextIndex = Math.min(index + digits.length, 5);
-      inputRefs.current[nextIndex]?.focus();
-      return;
-    }
-
-    const newCode = [...code];
-    newCode[index] = numericText;
-    setCode(newCode);
-
-    if (numericText && index < 5) {
-      inputRefs.current[index + 1]?.focus();
-    }
-  }
-
-  function handleKeyPress(key: string, index: number) {
-    if (key === "Backspace" && !code[index] && index > 0) {
-      inputRefs.current[index - 1]?.focus();
-    }
-  }
-
+  // Action: Verify Reset Code
   async function handleVerifyCode() {
-    const codeString = code.join("");
-
-    if (codeString.length !== 6) {
+    if (code.length < 6) {
       Toast.show({
         type: "error",
-        text1: "Codigo incompleto",
-        text2: "Digite o codigo de 6 digitos",
+        text1: "Código incompleto",
+        text2: "Preencha todos os 6 dígitos do código",
       });
       return;
     }
@@ -95,42 +85,40 @@ export default function VerifyCodeScreen() {
     try {
       const response = await verifyResetCode({
         email,
-        code: codeString,
+        code,
       });
 
       if (response.success) {
         Toast.show({
           type: "success",
-          text1: "Codigo verificado",
-          text2: "Agora voce pode criar uma nova senha",
+          text1: "Código verificado!",
+          text2: "Crie sua nova senha agora",
         });
 
         navigation.navigate("NewPassword", {
           email,
-          code: codeString,
+          code,
         });
-        return;
+      } else {
+        Toast.show({
+          type: "error",
+          text1: "Código inválido",
+          text2: response.message || "Verifique o código e tente novamente",
+        });
       }
-
-      Toast.show({
-        type: "error",
-        text1: "Codigo invalido",
-        text2: response.message || "Verifique o codigo e tente novamente",
-      });
-      setCode(["", "", "", "", "", ""]);
-      inputRefs.current[0]?.focus();
     } catch (error: any) {
-      console.error("Erro ao verificar codigo:", error);
+      console.error("Erro ao verificar código:", error);
       Toast.show({
         type: "error",
-        text1: "Erro ao verificar codigo",
-        text2: error.message || "Verifique sua conexao e tente novamente",
+        text1: "Erro",
+        text2: "Falha de conexão, tente novamente",
       });
     } finally {
       setLoading(false);
     }
   }
 
+  // Action: Resend Code
   async function handleResendCode() {
     if (resendLoading || resendCountdown > 0) return;
 
@@ -140,26 +128,25 @@ export default function VerifyCodeScreen() {
         email: email.trim().toLowerCase(),
       });
 
-      if (!response.success) {
+      if (response.success) {
+        setResendCountdown(60);
+        Toast.show({
+          type: "success",
+          text1: "Código reenviado!",
+          text2: "Verifique sua caixa de entrada",
+        });
+      } else {
         Toast.show({
           type: "error",
           text1: "Erro ao reenviar",
-          text2: response.message || "Tente novamente",
+          text2: response.message || "Tente novamente em breve",
         });
-        return;
       }
-
-      setResendCountdown(60);
-      Toast.show({
-        type: "success",
-        text1: "Codigo reenviado",
-        text2: "Verifique seu email",
-      });
     } catch (error: any) {
       Toast.show({
         type: "error",
         text1: "Erro ao reenviar",
-        text2: error?.message || "Tente novamente",
+        text2: "Tente novamente em alguns instantes",
       });
     } finally {
       setResendLoading(false);
@@ -167,111 +154,236 @@ export default function VerifyCodeScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-brand-dark" edges={["top"]}>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+
+      {/* 🌌 Base Cinematic Visual Stack */}
+      <LinearGradient
+        colors={[colors.background.primary, "#060E18", "#040910"]}
+        style={StyleSheet.absoluteFill}
+      />
+      <BackgroundMap />
+      <LinearGradient
+        colors={["rgba(9, 26, 47, 0.3)", "transparent", colors.background.primary]}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+      />
+
       <KeyboardAvoidingView
-        className="flex-1"
+        style={styles.keyboardView}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
       >
-        <View className="flex-row items-center px-6 py-4">
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            className="w-10 h-10 items-center justify-center"
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Feather name="arrow-left" size={24} color={theme.COLORS.WHITE} />
-          </TouchableOpacity>
-        </View>
+        <AuthHeader />
 
         <ScrollView
-          ref={scrollViewRef}
-          className="flex-1"
-          contentContainerStyle={{ flexGrow: 1, paddingBottom: 40 }}
+          style={styles.scrollView}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: insets.bottom + spacing.xl },
+          ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View className="flex-1 px-6">
-            <View className="mb-8 mt-4">
-              <Text className="text-4xl font-bold text-white tracking-tight mb-3">
-                Verificar codigo
-              </Text>
-              <Text className="text-base text-gray-400 font-regular leading-6">
-                Digite o codigo de 6 digitos enviado para{"\n"}
-                <Text className="text-brand-light font-semibold">{email}</Text>
-              </Text>
-            </View>
+          {/* Premium Illustration */}
+          <OTPIllustration />
 
-            <View className="mb-8">
-              <View className="flex-row justify-between mb-6">
-                {code.map((digit, index) => (
-                  <TextInput
-                    key={index}
-                    ref={(ref) => {
-                      if (ref) inputRefs.current[index] = ref;
-                    }}
-                    className="w-14 h-16 bg-surface-secondary border border-gray-700 rounded-xl text-center text-white text-2xl font-bold"
-                    value={digit}
-                    onChangeText={(text) => handleCodeChange(text, index)}
-                    onKeyPress={({ nativeEvent }) =>
-                      handleKeyPress(nativeEvent.key, index)
-                    }
-                    onFocus={() => {
-                      setTimeout(() => {
-                        scrollViewRef.current?.scrollToEnd({ animated: true });
-                      }, 300);
-                    }}
-                    keyboardType="number-pad"
-                    maxLength={1}
-                    selectTextOnFocus
-                  />
-                ))}
-              </View>
+          {/* Text block entering first */}
+          <MotiView
+            from={{ opacity: 0, translateY: 15 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ type: "timing", duration: 600 }}
+            style={styles.textBlock}
+          >
+            <Text style={styles.title}>Verificar Código</Text>
+            <Text style={styles.subtitle}>
+              Digite o código de 6 dígitos que enviamos para o e-mail:
+            </Text>
+            <Text style={[styles.targetText, { color: colors.primary[500] }]}>
+              {email}
+            </Text>
+          </MotiView>
 
-              <TouchableOpacity
-                onPress={handleResendCode}
-                className="items-center py-2"
-                disabled={resendLoading || resendCountdown > 0}
-                activeOpacity={0.7}
-              >
-                <Text className="text-base text-gray-400">
-                  Nao recebeu o codigo?{" "}
-                  <Text className="text-brand-light font-bold">
-                    {resendCountdown > 0
-                      ? `Reenviar em ${resendCountdown}s`
-                      : resendLoading
-                        ? "Enviando..."
-                        : "Reenviar"}
-                  </Text>
-                </Text>
-              </TouchableOpacity>
-            </View>
+          {/* Interactivity container entering second */}
+          <MotiView
+            from={{ opacity: 0, translateY: 20 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ type: "timing", duration: 600, delay: 200 }}
+            style={styles.actionBlock}
+          >
+            {/* Advanced Native OTP Input */}
+            <OTPInput value={code} onChange={setCode} />
 
             <TouchableOpacity
-              className="h-14 bg-brand-light rounded-2xl items-center justify-center mb-6 shadow-lg shadow-brand-light/20"
+              style={[
+                styles.primaryButton,
+                { backgroundColor: colors.primary[500] },
+                code.length < 6 && { opacity: 0.6 },
+              ]}
               onPress={handleVerifyCode}
-              disabled={loading}
-              activeOpacity={0.8}
+              disabled={loading || code.length < 6}
+              activeOpacity={0.85}
             >
-              <Text className="text-brand-dark font-bold text-lg">
-                {loading ? "Verificando..." : "Verificar codigo"}
-              </Text>
+              {loading ? (
+                <ActivityIndicator color={colors.background.primary} />
+              ) : (
+                <Text style={styles.primaryButtonText}>Verificar código</Text>
+              )}
             </TouchableOpacity>
 
+            {/* Dynamic Resend Handler */}
+            <View style={styles.resendBox}>
+              {resendCountdown > 0 ? (
+                <MotiText
+                  from={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  style={styles.timerLabel}
+                >
+                  Reenviar em <Text style={{ color: colors.primary[500], fontWeight: "700" }}>{resendCountdown}s</Text>
+                </MotiText>
+              ) : (
+                <TouchableOpacity
+                  onPress={handleResendCode}
+                  disabled={resendLoading}
+                  activeOpacity={0.7}
+                  style={styles.resendLink}
+                >
+                  <Text style={styles.resendLabel}>Não recebeu? </Text>
+                  <Text style={[styles.resendCall, { color: colors.primary[500] }]}>
+                    {resendLoading ? "Aguarde..." : "Reenviar"}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </MotiView>
+
+          {/* Footer Redirect */}
+          <MotiView
+            from={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ type: "timing", duration: 500, delay: 400 }}
+            style={styles.footerWrapper}
+          >
             <TouchableOpacity
-              className="items-center py-4"
               onPress={() => navigation.goBack()}
               activeOpacity={0.7}
+              style={styles.footerLink}
             >
-              <Text className="text-base text-gray-400">
+              <Text style={styles.footerLabel}>
                 Voltar para{" "}
-                <Text className="text-brand-light font-bold">
-                  esqueci a senha
+                <Text style={[styles.footerHighlight, { color: colors.primary[500] }]}>
+                  Esqueci a senha
                 </Text>
               </Text>
             </TouchableOpacity>
-          </View>
+          </MotiView>
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background.primary,
+  },
+  keyboardView: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.md,
+  },
+  textBlock: {
+    alignItems: "center",
+    marginBottom: spacing["2xl"],
+  },
+  title: {
+    fontFamily: fonts.bold,
+    fontSize: 28,
+    color: colors.text.primary,
+    fontWeight: "900",
+    letterSpacing: -0.5,
+    marginBottom: spacing.xs,
+  },
+  subtitle: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.base,
+    color: colors.text.tertiary,
+    textAlign: "center",
+    lineHeight: 22,
+    maxWidth: "85%",
+  },
+  targetText: {
+    fontFamily: fonts.semibold,
+    fontSize: 16,
+    marginTop: 6,
+    textAlign: "center",
+  },
+  actionBlock: {
+    width: "100%",
+  },
+  primaryButton: {
+    height: 56,
+    borderRadius: borderRadius.xl,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: spacing.xs,
+    marginBottom: spacing.xl,
+    shadowColor: colors.primary[500],
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  primaryButtonText: {
+    fontFamily: fonts.bold,
+    fontSize: fontSize.lg,
+    color: colors.background.primary,
+    fontWeight: "800",
+  },
+  resendBox: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  timerLabel: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.text.tertiary,
+  },
+  resendLink: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  resendLabel: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: colors.text.tertiary,
+  },
+  resendCall: {
+    fontFamily: fonts.bold,
+    fontSize: fontSize.sm,
+    fontWeight: "700",
+  },
+  footerWrapper: {
+    marginTop: "auto",
+    paddingTop: spacing["2xl"],
+    alignItems: "center",
+  },
+  footerLink: {
+    padding: spacing.sm,
+  },
+  footerLabel: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.base,
+    color: colors.text.tertiary,
+  },
+  footerHighlight: {
+    fontFamily: fonts.bold,
+    fontWeight: "800",
+  },
+});

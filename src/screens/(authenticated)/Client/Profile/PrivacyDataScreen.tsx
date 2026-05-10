@@ -1,28 +1,54 @@
-﻿import React from "react";
+import React from "react";
 import { ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
+import Toast from "react-native-toast-message";
 
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
 import { ClientScreenHeader } from "../Shared/components";
-import { useAuthStore } from "@/context/authStore";
+import { exportPrivacyData, PrivacyExportPayload } from "@/services/auth.service";
 
 export default function PrivacyDataScreen() {
   const navigation = useNavigation<any>();
-  const user = useAuthStore((s) => s.userData);
+  const [loading, setLoading] = React.useState(false);
+  const [summary, setSummary] = React.useState<PrivacyExportPayload | null>(null);
+
+  React.useEffect(() => {
+    let mounted = true;
+
+    (async () => {
+      try {
+        const data = await exportPrivacyData();
+        if (!mounted) return;
+        setSummary(data);
+      } catch {
+        if (!mounted) return;
+        setSummary(null);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const exportData = async () => {
-    const payload = {
-      name: user?.name,
-      email: user?.email,
-      phone: user?.telefone,
-      city: user?.cidade,
-    };
-
-    await Share.share({
-      message: `Meus dados - Leva Mais\n${JSON.stringify(payload, null, 2)}`,
-    });
+    setLoading(true);
+    try {
+      const payload = await exportPrivacyData();
+      await Share.share({
+        message: `Meus dados - Leva Mais\n${JSON.stringify(payload, null, 2)}`,
+      });
+    } catch (error: any) {
+      Toast.show({
+        type: "error",
+        text1: "Falha ao exportar dados",
+        text2: error?.message || "Tente novamente",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -33,12 +59,19 @@ export default function PrivacyDataScreen() {
         <View style={styles.infoCard}>
           <MaterialIcons name="verified-user" size={28} color={colors.primary[500]} />
           <Text style={styles.infoTitle}>Seus dados</Text>
-          <Text style={styles.infoText}>Voce pode exportar seus dados e revisar informacoes principais da conta.</Text>
+          <Text style={styles.infoText}>
+            Voce pode exportar seus dados e revisar informacoes principais da conta.
+          </Text>
+          {summary && (
+            <Text style={styles.infoSubtext}>
+              Corridas registradas: {summary.rides.total} | Cartoes salvos: {summary.paymentMethods.length}
+            </Text>
+          )}
         </View>
 
-        <TouchableOpacity style={styles.row} onPress={exportData}>
+        <TouchableOpacity style={styles.row} onPress={exportData} disabled={loading}>
           <MaterialIcons name="download" size={20} color={colors.primary[500]} />
-          <Text style={styles.rowText}>Exportar meus dados</Text>
+          <Text style={styles.rowText}>{loading ? "Exportando..." : "Exportar meus dados"}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.row} onPress={() => navigation.navigate("Settings") }>
@@ -64,6 +97,7 @@ const styles = StyleSheet.create({
   },
   infoTitle: { color: colors.text.primary, fontWeight: fontWeight.bold, fontSize: fontSize.base },
   infoText: { color: colors.text.secondary, fontSize: fontSize.sm, lineHeight: 20 },
+  infoSubtext: { color: colors.primary[500], fontSize: fontSize.xs, fontWeight: fontWeight.semibold },
   row: {
     flexDirection: "row",
     alignItems: "center",

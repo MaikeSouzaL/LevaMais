@@ -1,7 +1,10 @@
 const express = require("express");
 const cors = require("cors");
 const http = require("http");
+const path = require("path");
 const { initializeWebSocket } = require("./config/websocket");
+
+// Routes imports continue...
 const authRoutes = require("./routes/auth.routes");
 const purposeRoutes = require("./routes/purpose.routes");
 const favoriteRoutes = require("./routes/favorite.routes");
@@ -15,6 +18,7 @@ const representativeRoutes = require("./routes/representative.routes");
 const platformConfigRoutes = require("./routes/platformConfig.routes");
 const chatRoutes = require("./routes/chat.routes");
 const shiftOfferRoutes = require("./routes/shiftOffer.routes");
+const promotionRoutes = require("./routes/promotion.routes");
 
 function applyMiddlewares(app) {
   app.use(
@@ -27,6 +31,9 @@ function applyMiddlewares(app) {
   );
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+
+  // Serve static uploads
+  app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 }
 
 function applyRoutes(app) {
@@ -43,6 +50,7 @@ function applyRoutes(app) {
   app.use("/api/platform-config", platformConfigRoutes);
   app.use("/api/chat", chatRoutes);
   app.use("/api/shift-offers", shiftOfferRoutes);
+  app.use("/api/promotions", promotionRoutes);
 
   app.get("/api/health", (req, res) => {
     res.json({
@@ -56,6 +64,7 @@ function applyRoutes(app) {
         matching: true,
         cities: true,
         pricing: true,
+        promotions: true,
       },
     });
   });

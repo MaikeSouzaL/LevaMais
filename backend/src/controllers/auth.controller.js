@@ -687,6 +687,94 @@ class AuthController {
   }
 
   // Solicitar reset de senha (envia código por email)
+  async exportPrivacyData(req, res) {
+    try {
+      const userId = req.user.id;
+      const user = await User.findById(userId).select(
+        "name email phone city userType profilePhoto preferredPayment notificationsEnabled createdAt updatedAt paymentMethods wallet address cpf cnpj companyName companyEmail companyPhone",
+      );
+
+      if (!user) return sendError(res, 404, "Usuario nao encontrado");
+
+      const ridesSummary = await Ride.aggregate([
+        {
+          $match: {
+            $or: [{ clientId: user._id }, { driverId: user._id }],
+          },
+        },
+        {
+          $group: {
+            _id: "$status",
+            count: { $sum: 1 },
+          },
+        },
+      ]);
+
+      const totalRides = ridesSummary.reduce(
+        (acc, item) => acc + Number(item.count || 0),
+        0,
+      );
+
+      const exportPayload = {
+        generatedAt: new Date().toISOString(),
+        account: {
+          id: String(user._id),
+          name: user.name,
+          email: user.email,
+          phone: user.phone || "",
+          city: user.city || "",
+          userType: user.userType,
+          profilePhoto: user.profilePhoto || null,
+          preferredPayment: user.preferredPayment || null,
+          notificationsEnabled: Boolean(user.notificationsEnabled),
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
+        },
+        documents: {
+          cpf: user.cpf || null,
+          cnpj: user.cnpj || null,
+          companyName: user.companyName || null,
+          companyEmail: user.companyEmail || null,
+          companyPhone: user.companyPhone || null,
+        },
+        address: user.address || null,
+        paymentMethods: (user.paymentMethods || []).map((method) => ({
+          id: String(method._id),
+          brand: method.brand || "card",
+          last4: method.last4 || "",
+          holderName: method.holderName || "",
+          expiryMonth: method.expiryMonth,
+          expiryYear: method.expiryYear,
+          isDefault: Boolean(method.isDefault),
+          createdAt: method.createdAt,
+        })),
+        wallet: {
+          balance: toMoney(user.wallet?.balance || 0),
+          transactionsCount: Array.isArray(user.wallet?.transactions)
+            ? user.wallet.transactions.length
+            : 0,
+        },
+        rides: {
+          total: totalRides,
+          byStatus: ridesSummary.reduce((acc, item) => {
+            acc[item._id || "unknown"] = Number(item.count || 0);
+            return acc;
+          }, {}),
+        },
+      };
+
+      return res.json({
+        success: true,
+        data: exportPayload,
+      });
+    } catch (error) {
+      console.error("Erro ao exportar dados de privacidade:", error);
+      return sendError(res, 500, "Erro ao exportar dados", {
+        details: error.message,
+      });
+    }
+  }
+
   async forgotPassword(req, res) {
     try {
       const { email } = req.body;
@@ -1130,6 +1218,63 @@ class AuthController {
     } catch (error) {
       console.error("Erro ao deletar usuário:", error);
       return sendError(res, 500, "Erro ao deletar usuário", { details: error.message });
+    }
+  }
+
+  // Enviar documentos para análise do motorista
+  async submitDriverVerification(req, res) {
+    try {
+      const userId = req.user.id;
+      const user = await User.findById(userId);
+
+      if (!user) {
+        return sendError(res, 404, "Usuário não encontrado");
+      }
+
+      console.log("[BACKEND] submitDriverVerification triggered!");
+      console.log("[BACKEND] Files in req:", req.files ? Object.keys(req.files) : "null/undefined");
+
+      if (!req.files || Object.keys(req.files).length === 0) {
+        console.log("[BACKEND] REJECTED: No files received!");
+        return sendError(res, 400, "Nenhum documento foi enviado");
+      }
+
+      const protocol = req.headers["x-forwarded-proto"] || req.protocol;
+      const host = req.get("host");
+      const baseUrl = `${protocol}://${host}/uploads/drivers`;
+
+      const documents = {
+        submittedAt: new Date(),
+      };
+
+      const docKeys = ["cnhFront", "cnhBack", "crlvFront", "crlvBack", "vehiclePhoto", "selfie"];
+      
+      docKeys.forEach((key) => {
+        if (req.files[key] && req.files[key][0]) {
+          documents[key] = `${baseUrl}/${req.files[key][0].filename}`;
+        }
+      });
+
+      user.driverDocuments = {
+        ...(user.driverDocuments || {}),
+        ...documents
+      };
+      user.driverStatus = "pending";
+      user.userType = "driver";
+
+      await user.save();
+
+      return res.json({
+        success: true,
+        message: "Documentos enviados com sucesso. Cadastro em análise.",
+        data: {
+          driverStatus: user.driverStatus,
+          driverDocuments: user.driverDocuments,
+        },
+      });
+    } catch (error) {
+      console.error("Erro ao enviar documentos:", error);
+      return sendError(res, 500, "Erro ao processar verificação", { details: error.message });
     }
   }
 }

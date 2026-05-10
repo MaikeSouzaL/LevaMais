@@ -11,6 +11,9 @@ export interface PricingCalculation {
   distancePrice: number;
   serviceFee: number;
   total: number;
+  subtotal?: number;
+  discountAmount?: number;
+  promotionCode?: string;
   currency: string;
   platformFee?: number;
   driverValue?: number;
@@ -49,6 +52,7 @@ export interface CreateRideRequest {
     enabled?: boolean;
     clientOffer?: number;
   };
+  promotionCode?: string;
 }
 
 export interface Ride {
@@ -79,6 +83,14 @@ export interface Ride {
     finalAgreedPrice?: number | null;
     selectedDriverId?: string | null;
     offers?: RideOffer[];
+  };
+  promotion?: {
+    promotionId?: string;
+    code?: string;
+    discountType?: "fixed" | "percentage";
+    discountValue?: number;
+    discountAmount?: number;
+    appliedAt?: string;
   };
   payment?: {
     method?: {

@@ -5,6 +5,7 @@ const {
   authenticateToken,
   requireAdmin,
 } = require("../middlewares/auth.middleware");
+const { uploadDriverBundle } = require("../middlewares/upload.middleware");
 
 // Rotas publicas
 router.post("/register", authController.register.bind(authController));
@@ -30,6 +31,14 @@ router.post(
 router.post(
   "/reset-password",
   authController.resetPassword.bind(authController),
+);
+
+// Rotas de fluxo de cadastro extendido
+router.post(
+  "/driver-verification",
+  authenticateToken,
+  uploadDriverBundle,
+  authController.submitDriverVerification.bind(authController),
 );
 
 // Rotas protegidas (requerem autenticacao)
@@ -82,6 +91,11 @@ router.get(
   "/notifications",
   authenticateToken,
   authController.listNotifications.bind(authController),
+);
+router.get(
+  "/privacy-export",
+  authenticateToken,
+  authController.exportPrivacyData.bind(authController),
 );
 
 // Rotas admin

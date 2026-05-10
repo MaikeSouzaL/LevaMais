@@ -3,6 +3,7 @@ import { View, Text } from "react-native";
 import AuthRoutes from "./auth.routes";
 import ClientBoot from "./ClientBoot";
 import DriverBoot from "./DriverBoot";
+import DriverPendingRoutes from "./driver.pending.routes";
 import { useAuthStore } from "../context/authStore";
 import { getProfile } from "../services/auth.service";
 
@@ -44,7 +45,8 @@ export default function Routes() {
       if (!isAuthenticated || !token) return;
 
       const needsUserType = !userType;
-      const needsUserData = !userData?.id;
+      // Explicitly fetch if missing driver status for driver profiles
+      const needsUserData = !userData?.id || (userType === "driver" && !userData?.driverStatus);
 
       if (!needsUserType && !needsUserData) return;
 
@@ -76,6 +78,7 @@ export default function Routes() {
           aceitouTermos: Boolean(user.acceptedTerms),
           vehicleType: user.vehicleType,
           vehicleInfo: user.vehicleInfo,
+          driverStatus: user.driverStatus || "none",
         });
       } catch {
         if (mounted) logout();
@@ -94,6 +97,7 @@ export default function Routes() {
     isAuthenticated,
     userType,
     userData?.id,
+    userData?.driverStatus,
     token,
     updateUserType,
     updateUserData,
@@ -124,9 +128,12 @@ export default function Routes() {
   }
 
   if (userType === "driver") {
+    // 🛡️ Security Gate: Block unapproved drivers from accessing full dashboard
+    if (userData?.driverStatus !== "approved") {
+      return <DriverPendingRoutes />;
+    }
     return <DriverBoot />;
   }
 
-  // Se chegou autenticado mas ainda sem userType resolvido, aguarda.
   return <RouteFallbackLoader />;
 }

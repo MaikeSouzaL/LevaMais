@@ -10,88 +10,45 @@ import slides from "./dataSlide";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Audio } from "expo-av";
+import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import theme from "../../../theme";
 import { MaterialIcons } from "@expo/vector-icons";
 
 export default function IntroScreen() {
   const [slideAtual, setSlideAtual] = useState(0);
-  const [musicPaused, setMusicPaused] = useState(false);
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const navigation = useNavigation();
 
-  const soundRef = useRef<Audio.Sound | null>(null);
+  // Safe & auto-managed player from expo-audio (avoids ExoPlayer thread crash in SDK 54)
+  const player = useAudioPlayer(require("../../../assets/sound/Welcome.mp3"));
+  const playerStatus = useAudioPlayerStatus(player);
 
-  const stopAndUnload = async () => {
-    try {
-      if (soundRef.current) {
-        await soundRef.current.stopAsync();
-        await soundRef.current.unloadAsync();
-        soundRef.current = null;
-      }
-    } catch {}
-  };
-
-  const startBackgroundMusic = async () => {
-    try {
-      if (soundRef.current) return;
-
-      // Evita que outras mídias continuem tocando em background
-      await Audio.setAudioModeAsync({
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
-      });
-
-      const { sound } = await Audio.Sound.createAsync(
-        require("../../../assets/sound/Welcome.mp3"),
-        {
-          shouldPlay: true,
-          isLooping: true,
-          volume: 0.5,
-        },
-      );
-
-      soundRef.current = sound;
-      setMusicPaused(false);
-    } catch (e) {
-      console.log("Falha ao tocar Welcome.mp3", e);
-    }
-  };
-
-  const toggleMusic = async () => {
-    try {
-      if (!soundRef.current) {
-        await startBackgroundMusic();
-        setMusicPaused(false);
-        return;
-      }
-
-      if (musicPaused) {
-        await soundRef.current.playAsync();
-        setMusicPaused(false);
-      } else {
-        await soundRef.current.pauseAsync();
-        setMusicPaused(true);
-      }
-    } catch (e) {
-      console.log("Falha ao pausar/retomar música", e);
-    }
-  };
-
+  // Dynamic Control: Plays ONLY when this screen is explicitly focused on screen
   useFocusEffect(
     React.useCallback(() => {
-      // ao focar, toca a música
-      startBackgroundMusic();
-
-      // ao desfocar, para
+      if (player) {
+        player.volume = 0.5;
+        player.loop = true;
+        player.play();
+      }
+      
       return () => {
-        stopAndUnload();
-        setMusicPaused(false);
+        // 🛑 Pause music completely when navigating away to Login
+        if (player) {
+          player.pause();
+        }
       };
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []),
+    }, [player])
   );
+
+  const toggleMusic = () => {
+    if (!player) return;
+    if (playerStatus.playing) {
+      player.pause();
+    } else {
+      player.play();
+    }
+  };
 
   const fadeIn = () => {
     Animated.timing(fadeAnim, {
@@ -152,7 +109,7 @@ export default function IntroScreen() {
             }}
           >
             <MaterialIcons
-              name={musicPaused ? "volume-off" : "volume-up"}
+              name={playerStatus.playing ? "volume-up" : "volume-off"}
               size={24}
               color={theme.COLORS.BRAND_LIGHT}
             />

@@ -114,6 +114,7 @@ export type ClientStackParamList = {
   OrderDetails: { rideId?: string; order?: any };
   Profile: undefined;
   Settings: undefined;
+  EditAccount: undefined;
   Wallet: undefined;
   Help: undefined;
   ClientCity: undefined;

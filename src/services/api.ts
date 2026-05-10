@@ -116,12 +116,17 @@ export function apiPost<T = any>(
   data: any,
   token?: string,
 ): Promise<AxiosResponse<T>> {
-  const config: AxiosRequestConfig = {};
+  const config: AxiosRequestConfig = { headers: {} };
+  
   if (token) {
-    config.headers = {
-      Authorization: `Bearer ${token}`,
-    };
+    config.headers!.Authorization = `Bearer ${token}`;
   }
+
+  // 🚀 Critical Fix: Override default JSON header if payload is binary stream FormData!
+  if (data instanceof FormData) {
+    config.headers!["Content-Type"] = "multipart/form-data";
+  }
+
   return apiInstance.post<T>(endpoint, data, config);
 }
 
@@ -130,12 +135,16 @@ export function apiPut<T = any>(
   data: any,
   token?: string,
 ): Promise<AxiosResponse<T>> {
-  const config: AxiosRequestConfig = {};
+  const config: AxiosRequestConfig = { headers: {} };
+  
   if (token) {
-    config.headers = {
-      Authorization: `Bearer ${token}`,
-    };
+    config.headers!.Authorization = `Bearer ${token}`;
   }
+
+  if (data instanceof FormData) {
+    config.headers!["Content-Type"] = "multipart/form-data";
+  }
+
   return apiInstance.put<T>(endpoint, data, config);
 }
 

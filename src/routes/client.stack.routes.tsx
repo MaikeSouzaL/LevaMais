@@ -7,6 +7,7 @@ import WalletScreen from "../screens/(authenticated)/Client/Profile/Wallet";
 import ProfileScreen from "../screens/(authenticated)/Client/Profile/ProfileView";
 import HelpScreen from "../screens/(authenticated)/Client/Profile/Help";
 import SettingsScreen from "../screens/(authenticated)/Client/Profile/Settings";
+import EditAccountScreen from "../screens/(authenticated)/Client/Profile/EditAccountScreen";
 import AddressPickerScreen from "../screens/(authenticated)/Client/Ride/Request/AddressPicker";
 import FavoritesScreen from "../screens/(authenticated)/Client/Favorites/FavoritesList";
 import SelectVehicleScreen from "../screens/(authenticated)/Client/Ride/Request/SelectVehicle";
@@ -59,6 +60,7 @@ export default function ClientStackRoutes({
       <Stack.Screen name="Profile" component={ProfileScreen} />
       <Stack.Screen name="Help" component={HelpScreen} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen name="EditAccount" component={EditAccountScreen} />
 
       <Stack.Screen name="LocationPicker" component={AddressPickerScreen} />
       <Stack.Screen name="EditFavorite" component={AddressPickerScreen} />

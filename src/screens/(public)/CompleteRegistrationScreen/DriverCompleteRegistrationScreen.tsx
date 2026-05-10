@@ -19,6 +19,7 @@ type CompleteRegistrationDriverParams = {
     phone?: string;
     city?: string;
     userType?: string;
+    vehicleType?: string; // ✅ Bridge from DriverCategory
     googleId?: string;
     profilePhoto?: string;
     acceptedTerms: boolean;
@@ -43,6 +44,7 @@ export default function DriverCompleteRegistrationScreen() {
       documentType: "cpf",
       password: user?.password ?? "",
       userType: "driver",
+      vehicleType: (user?.vehicleType as any) ?? undefined, // ✅ Inject automatic selection
       acceptedTerms: user?.acceptedTerms ?? false,
       city: user?.city,
       googleId: user?.googleId,

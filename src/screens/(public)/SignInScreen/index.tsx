@@ -4,12 +4,24 @@ import {
   Platform,
   ScrollView,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
+  StyleSheet,
+  StatusBar,
+  ActivityIndicator,
 } from "react-native";
-// import * as Location from "expo-location";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
+import { MotiView, MotiText } from "moti";
+import { Mail, Lock } from "lucide-react-native";
+
+// React Hook Form + Zod
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+
+// Core Logic & Services
 import {
   login as loginService,
   googleAuth,
@@ -21,39 +33,58 @@ import {
   isSuccessResponse,
 } from "@react-native-google-signin/google-signin";
 import Toast from "react-native-toast-message";
-import GoogleButton from "./component/GoogleButton";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { CLIENTE_WEB_ID } from "@env";
 
-export default function SignInScreen() {
-  const navigation = useNavigation();
-  const route = useRoute<any>();
+// Official Theme & Components
+import { colors } from "../../../theme/colors";
+import { fonts, fontSize } from "../../../theme/typography";
+import { spacing, borderRadius } from "../../../theme/dimensions";
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+import { AuthHeader } from "../../../components/auth/AuthHeader";
+import { AuthInput } from "../../../components/auth/AuthInput";
+import { SocialLoginButtons } from "../../../components/auth/SocialLoginButtons";
+import { BackgroundMap } from "../../../components/visuals/BackgroundMap";
+import { Particles } from "../../../components/visuals/Particles";
+
+// 🔐 Form Schema
+const loginSchema = z.object({
+  email: z.string().min(1, "O e-mail é obrigatório").email("Formato de e-mail inválido"),
+  password: z.string().min(6, "A senha deve ter pelo menos 6 caracteres"),
+});
+
+type LoginFormValues = z.infer<typeof loginSchema>;
+
+export default function SignInScreen() {
+  const navigation = useNavigation<any>();
+  const route = useRoute<any>();
+  const insets = useSafeAreaInsets();
+
+  // 🔄 UI States
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const passwordInputRef = React.useRef<TextInput>(null);
-
+  
   const googleConfiguredRef = useRef(false);
 
+  // 📝 Form Definition
+  const { control, handleSubmit, setValue, formState: { errors } } = useForm<LoginFormValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: "",
+      password: "",
+    }
+  });
+
+  // 📥 Sync params & configuration hooks
   useEffect(() => {
     const paramEmail = route.params?.email;
-    if (!paramEmail || typeof paramEmail !== "string") return;
-
-    setEmail(paramEmail.trim().toLowerCase());
-    setTimeout(() => passwordInputRef.current?.focus(), 250);
+    if (paramEmail && typeof paramEmail === "string") {
+      setValue("email", paramEmail.trim().toLowerCase());
+    }
   }, [route.params?.email]);
 
   useEffect(() => {
-    // Configure dentro do lifecycle do React para garantir Activity pronta no Android.
-    // E evita configurar mais de uma vez durante hot-reload/troca de telas.
     if (googleConfiguredRef.current) return;
     googleConfiguredRef.current = true;
-
-    console.log("[GoogleSignIn][SignIn] configure", {
-      hasWebClientId: !!CLIENTE_WEB_ID,
-    });
 
     GoogleSignin.configure({
       webClientId: CLIENTE_WEB_ID,
@@ -62,18 +93,11 @@ export default function SignInScreen() {
     });
   }, []);
 
-  function handleNavigateToSignUp() {
-    // animações: "default" | "fade" | "slide_from_right" | "slide_from_left" | "slide_from_bottom" | "none"
-    navigation.navigate("SignUp");
-  }
-
+  // 💼 Handlers
   async function handleGoogleSignIn() {
     setGoogleLoading(true);
     try {
-      // 1. Autenticar com o Google
-      await GoogleSignin.hasPlayServices({
-        showPlayServicesUpdateDialog: true,
-      });
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
       const userInfo = await GoogleSignin.signIn();
 
       if (!isSuccessResponse(userInfo)) {
@@ -81,14 +105,11 @@ export default function SignInScreen() {
         return;
       }
 
-      // 2. Extrair informações do usuário Google
       const { user } = userInfo.data;
       const { email, id, name, photo } = user;
-
       const normalizedEmail = email.trim().toLowerCase();
 
-      // 3. Antes de autenticar com Google no backend, verifica se o email já existe.
-      // Se existir, entra no app. Se não existir, redireciona para cadastro.
+      // Verify user in backend
       const existsRes = await checkEmailExists(normalizedEmail);
 
       if (!existsRes.success) {
@@ -109,10 +130,9 @@ export default function SignInScreen() {
         return;
       }
 
+      // If user doesn't exist, guide to profile selection
       if (!existsRes.data?.exists) {
-        // Não cria usuário no banco aqui. Apenas segue para completar cadastro.
         const generatedPassword = `${normalizedEmail}-${id}`;
-
         navigation.navigate("SelectProfile", {
           user: {
             _id: "",
@@ -127,12 +147,11 @@ export default function SignInScreen() {
             acceptedTerms: true,
           },
           token: "",
-        } as any);
-
+        });
         return;
       }
 
-      // 4. Email existe: autentica com Google e recebe token
+      // If user exists, finalize authentication
       const response = await googleAuth({
         googleId: id,
         email: normalizedEmail,
@@ -149,15 +168,31 @@ export default function SignInScreen() {
           phone,
           userType,
           profilePhoto,
-          googleId,
+          googleId: gId,
           acceptedTerms,
           city,
         } = userData;
 
-        // REGRA DO APP:
-        // Se o email já existe (checkEmailExists), então ao autenticar com Google
-        // devemos entrar direto na Home do tipo de usuário já cadastrado.
-        // Só manda para completar cadastro se não existir userType definido.
+        // 🚨 Force Phone Capture if missing (User Request: Google signup MUST force phone confirmation)
+        if (!phone) {
+          const generatedPassword = `${userEmail}-${id}`;
+          navigation.navigate("GooglePhonePrompt", {
+            user: {
+              _id,
+              name: userName,
+              email: userEmail,
+              password: generatedPassword,
+              phone: "",
+              city: city || "",
+              userType: userType || undefined,
+              googleId: gId,
+              profilePhoto,
+              acceptedTerms,
+            },
+            token,
+          });
+          return;
+        }
 
         if (userType === "client" || userType === "driver") {
           useAuthStore.getState().login(
@@ -168,9 +203,9 @@ export default function SignInScreen() {
               cidade: city || "",
               nome: userName,
               email: userEmail,
-              telefone: phone || "",
+              telefone: phone,
               fotoPerfil: profilePhoto,
-              googleId: googleId,
+              googleId: gId,
               aceitouTermos: !!acceptedTerms,
             },
             token,
@@ -181,23 +216,18 @@ export default function SignInScreen() {
             text1: "Login com Google realizado com sucesso!",
             text2: `Bem-vindo, ${userName}!`,
           });
-
-          // A navegação será automática através do componente Routes
         } else {
-          // Se por algum motivo o usuário existe mas ainda não tem tipo definido,
-          // força completar cadastro/selecionar perfil.
           const generatedPassword = `${userEmail}-${id}`;
-
           navigation.navigate("SelectProfile", {
             user: {
               _id,
               name: userName,
               email: userEmail,
               password: generatedPassword,
-              phone: phone || "",
+              phone: phone,
               city: city || "",
               userType: userType || undefined,
-              googleId,
+              googleId: gId,
               profilePhoto,
               acceptedTerms,
             },
@@ -216,39 +246,19 @@ export default function SignInScreen() {
       Toast.show({
         type: "error",
         text1: "Erro ao fazer login com Google",
-        text2:
-          error.message ||
-          "Erro ao fazer login com Google. Verifique sua conexão.",
+        text2: error.message || "Verifique sua conexão.",
       });
     } finally {
       setGoogleLoading(false);
     }
   }
 
-  async function handleManualLogin() {
-    if (!email.trim()) {
-      Toast.show({
-        type: "error",
-        text1: "Email obrigatório",
-        text2: "Preencha seu email para continuar",
-      });
-      return;
-    }
-    if (!password || password.length < 6) {
-      Toast.show({
-        type: "error",
-        text1: "Senha inválida",
-        text2: "A senha deve ter pelo menos 6 caracteres",
-      });
-      return;
-    }
-
+  const onSubmit = async (data: LoginFormValues) => {
     setLoading(true);
     try {
-      // Fazer login usando o serviço
       const response = await loginService({
-        email: email.trim().toLowerCase(),
-        password,
+        email: data.email.trim().toLowerCase(),
+        password: data.password,
       });
 
       if (response.success && response.data) {
@@ -265,22 +275,18 @@ export default function SignInScreen() {
           city,
         } = user;
 
-        // Usar city direto
-        const cidade = city || "";
-
-        // Salvar no Zustand
         useAuthStore.getState().login(
           userType,
           {
             id: _id,
             name: name,
-            cidade: cidade,
+            cidade: city || "",
             nome: name,
             email: userEmail,
             telefone: phone || "",
             fotoPerfil: profilePhoto,
             googleId: googleId,
-            aceitouTermos: acceptedTerms,
+            aceitouTermos: !!acceptedTerms,
           },
           token,
         );
@@ -290,9 +296,6 @@ export default function SignInScreen() {
           text1: "Login realizado com sucesso!",
           text2: `Bem-vindo, ${name}!`,
         });
-
-        // A navegação será automática através do componente Routes
-        // que verifica isAuthenticated e userType
       } else {
         Toast.show({
           type: "error",
@@ -310,103 +313,244 @@ export default function SignInScreen() {
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   return (
-    <SafeAreaView className="flex-1 bg-brand-dark">
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+      
+      {/* 🌌 Cinematic Background */}
+      <LinearGradient
+        colors={[colors.background.primary, '#060E18', '#040910']}
+        style={StyleSheet.absoluteFill}
+      />
+      <BackgroundMap />
+      
+      <LinearGradient
+        colors={['rgba(9, 26, 47, 0.3)', 'transparent', colors.background.primary]}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+      />
+
       <KeyboardAvoidingView
-        className="flex-1"
+        style={styles.keyboardView}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
       >
+        <AuthHeader showBackButton={false} />
+
         <ScrollView
-          className="flex-1"
-          contentContainerStyle={{ flexGrow: 1 }}
+          style={styles.scrollView}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: insets.bottom + spacing.xl }
+          ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View className="flex-1 px-6 justify-center">
-            <View className="mb-10">
-              <Text className="text-4xl font-bold text-white tracking-tight">
-                Bem-vindo
-              </Text>
-              <Text className="text-base text-gray-400 mt-2 font-regular">
-                Faça login para continuar
-              </Text>
-            </View>
+          {/* ⚡ Entrance Animated Title Block */}
+          <MotiView
+            from={{ opacity: 0, translateY: 20 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ type: 'timing', duration: 600, delay: 100 }}
+            style={styles.welcomeBlock}
+          >
+            <Text style={styles.title}>Bem-vindo</Text>
+            <Text style={styles.subtitle}>Faça login para continuar explorando</Text>
+          </MotiView>
 
-            <View className="mb-4">
-              <Text className="text-sm font-medium text-gray-300 mb-2">
-                Seu e-mail
-              </Text>
-              <TextInput
-                className="h-14 bg-surface-secondary rounded-xl px-4 text-white border border-gray-700 focus:border-brand-light"
-                placeholder="Digite seu e-mail"
-                placeholderTextColor="#7C7C8A"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                value={email}
-                onChangeText={setEmail}
-              />
-            </View>
+          {/* 📋 Form Container */}
+          <MotiView
+            from={{ opacity: 0, translateY: 20 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ type: 'timing', duration: 600, delay: 250 }}
+            style={styles.formContainer}
+          >
+            <AuthInput
+              control={control}
+              name="email"
+              label="Seu e-mail"
+              placeholder="exemplo@email.com"
+              icon={Mail}
+              keyboardType="email-address"
+              error={errors.email?.message}
+            />
 
-            <View className="mb-6">
-              <Text className="text-sm font-medium text-gray-300 mb-2">
-                Sua senha
-              </Text>
-              <TextInput
-                ref={passwordInputRef}
-                className="h-14 bg-surface-secondary rounded-xl px-4 text-white border border-gray-700 focus:border-brand-light"
-                placeholder="Digite sua senha"
-                placeholderTextColor="#7C7C8A"
-                secureTextEntry
-                value={password}
-                onChangeText={setPassword}
-              />
-            </View>
-
-            <TouchableOpacity
-              className="mb-8 items-end"
-              onPress={() => navigation.navigate("ForgotPassword")}
-            >
-              <Text className="text-gray-400 font-regular text-right">
-                Esqueceu a senha?
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              className="h-14 bg-brand-light rounded-2xl items-center justify-center mb-6 shadow-lg shadow-brand-light/20"
-              onPress={handleManualLogin}
-              disabled={loading}
-            >
-              <Text className="text-brand-dark font-bold text-lg">
-                {loading ? "Entrando..." : "Entrar"}
-              </Text>
-            </TouchableOpacity>
-
-            <View className="flex-row items-center my-6">
-              <View className="flex-1 h-[1px] bg-gray-700" />
-              <Text className="mx-4 text-gray-500 font-medium">OU</Text>
-              <View className="flex-1 h-[1px] bg-gray-700" />
-            </View>
-
-            <GoogleButton
-              onPress={handleGoogleSignIn}
-              loading={googleLoading}
+            <AuthInput
+              control={control}
+              name="password"
+              label="Sua senha"
+              placeholder="Mínimo de 6 caracteres"
+              icon={Lock}
+              secureTextEntry
+              error={errors.password?.message}
             />
 
             <TouchableOpacity
-              className="mt-6 items-center"
-              onPress={handleNavigateToSignUp}
+              style={styles.forgotPassword}
+              onPress={() => navigation.navigate("ForgotPassword")}
+              activeOpacity={0.7}
             >
-              <Text className="text-base text-gray-400">
+              <Text style={styles.forgotText}>Esqueceu a senha?</Text>
+            </TouchableOpacity>
+
+            {/* 🚀 Login Button */}
+            <TouchableOpacity
+              style={[
+                styles.loginButton,
+                { backgroundColor: colors.primary[500] }
+              ]}
+              onPress={handleSubmit(onSubmit)}
+              disabled={loading}
+              activeOpacity={0.85}
+            >
+              {loading ? (
+                <ActivityIndicator color="#000" />
+              ) : (
+                <Text style={styles.loginButtonText}>Entrar</Text>
+              )}
+              <View style={styles.glow} />
+            </TouchableOpacity>
+
+            {/* 🔗 Divider */}
+            <View style={styles.dividerContainer}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>OU CONTINUE COM</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            {/* 📱 Social Logins */}
+            <SocialLoginButtons 
+              onGooglePress={handleGoogleSignIn}
+              isGoogleLoading={googleLoading}
+            />
+          </MotiView>
+
+          {/* 🦶 Footer */}
+          <MotiView
+            from={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ type: 'timing', duration: 600, delay: 400 }}
+            style={styles.footer}
+          >
+            <TouchableOpacity
+              style={styles.footerLink}
+              onPress={() => navigation.navigate("SignUp")}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.footerText}>
                 Não tem uma conta?{" "}
-                <Text className="text-brand-light font-bold">Criar conta</Text>
+                <Text style={styles.footerActionText}>Criar conta</Text>
               </Text>
             </TouchableOpacity>
-          </View>
+          </MotiView>
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background.primary,
+  },
+  keyboardView: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.lg,
+  },
+  welcomeBlock: {
+    marginBottom: spacing['2xl'],
+  },
+  title: {
+    fontFamily: fonts.bold,
+    fontSize: 36,
+    color: colors.text.primary,
+    letterSpacing: -0.5,
+    fontWeight: '800',
+  },
+  subtitle: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.base,
+    color: colors.text.tertiary,
+    marginTop: 6,
+  },
+  formContainer: {
+    width: '100%',
+  },
+  forgotPassword: {
+    alignSelf: 'flex-end',
+    marginBottom: spacing.xl,
+    marginTop: -spacing.sm, // bring closer to input
+  },
+  forgotText: {
+    color: colors.text.tertiary,
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+  },
+  loginButton: {
+    height: 56,
+    borderRadius: borderRadius.xl,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+    shadowColor: colors.primary[500],
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  glow: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.primary[500],
+    opacity: 0.1,
+    borderRadius: borderRadius.xl,
+  },
+  loginButtonText: {
+    fontFamily: fonts.bold,
+    fontSize: fontSize.lg,
+    color: '#091A2F', // Dark contrast for high luminance green
+    fontWeight: '700',
+  },
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: spacing.xl,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.border.light,
+  },
+  dividerText: {
+    marginHorizontal: spacing.md,
+    fontFamily: fonts.bold,
+    fontSize: 10,
+    color: colors.text.disabled,
+    letterSpacing: 1.5,
+  },
+  footer: {
+    marginTop: 'auto',
+    paddingTop: spacing['2xl'],
+    alignItems: 'center',
+  },
+  footerLink: {
+    padding: spacing.sm,
+  },
+  footerText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.base,
+    color: colors.text.tertiary,
+  },
+  footerActionText: {
+    fontFamily: fonts.bold,
+    color: colors.primary[500],
+    fontWeight: '700',
+  }
+});

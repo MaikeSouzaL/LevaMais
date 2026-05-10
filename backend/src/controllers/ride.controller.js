@@ -4,6 +4,7 @@ const User = require("../models/User");
 const PricingConfig = require("../models/PricingConfig");
 const City = require("../models/City");
 const ShiftOffer = require("../models/ShiftOffer");
+const Promotion = require("../models/Promotion");
 
 // mixins (rating + proofs)
 const ratingProofMixin = require("./ride.ratingProof.mixin");
@@ -49,6 +50,35 @@ function toMoney(value) {
   return Number(Number(value || 0).toFixed(2));
 }
 
+function normalizePromotionCode(rawCode) {
+  return String(rawCode || "")
+    .trim()
+    .toUpperCase();
+}
+
+function isPromotionActiveNow(promotion, now = new Date()) {
+  if (!promotion || !promotion.isActive) return false;
+  if (promotion.startsAt && new Date(promotion.startsAt) > now) return false;
+  if (promotion.endsAt && new Date(promotion.endsAt) < now) return false;
+  return true;
+}
+
+function calculatePromotionDiscount(promotion, amount) {
+  const total = toMoney(amount);
+  if (total <= 0) return 0;
+
+  if (promotion.discountType === "percentage") {
+    const pct = Number(promotion.discountValue || 0);
+    const raw = toMoney(total * (pct / 100));
+    if (promotion.maxDiscount && promotion.maxDiscount > 0) {
+      return toMoney(Math.min(raw, promotion.maxDiscount));
+    }
+    return raw;
+  }
+
+  return toMoney(Math.min(total, Number(promotion.discountValue || 0)));
+}
+
 function parseScheduledDate(rawValue) {
   if (!rawValue) return null;
   const value = new Date(rawValue);
@@ -86,6 +116,72 @@ function applyFinalPriceOnRide(ride, finalPrice, appFeePercentage) {
     ride.splitDetails.representativeShare = representativeShare;
     ride.splitDetails.platformShare = toMoney(platformFee - representativeShare);
   }
+}
+
+async function resolvePromotionForRide({
+  code,
+  clientId,
+  amount,
+  serviceType,
+}) {
+  const normalizedCode = normalizePromotionCode(code);
+  if (!normalizedCode) return null;
+
+  const promotion = await Promotion.findOne({ code: normalizedCode });
+  if (!promotion) {
+    return { error: "Cupom nao encontrado" };
+  }
+
+  if (!isPromotionActiveNow(promotion)) {
+    return { error: "Cupom inativo ou expirado" };
+  }
+
+  if (
+    Array.isArray(promotion.serviceTypes) &&
+    promotion.serviceTypes.length > 0 &&
+    serviceType &&
+    !promotion.serviceTypes.includes(serviceType)
+  ) {
+    return { error: "Cupom nao e valido para este servico" };
+  }
+
+  const safeAmount = toMoney(amount);
+  if (safeAmount < Number(promotion.minOrderValue || 0)) {
+    return {
+      error: `Valor minimo para este cupom: R$ ${Number(
+        promotion.minOrderValue || 0,
+      ).toFixed(2)}`,
+    };
+  }
+
+  if (
+    Number.isFinite(Number(promotion.usageLimit)) &&
+    Number(promotion.usageLimit) >= 0 &&
+    Number(promotion.usageCount || 0) >= Number(promotion.usageLimit)
+  ) {
+    return { error: "Cupom esgotado" };
+  }
+
+  const userUsageCount = await Ride.countDocuments({
+    clientId,
+    "promotion.promotionId": promotion._id,
+  });
+  if (
+    Number.isFinite(Number(promotion.perUserLimit)) &&
+    Number(promotion.perUserLimit) > 0 &&
+    userUsageCount >= Number(promotion.perUserLimit)
+  ) {
+    return { error: "Limite de uso deste cupom atingido" };
+  }
+
+  const discountAmount = calculatePromotionDiscount(promotion, safeAmount);
+  const finalTotal = toMoney(Math.max(0, safeAmount - discountAmount));
+
+  return {
+    promotion,
+    discountAmount,
+    finalTotal,
+  };
 }
 
 class RideController {
@@ -515,6 +611,7 @@ class RideController {
         payment,
         scheduledFor,
         negotiation,
+        promotionCode,
       } = req.body;
 
       const clientId = req.user.id; // Do middleware de autenticaÃ§Ã£o
@@ -576,7 +673,44 @@ class RideController {
       }
       const appFeePercentage = config.appFeePercentage || 15;
 
-      const suggestedMinPrice = calculateSuggestedMinPrice(pricing?.total);
+      const safePricing = {
+        ...(pricing || {}),
+      };
+
+      const subtotal = toMoney(Number(safePricing.total || 0));
+      if (!Number.isFinite(subtotal) || subtotal <= 0) {
+        return sendError(res, 400, "Preco da corrida invalido");
+      }
+
+      let appliedPromotion = null;
+      let discountAmount = 0;
+      let finalTotal = subtotal;
+
+      if (promotionCode) {
+        const promotionResult = await resolvePromotionForRide({
+          code: promotionCode,
+          clientId,
+          amount: subtotal,
+          serviceType,
+        });
+
+        if (promotionResult?.error) {
+          return sendError(res, 400, promotionResult.error);
+        }
+
+        if (promotionResult?.promotion) {
+          appliedPromotion = promotionResult.promotion;
+          discountAmount = toMoney(promotionResult.discountAmount || 0);
+          finalTotal = toMoney(promotionResult.finalTotal || subtotal);
+        }
+      }
+
+      safePricing.subtotal = subtotal;
+      safePricing.discountAmount = discountAmount;
+      safePricing.promotionCode = appliedPromotion?.code || undefined;
+      safePricing.total = finalTotal;
+
+      const suggestedMinPrice = calculateSuggestedMinPrice(finalTotal);
       const requestedOffer = Number(negotiation?.clientOffer);
       const wantsNegotiation = Boolean(negotiation?.enabled) && Number.isFinite(requestedOffer);
       if (wantsNegotiation && requestedOffer <= 0) {
@@ -584,7 +718,7 @@ class RideController {
       }
 
       // 2. Calcula Taxa da Plataforma (Valor Bruto que sai do motorista)
-      const total = pricing.total;
+      const total = finalTotal;
       const platformFee = total * (appFeePercentage / 100);
       const driverValue = total - platformFee;
 
@@ -605,8 +739,8 @@ class RideController {
       }
 
       // Adiciona calculos ao objeto de pricing
-      pricing.platformFee = platformFee;
-      pricing.driverValue = driverValue;
+      safePricing.platformFee = platformFee;
+      safePricing.driverValue = driverValue;
 
       // Salva detalhe do split no objeto da corrida (para relatÃ³rios futuros)
       const splitDetails = {
@@ -624,7 +758,7 @@ class RideController {
         purposeId: resolvedPurposeId,
         pickup,
         dropoff,
-        pricing,
+        pricing: safePricing,
         splitDetails, // Novo campo
         distance,
         duration,
@@ -640,6 +774,16 @@ class RideController {
           offers: [],
         },
         cityId: cityId, // Importante salvar a cidade
+        promotion: appliedPromotion
+          ? {
+              promotionId: appliedPromotion._id,
+              code: appliedPromotion.code,
+              discountType: appliedPromotion.discountType,
+              discountValue: appliedPromotion.discountValue,
+              discountAmount,
+              appliedAt: new Date(),
+            }
+          : undefined,
       });
 
       const paymentMethod = normalizePaymentMethod(payment?.method?.type || payment?.method || payment);
@@ -650,10 +794,14 @@ class RideController {
         };
       }
 
-      // Calcular total
-      ride.calculateTotal();
-
       await ride.save();
+
+      if (appliedPromotion) {
+        await Promotion.updateOne(
+          { _id: appliedPromotion._id },
+          { $inc: { usageCount: 1 } },
+        );
+      }
 
       // Popular dados do cliente
       await ride.populate("clientId", "name phone profilePhoto");

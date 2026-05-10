@@ -4,15 +4,22 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
 import { LoadingButton } from "../../../Shared/components";
 import Toast from "react-native-toast-message";
+import promotionService from "@/services/promotion.service";
 
 interface PromoCodeSheetProps {
   visible?: boolean;
   onApply: (code: string, discount: number) => void;
   onClose: () => void;
   currentTotal?: number;
+  serviceType?: "ride" | "delivery";
 }
 
-export default function PromoCodeSheet({ onApply, onClose, currentTotal }: PromoCodeSheetProps) {
+export default function PromoCodeSheet({
+  onApply,
+  onClose,
+  currentTotal,
+  serviceType,
+}: PromoCodeSheetProps) {
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,20 +34,27 @@ export default function PromoCodeSheet({ onApply, onClose, currentTotal }: Promo
     setError(null);
 
     try {
-      // TODO: integrar com endpoint de validacao de cupom (GET /promotions/:code)
-      await new Promise((r) => setTimeout(r, 800));
-
-      const mockDiscount = 5;
-      onApply(code.trim().toUpperCase(), mockDiscount);
+      const validated = await promotionService.validateCode({
+        code: code.trim().toUpperCase(),
+        amount: Number(currentTotal || 0),
+        serviceType,
+      });
+      const discount = Number(validated?.discountAmount || 0);
+      onApply(code.trim().toUpperCase(), discount);
 
       Toast.show({
         type: "success",
         text1: "Cupom aplicado!",
-        text2: `Desconto de R$ ${mockDiscount.toFixed(2)}`,
+        text2: `Desconto de R$ ${discount.toFixed(2)}`,
       });
       onClose();
     } catch (e: any) {
-      setError(e?.message || "Codigo invalido ou expirado");
+      const apiMessage =
+        e?.response?.data?.message ||
+        e?.response?.data?.error ||
+        e?.message ||
+        "Codigo invalido ou expirado";
+      setError(apiMessage);
     } finally {
       setLoading(false);
     }

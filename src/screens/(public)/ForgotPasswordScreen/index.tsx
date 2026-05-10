@@ -1,193 +1,266 @@
-import React, { useState, useRef } from "react";
+import React, { useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
+  StyleSheet,
+  StatusBar,
+  ActivityIndicator,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { Feather } from "@expo/vector-icons";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
+import { MotiView } from "moti";
+import { Mail } from "lucide-react-native";
 import Toast from "react-native-toast-message";
-import theme from "../../../theme";
+
+// React Hook Form + Zod
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+
+// Core & Services
 import { requestPasswordReset } from "../../../services/auth.service";
 
+// UI Constants & Unified Components
+import { colors } from "../../../theme/colors";
+import { fonts, fontSize } from "../../../theme/typography";
+import { spacing, borderRadius } from "../../../theme/dimensions";
+
+import { AuthHeader } from "../../../components/auth/AuthHeader";
+import { AuthInput } from "../../../components/auth/AuthInput";
+import { BackgroundMap } from "../../../components/visuals/BackgroundMap";
+import { Particles } from "../../../components/visuals/Particles";
+
+const forgotPasswordSchema = z.object({
+  email: z.string().min(1, "E-mail obrigatório").email("Formato de e-mail inválido"),
+});
+
+type ForgotFormValues = z.infer<typeof forgotPasswordSchema>;
+
 export default function ForgotPasswordScreen() {
-  const navigation = useNavigation();
-  const [email, setEmail] = useState("");
+  const navigation = useNavigation<any>();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
-  const scrollViewRef = useRef<ScrollView>(null);
-  const emailInputRef = useRef<TextInput>(null);
 
-  async function handleSendCode() {
-    if (!email.trim()) {
-      Toast.show({
-        type: "error",
-        text1: "Email obrigatório",
-        text2: "Digite seu email para continuar",
-      });
-      return;
-    }
+  const { control, handleSubmit, formState: { errors } } = useForm<ForgotFormValues>({
+    resolver: zodResolver(forgotPasswordSchema),
+    defaultValues: {
+      email: "",
+    },
+  });
 
-    // Validação básica de email
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email.trim())) {
-      Toast.show({
-        type: "error",
-        text1: "Email inválido",
-        text2: "Digite um email válido",
-      });
-      return;
-    }
-
+  const onSubmit = async (data: ForgotFormValues) => {
     setLoading(true);
     try {
+      const emailClean = data.email.trim().toLowerCase();
       const response = await requestPasswordReset({
-        email: email.trim().toLowerCase(),
+        email: emailClean,
       });
 
       if (response.success) {
         Toast.show({
           type: "success",
           text1: "Código enviado!",
-          text2: "Verifique seu email para o código de verificação",
+          text2: "Verifique seu e-mail para o código de verificação",
         });
 
-        // Navegar para tela de verificação de código
         navigation.navigate("VerifyCode", {
-          email: email.trim().toLowerCase(),
+          email: emailClean,
         });
       } else {
         Toast.show({
           type: "error",
           text1: "Erro ao enviar código",
-          text2: response.message || "Verifique seu email e tente novamente",
+          text2: response.message || "Verifique seu e-mail e tente novamente",
         });
       }
     } catch (error: any) {
       console.error("Erro ao solicitar recuperação de senha:", error);
       Toast.show({
         type: "error",
-        text1: "Erro ao enviar código",
-        text2: error.message || "Verifique sua conexão e tente novamente",
+        text1: "Erro",
+        text2: "Verifique sua conexão e tente novamente",
       });
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   return (
-    <SafeAreaView className="flex-1 bg-brand-dark" edges={["top"]}>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+
+      {/* 🌌 Base Cinematic Elements */}
+      <LinearGradient
+        colors={[colors.background.primary, "#060E18", "#040910"]}
+        style={StyleSheet.absoluteFill}
+      />
+      <BackgroundMap />
+      <LinearGradient
+        colors={["rgba(9, 26, 47, 0.2)", "transparent", colors.background.primary]}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+      />
+
       <KeyboardAvoidingView
-        className="flex-1"
+        style={styles.keyboardView}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
       >
-        {/* Ícone de voltar fixo no topo */}
-        <View className="px-6 pt-4">
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            className="w-10 h-10 items-center justify-center"
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Feather name="arrow-left" size={24} color={theme.COLORS.WHITE} />
-          </TouchableOpacity>
-        </View>
+        {/* Standard Header with functional Back Button */}
+        <AuthHeader showBackButton={true} />
 
         <ScrollView
-          ref={scrollViewRef}
-          className="flex-1"
-          contentContainerStyle={{
-            flexGrow: 1,
-            paddingTop: 20,
-            paddingBottom: 100,
-          }}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: insets.bottom + spacing.xl },
+          ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
-          keyboardDismissMode="on-drag"
         >
-          <View className="px-6 flex-1 justify-center">
-            {/* Título e descrição */}
-            <View className="mb-8">
-              <Text className="text-4xl font-bold text-white tracking-tight mb-3">
-                Esqueceu a senha?
-              </Text>
-              <Text className="text-base text-gray-400 font-regular leading-6">
-                Digite seu email e enviaremos um código de verificação para você
-                criar uma nova senha
-              </Text>
-            </View>
+          {/* Animation Stagger block 1 - Headers */}
+          <MotiView
+            from={{ opacity: 0, translateY: 15 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ type: "timing", duration: 600 }}
+            style={styles.headerBlock}
+          >
+            <Text style={styles.title}>Esqueceu a senha?</Text>
+            <Text style={styles.subtitle}>
+              Digite seu e-mail e enviaremos um código de verificação para você criar uma nova senha
+            </Text>
+          </MotiView>
 
-            {/* Campo Email */}
-            <View className="mb-6">
-              <Text className="text-sm font-semibold text-gray-300 mb-3">
-                Seu e-mail
-              </Text>
-              <View className="flex-row items-center border border-gray-700 rounded-xl bg-surface-secondary px-4 h-14 focus:border-brand-light">
-                <Feather
-                  name="mail"
-                  size={20}
-                  color={theme.COLORS.BRAND_LIGHT}
-                  style={{ marginRight: 12 }}
-                />
-                <TextInput
-                  ref={emailInputRef}
-                  className="flex-1 text-base text-white"
-                  placeholder="Digite seu e-mail"
-                  placeholderTextColor="#7C7C8A"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  value={email}
-                  onChangeText={setEmail}
-                  returnKeyType="send"
-                  onSubmitEditing={handleSendCode}
-                  onFocus={() => {
-                    setTimeout(() => {
-                      emailInputRef.current?.measureLayout(
-                        scrollViewRef.current as any,
-                        (x, y) => {
-                          scrollViewRef.current?.scrollTo({
-                            y: Math.max(0, y - 150),
-                            animated: true,
-                          });
-                        },
-                        () => {}
-                      );
-                    }, 300);
-                  }}
-                />
-              </View>
-            </View>
+          {/* Animation Stagger block 2 - Form inputs */}
+          <MotiView
+            from={{ opacity: 0, translateY: 20 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ type: "timing", duration: 600, delay: 150 }}
+            style={styles.formContainer}
+          >
+            <AuthInput
+              control={control}
+              name="email"
+              label="Seu e-mail"
+              placeholder="Digite seu e-mail"
+              icon={Mail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              error={errors.email?.message}
+            />
 
-            {/* Botão Enviar */}
             <TouchableOpacity
-              className="h-14 bg-brand-light rounded-2xl items-center justify-center mb-6 shadow-lg shadow-brand-light/20"
-              onPress={handleSendCode}
+              style={[
+                styles.primaryButton,
+                { backgroundColor: colors.primary[500] },
+              ]}
+              onPress={handleSubmit(onSubmit)}
               disabled={loading}
-              activeOpacity={0.8}
+              activeOpacity={0.85}
             >
-              <Text className="text-brand-dark font-bold text-lg">
-                {loading ? "Enviando..." : "Enviar código"}
-              </Text>
+              {loading ? (
+                <ActivityIndicator color={colors.background.primary} />
+              ) : (
+                <Text style={styles.primaryButtonText}>Enviar código</Text>
+              )}
             </TouchableOpacity>
+          </MotiView>
 
-            {/* Link para voltar ao login */}
+          {/* Animation Stagger block 3 - Footer */}
+          <MotiView
+            from={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ type: "timing", duration: 600, delay: 300 }}
+            style={styles.footerBlock}
+          >
             <TouchableOpacity
-              className="items-center py-4"
               onPress={() => navigation.goBack()}
               activeOpacity={0.7}
+              style={styles.footerLink}
             >
-              <Text className="text-base text-gray-400">
+              <Text style={styles.footerText}>
                 Lembrou sua senha?{" "}
-                <Text className="text-brand-light font-bold">Entrar</Text>
+                <Text style={[styles.footerAction, { color: colors.primary[500] }]}>
+                  Entrar
+                </Text>
               </Text>
             </TouchableOpacity>
-          </View>
+          </MotiView>
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background.primary,
+  },
+  keyboardView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.lg,
+    justifyContent: "center", // Centralizar o conteúdo na tela de recuperação
+  },
+  headerBlock: {
+    marginBottom: spacing["2xl"],
+  },
+  title: {
+    fontFamily: fonts.bold,
+    fontSize: 32,
+    color: colors.text.primary,
+    letterSpacing: -0.5,
+    fontWeight: "900",
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.base,
+    color: colors.text.tertiary,
+    lineHeight: 22,
+  },
+  formContainer: {
+    width: "100%",
+  },
+  primaryButton: {
+    height: 56,
+    borderRadius: borderRadius.xl,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: spacing.lg,
+    shadowColor: colors.primary[500],
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  primaryButtonText: {
+    fontFamily: fonts.bold,
+    fontSize: fontSize.lg,
+    color: colors.background.primary,
+    fontWeight: "800",
+  },
+  footerBlock: {
+    marginTop: spacing["3xl"],
+    alignItems: "center",
+  },
+  footerLink: {
+    padding: spacing.sm,
+  },
+  footerText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.base,
+    color: colors.text.tertiary,
+  },
+  footerAction: {
+    fontFamily: fonts.bold,
+    fontWeight: "800",
+  },
+});

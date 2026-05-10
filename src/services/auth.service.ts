@@ -368,11 +368,20 @@ export async function sendPhoneVerification(
       return { success: false, message: "Telefone invalido" };
     }
 
+    // 🛠️ Modo Dev Temporário: Retorno de sucesso sem bater no backend
+    return {
+      success: true,
+      message: "Código enviado com sucesso (Modo Dev)",
+      data: { message: "ok" },
+    };
+
+    /* 
     const response = await apiPost<ApiResponse<{ message: string }>>(
       "/auth/send-phone-code",
       { phone: normalizedPhone },
     );
     return response.data;
+    */
   } catch (error: any) {
     if (error.response?.data) return error.response.data;
     return { success: false, message: error.message || "Erro ao enviar codigo" };
@@ -384,12 +393,31 @@ export async function verifyPhoneCode(
   code: string,
 ): Promise<ApiResponse<{ verified: boolean }>> {
   try {
+    const currentCode = String(code || "").trim();
+    
+    // 🛠️ Modo Dev Temporário: Aceitar código fixo "123456"
+    if (currentCode === "123456") {
+      return {
+        success: true,
+        message: "Verificado!",
+        data: { verified: true },
+      };
+    } else {
+      return {
+        success: false,
+        message: "Código inválido. Use 123456 para testes.",
+        data: { verified: false },
+      };
+    }
+
+    /*
     const normalizedPhone = String(phone || "").replace(/\D/g, "");
     const response = await apiPost<ApiResponse<{ verified: boolean }>>(
       "/auth/verify-phone-code",
-      { phone: normalizedPhone, code: String(code || "").trim() },
+      { phone: normalizedPhone, code: currentCode },
     );
     return response.data;
+    */
   } catch (error: any) {
     if (error.response?.data) return error.response.data;
     return { success: false, message: error.message || "Erro ao verificar codigo" };
@@ -423,6 +451,40 @@ export type AppNotification = {
   type: "ride" | "promo" | "system" | "payment";
   createdAt: string;
   read: boolean;
+};
+
+export type PrivacyExportPayload = {
+  generatedAt: string;
+  account: {
+    id: string;
+    name: string;
+    email: string;
+    phone: string;
+    city: string;
+    userType: "client" | "driver" | "admin";
+    profilePhoto?: string | null;
+    preferredPayment?: "pix" | "cash" | "card" | null;
+    notificationsEnabled: boolean;
+    createdAt: string;
+    updatedAt: string;
+  };
+  documents: {
+    cpf?: string | null;
+    cnpj?: string | null;
+    companyName?: string | null;
+    companyEmail?: string | null;
+    companyPhone?: string | null;
+  };
+  address?: any;
+  paymentMethods: PaymentMethod[];
+  wallet: {
+    balance: number;
+    transactionsCount: number;
+  };
+  rides: {
+    total: number;
+    byStatus: Record<string, number>;
+  };
 };
 
 export async function getPaymentMethods(): Promise<PaymentMethod[]> {
@@ -467,4 +529,37 @@ export async function topupClientWallet(amount: number): Promise<{
 export async function getNotifications(): Promise<AppNotification[]> {
   const response = await apiGet("/auth/notifications");
   return response.data?.notifications || [];
+}
+
+export async function exportPrivacyData(): Promise<PrivacyExportPayload> {
+  const response = await apiGet("/auth/privacy-export");
+  return response.data?.data;
+}
+
+/**
+ * Envia os documentos (cnh, crlv, selfie) em um objeto FormData
+ * para o endpoint multi-part no backend.
+ */
+export async function submitDriverVerification(
+  formData: FormData,
+  token?: string
+): Promise<ApiResponse<any>> {
+  try {
+    const response = await apiPost<ApiResponse<any>>(
+      "/auth/driver-verification",
+      formData,
+      token
+    );
+    return response.data;
+  } catch (error: any) {
+    console.error("[AuthService] Erro ao enviar verificacao:", error);
+    if (error.response?.data) {
+      console.log("[AuthService] Server Response Error Data:", JSON.stringify(error.response.data));
+    }
+    return {
+      success: false,
+      message: error.response?.data?.message || "Erro ao enviar documentos.",
+      error: error.message,
+    };
+  }
 }

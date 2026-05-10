@@ -1,9 +1,29 @@
 import React, { useState } from "react";
-import { View, Text, TouchableOpacity, ScrollView } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { MaterialCommunityIcons, Feather } from "@expo/vector-icons";
+import {
+  View,
+  Text,
+  StyleSheet,
+  StatusBar,
+  ScrollView,
+} from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import theme from "../../../theme";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
+import { MotiView } from "moti";
+import { Car, Briefcase } from "lucide-react-native";
+
+// UI Tokens
+import { colors } from "../../../theme/colors";
+import { fonts, fontSize } from "../../../theme/typography";
+import { spacing } from "../../../theme/dimensions";
+
+// Shared Assets/Components
+import { BackgroundMap } from "../../../components/visuals/BackgroundMap";
+
+// Modular High-Performance Components (Architected for Clean Architecture)
+import { ModeHeader } from "../../../components/select-mode/ModeHeader";
+import { ModeSelectionCard } from "../../../components/select-mode/ModeSelectionCard";
+import { ModeFooter } from "../../../components/select-mode/ModeFooter";
 
 type ProfileType = "client" | "driver";
 
@@ -12,7 +32,7 @@ interface SelectProfileParams {
     _id?: string;
     name: string;
     email: string;
-    password: string;
+    password?: string;
     phone?: string;
     city?: string;
     userType?: string;
@@ -24,298 +44,155 @@ interface SelectProfileParams {
 }
 
 export default function SelectProfileScreen() {
-  const navigation = useNavigation();
-  const route = useRoute();
-  const { user, token } = route.params as SelectProfileParams;
-  const [selectedProfile, setSelectedProfile] = useState<ProfileType>("client");
+  const navigation = useNavigation<any>();
+  const route = useRoute<any>();
+  const insets = useSafeAreaInsets();
 
-  function handleContinue() {
+  // Parameter parsing preserving upstream lifecycle safety
+  const { user, token } = (route.params || {}) as SelectProfileParams;
+  const [selectedProfile, setSelectedProfile] = useState<ProfileType | null>(null);
+
+  function handleProceed() {
     if (!user) {
-      console.error("Dados do usuario nao encontrados");
+      console.error("Profile Data missing upstream");
       return;
     }
+    
+    const choice = selectedProfile || "client";
 
-    if (selectedProfile === "client") {
+    if (choice === "client") {
       navigation.navigate("CompleteRegistrationClient", { user, token });
-      return;
+    } else {
+      // Diverting into High-Conversion Benefits Intro Screen first!
+      navigation.navigate("DriverIntro", {
+        selectedProfile: choice,
+        user,
+        token,
+      });
     }
-
-    navigation.navigate("CompleteRegistrationDriver", {
-      selectedProfile,
-      user,
-      token,
-    });
   }
 
+  // Dynamic button label logic based on runtime user interaction state
+  const currentLabel = !selectedProfile 
+    ? "Escolha seu modo" 
+    : selectedProfile === "driver" 
+      ? "Quero trabalhar" 
+      : "Acessar como cliente";
+
   return (
-    <SafeAreaView className="flex-1 bg-brand-dark">
-      <ScrollView
-        className="flex-1"
-        contentContainerStyle={{ flexGrow: 1 }}
+    <View style={styles.screenContainer}>
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+
+      {/* 🎬 Depth Stacking (No moving particles, clean cinematic map as ordered previously) */}
+      <LinearGradient
+        colors={[colors.background.primary, "#060E18", "#03080E"]}
+        style={StyleSheet.absoluteFill}
+      />
+      <BackgroundMap />
+      <LinearGradient
+        colors={["rgba(9, 26, 47, 0.35)", "transparent", colors.background.primary]}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+      />
+
+      {/* 🛡️ Componentized Header */}
+      <ModeHeader />
+
+      <ScrollView 
+        contentContainerStyle={[
+          styles.scrollContent, 
+          { paddingBottom: insets.bottom + spacing.lg }
+        ]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
-        <View className="flex-1 px-6 py-8">
-          <View className="mb-8 mt-4" style={{ height: 80 }}>
-            <TouchableOpacity
-              onPress={() => navigation.goBack()}
-              activeOpacity={0.7}
-              style={{ position: "absolute", left: 0, top: 0, padding: 8 }}
-            >
-              <Feather name="arrow-left" size={18} color={theme.COLORS.WHITE} />
-            </TouchableOpacity>
-
-            <View
-              style={{
-                position: "absolute",
-                left: 0,
-                right: 0,
-                top: 0,
-                alignItems: "center",
-              }}
-            >
-              <View
-                className="w-20 h-20 rounded-2xl items-center justify-center"
-                style={{ backgroundColor: theme.COLORS.BRAND_LIGHT }}
-              >
-                <MaterialCommunityIcons
-                  name="truck-delivery"
-                  size={48}
-                  color={theme.COLORS.WHITE}
-                />
-              </View>
-            </View>
-          </View>
-
-          <View className="items-center mb-3">
-            <Text className="text-white text-2xl font-bold text-center">
-              Como voce vai usar o{" "}
-              <Text
-                className="font-bold"
-                style={{ color: theme.COLORS.BRAND_LIGHT }}
-              >
-                Leva+
-              </Text>
-              ?
-            </Text>
-          </View>
-
-          <Text className="text-gray-300 text-center text-base mb-8 px-4">
-            Escolha seu perfil inicial. Depois voce pode ajustar seu uso no app
-            sem perder sua conta.
+        {/* Animated Text Header */}
+        <MotiView
+          from={{ opacity: 0, translateY: -15 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ type: "timing", duration: 600 }}
+          style={styles.textHeader}
+        >
+          <Text style={styles.mainHeading}>Como deseja usar o LEVA?</Text>
+          <Text style={styles.subHeading}>
+            Escolha como deseja acessar o ecossistema LEVA.
           </Text>
+        </MotiView>
 
-          <TouchableOpacity
-            onPress={() => setSelectedProfile("client")}
-            className="mb-4"
-            activeOpacity={0.8}
-          >
-            <View
-              className="rounded-2xl p-5 relative"
-              style={{
-                backgroundColor: theme.COLORS.SURFACE_PRIMARY,
-                borderWidth: selectedProfile === "client" ? 2 : 0,
-                borderColor:
-                  selectedProfile === "client"
-                    ? theme.COLORS.BRAND_LIGHT
-                    : "transparent",
-              }}
-            >
-              {selectedProfile === "client" && (
-                <View className="absolute top-4 right-4">
-                  <MaterialCommunityIcons
-                    name="check-circle"
-                    size={28}
-                    color={theme.COLORS.BRAND_LIGHT}
-                  />
-                </View>
-              )}
+        {/* 💠 Modular Selection Section */}
+        <View style={styles.selectionZone}>
+          
+          <ModeSelectionCard
+            isSelected={selectedProfile === "client"}
+            onSelect={() => setSelectedProfile("client")}
+            title="Pedir corridas e entregas"
+            description="Solicite corridas, acompanhe entregas e negocie preços em tempo real."
+            Icon={Car}
+            accentColor={colors.primary[500]}
+            iconBgColor="rgba(2, 222, 149, 0.1)"
+          />
 
-              <View className="flex-row items-center mb-3">
-                <View
-                  className="w-12 h-12 rounded-xl items-center justify-center mr-3"
-                  style={{ backgroundColor: `${theme.COLORS.BRAND_LIGHT}20` }}
-                >
-                  <MaterialCommunityIcons
-                    name="account"
-                    size={24}
-                    color={theme.COLORS.WHITE}
-                  />
-                </View>
-                <Text className="text-white text-xl font-bold">Cliente</Text>
-              </View>
+          <ModeSelectionCard
+            isSelected={selectedProfile === "driver"}
+            onSelect={() => setSelectedProfile("driver")}
+            title="Trabalhar no LEVA"
+            description="Faça corridas, entregas e aumente seus ganhos utilizando o LEVA."
+            Icon={Briefcase}
+            accentColor="#FFF"
+            iconBgColor="rgba(255, 255, 255, 0.05)"
+          />
 
-              <Text className="text-gray-300 text-sm mb-4">
-                Use para corridas urbanas (Uber/99), entregas rapidas e pedidos
-                de comercio/restaurante.
-              </Text>
-
-              <View>
-                <View className="flex-row items-center mb-2">
-                  <MaterialCommunityIcons
-                    name="check-circle"
-                    size={20}
-                    color={theme.COLORS.BRAND_LIGHT}
-                  />
-                  <Text className="text-gray-200 text-sm ml-2">
-                    Pedir corrida para voce e acompanhantes
-                  </Text>
-                </View>
-                <View className="flex-row items-center mb-2">
-                  <MaterialCommunityIcons
-                    name="check-circle"
-                    size={20}
-                    color={theme.COLORS.BRAND_LIGHT}
-                  />
-                  <Text className="text-gray-200 text-sm ml-2">
-                    Pedir entrega e frete com moto, carro, van ou caminhao
-                  </Text>
-                </View>
-                <View className="flex-row items-center mb-2">
-                  <MaterialCommunityIcons
-                    name="check-circle"
-                    size={20}
-                    color={theme.COLORS.BRAND_LIGHT}
-                  />
-                  <Text className="text-gray-200 text-sm ml-2">
-                    Acompanhar motorista e pedido em tempo real
-                  </Text>
-                </View>
-                <View className="flex-row items-center mb-2">
-                  <MaterialCommunityIcons
-                    name="check-circle"
-                    size={20}
-                    color={theme.COLORS.BRAND_LIGHT}
-                  />
-                  <Text className="text-gray-200 text-sm ml-2">
-                    Pagamento integrado com pix, dinheiro e cartao
-                  </Text>
-                </View>
-                <View className="flex-row items-center">
-                  <MaterialCommunityIcons
-                    name="check-circle"
-                    size={20}
-                    color={theme.COLORS.BRAND_LIGHT}
-                  />
-                  <Text className="text-gray-200 text-sm ml-2">
-                    Modo pessoal ou comercial com CPF/CNPJ
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => setSelectedProfile("driver")}
-            className="mb-8"
-            activeOpacity={0.8}
-          >
-            <View
-              className="rounded-2xl p-5 relative"
-              style={{
-                backgroundColor: theme.COLORS.SURFACE_SECONDARY,
-                borderWidth: selectedProfile === "driver" ? 2 : 0,
-                borderColor:
-                  selectedProfile === "driver"
-                    ? theme.COLORS.BRAND_LIGHT
-                    : "transparent",
-              }}
-            >
-              {selectedProfile === "driver" && (
-                <View className="absolute top-4 right-4">
-                  <MaterialCommunityIcons
-                    name="check-circle"
-                    size={28}
-                    color={theme.COLORS.BRAND_LIGHT}
-                  />
-                </View>
-              )}
-
-              <View className="flex-row items-center mb-3">
-                <View
-                  className="w-12 h-12 rounded-xl items-center justify-center mr-3"
-                  style={{ backgroundColor: `${theme.COLORS.BRAND_LIGHT}20` }}
-                >
-                  <MaterialCommunityIcons
-                    name="truck-fast"
-                    size={24}
-                    color={theme.COLORS.WHITE}
-                  />
-                </View>
-                <Text className="text-white text-xl font-bold">
-                  Motorista parceiro
-                </Text>
-              </View>
-
-              <Text className="text-gray-300 text-sm mb-4">
-                Fique online para aceitar corridas de passageiros e entregas
-                conforme seu tipo de veiculo.
-              </Text>
-
-              <View>
-                <View className="flex-row items-center mb-2">
-                  <MaterialCommunityIcons
-                    name="lightning-bolt"
-                    size={20}
-                    color={theme.COLORS.WHITE}
-                  />
-                  <Text className="text-gray-200 text-sm ml-2">
-                    Aceitar corridas e entregas por proximidade
-                  </Text>
-                </View>
-                <View className="flex-row items-center mb-2">
-                  <MaterialCommunityIcons
-                    name="lightning-bolt"
-                    size={20}
-                    color={theme.COLORS.WHITE}
-                  />
-                  <Text className="text-gray-200 text-sm ml-2">
-                    Trabalhar com moto, carro, van ou caminhao
-                  </Text>
-                </View>
-                <View className="flex-row items-center mb-2">
-                  <MaterialCommunityIcons
-                    name="lightning-bolt"
-                    size={20}
-                    color={theme.COLORS.WHITE}
-                  />
-                  <Text className="text-gray-200 text-sm ml-2">
-                    Ver chamadas disponiveis no mapa em tempo real
-                  </Text>
-                </View>
-                <View className="flex-row items-center mb-2">
-                  <MaterialCommunityIcons
-                    name="lightning-bolt"
-                    size={20}
-                    color={theme.COLORS.WHITE}
-                  />
-                  <Text className="text-gray-200 text-sm ml-2">
-                    Receber ganhos, extrato e solicitacao de saque
-                  </Text>
-                </View>
-                <View className="flex-row items-center">
-                  <MaterialCommunityIcons
-                    name="lightning-bolt"
-                    size={20}
-                    color={theme.COLORS.WHITE}
-                  />
-                  <Text className="text-gray-200 text-sm ml-2">
-                    Controle de disponibilidade online e offline
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={handleContinue}
-            className="h-14 rounded-2xl items-center justify-center mb-4"
-            style={{ backgroundColor: theme.COLORS.BRAND_LIGHT }}
-            activeOpacity={0.8}
-          >
-            <Text className="text-brand-dark font-bold text-lg">Continuar</Text>
-          </TouchableOpacity>
         </View>
+
+        {/* 🚀 Modularized Action Footer */}
+        <ModeFooter 
+          isEnabled={!!selectedProfile}
+          onPress={handleProceed}
+          buttonLabel={currentLabel}
+        />
+
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  screenContainer: {
+    flex: 1,
+    backgroundColor: colors.background.primary,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.sm,
+    justifyContent: "space-between",
+  },
+  textHeader: {
+    alignItems: "center",
+    marginTop: spacing.md,
+    marginBottom: spacing.xl,
+  },
+  mainHeading: {
+    fontFamily: fonts.black,
+    fontSize: 28,
+    fontWeight: "900",
+    color: colors.text.primary,
+    textAlign: "center",
+    letterSpacing: -0.6,
+    lineHeight: 34,
+  },
+  subHeading: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.base,
+    color: colors.text.tertiary,
+    textAlign: "center",
+    marginTop: 8,
+    maxWidth: "85%",
+    lineHeight: 22,
+  },
+  selectionZone: {
+    flex: 1,
+    justifyContent: "center",
+    paddingVertical: spacing.lg,
+  },
+});

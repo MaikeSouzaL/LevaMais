@@ -46,6 +46,7 @@ export interface User {
   googleId?: string;
   profilePhoto?: string;
   acceptedTerms: boolean;
+  driverStatus?: "none" | "pending" | "approved" | "rejected";
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

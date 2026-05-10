@@ -95,6 +95,18 @@ const rideSchema = new mongoose.Schema(
         type: Number,
         required: true,
       },
+      subtotal: {
+        type: Number,
+        default: 0,
+      },
+      discountAmount: {
+        type: Number,
+        default: 0,
+      },
+      promotionCode: {
+        type: String,
+        trim: true,
+      },
       currency: {
         type: String,
         default: "BRL",
@@ -239,6 +251,22 @@ const rideSchema = new mongoose.Schema(
       deliveryPhoto: String, // data URL/base64 (MVP)
       deliveryAt: Date,
     },
+    // Promocao aplicada no pedido
+    promotion: {
+      promotionId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Promotion",
+        default: null,
+      },
+      code: { type: String, trim: true },
+      discountType: {
+        type: String,
+        enum: ["fixed", "percentage"],
+      },
+      discountValue: { type: Number, default: 0 },
+      discountAmount: { type: Number, default: 0 },
+      appliedAt: Date,
+    },
 
     // Pagamento
     payment: {
@@ -311,7 +339,10 @@ rideSchema.pre("save", function (next) {
 // Método para calcular preço total
 rideSchema.methods.calculateTotal = function () {
   const { basePrice, distancePrice, serviceFee } = this.pricing;
-  this.pricing.total = basePrice + distancePrice + serviceFee;
+  const subtotal = Number(basePrice || 0) + Number(distancePrice || 0) + Number(serviceFee || 0);
+  const discount = Number(this.pricing?.discountAmount || 0);
+  this.pricing.subtotal = subtotal;
+  this.pricing.total = Math.max(0, subtotal - discount);
   return this.pricing.total;
 };
 

@@ -1,4 +1,4 @@
-﻿import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Toast from "react-native-toast-message";
@@ -6,31 +6,55 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
 import { ClientScreenHeader, LoadingButton } from "../Shared/components";
+import promotionService, { Promotion } from "@/services/promotion.service";
 
-const KEY = "client-coupons-v1";
-
-const AVAILABLE = [
-  { code: "LEVA10", description: "R$ 10 de desconto na proxima corrida" },
-  { code: "ENTREGA5", description: "R$ 5 de desconto em entrega" },
-  { code: "VOLTEI", description: "8% off para clientes recorrentes" },
-];
+const KEY = "client-coupons-v2";
 
 export default function CouponsScreen() {
   const [input, setInput] = useState("");
-  const [usedCodes, setUsedCodes] = useState<string[]>([]);
+  const [savedCodes, setSavedCodes] = useState<string[]>([]);
+  const [available, setAvailable] = useState<Promotion[]>([]);
   const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(false);
 
-  React.useEffect(() => {
+  useEffect(() => {
     (async () => {
       try {
         const raw = await AsyncStorage.getItem(KEY);
         if (!raw) return;
-        setUsedCodes(JSON.parse(raw));
+        setSavedCodes(JSON.parse(raw));
       } catch {}
     })();
   }, []);
 
+  useEffect(() => {
+    let mounted = true;
+
+    (async () => {
+      setFetching(true);
+      try {
+        const promos = await promotionService.listActive();
+        if (!mounted) return;
+        setAvailable(promos);
+      } catch {
+        if (!mounted) return;
+        setAvailable([]);
+      } finally {
+        if (mounted) setFetching(false);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const normalizedInput = useMemo(() => input.trim().toUpperCase(), [input]);
+
+  const saveCodes = async (next: string[]) => {
+    setSavedCodes(next);
+    await AsyncStorage.setItem(KEY, JSON.stringify(next));
+  };
 
   const applyCoupon = async (value?: string) => {
     const code = (value || normalizedInput).trim().toUpperCase();
@@ -39,26 +63,45 @@ export default function CouponsScreen() {
       return;
     }
 
-    const exists = AVAILABLE.some((item) => item.code === code);
-    if (!exists) {
-      Toast.show({ type: "error", text1: "Cupom invalido" });
-      return;
-    }
-
-    if (usedCodes.includes(code)) {
+    if (savedCodes.includes(code)) {
       Toast.show({ type: "info", text1: "Cupom ja adicionado" });
       return;
     }
 
     setLoading(true);
     try {
-      const next = [code, ...usedCodes];
-      setUsedCodes(next);
-      await AsyncStorage.setItem(KEY, JSON.stringify(next));
+      const validated = await promotionService.validateCode({
+        code,
+        amount: 0,
+      });
+
+      const next = [code, ...savedCodes];
+      await saveCodes(next);
       setInput("");
+
+      setAvailable((prev) => {
+        const exists = prev.some((item) => item.code === code);
+        if (exists) return prev;
+        return [
+          {
+            code: validated.code,
+            title: validated.title,
+            description: validated.description,
+            discountType: validated.discountType,
+            discountValue: validated.discountValue,
+          },
+          ...prev,
+        ];
+      });
+
       Toast.show({ type: "success", text1: `Cupom ${code} adicionado` });
-    } catch {
-      Toast.show({ type: "error", text1: "Falha ao salvar cupom" });
+    } catch (error: any) {
+      const apiMessage =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message ||
+        "Cupom invalido";
+      Toast.show({ type: "error", text1: apiMessage });
     } finally {
       setLoading(false);
     }
@@ -89,21 +132,31 @@ export default function CouponsScreen() {
         />
 
         <Text style={styles.sectionTitle}>CUPONS DISPONIVEIS</Text>
-        {AVAILABLE.map((item) => (
-          <TouchableOpacity key={item.code} style={styles.couponCard} onPress={() => applyCoupon(item.code)}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.couponCode}>{item.code}</Text>
-              <Text style={styles.couponDesc}>{item.description}</Text>
-            </View>
-            <Text style={styles.useText}>Usar</Text>
-          </TouchableOpacity>
-        ))}
+        {fetching ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyText}>Carregando cupons...</Text>
+          </View>
+        ) : available.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyText}>Nenhum cupom disponivel agora</Text>
+          </View>
+        ) : (
+          available.map((item) => (
+            <TouchableOpacity key={item.code} style={styles.couponCard} onPress={() => applyCoupon(item.code)}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.couponCode}>{item.code}</Text>
+                <Text style={styles.couponDesc}>{item.description || item.title}</Text>
+              </View>
+              <Text style={styles.useText}>Usar</Text>
+            </TouchableOpacity>
+          ))
+        )}
 
         <Text style={styles.sectionTitle}>SEUS CUPONS</Text>
-        {usedCodes.length === 0 ? (
+        {savedCodes.length === 0 ? (
           <View style={styles.emptyState}><Text style={styles.emptyText}>Nenhum cupom salvo</Text></View>
         ) : (
-          usedCodes.map((code) => (
+          savedCodes.map((code) => (
             <View key={code} style={styles.savedCoupon}><Text style={styles.savedCouponText}>{code}</Text></View>
           ))
         )}

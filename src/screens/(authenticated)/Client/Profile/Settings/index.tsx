@@ -1,5 +1,13 @@
 import React, { useEffect, useState } from "react";
-import { ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View, ActivityIndicator } from "react-native";
+import {
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View,
+  ActivityIndicator,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Toast from "react-native-toast-message";
@@ -26,7 +34,7 @@ const initialState: LocalSettings = {
 };
 
 const INTERVAL_OPTIONS = [
-  { label: "Padrão", value: null, desc: "Usar tempo padrão do sistema (Admin)" },
+  { label: "Padrao", value: null, desc: "Usar tempo padrao do sistema (Admin)" },
   { label: "30s", value: 30, desc: "Alertar a cada 30 segundos" },
   { label: "60s", value: 60, desc: "Alertar a cada 1 minuto" },
   { label: "90s", value: 90, desc: "Alertar a cada 1.5 minutos" },
@@ -42,41 +50,48 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     let mounted = true;
+
     (async () => {
       try {
-        // Carrega configurações locais
         const raw = await AsyncStorage.getItem(SETTINGS_STORAGE_KEY);
         if (mounted && raw) {
           const parsed = JSON.parse(raw);
           setSettings((prev) => ({ ...prev, ...parsed }));
         }
 
-        // Carrega perfil do backend para obter o tempo da fila de espera
         const profile = await userService.getProfile();
         if (mounted) {
           setSelectedInterval(profile.queueRedispatchInterval ?? null);
+          setSettings((prev) => ({
+            ...prev,
+            notifications:
+              typeof profile.notificationsEnabled === "boolean"
+                ? profile.notificationsEnabled
+                : prev.notifications,
+          }));
         }
       } catch (err) {
-        console.error("Erro ao carregar configurações:", err);
+        console.error("Erro ao carregar configuracoes:", err);
       }
     })();
+
     return () => {
       mounted = false;
     };
   }, []);
 
   const patchSettings = async (patch: Partial<LocalSettings>) => {
-    const next = { ...settings, ...patch };
-    setSettings(next);
-    try {
-      await AsyncStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(next));
-    } catch {
-      Toast.show({
-        type: "error",
-        text1: "Não foi possível salvar",
-        text2: "Tente novamente em instantes.",
+    setSettings((prev) => {
+      const next = { ...prev, ...patch };
+      AsyncStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(next)).catch(() => {
+        Toast.show({
+          type: "error",
+          text1: "Nao foi possivel salvar",
+          text2: "Tente novamente em instantes.",
+        });
       });
-    }
+      return next;
+    });
   };
 
   const handleSelectInterval = async (val: number | null) => {
@@ -86,13 +101,16 @@ export default function SettingsScreen() {
       await userService.updateProfile({ queueRedispatchInterval: val });
       Toast.show({
         type: "success",
-        text1: "Frequência atualizada com sucesso!",
-        text2: val === null ? "Configuração definida para o padrão do sistema." : `Alertas definidos a cada ${val} segundos.`,
+        text1: "Frequencia atualizada com sucesso!",
+        text2:
+          val === null
+            ? "Configuracao definida para o padrao do sistema."
+            : `Alertas definidos a cada ${val} segundos.`,
       });
     } catch (err: any) {
       Toast.show({
         type: "error",
-        text1: "Erro ao salvar preferência",
+        text1: "Erro ao salvar preferencia",
         text2: err?.message || "Tente novamente",
       });
     } finally {
@@ -100,41 +118,54 @@ export default function SettingsScreen() {
     }
   };
 
+  const handleNotificationsToggle = async (value: boolean) => {
+    await patchSettings({ notifications: value });
+    try {
+      await userService.updateProfile({ notificationsEnabled: value });
+    } catch (err: any) {
+      await patchSettings({ notifications: !value });
+      Toast.show({
+        type: "error",
+        text1: "Erro ao salvar notificacoes",
+        text2: err?.message || "Tente novamente",
+      });
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
-      <ClientScreenHeader title="Configurações" subtitle="Preferências do app e privacidade" />
+      <ClientScreenHeader title="Configuracoes" subtitle="Preferencias do app e privacidade" />
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        <Text style={styles.sectionTitle}>PREFERÊNCIAS DO APP</Text>
+        <Text style={styles.sectionTitle}>PREFERENCIAS DO APP</Text>
 
         <SettingRow
-          label="Notificações"
+          label="Notificacoes"
           subtitle="Alertas sobre busca, motorista e corrida"
           value={settings.notifications}
-          onToggle={(value) => patchSettings({ notifications: value })}
+          onToggle={handleNotificationsToggle}
         />
 
         <SettingRow
           label="Modo escuro"
-          subtitle="Mantém o app com tema escuro"
+          subtitle="Mantem o app com tema escuro"
           value={settings.darkMode}
           onToggle={(value) => patchSettings({ darkMode: value })}
         />
 
         <SettingRow
-          label="Localização em segundo plano"
-          subtitle="Melhora precisão da corrida durante o trajeto"
+          label="Localizacao em segundo plano"
+          subtitle="Melhora precisao da corrida durante o trajeto"
           value={settings.shareLocationInBackground}
           onToggle={(value) => patchSettings({ shareLocationInBackground: value })}
         />
 
-        {/* Fila de Espera - Intervalo Personalizado */}
         <Text style={styles.sectionTitle}>FILA DE ESPERA (URGENTE)</Text>
         <View style={styles.intervalCard}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.sm }}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.intervalTitle}>Frequência de reenvio</Text>
-              <Text style={styles.intervalSubtitle}>De quanto em quanto tempo os motoristas serão notificados sobre seu pedido em espera</Text>
+              <Text style={styles.intervalTitle}>Frequencia de reenvio</Text>
+              <Text style={styles.intervalSubtitle}>De quanto em quanto tempo os motoristas serao notificados sobre seu pedido em espera</Text>
             </View>
             {savingInterval && <ActivityIndicator size="small" color={colors.primary[500]} />}
           </View>
@@ -145,10 +176,7 @@ export default function SettingsScreen() {
               return (
                 <TouchableOpacity
                   key={String(opt.value)}
-                  style={[
-                    styles.optButton,
-                    isActive && styles.optButtonActive,
-                  ]}
+                  style={[styles.optButton, isActive && styles.optButtonActive]}
                   onPress={() => handleSelectInterval(opt.value)}
                   disabled={savingInterval}
                 >
@@ -164,7 +192,7 @@ export default function SettingsScreen() {
           </Text>
         </View>
 
-        <Text style={styles.sectionTitle}>LOCALIZAÇÃO</Text>
+        <Text style={styles.sectionTitle}>LOCALIZACAO</Text>
         <TouchableOpacity
           style={styles.actionCard}
           onPress={() => (navigation as any).navigate("ClientCity")}
@@ -183,20 +211,14 @@ export default function SettingsScreen() {
         <Text style={styles.sectionTitle}>CONTA</Text>
         <TouchableOpacity
           style={styles.actionCard}
-          onPress={() =>
-            Toast.show({
-              type: "info",
-              text1: "Recurso em breve",
-              text2: "A edição de conta será disponibilizada na próxima etapa.",
-            })
-          }
+          onPress={() => (navigation as any).navigate("EditAccount")}
         >
           <Text style={styles.actionTitle}>Editar dados da conta</Text>
-          <Text style={styles.actionSubtitle}>Nome, telefone e informações pessoais</Text>
+          <Text style={styles.actionSubtitle}>Nome, telefone e informacoes pessoais</Text>
         </TouchableOpacity>
 
         <View style={styles.versionCard}>
-          <Text style={styles.versionLabel}>Versão do app</Text>
+          <Text style={styles.versionLabel}>Versao do app</Text>
           <Text style={styles.versionValue}>1.0.0</Text>
         </View>
       </ScrollView>
@@ -255,7 +277,7 @@ const styles = StyleSheet.create({
   },
   settingLabel: { color: colors.text.primary, fontSize: fontSize.base, fontWeight: fontWeight.semibold },
   settingSubtitle: { color: colors.text.secondary, fontSize: fontSize.sm, marginTop: spacing.xs },
-  
+
   intervalCard: {
     backgroundColor: colors.background.secondary,
     borderRadius: borderRadius.md,

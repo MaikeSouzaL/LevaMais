@@ -179,6 +179,22 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    // Status do Fluxo do Motorista
+    driverStatus: {
+      type: String,
+      enum: ["none", "pending", "approved", "rejected"],
+      default: "none",
+    },
+    // Fotos e Documentos físicos (armazenar caminho no servidor/bucket)
+    driverDocuments: {
+      cnhFront: { type: String },
+      cnhBack: { type: String },
+      crlvFront: { type: String },
+      crlvBack: { type: String },
+      vehiclePhoto: { type: String },
+      selfie: { type: String },
+      submittedAt: { type: Date },
+    },
     createdAt: {
       type: Date,
       default: Date.now,

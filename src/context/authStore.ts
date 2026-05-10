@@ -17,6 +17,7 @@ export interface UserData {
   expoPushToken?: string;
   vehicleType?: unknown;
   vehicleInfo?: unknown;
+  driverStatus?: "none" | "pending" | "approved" | "rejected";
 }
 
 export interface AuthState {

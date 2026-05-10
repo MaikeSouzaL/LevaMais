@@ -1,5 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react";
-import { Feather, MaterialIcons } from "@expo/vector-icons";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -7,113 +6,116 @@ import {
   Text,
   TouchableOpacity,
   View,
-  BackHandler,
-  TextInput,
+  StyleSheet,
+  StatusBar,
+  ActivityIndicator,
 } from "react-native";
-import Toast from "react-native-toast-message";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
+import { MotiView } from "moti";
+import { Phone, User, Mail, Lock } from "lucide-react-native";
+import * as Location from "expo-location";
+import Toast from "react-native-toast-message";
+
+// React Hook Form + Zod
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+
+// Core Logic & Configurations
+import { CLIENTE_WEB_ID } from "@env";
 import {
   GoogleSignin,
   isSuccessResponse,
   isErrorWithCode,
   statusCodes,
 } from "@react-native-google-signin/google-signin";
-import * as Location from "expo-location";
-
-import GoogleButton from "../SignInScreen/component/GoogleButton";
-import { SafeAreaView } from "react-native-safe-area-context";
-import theme from "../../../theme";
-import { useAuthStore } from "../../../context/authStore";
-import { CLIENTE_WEB_ID } from "@env";
 import { getCurrentLocationAndAddress } from "../../../utils/location";
 import LocationPermissionScreen from "../CompleteRegistrationScreen/LocationPermissionScreen";
+import { googleAuth } from "../../../services/auth.service";
+import { useAuthStore } from "../../../context/authStore";
+
+// Unified System & Components
+import { colors } from "../../../theme/colors";
+import { fonts, fontSize } from "../../../theme/typography";
+import { spacing, borderRadius } from "../../../theme/dimensions";
+
+import { AuthHeader } from "../../../components/auth/AuthHeader";
+import { AuthInput } from "../../../components/auth/AuthInput";
+import { SocialLoginButtons } from "../../../components/auth/SocialLoginButtons";
+import { BackgroundMap } from "../../../components/visuals/BackgroundMap";
+import { Particles } from "../../../components/visuals/Particles";
 import PasswordStrengthIndicator from "../../../components/PasswordStrengthIndicator";
 
-interface IsignUpParams {
-  phone: string;
-  city: string;
+// 🔐 Robust Zod Schema for Signup Validations
+const signUpSchema = z.object({
+  phone: z.string().min(10, "Informe o telefone com DDD").max(15, "Formato inválido"),
+  name: z.string().min(2, "O nome deve ter pelo menos 2 caracteres"),
+  email: z.string().min(1, "E-mail obrigatório").email("Formato de e-mail inválido"),
+  password: z.string().min(6, "Mínimo de 6 caracteres"),
+  confirmPassword: z.string().min(6, "Confirme sua senha"),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "As senhas não coincidem",
+  path: ["confirmPassword"],
+});
+
+type SignUpFormValues = z.infer<typeof signUpSchema>;
+
+interface SignUpParams {
+  phone?: string;
+  city?: string;
 }
 
-export default function SignUp() {
-  const route = useRoute();
-  const navigation = useNavigation();
-  const { login } = useAuthStore();
+export default function SignUpScreen() {
+  const navigation = useNavigation<any>();
+  const route = useRoute<any>();
+  const insets = useSafeAreaInsets();
 
-  const params = route.params as IsignUpParams | undefined;
-  const phone = params?.phone || "";
-  const city = params?.city || "";
+  // Params Handover
+  const params = (route.params || {}) as SignUpParams;
+  const initialPhone = params.phone || "";
+  const initialCity = params.city || "";
 
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [localPhone, setLocalPhone] = useState(phone || "");
-  const [password, setPassword] = useState("");
-  const [confirmarSenha, setConfirmarSenha] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [detectedCity, setDetectedCity] = useState(city);
+  // 🔄 Functional Local States (Location, Permissions)
+  const [detectedCity, setDetectedCity] = useState(initialCity);
   const [showPermissionScreen, setShowPermissionScreen] = useState(false);
   const [hasCheckedPermission, setHasCheckedPermission] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
 
+  // 🔄 Loading States
+  const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+
   const googleConfiguredRef = useRef(false);
 
-  useEffect(() => {
-    // Configure dentro do lifecycle do React para garantir Activity pronta no Android.
-    // E evita configurar mais de uma vez durante hot-reload/troca de telas.
-    if (googleConfiguredRef.current) return;
-    googleConfiguredRef.current = true;
+  // 📝 React Hook Form
+  const { control, handleSubmit, watch, setValue, formState: { errors } } = useForm<SignUpFormValues>({
+    resolver: zodResolver(signUpSchema),
+    defaultValues: {
+      phone: initialPhone,
+      name: "",
+      email: "",
+      password: "",
+      confirmPassword: "",
+    },
+  });
 
-    console.log("[GoogleSignIn][SignUp] configure", {
-      hasWebClientId: !!CLIENTE_WEB_ID,
-    });
-    GoogleSignin.configure({
-      webClientId: CLIENTE_WEB_ID,
-      profileImageSize: 150,
-      offlineAccess: true,
-    });
-  }, []);
+  // Listen for password to pass strength feedback
+  const watchedPassword = watch("password", "");
 
-  // Refs para inputs e scroll
-  const scrollViewRef = useRef<ScrollView>(null);
-  const nameInputRef = useRef<TextInput>(null);
-  const emailInputRef = useRef<TextInput>(null);
-  const passwordInputRef = useRef<TextInput>(null);
-  const confirmPasswordInputRef = useRef<TextInput>(null);
-
-  useEffect(() => {
-    const backHandler = BackHandler.addEventListener(
-      "hardwareBackPress",
-      () => {
-        navigation.goBack();
-        return true;
-      },
-    );
-    return () => backHandler.remove();
-  }, [navigation]);
-
-  function handleBackToSignIn() {
-    navigation.goBack();
-  }
-
+  // 📍 Location Logic Callbacks
   const handleGetLocation = useCallback(async () => {
     setLocationLoading(true);
     try {
       const result = await getCurrentLocationAndAddress();
-
-      if (result) {
-        const { address: detectedAddress } = result;
-        const cidade = detectedAddress.city || null;
-
-        if (cidade) {
-          setDetectedCity(cidade);
-          Toast.show({
-            type: "success",
-            text1: "Localização detectada",
-            text2: `Cidade: ${cidade}`,
-          });
-        }
+      if (result?.address?.city) {
+        setDetectedCity(result.address.city);
+        Toast.show({
+          type: "success",
+          text1: "Localização detectada",
+          text2: `Cidade: ${result.address.city}`,
+        });
       }
     } catch (error) {
       console.error("Erro ao obter localização:", error);
@@ -122,117 +124,73 @@ export default function SignUp() {
     }
   }, []);
 
-  // Verificar permissão de localização ao montar e buscar automaticamente se já tiver permissão
+  // Effects hooks logic: Config, and Location Validation logic preserved exactly.
+  useEffect(() => {
+    if (googleConfiguredRef.current) return;
+    googleConfiguredRef.current = true;
+    GoogleSignin.configure({
+      webClientId: CLIENTE_WEB_ID,
+      profileImageSize: 150,
+      offlineAccess: true,
+    });
+  }, []);
+
   useEffect(() => {
     let isMounted = true;
-
-    async function checkPermissionAndGetLocation() {
-      // Se já tem cidade dos params, não precisa buscar
-      if (city) {
-        if (isMounted) {
-          setHasCheckedPermission(true);
-        }
+    async function checkPermission() {
+      if (initialCity) {
+        if (isMounted) setHasCheckedPermission(true);
         return;
       }
-
       try {
         const { status } = await Location.getForegroundPermissionsAsync();
         if (isMounted) {
           if (status === "granted") {
-            // Já tem permissão, buscar localização automaticamente
             setShowPermissionScreen(false);
             setHasCheckedPermission(true);
             await handleGetLocation();
           } else {
-            // Não tem permissão, mostrar tela de permissão
             setShowPermissionScreen(true);
             setHasCheckedPermission(true);
           }
         }
-      } catch (error) {
-        console.error("Erro ao verificar permissão:", error);
+      } catch (err) {
+        console.error(err);
         if (isMounted) {
           setShowPermissionScreen(true);
           setHasCheckedPermission(true);
         }
       }
     }
-
-    checkPermissionAndGetLocation();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [city, handleGetLocation]);
+    checkPermission();
+    return () => { isMounted = false; };
+  }, [initialCity, handleGetLocation]);
 
   async function handleAllowLocation() {
     setShowPermissionScreen(false);
     setLocationLoading(true);
     try {
-      // Solicitar permissão
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
-        Toast.show({
-          type: "error",
-          text1: "Permissão negada",
-          text2: "É necessário permitir a localização para continuar",
-        });
-        setLocationLoading(false);
+        Toast.show({ type: "error", text1: "Permissão negada" });
         setShowPermissionScreen(true);
+        setLocationLoading(false);
         return;
       }
-
-      // Obter localização
       await handleGetLocation();
-    } catch (error) {
-      console.error("Erro ao solicitar permissão:", error);
-      Toast.show({
-        type: "error",
-        text1: "Erro ao solicitar permissão",
-        text2: "Tente novamente",
-      });
-      setLocationLoading(false);
+    } catch (err) {
+      Toast.show({ type: "error", text1: "Erro ao solicitar permissão" });
       setShowPermissionScreen(true);
+      setLocationLoading(false);
     }
   }
 
   function handleSkipLocation() {
     setShowPermissionScreen(false);
-    // Permite que o usuário continue sem localização
   }
 
-  // Função para fazer scroll quando um input recebe foco
-  function handleInputFocus(inputRef: React.RefObject<TextInput | null>) {
-    setTimeout(() => {
-      if (inputRef.current && scrollViewRef.current) {
-        inputRef.current.measureLayout(
-          scrollViewRef.current as any,
-          (x, y) => {
-            scrollViewRef.current?.scrollTo({
-              y: y - 100, // Offset para deixar espaço acima do input
-              animated: true,
-            });
-          },
-          () => {
-            // Fallback: scroll para o final
-            scrollViewRef.current?.scrollToEnd({ animated: true });
-          },
-        );
-      }
-    }, 300);
-  }
-
+  // 💼 Modern Google Signup Logic (Aligned with Backend & Social Flows)
   async function handleGoogleSignUp() {
-    const sanitizedPhone = (localPhone || phone || "").replace(/\D/g, "");
-    if (sanitizedPhone.length < 10 || sanitizedPhone.length > 11) {
-      Toast.show({
-        type: "error",
-        text1: "Telefone invalido",
-        text2: "Informe um telefone com DDD antes de continuar com Google",
-      });
-      return;
-    }
-
     setGoogleLoading(true);
     try {
       await GoogleSignin.hasPlayServices();
@@ -243,245 +201,132 @@ export default function SignUp() {
         return;
       }
 
-      const { user } = userInfo.data;
-      const { email: userEmail, id, name, photo } = user;
+      const { id, email, name, photo } = userInfo.data.user;
+      const normalizedEmail = email.trim().toLowerCase();
 
-      const normalizedEmail = userEmail.trim().toLowerCase();
-      const generatedPassword = `${normalizedEmail}-${id}`;
-
-      // NÃO cria usuário no banco aqui. Apenas segue para completar cadastro.
-      navigation.navigate("SelectProfile", {
-        user: {
-          _id: "",
-          name: name || normalizedEmail.split("@")[0],
-          email: normalizedEmail,
-          password: generatedPassword,
-          phone: sanitizedPhone,
-          city: city || detectedCity || "",
-          userType: undefined,
-          googleId: id,
-          profilePhoto: photo || undefined,
-          acceptedTerms: true,
-        },
-        token: "",
+      // Fire real authentication call to backend!
+      const response = await googleAuth({
+        googleId: id,
+        email: normalizedEmail,
+        name: name || normalizedEmail.split("@")[0],
+        profilePhoto: photo || undefined,
       });
 
-      Toast.show({
-        type: "success",
-        text1: "Continue para completar seu cadastro",
-      });
-    } catch (error: any) {
-      console.error("Erro no cadastro com Google:", error);
-      if (isErrorWithCode(error)) {
-        if (error.code === statusCodes.SIGN_IN_CANCELLED) {
-          Toast.show({
-            type: "info",
-            text1: "Cadastro cancelado pelo usuário.",
+      if (response.success && response.data) {
+        const { user: userData, token } = response.data;
+        const {
+          _id,
+          name: userName,
+          email: userEmail,
+          phone,
+          userType,
+          profilePhoto,
+          googleId: gId,
+          acceptedTerms,
+        } = userData;
+
+        const userCity = initialCity || detectedCity || "";
+
+        // 🚨 Force Phone Capture if missing (Crucial User Request Alignment)
+        if (!phone) {
+          const generatedPassword = `${userEmail}-${id}`;
+          navigation.navigate("GooglePhonePrompt", {
+            user: {
+              _id,
+              name: userName,
+              email: userEmail,
+              password: generatedPassword,
+              phone: "",
+              city: userCity,
+              userType: userType || undefined,
+              googleId: gId,
+              profilePhoto,
+              acceptedTerms,
+            },
+            token,
           });
           return;
         }
-        if (error.code === statusCodes.IN_PROGRESS) {
+
+        // If phone exists, route as usual
+        if (userType === "client" || userType === "driver") {
+          useAuthStore.getState().login(
+            userType,
+            {
+              id: _id,
+              name: userName,
+              cidade: userCity,
+              nome: userName,
+              email: userEmail,
+              telefone: phone,
+              fotoPerfil: profilePhoto,
+              googleId: gId,
+              aceitouTermos: !!acceptedTerms,
+            },
+            token,
+          );
+
           Toast.show({
-            type: "info",
-            text1: "Já existe um login em progresso.",
+            type: "success",
+            text1: "Bem-vindo de volta!",
           });
-          return;
-        }
-        if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
-          Toast.show({
-            type: "error",
-            text1: "Serviços do Google Play não disponíveis.",
+        } else {
+          const generatedPassword = `${userEmail}-${id}`;
+          navigation.navigate("SelectProfile", {
+            user: {
+              _id,
+              name: userName,
+              email: userEmail,
+              password: generatedPassword,
+              phone: phone,
+              city: userCity,
+              userType: userType || undefined,
+              googleId: gId,
+              profilePhoto,
+              acceptedTerms,
+            },
+            token,
           });
-          return;
         }
+      } else {
+        Toast.show({
+          type: "error",
+          text1: "Erro na autenticação",
+          text2: response.message || "Tente novamente",
+        });
       }
-      Toast.show({
-        type: "error",
-        text1: "Erro ao fazer cadastro com Google",
-        text2:
-          error.message ||
-          "Erro ao fazer cadastro com Google. Verifique sua conexão.",
-      });
+    } catch (error: any) {
+      console.error("Erro google auth:", error);
+      if (isErrorWithCode(error)) {
+        if (error.code === statusCodes.SIGN_IN_CANCELLED) return;
+      }
+      Toast.show({ type: "error", text1: "Falha ao conectar com Google" });
     } finally {
       setGoogleLoading(false);
     }
   }
 
-  // useEffect(() => {
-  //   GoogleSignin.configure({
-  //     webClientId:
-  //       "422301870316-9u5rkfq44pngmak5keip0sct07ga1sbe.apps.googleusercontent.com",
-  //     profileImageSize: 150,
-  //     offlineAccess: true,
-  //   });
-  // }, []);
-
-  // async function handleGoogleSignUp() {
-  //   if (!phone) {
-  //     Toast.show({
-  //       type: "error",
-  //       text1: "Informe o telefone antes de continuar com o Google.",
-  //     });
-  //     return;
-  //   }
-
-  //   setGoogleLoading(true);
-
-  //   try {
-  //     await GoogleSignin.hasPlayServices();
-  //     const userInfo = await GoogleSignin.signIn();
-
-  //     if (isSuccessResponse(userInfo)) {
-  //       const { user, idToken, scopes, serverAuthCode } = userInfo.data;
-  //       const { givenName, email, familyName, id, name, photo } = user;
-
-  //       const { token, ...rest } = await createUserWithGoogle({
-  //         name,
-  //         email,
-  //         password: `${email}-${id}`,
-  //         city,
-  //         phone,
-  //         givenName,
-  //         familyName,
-  //         profilePhoto: photo,
-  //         googleId: id,
-  //       });
-  //       console.log("Token recebido do backend:", token, rest);
-
-  //       Toast.show({
-  //         type: "success",
-  //         text1: "Cadastro com Google realizado com sucesso!",
-  //       });
-
-  //       await AsyncStorage.setItem("@auth_token", token);
-
-  //       navigation.navigate("PerfilScreen", {
-  //         token: token,
-  //         _id: rest._id,
-  //         userCity: rest.city,
-  //         userName: rest.name,
-  //         userEmail: rest.email,
-  //         userPhone: rest.phone,
-  //         userPhoto: rest.profilePhoto,
-  //         userGoogleId: rest.googleId,
-  //         acceptedTerms: rest.acceptedTerms,
-  //       });
-  //     } else {
-  //       if (isErrorWithCode(userInfo)) {
-  //         if (userInfo.code === statusCodes.SIGN_IN_CANCELLED) {
-  //           Toast.show({
-  //             type: "info",
-  //             text1: "Login cancelado pelo usuário.",
-  //           });
-  //           return;
-  //         }
-  //         if (userInfo.code === statusCodes.IN_PROGRESS) {
-  //           Toast.show({
-  //             type: "info",
-  //             text1: "Já existe um login em progresso.",
-  //           });
-  //           return;
-  //         }
-  //         if (userInfo.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
-  //           Toast.show({
-  //             type: "error",
-  //             text1: "Serviços do Google Play não disponíveis.",
-  //           });
-  //           return;
-  //         }
-  //       }
-  //     }
-  //   } catch (error: any) {
-  //     Toast.show({
-  //       type: "error",
-  //       text1: `${error.message}`,
-  //     });
-  //   } finally {
-  //     setGoogleLoading(false);
-  //   }
-  // }
-
-  async function handleManualSignUp() {
-    if (loading) return;
-    const sanitizedPhone = (localPhone || phone || "").replace(/\D/g, "");
-    const normalizedEmail = email.trim().toLowerCase();
-
-    // Validacoes
-    if (!name || !email || !password || !confirmarSenha) {
-      Toast.show({
-        type: "error",
-        text1: "Por favor, preencha todos os campos.",
-      });
-      return;
-    }
-
-    if (name.trim().length < 2) {
-      Toast.show({
-        type: "error",
-        text1: "Nome invalido",
-        text2: "Informe seu nome completo para continuar",
-      });
-      return;
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i;
-    if (!emailRegex.test(normalizedEmail)) {
-      Toast.show({
-        type: "error",
-        text1: "Email invalido",
-        text2: "Informe um email valido",
-      });
-      return;
-    }
-
-    if (sanitizedPhone.length < 10 || sanitizedPhone.length > 11) {
-      Toast.show({
-        type: "error",
-        text1: "Telefone invalido",
-        text2: "Informe um telefone com DDD para continuar",
-      });
-      return;
-    }
-
-    if (password !== confirmarSenha) {
-      Toast.show({
-        type: "error",
-        text1: "As senhas nao coincidem.",
-      });
-      return;
-    }
-
-    if (password.length < 6) {
-      Toast.show({
-        type: "error",
-        text1: "A senha deve ter pelo menos 6 caracteres.",
-      });
-      return;
-    }
-
+  // 💼 Manual Signup Logic
+  const onSubmit = async (data: SignUpFormValues) => {
+    const sanitizedPhone = data.phone.replace(/\D/g, "");
+    
     setLoading(true);
-
     try {
-      // Criar objeto com os dados do formulario para passar via props
-      // Nao vamos salvar no banco ainda, apenas passar os dados para a tela de selecao de perfil
+      // Wrap into structure required by downstream routing
       const userData = {
         _id: "",
-        name,
-        email: normalizedEmail,
-        password,
+        name: data.name,
+        email: data.email.trim().toLowerCase(),
+        password: data.password,
         phone: sanitizedPhone,
-        city: city || detectedCity || undefined,
+        city: initialCity || detectedCity || undefined,
         userType: undefined,
         googleId: undefined,
         profilePhoto: undefined,
         acceptedTerms: true,
       };
 
-      Toast.show({
-        type: "success",
-        text1: "Dados preenchidos com sucesso!",
-      });
-
+      // Handover to verification routing
       navigation.navigate("PhoneVerification", {
         phone: sanitizedPhone,
         nextScreen: "SelectProfile",
@@ -491,17 +336,13 @@ export default function SignUp() {
         },
       });
     } catch (error: any) {
-      console.error("Erro:", error);
-      Toast.show({
-        type: "error",
-        text1: "Erro",
-        text2: error.message || "Tente novamente mais tarde",
-      });
+      Toast.show({ type: "error", text1: "Erro", text2: "Tente novamente" });
     } finally {
       setLoading(false);
     }
-  }
-  // Mostrar tela de permissão se necessário
+  };
+
+  // Handle conditional overlay first if needed.
   if (showPermissionScreen && hasCheckedPermission) {
     return (
       <LocationPermissionScreen
@@ -512,228 +353,269 @@ export default function SignUp() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-brand-dark">
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+      
+      {/* 🌌 Cinematic Uniform Parallax Layers */}
+      <LinearGradient
+        colors={[colors.background.primary, '#060E18', '#040910']}
+        style={StyleSheet.absoluteFill}
+      />
+      <BackgroundMap />
+      <LinearGradient
+        colors={['rgba(9, 26, 47, 0.3)', 'transparent', colors.background.primary]}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+      />
+
       <KeyboardAvoidingView
-        className="flex-1"
+        style={styles.keyboardView}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
       >
+        <AuthHeader />
+
         <ScrollView
-          ref={scrollViewRef}
-          className="flex-1"
-          contentContainerStyle={{
-            flexGrow: 1,
-            paddingHorizontal: 24,
-            paddingVertical: 24,
-            paddingBottom: 100,
-          }}
+          style={styles.scrollView}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: insets.bottom + spacing['2xl'] }
+          ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
-          keyboardDismissMode="on-drag"
         >
-          <View className="mb-8">
-            <Text className="text-3xl font-bold text-white tracking-tight">
-              Criar Conta
-            </Text>
-            <Text className="text-base text-gray-400 mt-2 font-regular">
-              Preencha os dados abaixo para começar
-            </Text>
-          </View>
-
-          {/* Campo Telefone */}
-          <View className="mb-4">
-            <Text className="text-sm font-semibold text-gray-300 mb-1.5">
-              Telefone (WhatsApp)
-            </Text>
-            <View className="flex-row items-center border border-gray-700 rounded-xl bg-surface-secondary px-3 focus:border-brand-light">
-              <Feather
-                name="phone"
-                size={22}
-                color={theme.COLORS.BRAND_LIGHT}
-              />
-              <TextInput
-                className="flex-1 h-12 text-base text-white ml-2"
-                placeholder="(11) 99999-9999"
-                placeholderTextColor="#7C7C8A"
-                value={localPhone}
-                onChangeText={setLocalPhone}
-                keyboardType="phone-pad"
-                maxLength={15}
-                returnKeyType="next"
-                onSubmitEditing={() => nameInputRef.current?.focus()}
-              />
-            </View>
-          </View>
-
-          {/* Campo Nome */}
-          <View className="mb-4">
-            <Text className="text-sm font-semibold text-gray-300 mb-1.5">
-              Nome completo
-            </Text>
-            <View className="flex-row items-center border border-gray-700 rounded-xl bg-surface-secondary px-3 focus:border-brand-light">
-              <Feather
-                name="user"
-                size={22}
-                color={theme.COLORS.BRAND_LIGHT}
-                className="mr-2"
-              />
-              <TextInput
-                ref={nameInputRef}
-                className="flex-1 h-12 text-base text-white"
-                placeholder="Digite seu nome"
-                placeholderTextColor="#7C7C8A"
-                value={name}
-                onChangeText={setName}
-                autoCapitalize="words"
-                returnKeyType="next"
-                onSubmitEditing={() => emailInputRef.current?.focus()}
-                onFocus={() => handleInputFocus(nameInputRef)}
-              />
-            </View>
-          </View>
-
-          {/* Campo Email */}
-          <View className="mb-4">
-            <Text className="text-sm font-semibold text-gray-300 mb-1.5">
-              E-mail
-            </Text>
-            <View className="flex-row items-center border border-gray-700 rounded-xl bg-surface-secondary px-3 focus:border-brand-light">
-              <MaterialIcons
-                name="email"
-                size={22}
-                color={theme.COLORS.BRAND_LIGHT}
-                className="mr-2"
-              />
-              <TextInput
-                ref={emailInputRef}
-                className="flex-1 h-12 text-base text-white"
-                placeholder="Digite seu e-mail"
-                placeholderTextColor="#7C7C8A"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                returnKeyType="next"
-                onSubmitEditing={() => passwordInputRef.current?.focus()}
-                onFocus={() => handleInputFocus(emailInputRef)}
-              />
-            </View>
-          </View>
-
-          {/* Campo Senha */}
-          <View className="mb-4">
-            <Text className="text-sm font-semibold text-gray-300 mb-1.5">
-              Senha
-            </Text>
-            <View className="flex-row items-center border border-gray-700 rounded-xl bg-surface-secondary px-3 focus:border-brand-light">
-              <Feather
-                name="lock"
-                size={22}
-                color={theme.COLORS.BRAND_LIGHT}
-                className="mr-2"
-              />
-              <TextInput
-                ref={passwordInputRef}
-                className="flex-1 h-12 text-base text-white"
-                placeholder="Digite sua senha"
-                placeholderTextColor="#7C7C8A"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
-                returnKeyType="next"
-                onSubmitEditing={() => confirmPasswordInputRef.current?.focus()}
-                onFocus={() => handleInputFocus(passwordInputRef)}
-              />
-              <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                <Feather
-                  name={showPassword ? "eye" : "eye-off"}
-                  size={20}
-                  className="text-gray-400"
-                />
-              </TouchableOpacity>
-            </View>
-            <PasswordStrengthIndicator password={password} />
-          </View>
-
-          {/* Campo Confirmar Senha */}
-          <View className="mb-6">
-            <Text className="text-sm font-semibold text-gray-300 mb-1.5">
-              Confirmar senha
-            </Text>
-            <View className="flex-row items-center border border-gray-700 rounded-xl bg-surface-secondary px-3 focus:border-brand-light">
-              <Feather
-                name="lock"
-                size={22}
-                color={theme.COLORS.BRAND_LIGHT}
-                className="mr-2"
-              />
-              <TextInput
-                ref={confirmPasswordInputRef}
-                className="flex-1 h-12 text-base text-white"
-                placeholder="Confirme sua senha"
-                placeholderTextColor="#7C7C8A"
-                value={confirmarSenha}
-                onChangeText={setConfirmarSenha}
-                secureTextEntry={!showConfirmPassword}
-                returnKeyType="done"
-                onSubmitEditing={handleManualSignUp}
-                onFocus={() => handleInputFocus(confirmPasswordInputRef)}
-              />
-              <TouchableOpacity
-                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-              >
-                <Feather
-                  name={showConfirmPassword ? "eye" : "eye-off"}
-                  size={20}
-                  className="text-gray-400"
-                />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Botão Cadastrar */}
-          <TouchableOpacity
-            className="h-14 bg-brand-light rounded-2xl items-center justify-center mt-2 mb-3 shadow-lg shadow-brand-light/20"
-            onPress={handleManualSignUp}
-            disabled={loading}
+          {/* ⚡ Entering Staggered Header Block */}
+          <MotiView
+            from={{ opacity: 0, translateY: 15 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ type: 'timing', duration: 500 }}
+            style={styles.welcomeBlock}
           >
-            <Text className="text-brand-dark font-bold text-lg">
-              {loading ? "Cadastrando..." : "Criar conta"}
-            </Text>
-          </TouchableOpacity>
+            <Text style={styles.title}>Criar Conta</Text>
+            <Text style={styles.subtitle}>Preencha seus dados para começar</Text>
+          </MotiView>
 
-          {/* Link para Esqueci Senha */}
-          <TouchableOpacity
-            className="mt-2 mb-4 items-center"
-            onPress={() => navigation.navigate("ForgotPassword")}
+          {/* 📋 Secure Form Stack */}
+          <MotiView
+            from={{ opacity: 0, translateY: 15 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ type: 'timing', duration: 500, delay: 150 }}
+            style={styles.formContainer}
           >
-            <Text className="text-base text-brand-light">
-              Esqueceu sua senha?
-            </Text>
-          </TouchableOpacity>
+            <AuthInput
+              control={control}
+              name="phone"
+              label="Telefone (WhatsApp)"
+              placeholder="(11) 99999-9999"
+              icon={Phone}
+              keyboardType="phone-pad"
+              error={errors.phone?.message}
+            />
 
-          {/* Divisor OU */}
-          <View className="flex-row items-center my-4">
-            <View className="flex-1 h-[1px] bg-gray-700" />
-            <Text className="mx-3 text-gray-500 font-medium">OU</Text>
-            <View className="flex-1 h-[1px] bg-gray-700" />
-          </View>
+            <AuthInput
+              control={control}
+              name="name"
+              label="Nome completo"
+              placeholder="Como deseja ser chamado"
+              icon={User}
+              autoCapitalize="words"
+              error={errors.name?.message}
+            />
 
-          {/* Botão Google */}
-          <GoogleButton onPress={handleGoogleSignUp} loading={googleLoading} />
+            <AuthInput
+              control={control}
+              name="email"
+              label="Seu e-mail"
+              placeholder="nome@email.com"
+              icon={Mail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              error={errors.email?.message}
+            />
 
-          {/* Link para Login */}
-          <TouchableOpacity
-            className="mt-5 items-center pb-6"
-            onPress={() => handleBackToSignIn()}
+            <AuthInput
+              control={control}
+              name="password"
+              label="Crie uma senha"
+              placeholder="Mínimo 6 caracteres"
+              icon={Lock}
+              secureTextEntry
+              error={errors.password?.message}
+            />
+            {/* Strength meter logic integration */}
+            {watchedPassword.length > 0 && (
+              <View style={{ marginTop: -spacing.md, marginBottom: spacing.md }}>
+                <PasswordStrengthIndicator password={watchedPassword} />
+              </View>
+            )}
+
+            <AuthInput
+              control={control}
+              name="confirmPassword"
+              label="Confirmar senha"
+              placeholder="Digite a senha novamente"
+              icon={Lock}
+              secureTextEntry
+              error={errors.confirmPassword?.message}
+            />
+
+            {/* 🚀 Primary Action Button */}
+            <TouchableOpacity
+              style={[
+                styles.primaryButton,
+                { backgroundColor: colors.primary[500] }
+              ]}
+              onPress={handleSubmit(onSubmit)}
+              disabled={loading}
+              activeOpacity={0.85}
+            >
+              {loading ? (
+                <ActivityIndicator color={colors.background.primary} />
+              ) : (
+                <Text style={styles.primaryButtonText}>Criar conta</Text>
+              )}
+            </TouchableOpacity>
+
+            {/* 🔁 Helper Redirects */}
+            <TouchableOpacity
+              style={styles.forgotLink}
+              onPress={() => navigation.navigate("ForgotPassword")}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.forgotLinkText}>Esqueceu sua senha?</Text>
+            </TouchableOpacity>
+
+            {/* 🔗 Central Connector */}
+            <View style={styles.dividerWrapper}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerLabel}>OU</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            {/* 📱 Shared Unified Social Action */}
+            <SocialLoginButtons 
+              onGooglePress={handleGoogleSignUp}
+              isGoogleLoading={googleLoading}
+            />
+          </MotiView>
+
+          {/* 🦶 Standard Footer Closure */}
+          <MotiView
+            from={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ type: 'timing', duration: 500, delay: 300 }}
+            style={styles.footerBox}
           >
-            <Text className="text-base text-gray-400">
-              Já tem uma conta?{" "}
-              <Text className="text-brand-light font-bold">Entrar</Text>
-            </Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => navigation.goBack()}
+              activeOpacity={0.7}
+              style={styles.footerRedirect}
+            >
+              <Text style={styles.footerMainText}>
+                Já tem uma conta?{" "}
+                <Text style={[styles.footerActionText, { color: colors.primary[500] }]}>Entrar</Text>
+              </Text>
+            </TouchableOpacity>
+          </MotiView>
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background.primary,
+  },
+  keyboardView: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.md,
+  },
+  welcomeBlock: {
+    marginBottom: spacing.xl,
+  },
+  title: {
+    fontFamily: fonts.bold,
+    fontSize: 32,
+    color: colors.text.primary,
+    letterSpacing: -0.5,
+    fontWeight: '900',
+  },
+  subtitle: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.base,
+    color: colors.text.tertiary,
+    marginTop: 4,
+  },
+  formContainer: {
+    width: '100%',
+  },
+  primaryButton: {
+    height: 56,
+    borderRadius: borderRadius.xl,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: spacing.sm,
+    shadowColor: colors.primary[500],
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  primaryButtonText: {
+    fontFamily: fonts.bold,
+    fontSize: fontSize.lg,
+    color: colors.background.primary,
+    fontWeight: '800',
+  },
+  forgotLink: {
+    alignItems: 'center',
+    marginVertical: spacing.lg,
+  },
+  forgotLinkText: {
+    color: colors.primary[500],
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+  },
+  dividerWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.border.light,
+  },
+  dividerLabel: {
+    marginHorizontal: spacing.md,
+    fontFamily: fonts.bold,
+    fontSize: 12,
+    color: colors.text.disabled,
+    letterSpacing: 1,
+  },
+  footerBox: {
+    marginTop: 'auto',
+    paddingTop: spacing.xl,
+    alignItems: 'center',
+  },
+  footerRedirect: {
+    padding: spacing.sm,
+  },
+  footerMainText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.base,
+    color: colors.text.tertiary,
+  },
+  footerActionText: {
+    fontFamily: fonts.bold,
+    fontWeight: '800',
+  },
+});
