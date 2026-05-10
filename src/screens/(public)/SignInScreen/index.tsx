@@ -46,6 +46,13 @@ import { SocialLoginButtons } from "../../../components/auth/SocialLoginButtons"
 import { BackgroundMap } from "../../../components/visuals/BackgroundMap";
 import { Particles } from "../../../components/visuals/Particles";
 
+// 🔐 Google Authentication Initialization
+GoogleSignin.configure({
+  webClientId: CLIENTE_WEB_ID,
+  profileImageSize: 150,
+  offlineAccess: true,
+});
+
 // 🔐 Form Schema
 const loginSchema = z.object({
   email: z.string().min(1, "O e-mail é obrigatório").email("Formato de e-mail inválido"),
@@ -62,8 +69,6 @@ export default function SignInScreen() {
   // 🔄 UI States
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  
-  const googleConfiguredRef = useRef(false);
 
   // 📝 Form Definition
   const { control, handleSubmit, setValue, formState: { errors } } = useForm<LoginFormValues>({
@@ -82,16 +87,6 @@ export default function SignInScreen() {
     }
   }, [route.params?.email]);
 
-  useEffect(() => {
-    if (googleConfiguredRef.current) return;
-    googleConfiguredRef.current = true;
-
-    GoogleSignin.configure({
-      webClientId: CLIENTE_WEB_ID,
-      profileImageSize: 150,
-      offlineAccess: true,
-    });
-  }, []);
 
   // 💼 Handlers
   async function handleGoogleSignIn() {

@@ -48,6 +48,13 @@ import { BackgroundMap } from "../../../components/visuals/BackgroundMap";
 import { Particles } from "../../../components/visuals/Particles";
 import PasswordStrengthIndicator from "../../../components/PasswordStrengthIndicator";
 
+// 🔐 Google Authentication Initialization
+GoogleSignin.configure({
+  webClientId: CLIENTE_WEB_ID,
+  profileImageSize: 150,
+  offlineAccess: true,
+});
+
 // 🔐 Robust Zod Schema for Signup Validations
 const signUpSchema = z.object({
   phone: z.string().min(10, "Informe o telefone com DDD").max(15, "Formato inválido"),
@@ -87,8 +94,6 @@ export default function SignUpScreen() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
 
-  const googleConfiguredRef = useRef(false);
-
   // 📝 React Hook Form
   const { control, handleSubmit, watch, setValue, formState: { errors } } = useForm<SignUpFormValues>({
     resolver: zodResolver(signUpSchema),
@@ -125,15 +130,6 @@ export default function SignUpScreen() {
   }, []);
 
   // Effects hooks logic: Config, and Location Validation logic preserved exactly.
-  useEffect(() => {
-    if (googleConfiguredRef.current) return;
-    googleConfiguredRef.current = true;
-    GoogleSignin.configure({
-      webClientId: CLIENTE_WEB_ID,
-      profileImageSize: 150,
-      offlineAccess: true,
-    });
-  }, []);
 
   useEffect(() => {
     let isMounted = true;
