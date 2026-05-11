@@ -175,7 +175,7 @@ export const FloatingSearchCard = ({
                        </TouchableOpacity>
                      </>
                    ) : (
-                     <Navigation size={15} color="#02de95" opacity={0.8} />
+                     <Search size={16} color="rgba(255,255,255,0.3)" />
                    )}
                 </View>
               </View>

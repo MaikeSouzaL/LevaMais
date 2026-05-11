@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { AppState, View, Text, TouchableOpacity, useColorScheme } from "react-native";
+import { AppState, View, Text, TouchableOpacity, useColorScheme, } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import * as Location from "expo-location";
@@ -27,6 +27,7 @@ import { decodePolyline, LatLng } from "../../../utils/polyline";
 import { LocationLoadingScreen } from "../../../components/ui/LocationLoadingScreen";
 import MapMarker from "../../../components/MapMarker";
 import Toast from "react-native-toast-message";
+import { Modal } from "../../../components/Modal";
 
 // 🌌 High-End Components & Modules Upgrade
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -65,6 +66,8 @@ export default function DriverHomeScreen() {
   const [todayEarnings, setTodayEarnings] = useState(0);
   const [incomingRequest, setIncomingRequest] = useState<any>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelModalReason, setCancelModalReason] = useState<string | null>(null);
   const [routeCoords, setRouteCoords] = useState<LatLng[]>([]);
   const [driverCoords, setDriverCoords] = useState<{latitude: number, longitude: number, heading?: number} | null>(null);
   const watchRef = useRef<any>(null);
@@ -518,6 +521,8 @@ export default function DriverHomeScreen() {
 
       if (incomingRequest?.rideId && incomingRequest.rideId === cancelledId) {
         await clearIncoming();
+        setCancelModalReason(payload?.reason || null);
+        setShowCancelModal(true);
       }
     };
 
@@ -1102,9 +1107,23 @@ export default function DriverHomeScreen() {
             onToggleOnline={toggleOnline}
             onToggleService={toggleService}
             vehicleType={vehicleType}
-            snapPoints={["34%", "60%"]}
           />
         )}
+
+        <Modal
+          visible={showCancelModal}
+          title={cancelModalReason === "tempo_limite_esgotado" ? "Tempo Esgotado" : "Pedido Cancelado"}
+          message={cancelModalReason === "tempo_limite_esgotado" 
+            ? "O tempo limite de busca acabou e a solicitação foi encerrada pelo sistema."
+            : "O cliente cancelou esta solicitação e ela não está mais disponível para aceite."
+          }
+          type={cancelModalReason === "tempo_limite_esgotado" ? "info" : "warning"}
+          confirmText="Entendido"
+          onClose={() => {
+            setShowCancelModal(false);
+            setCancelModalReason(null);
+          }}
+        />
 
       </View>
     </GestureHandlerRootView>

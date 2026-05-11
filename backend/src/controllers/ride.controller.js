@@ -299,11 +299,23 @@ class RideController {
                 reason: "no_driver_found",
               });
             }
+
+            // 🚨 EXCLUSIVE FIX: Broadcast the timeout-cancellation to ALL nearby drivers who received the offer!
+            if (Array.isArray(nearbyDrivers) && nearbyDrivers.length > 0) {
+              nearbyDrivers.forEach((driver) => {
+                if (driver && driver.driverId) {
+                  io.to(`driver-${driver.driverId}`).emit("ride-cancelled", {
+                    rideId: ride._id,
+                    reason: "tempo_limite_esgotado",
+                  });
+                }
+              });
+            }
           }
         } catch (timeoutErr) {
           console.error("Erro no timeout de cancelamento por falta de motorista:", timeoutErr);
         }
-      }, 180000);
+      }, 60000); // 1 minute match for faster testing loop
     } catch (dispatchErr) {
       console.error("Erro critico em dispatchRideToNearbyDrivers:", dispatchErr);
     }

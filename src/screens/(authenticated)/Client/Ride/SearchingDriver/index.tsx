@@ -18,7 +18,7 @@ import { NearbyDriversLayer } from "@/components/client/searching-delivery/Nearb
 import { DeliverySearchBottomSheet } from "@/components/client/searching-delivery/DeliverySearchBottomSheet";
 import { useRealtimeDelivery } from "@/hooks/useRealtimeDelivery";
 
-const SEARCH_TIME = 300; // Max extended search loop
+const SEARCH_TIME = 30; // Max extended search loop (1 minute for testing)
 const TERMINAL_CANCEL_STATUSES = [
   "cancelled",
   "cancelled_by_client",
@@ -115,12 +115,19 @@ export default function SearchingDriverScreen() {
     [navigation, rideId],
   );
 
-  const rideExpiredCallback = useCallback(() => {
+  const rideExpiredCallback = useCallback(async () => {
     if (doneRef.current) return;
     doneRef.current = true;
     cleanup();
     setTimeoutState(true);
-  }, []);
+    if (rideId) {
+      try {
+        await rideService.cancel(rideId, "tempo_limite_esgotado");
+      } catch (err) {
+        console.log("Erro ao notificar expiração ao servidor:", err);
+      }
+    }
+  }, [rideId]);
 
   const rideCancelledCallback = useCallback(
     (data: any) => {
