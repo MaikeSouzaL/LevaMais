@@ -69,21 +69,13 @@ export default function HomeScreen() {
     
     navigation.navigate("DestinationSearch", {
       initialVehicle: defaultVehicle,
-      pickup: {
-        address: currentAddress || "Localização Atual",
-        latitude: userRegion?.latitude || region?.latitude,
-        longitude: userRegion?.longitude || region?.longitude,
-      }
+      // REMOVED pre-filled pickup to force user verification
     } as never);
   }, [navigation, currentAddress, userRegion, region]);
 
   const handleSearchPress = useCallback(() => {
     navigation.navigate("DestinationSearch", {
-      pickup: {
-        address: currentAddress || "Localização Atual",
-        latitude: userRegion?.latitude || region?.latitude,
-        longitude: userRegion?.longitude || region?.longitude,
-      }
+      // REMOVED pre-filled pickup to force user verification
     } as never);
   }, [navigation, currentAddress, userRegion, region]);
 

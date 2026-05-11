@@ -39,6 +39,12 @@ export const FloatingSearchCard = ({
   
   useEffect(() => {
     favoriteAddressService.list().then(data => setFavorites(data || [])).catch(() => {});
+    
+    // 🔥 AUTO-FOCUS TRIGGER ON MOUNT IF EMPTY
+    if (!originText) {
+       setActiveField('origin');
+       setShowDrop(true);
+    }
   }, []);
   
   // Dual-input intelligence track active field
@@ -147,6 +153,7 @@ export const FloatingSearchCard = ({
                   placeholder="Local de Coleta"
                   placeholderTextColor="rgba(255,255,255,0.35)"
                   className="flex-1 text-white text-sm h-full p-0"
+                  autoFocus={!originText}
                   onFocus={() => {
                      setActiveField('origin');
                      setShowDrop(true);

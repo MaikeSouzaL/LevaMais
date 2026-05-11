@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { View, Dimensions, StatusBar, Platform, Modal, Text, TextInput, TouchableOpacity, ActivityIndicator, Alert, KeyboardAvoidingView } from "react-native";
-import { Heart, X, Star } from "lucide-react-native";
+import { Heart, X, Star, Info } from "lucide-react-native";
 import favoriteAddressService from "@/services/favoriteAddress.service";
 import Toast from "react-native-toast-message";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
@@ -21,6 +21,7 @@ import { RouteBottomCard } from "@/components/client/destination/RouteBottomCard
 // Refined Realtime Core Mapping Imports 🚀
 import { PremiumMapMarker } from "@/components/maps/PremiumMapMarker";
 import { PremiumDottedRoute } from "@/components/routes/PremiumDottedRoute";
+import { MotiView } from "moti";
 
 const { width, height } = Dimensions.get("window");
 const GOOGLE_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || "";
@@ -73,7 +74,8 @@ export default function DestinationSearchScreen() {
       : null
   );
 
-  // Automatically feed initial location if none set yet
+  // Automatically feed initial location if none set yet (DISABLED AS REQUESTED - NOW USER FORCED TO CHOOSE)
+  /*
   useEffect(() => {
     if (!originDetails && !originTxt && currentAddress && userRegion) {
       setOriginTxt(currentAddress);
@@ -85,6 +87,7 @@ export default function DestinationSearchScreen() {
       });
     }
   }, [userRegion, currentAddress]);
+  */
 
   const origin = {
     latitude: originDetails?.latitude || userRegion?.latitude || region?.latitude || -23.55,
@@ -97,6 +100,7 @@ export default function DestinationSearchScreen() {
   const [favInputName, setFavInputName] = useState("");
   const [targetAddressToSave, setTargetAddressToSave] = useState<any>(null);
   const [isSavingFav, setIsSavingFav] = useState(false);
+  const [showVerifTip, setShowVerifTip] = useState(true);
 
   const triggerFavoriteModal = (addrData: any) => {
     setTargetAddressToSave(addrData);
@@ -325,6 +329,36 @@ export default function DestinationSearchScreen() {
              });
           } : undefined}
         />
+
+        {/* 💡 FRIENDLY TIP BANNER (ADDRESS NUMBER VERIFICATION) */}
+        {showVerifTip && (
+          <MotiView
+            from={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ delay: 600, type: "timing", duration: 400 }}
+            className="mx-6 mt-3 bg-[#FFB900]/10 border border-[#FFB900]/20 px-3 py-2.5 rounded-xl flex-row items-center relative"
+          >
+            <View className="bg-[#FFB900]/20 p-1.5 rounded-full mr-3">
+               <Info size={14} color="#FFB900" />
+            </View>
+            <View className="flex-1 pr-6">
+              <Text className="text-[#FFB900] font-bold text-[12px] leading-tight">
+                Confirme o Número da Casa
+              </Text>
+              <Text className="text-[#FFB900]/70 text-[11px] mt-0.5">
+                Verifique se o número do local está preenchido corretamente para evitar atrasos.
+              </Text>
+            </View>
+            <TouchableOpacity 
+               onPress={() => setShowVerifTip(false)}
+               className="absolute right-2 top-2 bg-[#FFB900]/10 p-1 rounded-full"
+               hitSlop={8}
+            >
+              <X size={12} color="#FFB900" />
+            </TouchableOpacity>
+          </MotiView>
+        )}
 
         {!isReadyToContinue && (
           <RecentPlaces onSelect={handleQuickSelect} />

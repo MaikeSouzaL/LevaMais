@@ -1,5 +1,6 @@
 import * as Location from "expo-location";
 import { reverseGeocodeAsync, LocationObjectCoords } from "expo-location";
+import googlePlacesService from "@/services/googlePlaces.service";
 
 /**
  * Tipo completo do endereço reverso (baseado em expo-location)
@@ -100,7 +101,25 @@ export async function obterEnderecoPorCoordenadas(
   longitude: number,
 ): Promise<EnderecoReverso | null> {
   try {
-    // Tentar algumas vezes com retry e backoff
+    // 🔥 MUDANÇA CRÍTICA: Usar Google Maps API para precisão ABSOLUTA no Número da Casa
+    console.log("🛰️ Solicitando Reverse Geocode Premium (Google)...");
+    const googleResult = await googlePlacesService.reverseGeocode(latitude, longitude);
+    
+    if (googleResult) {
+      return {
+        name: googleResult.street || undefined,
+        street: googleResult.street,
+        streetNumber: googleResult.streetNumber,
+        district: googleResult.neighborhood,
+        city: googleResult.city,
+        region: googleResult.stateCode || googleResult.state,
+        postalCode: googleResult.postalCode,
+        country: googleResult.country,
+      };
+    }
+
+    // ⏳ FALLBACK: Tentar sistema nativo se a API do Google falhar
+    console.warn("⚠️ Google falhou/sem API key. Usando geocoder nativo do sistema...");
     const maxAttempts = 3;
     let attempt = 0;
 
