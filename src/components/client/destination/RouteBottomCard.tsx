@@ -33,7 +33,7 @@ export const RouteBottomCard = ({
           className="absolute bottom-0 left-0 right-0 px-6 z-[120]"
           style={{ paddingBottom: insets.bottom + 16 }}
         >
-          <BlurView intensity={75} tint="dark" className="rounded-3xl bg-slate-900/70 border border-white/10 p-6 shadow-2xl shadow-black overflow-hidden elevation-15">
+          <View className="rounded-3xl bg-[#091A2F] border border-white/10 p-6 shadow-2xl shadow-black overflow-hidden elevation-15">
             <View className="flex-row justify-around items-center mb-6">
               <View className="flex-row items-center gap-2">
                 <Clock size={18} color="#02de95" />
@@ -76,7 +76,7 @@ export const RouteBottomCard = ({
                 )}
               </View>
             </TouchableOpacity>
-          </BlurView>
+          </View>
         </MotiView>
       )}
     </AnimatePresence>
