@@ -71,12 +71,28 @@ function createApiInstance(): AxiosInstance {
           return Promise.reject(new Error(apiMsg));
         }
 
-        // 403 = sem permissao (nao deslogar)
+        // 403 = sem permissao (nao deslogar, exceto se for mensagem de token)
         if (status === 403) {
           const apiMsg =
             error.response?.data?.message ||
             error.response?.data?.error ||
             "Voce nao tem permissao para realizar esta acao.";
+          
+          // Salvaguarda extra para casos em que o backend retornou 403 mas Ã© um problema de token
+          const isTokenIssue = 
+            String(apiMsg).toLowerCase().includes("token") || 
+            String(apiMsg).toLowerCase().includes("expirado") || 
+            String(apiMsg).toLowerCase().includes("inativo");
+
+          if (isTokenIssue) {
+            try {
+              const { useAuthStore } = require("../context/authStore");
+              useAuthStore.getState().logout();
+            } catch {
+              // no-op
+            }
+          }
+
           return Promise.reject(new Error(apiMsg));
         }
 
@@ -146,6 +162,24 @@ export function apiPut<T = any>(
   }
 
   return apiInstance.put<T>(endpoint, data, config);
+}
+
+export function apiPatch<T = any>(
+  endpoint: string,
+  data: any,
+  token?: string,
+): Promise<AxiosResponse<T>> {
+  const config: AxiosRequestConfig = { headers: {} };
+  
+  if (token) {
+    config.headers!.Authorization = `Bearer ${token}`;
+  }
+
+  if (data instanceof FormData) {
+    config.headers!["Content-Type"] = "multipart/form-data";
+  }
+
+  return apiInstance.patch<T>(endpoint, data, config);
 }
 
 export function apiDelete<T = any>(

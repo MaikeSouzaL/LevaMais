@@ -8,7 +8,13 @@ export type DriverRequestCardItem = {
   dropoff?: { address?: string };
   pricing?: { total?: number };
   distance?: { text?: string };
+  serviceType?: string;
   vehicleType?: string;
+  details?: {
+    itemType?: string;
+    priority?: number;
+    specialInstructions?: string;
+  };
   negotiation?: {
     enabled?: boolean;
     clientOffer?: number | null;
@@ -48,6 +54,57 @@ export function DriverRequestCard({
           {"  "}
           Min. sugerido: {formatBRL(item.negotiation?.suggestedMinPrice ?? 0)}
         </Text>
+      )}
+
+      {/* ✨ Delivery Info Extensions ✨ */}
+      {item.serviceType === "delivery" && (
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8, marginBottom: 4 }}>
+           <View style={{ backgroundColor: "rgba(255,255,255,0.08)", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 }}>
+              <Text style={{ color: "#ddd", fontSize: 11, fontWeight: "700" }}>
+                 {item.vehicleType === "motorcycle" ? "🛵 Moto" : "🚗 Carro"}
+              </Text>
+           </View>
+           {item.details?.itemType && (
+             <View style={{ backgroundColor: "rgba(2,222,149,0.12)", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 }}>
+                <Text style={{ color: "#02de95", fontSize: 11, fontWeight: "700" }}>
+                   {
+                     {
+                        food: "Delivery",
+                        doc: "Documentos",
+                        market: "Mercado",
+                        box: "Caixa",
+                        material: "Material",
+                        furniture: "Móveis",
+                        moving: "Mudança",
+                        other: "Outros"
+                     }[item.details.itemType as string] || item.details.itemType
+                   }
+                </Text>
+             </View>
+           )}
+           {item.details?.priority !== undefined && (
+             <View style={{ 
+                backgroundColor: item.details.priority === 2 ? "rgba(239,68,68,0.1)" : "rgba(59,130,246,0.1)", 
+                paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 
+             }}>
+                <Text style={{ 
+                   color: item.details.priority === 2 ? "#ef4444" : "#60a5fa", 
+                   fontSize: 11, fontWeight: "700" 
+                }}>
+                   {item.details.priority === 2 ? "🚨 Urgente" : item.details.priority === 1 ? "⚡ Rápido" : "🐢 Econômico"}
+                </Text>
+             </View>
+           )}
+        </View>
+      )}
+
+      {item.details?.specialInstructions && (
+        <View style={{ backgroundColor: "rgba(251,191,36,0.06)", padding: 8, borderRadius: 10, marginTop: 6, marginBottom: 4, borderWidth: 1, borderColor: "rgba(251,191,36,0.1)" }}>
+           <Text style={{ color: "rgba(251,191,36,0.8)", fontSize: 10, fontWeight: "800" }}>VOLUME/OBS:</Text>
+           <Text style={{ color: "#fef3c7", fontSize: 12, marginTop: 2 }} numberOfLines={2}>
+             {item.details.specialInstructions}
+           </Text>
+        </View>
       )}
 
       <Text style={{ color: "rgba(255,255,255,0.7)", marginTop: 6 }}>

@@ -31,6 +31,7 @@ import DriverDocumentsScreen from "../screens/(authenticated)/Driver/DriverDocum
 import DriverRatingsScreen from "../screens/(authenticated)/Driver/DriverRatingsScreen";
 import DriverSupportCenterScreen from "../screens/(authenticated)/Driver/DriverSupportCenterScreen";
 import DriverShiftOffersScreen from "../screens/(authenticated)/Driver/DriverShiftOffersScreen";
+import DeliveryOfferScreen from "../screens/(authenticated)/Driver/DeliveryOfferScreen";
 
 import { useAuthStore } from "../context/authStore";
 
@@ -221,6 +222,7 @@ export default function DrawerDriverRoutes({ initialRideId }: DrawerDriverRoutes
       <Drawer.Screen name="DriverRateClient" component={DriverRateClientScreen} options={HiddenScreenOptions} />
       <Drawer.Screen name="DriverCancelRide" component={DriverCancelRideScreen} options={HiddenScreenOptions} />
       <Drawer.Screen name="DriverChat" component={DriverChatScreen} options={HiddenScreenOptions} />
+      <Drawer.Screen name="DeliveryOfferScreen" component={DeliveryOfferScreen} options={HiddenScreenOptions} />
     </Drawer.Navigator>
   );
 }

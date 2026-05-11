@@ -754,6 +754,7 @@ export default function DriverRideScreen() {
             statusLabel={statusLabel}
             pickupAddress={ride?.pickup?.address}
             dropoffAddress={ride?.dropoff?.address}
+            details={ride?.details}
             showRouteDetails
             canArrive={canArrive}
             canStart={canStart}

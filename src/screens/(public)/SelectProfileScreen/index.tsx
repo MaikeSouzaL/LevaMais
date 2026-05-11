@@ -16,6 +16,7 @@ import Toast from "react-native-toast-message";
 // API & State Hooks
 import { useAuthStore } from "../../../context/authStore";
 import { registerUser } from "../../../services/auth.service";
+import userService from "../../../services/user.service";
 
 // UI Tokens
 import { colors } from "../../../theme/colors";
@@ -73,6 +74,19 @@ export default function SelectProfileScreen() {
       try {
         // 🌐 Scenerio A: User originated from Google (Already in DB, has _id and token)
         if (user._id && user._id.length > 5) {
+          
+          // 🚀 CRITICAL FIX: Persist validated phone number to Backend DATABASE before finalizing login!
+          // This prevents the login sequence from repeatedly asking for phone updates!
+          if (user.phone && initialToken) {
+            try {
+              await userService.updateProfile({ phone: user.phone }, initialToken);
+              console.log("[SelectProfile] Phone number successfully synchronized to backend.");
+            } catch (err) {
+              console.error("[SelectProfile] Failed silently syncing phone number:", err);
+              // Keep going, we won't block entry, but this should pass.
+            }
+          }
+
           login(
             "client",
             {
@@ -105,6 +119,8 @@ export default function SelectProfileScreen() {
           city: user.city,
           userType: "client",
           acceptedTerms: true,
+          googleId: user.googleId, // 🔗 Important: Ensure metadata links correctly!
+          profilePhoto: user.profilePhoto,
         });
 
         if (response.success && response.data) {

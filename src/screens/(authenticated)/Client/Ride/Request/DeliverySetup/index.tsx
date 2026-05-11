@@ -16,13 +16,13 @@ import { DeliverySummaryCard } from "@/components/client/delivery-setup/Delivery
 import { VehicleSelector, LogisticsVehicleType } from "@/components/client/delivery-setup/VehicleSelector";
 import { DeliveryTypeSelector, DeliveryType } from "@/components/client/delivery-setup/DeliveryTypeSelector";
 import { CargoDescriptionInput } from "@/components/client/delivery-setup/CargoDescriptionInput";
-import { CargoSizeSelector, CargoSize } from "@/components/client/delivery-setup/CargoSizeSelector";
 import { DeliveryOfferCard } from "@/components/client/delivery-setup/DeliveryOfferCard";
 import { DeliveryPrioritySelector, DeliveryPriority } from "@/components/client/delivery-setup/DeliveryPrioritySelector";
 import { SearchDeliveryButton } from "@/components/client/delivery-setup/SearchDeliveryButton";
 
 // Visual Foundations 🗺️
 import { PremiumMapMarker } from "@/components/maps/PremiumMapMarker";
+import { CargoSize } from "@/components/client/delivery-setup/CargoSizeSelector";
 
 const GOOGLE_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || "";
 
@@ -51,7 +51,7 @@ export default function DeliverySetupScreen() {
   const [cargoSize, setCargoSize] = useState<CargoSize>("medium");
   const [needsHelper, setNeedsHelper] = useState(false);
   const [offerValue, setOfferValue] = useState<number>(20.00);
-  const [priority, setPriority] = useState<DeliveryPriority>(1);
+  const [priority, setPriority] = useState<DeliveryPriority>(0);
 
   const [path, setPath] = useState<any[]>([]);
 
@@ -122,6 +122,7 @@ export default function DeliverySetupScreen() {
         details: {
           itemType: deliveryType,
           needsHelper: needsHelper,
+          priority: priority,
           specialInstructions: `[Tamanho: ${cargoSize}] ${cargoDescription}`.trim(),
         },
         negotiation: {
@@ -213,10 +214,11 @@ export default function DeliverySetupScreen() {
 
         <CargoDescriptionInput value={cargoDescription} onChange={setCargoDescription} />
 
-        <CargoSizeSelector value={cargoSize} onChange={setCargoSize} />
 
         
         <View className="h-[1px] bg-white/[0.03] w-full mb-6 mt-2" />
+
+        <DeliveryPrioritySelector value={priority} onChange={setPriority} />
 
         {loadingPricing ? (
           <View className="h-32 items-center justify-center"><ActivityIndicator color="#02de95" /></View>
@@ -228,8 +230,6 @@ export default function DeliverySetupScreen() {
             onChange={setOfferValue} 
           />
         )}
-
-        <DeliveryPrioritySelector value={priority} onChange={setPriority} />
       </ScrollView>
 
       <SearchDeliveryButton 

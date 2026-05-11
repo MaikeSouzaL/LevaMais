@@ -1,82 +1,22 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
-import {
-  AppBottomSheet,
-  type AppBottomSheetRef,
-} from "../../../../components/ui/AppBottomSheet";
-
-export type DriverBottomSheetRef = AppBottomSheetRef;
+import BottomSheet, { BottomSheetView, BottomSheetScrollView } from "@gorhom/bottom-sheet";
+import { Car, Package, Star, TrendingUp, Clock } from "lucide-react-native";
+import { OnlineOfflineToggle } from "../../../../components/driver/home/OnlineOfflineToggle";
 
 export type DriverServicePrefs = {
   ride: boolean;
   delivery: boolean;
 };
 
-type Props = {
+interface DriverBottomSheetProps {
   online: boolean;
   services: DriverServicePrefs;
   isTogglingOnline?: boolean;
   onToggleOnline: () => void;
   onToggleService: (key: keyof DriverServicePrefs) => void;
-  snapPoints?: Array<string | number>;
-  vehicleType?: string; // Para validar se pode fazer corridas
-};
-
-function Chip({
-  label,
-  active,
-  onPress,
-  icon,
-  disabled,
-}: {
-  label: string;
-  active: boolean;
-  onPress: () => void;
-  icon?: React.ComponentProps<typeof MaterialIcons>["name"];
-  disabled?: boolean;
-}) {
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      activeOpacity={0.85}
-      disabled={disabled}
-      style={{
-        flex: 1,
-        paddingVertical: 16,
-        paddingHorizontal: 16,
-        borderRadius: 16,
-        borderWidth: 2,
-        borderColor: active ? "#02de95" : "rgba(255,255,255,0.15)",
-        backgroundColor: active
-          ? "rgba(2,222,149,0.18)"
-          : "rgba(255,255,255,0.05)",
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 10,
-        opacity: disabled ? 0.5 : 1,
-        minHeight: 64,
-      }}
-    >
-      {icon && (
-        <MaterialIcons
-          name={icon}
-          size={24}
-          color={active ? "#02de95" : "rgba(255,255,255,0.7)"}
-        />
-      )}
-      <Text
-        style={{
-          color: active ? "#fff" : "rgba(255,255,255,0.8)",
-          fontWeight: "900",
-          fontSize: 16,
-        }}
-      >
-        {label}
-      </Text>
-    </TouchableOpacity>
-  );
+  snapPoints?: string[];
+  vehicleType?: string;
 }
 
 export function DriverBottomSheet({
@@ -85,139 +25,114 @@ export function DriverBottomSheet({
   isTogglingOnline,
   onToggleOnline,
   onToggleService,
-  snapPoints = ["28%", "60%"],
+  snapPoints: userSnapPoints,
   vehicleType,
-}: Props) {
-  // Só carros e motos podem fazer corridas (passageiros)
+}: DriverBottomSheetProps) {
+  const finalSnapPoints = useMemo(() => userSnapPoints || ["38%", "65%"], [userSnapPoints]);
+
   const canDoRides = vehicleType === "car" || vehicleType === "motorcycle";
-  // Todos os veículos podem fazer entregas
-  const canDoDeliveries = true;
+
   return (
-    <AppBottomSheet
+    <BottomSheet
       index={0}
-      snapPoints={snapPoints}
+      snapPoints={finalSnapPoints}
       enablePanDownToClose={false}
-      backgroundColor="#111816"
-      handleIndicatorColor="rgba(255,255,255,0.18)"
-      contentPaddingBottom={24}
-      contentPaddingHorizontal={16}
-      contentPaddingTop={8}
+      backgroundStyle={{ backgroundColor: "#0B1A2A", borderRadius: 36 }}
+      handleIndicatorStyle={{ backgroundColor: "rgba(255,255,255,0.2)", width: 40 }}
     >
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: 12,
-        }}
+      <BottomSheetScrollView 
+        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 40 }}
       >
-        <View style={{ flex: 1, minWidth: 220 }}>
-          <Text style={{ color: online ? "#02de95" : "white", fontSize: 18, fontWeight: "900" }}>
-            {online ? "Você está online" : "Você está offline"}
-          </Text>
-          <Text style={{ color: "rgba(255,255,255,0.65)", marginTop: 4 }}>
-            {online
-              ? "Recebendo solicitações conforme suas preferências"
-              : "Ative para começar a receber corridas"}
-          </Text>
+        
+        {/* 🚀 HIGH IMPACT CONTROL: GO ONLINE/OFFLINE */}
+        <View className="mb-6">
+          <OnlineOfflineToggle 
+            online={online} 
+            loading={!!isTogglingOnline} 
+            onToggle={onToggleOnline} 
+          />
         </View>
 
-        <TouchableOpacity
-          onPress={onToggleOnline}
-          activeOpacity={0.8}
-          disabled={!!isTogglingOnline}
-          style={{
-            width: 58,
-            height: 32,
-            borderRadius: 16,
-            backgroundColor: online ? "#02de95" : "rgba(255,255,255,0.12)",
-            borderWidth: 1,
-            borderColor: online ? "rgba(2,222,149,0.3)" : "rgba(255,255,255,0.1)",
-            padding: 3,
-            justifyContent: "center",
-            flexShrink: 0,
-            alignSelf: "center",
-          }}
-        >
-          <View
-            style={{
-              width: 24,
-              height: 24,
-              borderRadius: 12,
-              backgroundColor: online ? "#091A2F" : "#fff",
-              alignSelf: online ? "flex-end" : "flex-start",
-              alignItems: "center",
-              justifyContent: "center",
-              elevation: 3,
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 1 },
-              shadowOpacity: 0.25,
-              shadowRadius: 1.8,
-            }}
+        {/* 📊 OPERATIONAL PERFORMANCE PRESETS */}
+        <View className="flex-row items-center justify-between gap-3 mb-6 bg-white/[0.02] border border-white/5 rounded-2xl p-4">
+           <View className="items-center flex-1 border-r border-white/10">
+              <View className="flex-row items-center mb-1">
+                 <Star size={14} color="#FBBF24" fill="#FBBF24" className="mr-1" />
+                 <Text className="text-white font-black text-base">4.9</Text>
+              </View>
+              <Text className="text-white/30 text-[10px] font-bold uppercase tracking-wider">Avaliação</Text>
+           </View>
+           <View className="items-center flex-1 border-r border-white/10">
+              <View className="flex-row items-center mb-1">
+                 <TrendingUp size={14} color="#02de95" className="mr-1" />
+                 <Text className="text-white font-black text-base">98%</Text>
+              </View>
+              <Text className="text-white/30 text-[10px] font-bold uppercase tracking-wider">Aceitação</Text>
+           </View>
+           <View className="items-center flex-1">
+              <View className="flex-row items-center mb-1">
+                 <Clock size={14} color="#3B82F6" className="mr-1" />
+                 <Text className="text-white font-black text-base">4.5h</Text>
+              </View>
+              <Text className="text-white/30 text-[10px] font-bold uppercase tracking-wider">Online</Text>
+           </View>
+        </View>
+
+        {/* 🎛️ SERVICE PREFERENCES GRID */}
+        <Text className="text-white/50 text-xs font-black uppercase tracking-widest mb-3 px-1">
+           Preferências de Serviço
+        </Text>
+
+        <View className="flex-row gap-3">
+          {/* Option: RIDE */}
+          <TouchableOpacity
+             onPress={() => canDoRides && onToggleService("ride")}
+             activeOpacity={0.8}
+             disabled={!canDoRides}
+             className={`flex-1 rounded-2xl border-2 p-4 items-center justify-center flex-row ${
+                !canDoRides ? 'opacity-40 bg-white/[0.02] border-transparent' :
+                services.ride ? 'bg-[#02de95]/10 border-[#02de95]' : 'bg-white/5 border-white/10'
+             }`}
           >
-            {isTogglingOnline && (
-              <ActivityIndicator
-                size="small"
-                color={online ? "#02de95" : "#091A2F"}
-                style={{ transform: [{ scale: 0.7 }] }}
-              />
-            )}
+             <Car size={20} color={services.ride ? "#02de95" : "rgba(255,255,255,0.5)"} className="mr-3" />
+             <Text className={`font-black text-sm ${services.ride ? 'text-white' : 'text-white/50'}`}>
+                Corridas
+             </Text>
+          </TouchableOpacity>
+
+          {/* Option: DELIVERY */}
+          <TouchableOpacity
+             onPress={() => onToggleService("delivery")}
+             activeOpacity={0.8}
+             className={`flex-1 rounded-2xl border-2 p-4 items-center justify-center flex-row ${
+                services.delivery ? 'bg-[#02de95]/10 border-[#02de95]' : 'bg-white/5 border-white/10'
+             }`}
+          >
+             <Package size={20} color={services.delivery ? "#02de95" : "rgba(255,255,255,0.5)"} className="mr-3" />
+             <Text className={`font-black text-sm ${services.delivery ? 'text-white' : 'text-white/50'}`}>
+                Entregas
+             </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Warnings Area */}
+        {!canDoRides && (
+           <View className="mt-4 bg-white/[0.02] p-3 rounded-xl border border-white/5">
+             <Text className="text-white/40 text-xs text-center">
+                💡 Corridas de passageiros bloqueadas para seu tipo de veículo.
+             </Text>
+           </View>
+        )}
+        
+        {!services.ride && !services.delivery && (
+          <View className="mt-4 bg-amber-500/10 p-3 rounded-xl border border-amber-500/20">
+             <Text className="text-amber-500 font-bold text-xs text-center">
+                ⚠️ Ative ao menos 1 serviço para receber solicitações.
+             </Text>
           </View>
-        </TouchableOpacity>
-      </View>
+        )}
 
-      <View
-        style={{
-          height: 1,
-          backgroundColor: "rgba(255,255,255,0.06)",
-          marginVertical: 14,
-        }}
-      />
-
-      <Text
-        style={{
-          color: "rgba(255,255,255,0.8)",
-          fontWeight: "900",
-          marginBottom: 12,
-          fontSize: 15,
-        }}
-      >
-        O que você quer fazer?
-      </Text>
-
-      <View style={{ flexDirection: "row", gap: 12 }}>
-        <Chip
-          label="Corridas"
-          active={services.ride}
-          onPress={() => canDoRides && onToggleService("ride")}
-          icon="directions-car"
-          disabled={!canDoRides}
-        />
-        <Chip
-          label="Entregas"
-          active={services.delivery}
-          onPress={() => onToggleService("delivery")}
-          icon="local-shipping"
-        />
-      </View>
-
-      {!canDoRides && (
-        <Text
-          style={{
-            color: "rgba(255,255,255,0.5)",
-            marginTop: 10,
-            fontSize: 13,
-          }}
-        >
-          💡 Corridas de passageiros disponíveis apenas para carros e motos
-        </Text>
-      )}
-
-      {!services.ride && !services.delivery && (
-        <Text style={{ color: "#fbbf24", marginTop: 12, fontWeight: "700" }}>
-          ⚠️ Selecione pelo menos 1 tipo de serviço para ficar online
-        </Text>
-      )}
-    </AppBottomSheet>
+      </BottomSheetScrollView>
+    </BottomSheet>
   );
 }

@@ -1,21 +1,24 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Animated,
-  Easing,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { View, Text, TouchableOpacity, ActivityIndicator, StatusBar } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import { MaterialIcons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
+import MapView, { PROVIDER_GOOGLE, Marker } from "react-native-maps";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { MotiView } from "moti";
+import { AlertTriangle, RefreshCcw, Home, Settings, Info, Clock } from "lucide-react-native";
+
 import rideService from "@/services/ride.service";
 import webSocketService from "@/services/websocket.service";
-import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
+import { darkMapStyle } from "@/utils/mapStyle";
 
-const SEARCH_TIME = 60;
+// New High-End Components 🛰️
+import { RadarScanner } from "@/components/client/searching-delivery/RadarScanner";
+import { SearchingHeader } from "@/components/client/searching-delivery/SearchingHeader";
+import { NearbyDriversLayer } from "@/components/client/searching-delivery/NearbyDriversLayer";
+import { DeliverySearchBottomSheet } from "@/components/client/searching-delivery/DeliverySearchBottomSheet";
+import { useRealtimeDelivery } from "@/hooks/useRealtimeDelivery";
+
+const SEARCH_TIME = 300; // Max extended search loop
 const TERMINAL_CANCEL_STATUSES = [
   "cancelled",
   "cancelled_by_client",
@@ -30,6 +33,7 @@ export default function SearchingDriverScreen() {
   const rideId = route.params?.rideId || "";
 
   const [secondsLeft, setSecondsLeft] = useState(SEARCH_TIME);
+  const [secondsElapsed, setSecondsElapsed] = useState(0);
   const [timeout, setTimeoutState] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [adjusting, setAdjusting] = useState(false);
@@ -40,9 +44,21 @@ export default function SearchingDriverScreen() {
   const [enteringQueue, setEnteringQueue] = useState(false);
   const [queueCancelled, setQueueCancelled] = useState(false);
 
+  // Ride Context Persistence
+  const [rideData, setRideData] = useState<any>(null);
+
+  const mapRef = useRef<MapView>(null);
   const intervalRef = useRef<any>(null);
-  const pulseAnim = useRef(new Animated.Value(1)).current;
   const doneRef = useRef(false);
+
+  // Custom Dynamic Simulation Hook ⚡ - upgraded with continuous tracking
+  const pickupCoords = rideData?.pickup?.latitude ? rideData.pickup : null;
+  const { drivers, feedMessage, searchState } = useRealtimeDelivery(
+    pickupCoords?.latitude,
+    pickupCoords?.longitude,
+    rideData?.vehicleType || "motorcycle",
+    secondsElapsed
+  );
 
   const cleanup = () => {
     if (intervalRef.current) {
@@ -50,6 +66,40 @@ export default function SearchingDriverScreen() {
       intervalRef.current = null;
     }
   };
+
+  // 1. Hydrate initial dynamic contextual data from RideID
+  useEffect(() => {
+    const fetchRide = async () => {
+      if (!rideId) return;
+      try {
+        const data = await rideService.getById(rideId);
+        setRideData(data);
+      } catch (e) {
+        console.log("Erro ao buscar dados da corrida", e);
+      }
+    };
+    fetchRide();
+  }, [rideId]);
+
+  // 🎥 CINEMATIC AUTO-ZOOM ENTRY EFFECT 
+  // Moves the camera from close-up to a broad urban view automatically
+  useEffect(() => {
+    if (!pickupCoords) return;
+    
+    const timer = setTimeout(() => {
+      mapRef.current?.animateCamera({
+        center: {
+          latitude: pickupCoords.latitude,
+          longitude: pickupCoords.longitude,
+        },
+        zoom: 14, // Higher altitude for massive urban grid look
+        pitch: 35, // Slight isometric tech tilt
+        heading: 0,
+      }, { duration: 4500 }); // Ultra-smooth cinematic 4.5 second drift
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [!!pickupCoords]);
 
   const driverFoundCallback = useCallback(
     (data: any) => {
@@ -108,7 +158,6 @@ export default function SearchingDriverScreen() {
       webSocketService.onRideCancelled(rideCancelledCallback);
     } catch (e: any) {
       setError("Conexao instavel. Mantendo busca pelo servidor.");
-      console.log("WS connect error:", e?.message);
     }
 
     let pollFailures = 0;
@@ -127,11 +176,22 @@ export default function SearchingDriverScreen() {
           return;
         }
 
+        // Re-update price/details dynamic if needed
+        setRideData(ride);
+
+        // ⚡ NEW: If dynamic negotiation materialized (offers arriving), forward to Marketplace!
+        const offerCount = ride.negotiation?.offers?.length || 0;
+        if (offerCount > 0 && !doneRef.current) {
+           doneRef.current = true;
+           clearInterval(pollInterval);
+           cleanup();
+           navigation.replace("RideOffersMarketplace", { rideId: ride._id });
+           return;
+        }
+
         if (
           ride.driverId &&
-          ["accepted", "driver_arriving", "arrived", "in_progress"].includes(
-            ride.status,
-          )
+          ["accepted", "driver_arriving", "arrived", "in_progress"].includes(ride.status)
         ) {
           doneRef.current = true;
           clearInterval(pollInterval);
@@ -156,13 +216,13 @@ export default function SearchingDriverScreen() {
         pollFailures += 1;
         if (pollFailures >= 2) {
           setNetworkUnstable(true);
-          setError("Conexao instavel. Tentando reconectar automaticamente...");
+          setError("Conexão instável. Tentando reconectar...");
         }
       }
     }, 4000);
 
     intervalRef.current = pollInterval;
-  }, [rideId, driverFoundCallback, rideExpiredCallback, rideCancelledCallback]);
+  }, [rideId, driverFoundCallback, rideExpiredCallback, rideCancelledCallback, waitingInQueue]);
 
   useEffect(() => {
     connectAndSearch();
@@ -176,13 +236,15 @@ export default function SearchingDriverScreen() {
 
   useEffect(() => {
     const timer = setInterval(() => {
+      // Track total lifetime of search for logic progression ⌚
+      setSecondsElapsed((prev) => prev + 1);
+
       setSecondsLeft((prev) => {
         if (prev <= 1) {
+          // 🚨 Hit zero! Trigger logical expiration so the UI fallback shows up instead of staying stuck.
           clearInterval(timer);
-          doneRef.current = true;
-          cleanup();
-          setTimeoutState(true);
-          return 0;
+          rideExpiredCallback();
+          return 0; 
         }
         return prev - 1;
       });
@@ -190,28 +252,6 @@ export default function SearchingDriverScreen() {
 
     return () => clearInterval(timer);
   }, [searchCycle]);
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.14,
-          duration: 850,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 850,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-
-    loop.start();
-    return () => loop.stop();
-  }, [pulseAnim]);
 
   const handleEnterQueue = async () => {
     if (!rideId || enteringQueue) return;
@@ -228,7 +268,7 @@ export default function SearchingDriverScreen() {
     } catch (e: any) {
       Toast.show({
         type: "error",
-        text1: "Erro ao entrar na fila de espera",
+        text1: "Erro ao entrar na fila",
         text2: e?.message || "Tente novamente",
       });
     } finally {
@@ -243,7 +283,7 @@ export default function SearchingDriverScreen() {
       await rideService.cancel(rideId, "Cancelado pelo cliente durante busca");
       doneRef.current = true;
       cleanup();
-      Toast.show({ type: "info", text1: "Corrida cancelada" });
+      Toast.show({ type: "info", text1: "Solicitação cancelada com sucesso." });
       navigation.reset({ index: 0, routes: [{ name: "Home" }] });
     } catch (e: any) {
       Toast.show({ type: "error", text1: "Erro", text2: e?.message || "Falha ao cancelar" });
@@ -266,452 +306,169 @@ export default function SearchingDriverScreen() {
     await connectAndSearch();
   };
 
-  const handleAdjustRequest = async () => {
-    if (!rideId || adjusting) return;
-    setAdjusting(true);
-    try {
-      const ride = await rideService.getById(rideId);
-      try {
-        await rideService.cancel(rideId, "Ajuste de pedido pelo cliente");
-      } catch {}
-
-      navigation.reset({
-        index: 0,
-        routes: [
-          {
-            name: "ServicePurpose",
-            params: {
-              vehicleType: ride?.vehicleType,
-              initialPurposeId:
-                typeof (ride as any)?.purposeId === "string"
-                  ? (ride as any).purposeId
-                  : (ride as any)?.purposeId?._id,
-              pickup: {
-                address: ride?.pickup?.address,
-                latitude: ride?.pickup?.latitude,
-                longitude: ride?.pickup?.longitude,
-              },
-              dropoff: {
-                address: ride?.dropoff?.address,
-                latitude: ride?.dropoff?.latitude,
-                longitude: ride?.dropoff?.longitude,
-              },
-            },
-          },
-        ],
-      });
-    } catch {
-      navigation.reset({ index: 0, routes: [{ name: "Home" }] });
-    } finally {
-      setAdjusting(false);
-    }
-  };
-
-  if (queueCancelled) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.timeoutCard}>
-          <View style={[styles.timeoutIconWrap, { backgroundColor: "rgba(239, 68, 68, 0.12)" }]}>
-            <MaterialIcons name="error-outline" size={48} color="#ef4444" />
-          </View>
-          <Text style={[styles.timeoutTitle, { color: "#ef4444" }]}>Busca Cancelada</Text>
-          <Text style={styles.timeoutSub}>
-            Nenhum motorista aceitou seu pedido na Fila de Espera pública. A busca foi cancelada por falta de motoboys disponíveis no momento.
-          </Text>
-
-          <TouchableOpacity
-            style={[styles.retryButton, { backgroundColor: "#ef4444" }]}
-            onPress={() => {
-              setQueueCancelled(false);
-              setWaitingInQueue(false);
-              setTimeoutState(false);
-              navigation.reset({ index: 0, routes: [{ name: "Home" }] });
-            }}
-            activeOpacity={0.85}
-          >
-            <MaterialIcons name="home" size={20} color="white" />
-            <Text style={[styles.retryText, { color: "white" }]}>Voltar para início</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
+  // ⏱️ TIMEOUT FALLBACK VIEW: Handles search ending with zero active results
   if (timeout) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.timeoutCard}>
-          <View style={styles.timeoutIconWrap}>
-            <MaterialIcons name="person-search" size={48} color="#fbbf24" />
-          </View>
-          <Text style={styles.timeoutTitle}>Não encontramos motorista</Text>
-          <Text style={styles.timeoutSub}>
-            Nenhum motorista aceitou o pedido nesse momento. Você pode tentar novamente ou colocar o seu pedido na fila de espera pública.
-          </Text>
+      <View className="flex-1 bg-[#091A2F] items-center justify-center p-6">
+        <StatusBar barStyle="light-content" />
+        <MotiView
+          from={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="w-full bg-white/[0.02] border border-white/10 rounded-3xl p-6 items-center"
+        >
+           <View className="w-20 h-20 rounded-full bg-amber-500/10 border border-amber-500/30 items-center justify-center mb-6">
+              <Clock size={36} color="#FBBF24" />
+           </View>
+           <Text className="text-white font-extrabold text-2xl text-center mb-3">
+             Tempo Esgotado
+           </Text>
+           <Text className="text-white/60 text-center mb-8 text-base px-4">
+             Ainda não encontramos motoristas próximos. Deseja tentar novamente ou entrar na fila prioritária?
+           </Text>
 
-          <TouchableOpacity style={styles.retryButton} onPress={handleRetry} activeOpacity={0.85}>
-            <MaterialIcons name="refresh" size={20} color={colors.background.primary} />
-            <Text style={styles.retryText}>Buscar novamente</Text>
-          </TouchableOpacity>
+           {/* Extended Retry Button */}
+           <TouchableOpacity 
+             onPress={handleRetry}
+             className="w-full h-14 bg-[#02de95] rounded-2xl flex-row items-center justify-center mb-3 shadow-2xl shadow-[#02de95]/20"
+           >
+             <RefreshCcw size={18} color="#091A2F" className="mr-2" />
+             <Text className="text-[#091A2F] font-black text-base">Tentar Novamente</Text>
+           </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={{
-              width: "100%",
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: "rgba(2,222,149,0.08)",
-              borderWidth: 1,
-              borderColor: "rgba(2,222,149,0.3)",
-              paddingVertical: spacing.md,
-              borderRadius: borderRadius.md,
-              gap: spacing.sm,
-              marginBottom: spacing.sm,
-            }} 
-            onPress={handleEnterQueue} 
-            activeOpacity={0.85}
-            disabled={enteringQueue}
-          >
-            <MaterialIcons name="hourglass-empty" size={18} color="#02de95" />
-            <Text style={{ color: "#02de95", fontSize: fontSize.base, fontWeight: "bold" }}>
-              {enteringQueue ? "Ativando fila..." : "Deixar na fila de espera"}
-            </Text>
-          </TouchableOpacity>
+           {/* Active Queue Integration */}
+           <TouchableOpacity 
+             onPress={handleEnterQueue}
+             disabled={enteringQueue}
+             className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl flex-row items-center justify-center mb-6"
+           >
+             {enteringQueue ? (
+               <ActivityIndicator color="#FFF" />
+             ) : (
+               <>
+                 <Settings size={18} color="#FFF" className="mr-2" />
+                 <Text className="text-white font-bold text-base">Entrar na Fila Pública</Text>
+               </>
+             )}
+           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.adjustButton}
-            onPress={handleAdjustRequest}
-            activeOpacity={0.85}
-            disabled={adjusting}
-          >
-            <MaterialIcons name="tune" size={18} color={colors.text.primary} />
-            <Text style={styles.adjustText}>{adjusting ? "Abrindo ajustes..." : "Ajustar pedido"}</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.cancelLink} onPress={handleCancel} activeOpacity={0.85}>
-            <Text style={styles.cancelLinkText}>Cancelar e voltar para início</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (waitingInQueue) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.content}>
-          <Text style={styles.stepLabel}>FILA DE ESPERA ATIVA</Text>
-
-          <Animated.View style={[styles.pulseCircle, { transform: [{ scale: pulseAnim }], borderColor: "rgba(2,222,149,0.4)", backgroundColor: "rgba(2,222,149,0.12)" }]}>
-            <MaterialIcons name="hourglass-empty" size={46} color="#02de95" />
-          </Animated.View>
-
-          <Text style={styles.title}>Pedido em espera</Text>
-          <Text style={[styles.subtitle, { paddingHorizontal: 10, marginBottom: 8 }]}>
-            Seu pedido foi colocado na Fila de Espera pública de entregas. Todos os motoristas e motoboys da cidade estão visualizando-o e podem aceitar a qualquer momento!
-          </Text>
-          
-          <Text style={{ color: "rgba(255,255,255,0.65)", fontSize: 13, textAlign: "center", paddingHorizontal: 24, lineHeight: 18, marginBottom: 12 }}>
-            💡 <Text style={{ fontWeight: "bold", color: "#fff" }}>Como funciona:</Text> Os motoristas próximos serão alertados periodicamente sobre sua entrega para que possam aceitar.
-          </Text>
-
-          <TouchableOpacity
-            style={{
-              backgroundColor: "rgba(2,222,149,0.12)",
-              borderColor: "rgba(2,222,149,0.35)",
-              borderWidth: 1,
-              paddingHorizontal: 14,
-              paddingVertical: 8,
-              borderRadius: 20,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 6,
-              marginBottom: 16,
-            }}
-            activeOpacity={0.8}
-            onPress={() => {
-              doneRef.current = true;
-              cleanup();
-              navigation.navigate("Settings");
-            }}
-          >
-            <MaterialIcons name="settings" size={16} color="#02de95" />
-            <Text style={{ color: "#02de95", fontSize: 12, fontWeight: "bold" }}>
-              Ajustar frequência nas Configurações
-            </Text>
-          </TouchableOpacity>
-
-          <View style={[styles.timerCard, { borderColor: "rgba(2,222,149,0.4)", backgroundColor: "rgba(2,222,149,0.08)" }]}>
-            <Text style={styles.timerHint}>Aguardando aceitação...</Text>
-            <View style={styles.timerRow}>
-              <MaterialIcons name="visibility" size={20} color="#02de95" style={{ marginRight: 4 }} />
-              <Text style={[styles.timerValue, { fontSize: 20 }]}>Visível no Mapa</Text>
-            </View>
-          </View>
-
-          <TouchableOpacity 
-            style={{
-              width: "80%",
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: colors.primary[500],
-              paddingVertical: spacing.md,
-              borderRadius: borderRadius.md,
-              gap: spacing.sm,
-              marginBottom: spacing.md,
-            }} 
-            onPress={() => {
-              doneRef.current = true;
-              cleanup();
-              Toast.show({
-                type: "success",
-                text1: "Pedido ativo em segundo plano!",
-                text2: "Você pode acompanhá-lo no menu 'Minhas Corridas'."
-              });
-              navigation.reset({ index: 0, routes: [{ name: "Home" }] });
-            }} 
-            activeOpacity={0.85}
-          >
-            <MaterialIcons name="home" size={20} color={colors.background.primary} />
-            <Text style={{ color: colors.background.primary, fontSize: fontSize.base, fontWeight: "bold" }}>
-              Voltar para o início
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.cancelFab} onPress={handleCancel} disabled={cancelling} activeOpacity={0.85}>
-            <Text style={styles.cancelFabText}>{cancelling ? "Cancelando..." : "Cancelar busca"}</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        <Text style={styles.stepLabel}>ETAPA 4 DE 4</Text>
-
-        <Animated.View style={[styles.pulseCircle, { transform: [{ scale: pulseAnim }] }]}>
-          <MaterialIcons name="local-taxi" size={46} color={colors.primary[500]} />
-        </Animated.View>
-
-        <Text style={styles.title}>Buscando motorista</Text>
-        <Text style={styles.subtitle}>Estamos notificando os motoristas mais proximos.</Text>
-
-        <View style={styles.timerCard}>
-          <Text style={styles.timerHint}>Tempo de busca</Text>
-          <View style={styles.timerRow}>
-            <Text style={styles.timerValue}>{secondsLeft}</Text>
-            <Text style={styles.timerUnit}>s</Text>
-          </View>
-        </View>
-
-        {!!error && (
-          <View style={styles.errorRow}>
-            <MaterialIcons name="info-outline" size={16} color="#fbbf24" />
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        )}
-
-        {networkUnstable && (
-          <TouchableOpacity style={styles.reconnectBtn} onPress={handleRetry} activeOpacity={0.85}>
-            <MaterialIcons name="wifi" size={16} color={colors.text.primary} />
-            <Text style={styles.reconnectText}>Tentar reconectar agora</Text>
-          </TouchableOpacity>
-        )}
-
-        <TouchableOpacity style={styles.cancelFab} onPress={handleCancel} disabled={cancelling} activeOpacity={0.85}>
-          <Text style={styles.cancelFabText}>{cancelling ? "Cancelando..." : "Cancelar busca"}</Text>
-        </TouchableOpacity>
+           <TouchableOpacity onPress={handleCancel} className="mt-2">
+             <Text className="text-red-500 font-black text-sm uppercase tracking-widest">Cancelar Solicitação</Text>
+           </TouchableOpacity>
+        </MotiView>
       </View>
-    </SafeAreaView>
+    );
+  }
+
+  // Logic for rendering HARD terminal fallback states elegantly with nativewind 🍃
+  if (queueCancelled) {
+    return (
+      <View className="flex-1 bg-[#091A2F] items-center justify-center p-6">
+        <StatusBar barStyle="light-content" />
+        <MotiView
+          from={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="w-full bg-white/[0.02] border border-white/10 rounded-3xl p-6 items-center"
+        >
+           <View className="w-20 h-20 rounded-full bg-amber-500/10 border border-amber-500/30 items-center justify-center mb-6">
+              <AlertTriangle size={36} color="#F59E0B" />
+           </View>
+           <Text className="text-white font-extrabold text-2xl text-center mb-3">
+             Busca Finalizada
+           </Text>
+           <Text className="text-white/60 text-center mb-8 text-base">
+             Não foi possível estabelecer conexão a tempo. Sua solicitação foi removida da fila ativa.
+           </Text>
+
+           <TouchableOpacity 
+             onPress={() => navigation.reset({ index: 0, routes: [{ name: "Home" }] })}
+             className="w-full h-14 bg-[#02de95] rounded-2xl flex-row items-center justify-center mb-4"
+           >
+             <Home size={18} color="#091A2F" className="mr-2" />
+             <Text className="text-[#091A2F] font-bold text-base">Voltar para Início</Text>
+           </TouchableOpacity>
+
+           <TouchableOpacity onPress={handleCancel} className="mt-4">
+             <Text className="text-red-500 font-bold text-sm">Sair</Text>
+           </TouchableOpacity>
+        </MotiView>
+      </View>
+    );
+  }
+
+  // 🚀 MAIN RENDER: HIGH FIDELITY RADAR MAP VIEWPORT 
+  return (
+    <GestureHandlerRootView className="flex-1 bg-[#091A2F]">
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      
+      {/* Floating Glass Header */}
+      <SearchingHeader 
+        onBack={handleCancel}
+        secondsLeft={secondsLeft}
+        networkUnstable={networkUnstable}
+      />
+
+      {/* Background Deep Mapping Topology */}
+      <MapView
+        ref={mapRef}
+        style={{ flex: 1 }}
+        provider={PROVIDER_GOOGLE}
+        customMapStyle={darkMapStyle}
+        pitchEnabled={false}
+        rotateEnabled={false}
+        initialRegion={pickupCoords ? {
+          latitude: pickupCoords.latitude,
+          longitude: pickupCoords.longitude,
+          latitudeDelta: 0.015,
+          longitudeDelta: 0.015,
+        } : undefined}
+      >
+        {pickupCoords && (
+          <>
+            {/* Center Radar Pulse Overlay (Mounted on Anchor) */}
+            <Marker 
+              coordinate={{ 
+                latitude: pickupCoords.latitude, 
+                longitude: pickupCoords.longitude 
+              }}
+              anchor={{ x: 0.5, y: 0.5 }}
+              flat
+            >
+              <RadarScanner size={500} />
+            </Marker>
+
+            {/* Simulated Realtime Nearby Layer 🛰️ */}
+            <NearbyDriversLayer drivers={drivers} />
+          </>
+        )}
+      </MapView>
+
+      {/* Realtime Dynamic System Error Banner (Inline) */}
+      {!!error && (
+        <MotiView 
+          from={{ opacity: 0, translateY: 50 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          className="absolute bottom-[40%] left-6 right-6 bg-amber-500/90 rounded-2xl p-4 flex-row items-center z-20"
+        >
+          <Info size={20} color="#FFF" className="mr-3" />
+          <Text className="text-white font-bold flex-1 text-sm">{error}</Text>
+        </MotiView>
+      )}
+
+      {/* Integrated Logistics Control Panel */}
+      <DeliverySearchBottomSheet
+        feedMessage={feedMessage}
+        offerValue={rideData?.pricing?.total || rideData?.offeredValue || 0}
+        vehicleType={rideData?.vehicleType || "motorcycle"}
+        pickupAddress={rideData?.pickup?.address}
+        dropoffAddress={rideData?.dropoff?.address}
+        onCancel={handleCancel}
+        cancelling={cancelling}
+        searchState={searchState}
+        secondsElapsed={secondsElapsed}
+        distanceText={rideData?.distance?.text}
+        durationText={rideData?.duration?.text}
+      />
+      
+    </GestureHandlerRootView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background.primary },
-  content: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: spacing.xl,
-  },
-  stepLabel: {
-    color: colors.text.tertiary,
-    fontSize: fontSize.xs,
-    fontWeight: fontWeight.bold,
-    letterSpacing: 1,
-    marginBottom: spacing.lg,
-  },
-  pulseCircle: {
-    width: 108,
-    height: 108,
-    borderRadius: 54,
-    backgroundColor: "rgba(2,222,149,0.1)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: spacing.xl,
-    borderWidth: 2,
-    borderColor: "rgba(2,222,149,0.25)",
-  },
-  title: {
-    color: colors.text.primary,
-    fontSize: fontSize["2xl"],
-    fontWeight: fontWeight.bold,
-    marginBottom: spacing.xs,
-  },
-  subtitle: {
-    color: colors.text.tertiary,
-    fontSize: fontSize.base,
-    textAlign: "center",
-    marginBottom: spacing.xl,
-    lineHeight: 22,
-  },
-  timerCard: {
-    width: "100%",
-    maxWidth: 260,
-    alignItems: "center",
-    borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    borderColor: "rgba(2,222,149,0.24)",
-    backgroundColor: "rgba(2,222,149,0.08)",
-    paddingVertical: spacing.md,
-    marginBottom: spacing.lg,
-  },
-  timerHint: {
-    color: colors.text.tertiary,
-    fontSize: fontSize.xs,
-    marginBottom: 2,
-  },
-  timerRow: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    gap: 4,
-  },
-  timerValue: {
-    color: colors.primary[500],
-    fontSize: 34,
-    fontWeight: fontWeight.bold,
-  },
-  timerUnit: {
-    color: colors.primary[500],
-    fontSize: fontSize.base,
-    fontWeight: fontWeight.semibold,
-  },
-  errorRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-    marginBottom: spacing.lg,
-    paddingHorizontal: spacing.md,
-  },
-  errorText: { color: "#fbbf24", fontSize: fontSize.sm, textAlign: "center" },
-  cancelFab: {
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.full,
-    borderWidth: 1,
-    borderColor: "rgba(239,68,68,0.4)",
-    backgroundColor: "rgba(239,68,68,0.08)",
-  },
-  reconnectBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.22)",
-    borderRadius: borderRadius.full,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    marginBottom: spacing.md,
-  },
-  reconnectText: {
-    color: colors.text.primary,
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.semibold,
-  },
-  cancelFabText: {
-    color: "#ef4444",
-    fontSize: fontSize.base,
-    fontWeight: fontWeight.bold,
-  },
-  timeoutCard: {
-    flex: 1,
-    margin: spacing.lg,
-    borderRadius: borderRadius.xl,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-    backgroundColor: "rgba(12,25,39,0.96)",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: spacing.xl,
-  },
-  timeoutIconWrap: {
-    width: 86,
-    height: 86,
-    borderRadius: 43,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(251,191,36,0.12)",
-    borderWidth: 1,
-    borderColor: "rgba(251,191,36,0.32)",
-    marginBottom: spacing.lg,
-  },
-  timeoutTitle: {
-    color: colors.text.primary,
-    fontSize: fontSize.xl,
-    fontWeight: fontWeight.bold,
-    marginBottom: spacing.sm,
-    textAlign: "center",
-  },
-  timeoutSub: {
-    color: colors.text.tertiary,
-    fontSize: fontSize.base,
-    textAlign: "center",
-    marginBottom: spacing.xl,
-    lineHeight: 22,
-  },
-  retryButton: {
-    width: "100%",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.primary[500],
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.md,
-    gap: spacing.sm,
-    marginBottom: spacing.sm,
-  },
-  retryText: {
-    color: colors.background.primary,
-    fontSize: fontSize.base,
-    fontWeight: fontWeight.bold,
-  },
-  adjustButton: {
-    width: "100%",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.18)",
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.md,
-    gap: spacing.sm,
-    marginBottom: spacing.sm,
-  },
-  adjustText: {
-    color: colors.text.primary,
-    fontSize: fontSize.base,
-    fontWeight: fontWeight.semibold,
-  },
-  cancelLink: {
-    marginTop: spacing.xs,
-    paddingVertical: spacing.sm,
-  },
-  cancelLinkText: {
-    color: "#ef4444",
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.semibold,
-  },
-});

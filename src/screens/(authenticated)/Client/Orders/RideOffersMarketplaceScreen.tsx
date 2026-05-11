@@ -1,23 +1,26 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import React, { useCallback, useEffect, useMemo, useState, useRef } from "react";
+import { View, Text, TouchableOpacity, StatusBar, Dimensions } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import Toast from "react-native-toast-message";
-import { MaterialIcons } from "@expo/vector-icons";
+import MapView, { PROVIDER_GOOGLE, Marker } from "react-native-maps";
+import MapViewDirections from "react-native-maps-directions";
+import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { MotiView, AnimatePresence } from "moti";
+import { Search, AlertCircle, RefreshCw, MapPin } from "lucide-react-native";
 
-import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
 import rideService, { RideOffer } from "@/services/ride.service";
+import { darkMapStyle } from "@/utils/mapStyle";
 import { formatBRL } from "@/utils/mappers";
 
-function resolveDriverId(offer: RideOffer) {
-  if (typeof offer.driverId === "string") return offer.driverId;
-  return offer.driverId?._id || "";
-}
+// Custom Premium Hooks & Components ✨
+import { MarketplaceHeader } from "@/components/client/offers/MarketplaceHeader";
+import { DriverOfferListItem } from "@/components/client/offers/DriverOfferListItem";
+import { NearbyDriversLayer } from "@/components/client/searching-delivery/NearbyDriversLayer";
+import { useRealtimeDelivery } from "@/hooks/useRealtimeDelivery";
 
-function resolveDriverName(offer: RideOffer) {
-  if (typeof offer.driverId === "string") return "Motorista";
-  return offer.driverId?.name || "Motorista";
-}
+const GOOGLE_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || "";
+const { width, height } = Dimensions.get("window");
 
 export default function RideOffersMarketplaceScreen() {
   const navigation = useNavigation<any>();
@@ -25,61 +28,85 @@ export default function RideOffersMarketplaceScreen() {
   const rideId = String(route.params?.rideId || "");
 
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [selectingId, setSelectingId] = useState<string | null>(null);
+  
+  const [rideDetails, setRideDetails] = useState<any>(null);
   const [negotiation, setNegotiation] = useState<any>(null);
   const [offers, setOffers] = useState<RideOffer[]>([]);
 
-  const load = useCallback(async () => {
+  const mapRef = useRef<MapView>(null);
+  const bottomSheetRef = useRef<BottomSheet>(null);
+  
+  const snapPoints = useMemo(() => ["45%", "90%"], []);
+
+  // Fetch Ride Data for Map Orientation 🗺️
+  const loadRideDetails = useCallback(async () => {
+    try {
+      const details = await rideService.getById(rideId);
+      setRideDetails(details);
+    } catch (e) {
+      console.log("Failed loading ride context for map", e);
+    }
+  }, [rideId]);
+
+  // Live Bidding Fetch Function 💸
+  const loadOffers = useCallback(async () => {
     if (!rideId) return;
     const data = await rideService.getOffers(rideId);
     setNegotiation(data.negotiation);
-    setOffers((data.offers || []).filter((offer) => offer.status !== "rejected"));
+    setOffers((data.offers || []).filter((o) => o.status !== "rejected"));
   }, [rideId]);
+
+  // Init Sequences
+  useEffect(() => {
+    loadRideDetails();
+  }, [loadRideDetails]);
 
   useEffect(() => {
     let mounted = true;
-
-    (async () => {
+    
+    const init = async () => {
       try {
-        await load();
+        await loadOffers();
       } catch (e: any) {
-        if (!mounted) return;
-        Toast.show({
-          type: "error",
-          text1: "Erro ao carregar ofertas",
-          text2: e?.response?.data?.error || e?.message || "Tente novamente",
-        });
+        if (mounted) {
+          Toast.show({ type: "error", text1: "Erro", text2: "Falha ao atualizar propostas." });
+        }
       } finally {
         if (mounted) setLoading(false);
       }
-    })();
+    };
+    
+    init();
 
+    // Continuous Active Auction Polling 🔁
     const interval = setInterval(() => {
-      load().catch(() => {});
-    }, 8000);
+      loadOffers().catch(() => {});
+    }, 6000);
 
     return () => {
       mounted = false;
       clearInterval(interval);
     };
-  }, [load]);
+  }, [loadOffers]);
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    try {
-      await load();
-    } finally {
-      setRefreshing(false);
-    }
-  };
+  // Simulate visual traffic near the pickup while negotiating 🛰️
+  const pickup = rideDetails?.pickup;
+  const dropoff = rideDetails?.dropoff;
+  
+  const { drivers } = useRealtimeDelivery(
+    pickup?.latitude,
+    pickup?.longitude,
+    rideDetails?.vehicleType || "motorcycle"
+  );
 
   const sortedOffers = useMemo(() => {
+    // Sort by cheapest first
     return [...offers].sort((a, b) => Number(a.amount || 0) - Number(b.amount || 0));
   }, [offers]);
 
-  const selectOffer = async (offer: RideOffer) => {
-    const driverId = resolveDriverId(offer);
+  const handleSelectOffer = async (offer: RideOffer) => {
+    const driverId = typeof offer.driverId === "string" ? offer.driverId : offer.driverId?._id;
     if (!driverId) return;
 
     setSelectingId(driverId);
@@ -87,140 +114,160 @@ export default function RideOffersMarketplaceScreen() {
       await rideService.selectOffer(rideId, driverId);
       Toast.show({
         type: "success",
-        text1: "Oferta selecionada",
-        text2: "Aguardando confirmacao do motorista.",
+        text1: "Proposta aceita!",
+        text2: "Aguardando a conexão com o entregador.",
       });
+      // Automatically transition to full live tracking or search success container
       navigation.navigate("SearchingDriver", { rideId });
     } catch (e: any) {
       Toast.show({
         type: "error",
-        text1: "Falha ao selecionar oferta",
-        text2: e?.response?.data?.error || e?.message || "Tente novamente",
+        text1: "Falha ao selecionar",
+        text2: e?.response?.data?.error || "Tente novamente.",
       });
-    } finally {
       setSelectingId(null);
     }
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <MaterialIcons name="arrow-back" size={22} color="#fff" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Ofertas de motoristas</Text>
-        <View style={{ width: 42 }} />
-      </View>
+    <GestureHandlerRootView className="flex-1 bg-[#091A2F]">
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
-      <ScrollView
-        contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary[500]} />}
+      {/* 🌁 Floating Glass Marketplace HUD */}
+      <MarketplaceHeader 
+        onBack={() => navigation.goBack()} 
+        offerCount={sortedOffers.length} 
+      />
+
+      {/* 🗺️ Full Screen Dynamic Topographic Map */}
+      <MapView
+        ref={mapRef}
+        style={{ width, height }}
+        provider={PROVIDER_GOOGLE}
+        customMapStyle={darkMapStyle}
+        initialRegion={pickup ? {
+          latitude: pickup.latitude,
+          longitude: pickup.longitude,
+          latitudeDelta: 0.02,
+          longitudeDelta: 0.02,
+        } : undefined}
       >
-        <View style={styles.hero}>
-          <Text style={styles.heroLabel}>Sua oferta</Text>
-          <Text style={styles.heroValue}>{formatBRL(Number(negotiation?.clientOffer || 0))}</Text>
-          <Text style={styles.heroSub}>
-            Minimo sugerido pelo app para motoristas: {formatBRL(Number(negotiation?.suggestedMinPrice || 0))}
-          </Text>
+        {pickup && dropoff && (
+          <>
+            {/* Main Pickup / Dropoff Vector Pipeline 🛣️ */}
+            <MapViewDirections
+              origin={{ latitude: pickup.latitude, longitude: pickup.longitude }}
+              destination={{ latitude: dropoff.latitude, longitude: dropoff.longitude }}
+              apikey={GOOGLE_API_KEY}
+              strokeWidth={4}
+              strokeColor="#02de95"
+              lineDashPattern={[0]} // Solid tech line
+              mode="DRIVING"
+              onReady={(result) => {
+                mapRef.current?.fitToCoordinates(result.coordinates, {
+                  edgePadding: { top: 140, right: 50, bottom: 380, left: 50 },
+                  animated: true,
+                });
+              }}
+            />
+
+            {/* Origin Pointer */}
+            <Marker coordinate={{ latitude: pickup.latitude, longitude: pickup.longitude }}>
+               <View className="w-8 h-8 items-center justify-center">
+                  <View className="w-5 h-5 bg-[#02de95] rounded-full border-2 border-[#091A2F] shadow-lg" />
+               </View>
+            </Marker>
+
+            {/* Destination Pointer */}
+            <Marker coordinate={{ latitude: dropoff.latitude, longitude: dropoff.longitude }}>
+               <View className="w-8 h-8 items-center justify-center">
+                  <View className="w-5 h-5 bg-red-500 rounded-full border-2 border-[#091A2F] shadow-lg" />
+               </View>
+            </Marker>
+
+            {/* Live Dynamic Negotiation Traffic 🛰️ */}
+            <NearbyDriversLayer drivers={drivers} />
+          </>
+        )}
+      </MapView>
+
+      {/* 🗂️ Bottom Sliding Ledger (Trading Desk) */}
+      <BottomSheet
+        ref={bottomSheetRef}
+        index={0}
+        snapPoints={snapPoints}
+        backgroundStyle={{ backgroundColor: "#0B1A2A", borderRadius: 36 }}
+        handleIndicatorStyle={{ backgroundColor: "rgba(255,255,255,0.15)", width: 40, height: 5 }}
+      >
+        
+        {/* Section 1: Internal Static Header within Sheet */}
+        <View className="px-6 py-3 border-b border-white/[0.04] flex-row items-center justify-between">
+          <View>
+            <Text className="text-white/40 text-[10px] font-black uppercase tracking-wider mb-0.5">
+              Sua Proposta Base
+            </Text>
+            <Text className="text-white font-bold text-xl">
+              {formatBRL(Number(negotiation?.clientOffer || 0))}
+            </Text>
+          </View>
+          
+          <View className="bg-[#02de95]/10 rounded-xl px-3 py-1.5 border border-[#02de95]/20 flex-row items-center">
+            <Search size={12} color="#02de95" className="mr-1.5" />
+            <Text className="text-[#02de95] text-xs font-bold">
+              Negociação Ativa
+            </Text>
+          </View>
         </View>
 
-        {loading ? (
-          <View style={styles.emptyCard}><Text style={styles.emptyText}>Carregando ofertas...</Text></View>
-        ) : sortedOffers.length === 0 ? (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>Sem ofertas por enquanto</Text>
-            <Text style={styles.emptyText}>Aguarde alguns instantes e atualize para ver novas propostas.</Text>
-          </View>
-        ) : (
-          sortedOffers.map((offer) => {
-            const driverId = resolveDriverId(offer);
-            const selected = selectingId === driverId;
-            return (
-              <View key={`${driverId}-${offer.createdAt || "offer"}`} style={styles.offerCard}>
-                <View style={styles.offerTop}>
-                  <Text style={styles.driverName}>{resolveDriverName(offer)}</Text>
-                  <Text style={styles.offerAmount}>{formatBRL(Number(offer.amount || 0))}</Text>
+        {/* Section 2: Scrollable Offers Matrix 🧬 */}
+        <BottomSheetScrollView contentContainerStyle={{ padding: 24, paddingBottom: 40 }}>
+          
+          <AnimatePresence>
+            {loading ? (
+              <MotiView 
+                from={{ opacity: 0 }} animate={{ opacity: 1 }} 
+                className="py-12 items-center justify-center"
+              >
+                <RefreshCw size={24} color="#02de95" className="animate-spin" />
+                <Text className="text-white/60 text-sm font-medium mt-4">
+                  Sincronizando marketplace...
+                </Text>
+              </MotiView>
+            ) : sortedOffers.length === 0 ? (
+              <MotiView 
+                from={{ opacity: 0, scale: 0.95 }} 
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-white/[0.02] border border-white/10 rounded-3xl p-8 items-center justify-center"
+              >
+                <View className="w-16 h-16 bg-amber-500/10 border border-amber-500/20 rounded-full items-center justify-center mb-5">
+                   <AlertCircle size={28} color="#FBBF24" />
                 </View>
-                <Text style={styles.offerStatus}>Tipo: {offer.status === "accepted" ? "Aceitou sua oferta" : "Contraoferta"}</Text>
-                {!!offer.message && <Text style={styles.offerMessage}>{offer.message}</Text>}
+                <Text className="text-white font-bold text-lg mb-2">
+                  Aguardando Propostas
+                </Text>
+                <Text className="text-white/50 text-center text-sm leading-relaxed">
+                  Os entregadores da região estão visualizando sua oferta agora. Em breve as propostas aparecerão aqui.
+                </Text>
+              </MotiView>
+            ) : (
+              sortedOffers.map((offer, idx) => {
+                const dId = typeof offer.driverId === "string" ? offer.driverId : offer.driverId?._id || `${idx}`;
+                return (
+                  <DriverOfferListItem
+                    key={`${dId}-${idx}`}
+                    offer={offer}
+                    clientBudget={Number(negotiation?.clientOffer || 0)}
+                    loading={selectingId === dId}
+                    onSelect={handleSelectOffer}
+                  />
+                );
+              })
+            )}
+          </AnimatePresence>
 
-                <TouchableOpacity
-                  style={styles.selectBtn}
-                  onPress={() => selectOffer(offer)}
-                  disabled={selected}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.selectText}>{selected ? "Selecionando..." : "Selecionar esta oferta"}</Text>
-                </TouchableOpacity>
-              </View>
-            );
-          })
-        )}
-      </ScrollView>
-    </SafeAreaView>
+        </BottomSheetScrollView>
+      </BottomSheet>
+      
+    </GestureHandlerRootView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background.primary },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-  },
-  backBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerTitle: { color: colors.text.primary, fontSize: fontSize.lg, fontWeight: fontWeight.bold },
-  content: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing["3xl"] },
-  hero: {
-    backgroundColor: colors.background.secondary,
-    borderWidth: 1,
-    borderColor: colors.border.light,
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-  },
-  heroLabel: { color: colors.text.tertiary, fontSize: fontSize.xs, textTransform: "uppercase" },
-  heroValue: { color: colors.primary[500], fontSize: 34, fontWeight: fontWeight.bold, marginTop: spacing.xs },
-  heroSub: { color: colors.text.secondary, fontSize: fontSize.sm, marginTop: spacing.xs },
-  emptyCard: {
-    backgroundColor: colors.background.secondary,
-    borderWidth: 1,
-    borderColor: colors.border.light,
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-  },
-  emptyTitle: { color: colors.text.primary, fontWeight: fontWeight.bold, fontSize: fontSize.base },
-  emptyText: { color: colors.text.tertiary, marginTop: spacing.xs },
-  offerCard: {
-    backgroundColor: colors.background.secondary,
-    borderWidth: 1,
-    borderColor: colors.border.light,
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-    gap: spacing.xs,
-  },
-  offerTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  driverName: { color: colors.text.primary, fontWeight: fontWeight.bold, fontSize: fontSize.base },
-  offerAmount: { color: colors.primary[500], fontWeight: fontWeight.bold, fontSize: fontSize.lg },
-  offerStatus: { color: colors.text.secondary, fontSize: fontSize.sm },
-  offerMessage: { color: colors.text.tertiary, fontSize: fontSize.sm },
-  selectBtn: {
-    marginTop: spacing.sm,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
-    backgroundColor: "rgba(2,222,149,0.16)",
-    borderWidth: 1,
-    borderColor: "rgba(2,222,149,0.4)",
-  },
-  selectText: { color: colors.text.primary, fontWeight: fontWeight.bold },
-});

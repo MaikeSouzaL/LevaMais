@@ -22,6 +22,11 @@ type RideRequestItem = {
   duration?: { text?: string };
   serviceType?: string;
   vehicleType?: string;
+  details?: {
+    itemType?: string;
+    priority?: number;
+    specialInstructions?: string;
+  };
   negotiation?: {
     enabled?: boolean;
     clientOffer?: number | null;
@@ -101,6 +106,7 @@ export default function DriverRequestsScreen() {
             duration: item.duration,
             serviceType: item.serviceType,
             vehicleType: item.vehicleType,
+            details: item.details,
             negotiation: item.negotiation,
           })),
         );
@@ -164,6 +170,7 @@ export default function DriverRequestsScreen() {
         duration: payload?.duration,
         serviceType: payload?.serviceType,
         vehicleType: payload?.vehicleType,
+        details: payload?.details,
         negotiation: payload?.negotiation,
       };
 

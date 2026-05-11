@@ -37,7 +37,7 @@ async function authenticateToken(req, res, next) {
 
     const user = await resolveUserFromToken(token);
     if (!user) {
-      return res.status(403).json({
+      return res.status(401).json({
         success: false,
         message: "Token invalido, expirado ou usuario inativo",
       });
@@ -109,7 +109,7 @@ async function requireAdmin(req, res, next) {
 
     const user = await resolveUserFromToken(token);
     if (!user) {
-      return res.status(403).json({
+      return res.status(401).json({
         success: false,
         message: "Token invalido, expirado ou usuario inativo",
       });

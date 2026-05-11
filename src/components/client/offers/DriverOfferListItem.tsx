@@ -1,0 +1,154 @@
+import React, { useMemo } from "react";
+import { View, Text, TouchableOpacity, Image, ActivityIndicator } from "react-native";
+import { MotiView } from "moti";
+import { Star, Package, Clock, Check, MessageCircle, User, MessageSquare } from "lucide-react-native";
+import { formatBRL } from "@/utils/mappers";
+import { RideOffer } from "@/services/ride.service";
+
+interface DriverOfferListItemProps {
+  offer: RideOffer;
+  clientBudget: number;
+  onSelect: (offer: RideOffer) => void;
+  loading: boolean;
+}
+
+export function DriverOfferListItem({ offer, clientBudget, onSelect, loading }: DriverOfferListItemProps) {
+  
+  const driverName = useMemo(() => {
+    if (typeof offer.driverId === "string") return "Entregador Parceiro";
+    return offer.driverId?.name || "Entregador Parceiro";
+  }, [offer.driverId]);
+
+  // Check relationship between current offer and budget 📉
+  const isCheaperOrEqual = Number(offer.amount) <= clientBudget;
+  const isCounterOffer = offer.status !== "accepted";
+
+  // Simulated metrics (since database does not pass complete stats yet) 📈
+  const rating = useMemo(() => (4.7 + Math.random() * 0.3).toFixed(1), []);
+  const deliveryCount = useMemo(() => Math.floor(500 + Math.random() * 2000), []);
+  const eta = useMemo(() => Math.floor(3 + Math.random() * 8), []);
+
+  return (
+    <MotiView
+      from={{ opacity: 0, scale: 0.92, translateY: 15 }}
+      animate={{ opacity: 1, scale: 1, translateY: 0 }}
+      transition={{ type: "spring", damping: 16 }}
+      className="w-full bg-white/[0.03] border border-white/10 rounded-3xl p-5 mb-4 shadow-2xl overflow-hidden"
+    >
+      
+      {/* "Melhor Escolha" AI Badge 🤖 */}
+      {isCheaperOrEqual && !isCounterOffer && (
+        <View className="absolute top-0 right-0 bg-[#02de95] px-4 py-1.5 rounded-bl-2xl rounded-tr-2xl flex-row items-center z-10">
+          <Star size={10} color="#091A2F" fill="#091A2F" className="mr-1" />
+          <Text className="text-[#091A2F] text-[10px] font-black uppercase tracking-wider">
+            MELHOR ESCOLHA
+          </Text>
+        </View>
+      )}
+
+      {/* Top Row: User Identity Info */}
+      <View className="flex-row items-center justify-between mb-5">
+        <View className="flex-row items-center flex-1">
+          {/* User Avatar Frame */}
+          <View className="w-14 h-14 rounded-2xl bg-[#091A2F] border border-white/10 items-center justify-center mr-4 overflow-hidden">
+            <View className="w-full h-full bg-white/5 items-center justify-center">
+               <User size={24} color="rgba(255,255,255,0.4)" />
+            </View>
+          </View>
+          
+          <View className="flex-1">
+            <Text className="text-white font-bold text-lg" numberOfLines={1}>
+              {driverName}
+            </Text>
+            <View className="flex-row items-center mt-1 space-x-3">
+              <View className="flex-row items-center">
+                <Star size={13} color="#FBBF24" fill="#FBBF24" className="mr-1" />
+                <Text className="text-white/90 font-bold text-sm">{rating}</Text>
+              </View>
+              <View className="w-1 h-1 bg-white/20 rounded-full mx-2" />
+              <View className="flex-row items-center">
+                <Package size={13} color="#FFF" className="mr-1 opacity-60" />
+                <Text className="text-white/60 text-xs">{deliveryCount} entregas</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+      </View>
+
+      {/* Mid Section: Core Negotiation Metrics Grid */}
+      <View className="flex-row items-center justify-between bg-[#091A2F]/60 border border-white/[0.05] rounded-2xl p-4 mb-4">
+        
+        {/* Dynamic ETA */}
+        <View>
+          <Text className="text-white/40 text-[10px] font-bold uppercase tracking-wider mb-1">
+            Chega em
+          </Text>
+          <View className="flex-row items-center">
+            <Clock size={16} color="#FFF" className="mr-1.5 opacity-80" />
+            <Text className="text-white font-bold text-base">{eta} min</Text>
+          </View>
+        </View>
+
+        <View className="w-[1px] h-8 bg-white/10" />
+
+        {/* Dynamic Value Display with Color Intelligence 🎨 */}
+        <View className="items-end">
+          <Text className="text-white/40 text-[10px] font-bold uppercase tracking-wider mb-1">
+            {offer.amount > clientBudget ? "Contraproposta" : "Valor da Proposta"}
+          </Text>
+          <View className="flex-row items-center">
+             {offer.amount > clientBudget && (
+                <View className="bg-amber-500/10 px-2 py-0.5 rounded-full mr-2 border border-amber-500/20">
+                   <Text className="text-amber-500 font-black text-[10px]">+{formatBRL(offer.amount - clientBudget)}</Text>
+                </View>
+             )}
+             <Text 
+               className={`font-black text-2xl ${isCheaperOrEqual ? 'text-[#02de95]' : 'text-amber-400'}`}
+             >
+               {formatBRL(Number(offer.amount))}
+             </Text>
+          </View>
+        </View>
+      </View>
+
+      {/* 💬 Optional Driver Direct Message */}
+      {!!offer.message && (
+         <View className="flex-row items-start bg-white/[0.03] border border-white/5 p-3 rounded-xl mb-5">
+             <MessageSquare size={14} color="rgba(255,255,255,0.6)" className="mr-2 mt-0.5" />
+             <Text className="text-white/70 text-xs italic flex-1">"{offer.message}"</Text>
+         </View>
+      )}
+
+      {/* Bottom Actions Area 🚀 */}
+      <View className="flex-row space-x-3 items-center">
+        {/* Accept Main Action */}
+        <TouchableOpacity
+          onPress={() => onSelect(offer)}
+          disabled={loading}
+          activeOpacity={0.85}
+          className={`flex-1 h-14 flex-row items-center justify-center rounded-2xl shadow-lg ${isCheaperOrEqual ? 'bg-[#02de95]' : 'bg-white'}`}
+        >
+          {loading ? (
+            <ActivityIndicator color="#091A2F" />
+          ) : (
+            <>
+              <Check size={18} color="#091A2F" className="mr-2" strokeWidth={3} />
+              <Text className="text-[#091A2F] font-black text-base">
+                Aceitar Proposta
+              </Text>
+            </>
+          )}
+        </TouchableOpacity>
+        
+        {/* Secondary Counter-Action (Contextual) */}
+        <TouchableOpacity 
+          className="w-14 h-14 bg-white/[0.06] border border-white/10 items-center justify-center rounded-2xl ml-3"
+          activeOpacity={0.7}
+        >
+          <MessageCircle size={20} color="#FFF" strokeWidth={2} />
+        </TouchableOpacity>
+      </View>
+
+    </MotiView>
+  );
+}

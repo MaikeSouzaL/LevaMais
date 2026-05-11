@@ -19,6 +19,7 @@ import { FaceScanner } from "../../../components/driver/selfie/FaceScanner";
 
 // Core Services
 import { submitDriverVerification, registerUser } from "../../../services/auth.service";
+import userService from "../../../services/user.service";
 import { useAuthStore } from "../../../context/authStore";
 
 type VerificationState = "idle" | "capturing" | "analyzing" | "complete";
@@ -136,6 +137,17 @@ export default function DriverSelfieScreen() {
 
         activeToken = newToken;
         activeUserId = newUser._id;
+      }
+
+      // 🚀 SECONDARY FIX: Ensure valid phone number carries over to backend now that we have an explicit activeToken!
+      // We cover both Lazy Registered (above) and Pre-Auth conversions!
+      if (user.phone && activeToken) {
+        try {
+          await userService.updateProfile({ phone: user.phone }, activeToken);
+          console.log("[SelfieFlow] User phone synchronized successfully.");
+        } catch (phErr) {
+          console.warn("[SelfieFlow] Warning: Phone sync failed, proceeding anyway:", phErr);
+        }
       }
 
       // 📤 1. Bundle and build dynamic FormData with all gathered artifacts!

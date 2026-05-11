@@ -45,8 +45,9 @@ export default function Routes() {
       if (!isAuthenticated || !token) return;
 
       const needsUserType = !userType;
-      // Explicitly fetch if missing driver status for driver profiles
-      const needsUserData = !userData?.id || (userType === "driver" && !userData?.driverStatus);
+      const needsUserData = 
+        !userData?.id || 
+        (userType === "driver" && userData?.driverStatus !== "approved");
 
       if (!needsUserType && !needsUserData) return;
 

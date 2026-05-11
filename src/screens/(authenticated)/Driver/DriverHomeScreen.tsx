@@ -24,13 +24,17 @@ import { DriverBottomSheet } from "./components/DriverBottomSheet";
 import { getCurrentLocationAndAddress } from "../../../utils/location";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import { decodePolyline, LatLng } from "../../../utils/polyline";
-import { MapFabButton } from "../../../components/ui/MapFabButton";
-import { MapFabStack } from "../../../components/ui/MapFabStack";
-import { DriverMapMenuButton } from "./components/DriverMapMenuButton";
-import { DriverTopHud } from "./components/DriverTopHud";
 import { LocationLoadingScreen } from "../../../components/ui/LocationLoadingScreen";
 import MapMarker from "../../../components/MapMarker";
 import Toast from "react-native-toast-message";
+
+// 🌌 High-End Components & Modules Upgrade
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { StatusBar } from "expo-status-bar";
+import { MotiView } from "moti";
+import { MapPin, Menu, Target, Layers, ShieldAlert, Info } from "lucide-react-native";
+import { DriverStatusHeader } from "@/components/driver/home/DriverStatusHeader";
+import { IncomingRideCard } from "@/components/driver/home/IncomingRideCard";
 
 
 export default function DriverHomeScreen() {
@@ -856,8 +860,10 @@ export default function DriverHomeScreen() {
   }, [incomingRequest?.rideId]);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#091A2F" }}>
-      <View style={{ flex: 1 }}>
+    <GestureHandlerRootView className="flex-1 bg-[#091A2F]">
+      <StatusBar style="light" />
+
+      <View className="flex-1 relative">
         {!region ? (
           <LocationLoadingScreen />
         ) : (
@@ -878,8 +884,6 @@ export default function DriverHomeScreen() {
                     latitude: incomingRequest.pickup.latitude,
                     longitude: incomingRequest.pickup.longitude,
                   }}
-                  title="Coleta"
-                  description={incomingRequest.pickup.address}
                   tracksViewChanges={false}
                   anchor={{ x: 0.5, y: 1 }}
                 >
@@ -894,8 +898,6 @@ export default function DriverHomeScreen() {
                     latitude: incomingRequest.dropoff.latitude,
                     longitude: incomingRequest.dropoff.longitude,
                   }}
-                  title="Destino"
-                  description={incomingRequest.dropoff.address}
                   tracksViewChanges={false}
                   anchor={{ x: 0.5, y: 1 }}
                 >
@@ -904,9 +906,7 @@ export default function DriverHomeScreen() {
               )}
 
             {!!incomingRequest?.pickup?.latitude &&
-              !!incomingRequest?.pickup?.longitude &&
-              !!incomingRequest?.dropoff?.latitude &&
-              !!incomingRequest?.dropoff?.longitude && (
+              !!incomingRequest?.dropoff?.latitude && (
                 <Polyline
                   coordinates={
                     routeCoords.length >= 2
@@ -929,317 +929,139 @@ export default function DriverHomeScreen() {
           </GlobalMap>
         )}
 
-        {/* Botão Menu (Hambúrguer) - só aparece quando o mapa carregou */}
+        {/* 🌌 Dynamic UI Overlay Layer */}
         {!!region && (
           <>
-            <View
-              style={{ position: "absolute", top: 14, left: 14, zIndex: 60 }}
-            >
-              <DriverMapMenuButton />
+            {/* 🎛️ TOP FLOATING DASHBOARD HUD */}
+            <View className="absolute top-12 left-4 right-4 z-50 flex-row items-center gap-3">
+               
+               {/* Menu Toggle */}
+               <TouchableOpacity
+                 onPress={() => (navigation as any).openDrawer?.()}
+                 className="h-[58px] w-[58px] bg-[#091A2F]/90 rounded-2xl border border-white/10 items-center justify-center"
+               >
+                  <Menu size={24} color="#FFF" />
+               </TouchableOpacity>
+
+               {/* Driver Status & Stats Hook */}
+               <View className="flex-1">
+                 <DriverStatusHeader 
+                   todayEarnings={todayEarnings}
+                   pendingRequests={pendingRequests}
+                   scheduledCount={scheduledCount}
+                   onPressNotifications={handleNotifications}
+                   online={online}
+                 />
+               </View>
             </View>
 
-            {/* Botões flutuantes (SOS / GPS / Layers) */}
-            <MapFabStack floatingStyle={{ top: "35%", right: 14, zIndex: 60 }}>
-              <MapFabButton
-                icon="sos"
-                onPress={handleSOS}
-                size={48}
-                iconSize={22}
-                backgroundColor="rgba(239,68,68,0.18)"
-                activeBackgroundColor="rgba(239,68,68,0.28)"
-                iconColor="#ef4444"
-                accessibilityLabel="SOS"
-              />
+            {/* 📡 OPERATIONAL RIGHT WING CONTROLS */}
+            <View className="absolute right-4 top-[30%] z-40 flex-col gap-3">
+               {/* SOS Panic */}
+               <TouchableOpacity 
+                 onPress={handleSOS}
+                 className="w-12 h-12 bg-red-500/10 border border-red-500/30 rounded-xl items-center justify-center shadow-2xl"
+               >
+                 <ShieldAlert size={22} color="#EF4444" />
+               </TouchableOpacity>
 
-              <MapFabButton
-                icon="my-location"
-                onPress={handleCenterMyLocation}
-                size={48}
-                iconSize={22}
-                backgroundColor="rgba(17,24,22,0.88)"
-                activeBackgroundColor="#1b2723"
-                iconColor="#02de95"
-                disabled={isCentering}
-                accessibilityLabel="Centralizar localização"
-              />
+               {/* Center Map */}
+               <TouchableOpacity 
+                 onPress={handleCenterMyLocation}
+                 disabled={isCentering}
+                 className="w-12 h-12 bg-[#091A2F]/80 border border-white/10 rounded-xl items-center justify-center shadow-2xl"
+               >
+                 <Target size={22} color={isCentering ? "#02de9550" : "#02de95"} />
+               </TouchableOpacity>
 
-              <MapFabButton
-                icon="layers"
-                onPress={handleToggleMapStyle}
-                size={48}
-                iconSize={22}
-                backgroundColor={
-                  isSwitchingMapStyle ? "#02de95" : "rgba(17,24,22,0.88)"
-                }
-                activeBackgroundColor="#1b2723"
-                iconColor={
-                  isSwitchingMapStyle
-                    ? "#091A2F"
-                    : useDarkMap
-                      ? "#02de95"
-                      : "rgba(255,255,255,0.9)"
-                }
-                disabled={isSwitchingMapStyle}
-                accessibilityLabel="Trocar estilo do mapa"
-              />
-            </MapFabStack>
-
-            {/* Top HUD */}
-            <View
-              style={{ position: "absolute", top: 14, left: 74, right: 14 }}
-            >
-               <DriverTopHud
-                driverName={userData?.name}
-                vehicleTypeLabel={vehicleType.toUpperCase()}
-                plate={vehicleInfo?.plate}
-                todayEarnings={todayEarnings}
-                pendingRequests={pendingRequests || waitingQueueCount}
-                scheduledCount={scheduledCount}
-                onPressNotifications={handleNotifications}
-                online={online}
-              />
-
-              {waitingQueueCount > 0 && pendingRequests === 0 && (
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  onPress={handleNotifications}
-                  style={{
-                    backgroundColor: "rgba(239, 68, 68, 0.98)",
-                    borderColor: "rgba(255, 255, 255, 0.22)",
-                    borderWidth: 1,
-                    borderRadius: 20,
-                    paddingHorizontal: 16,
-                    paddingVertical: 10,
-                    marginTop: 10,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 8,
-                    shadowColor: "#000",
-                    shadowOffset: { width: 0, height: 4 },
-                    shadowOpacity: 0.3,
-                    shadowRadius: 4,
-                    elevation: 5,
-                  }}
-                >
-                  <MaterialIcons name="warning" size={16} color="white" />
-                  <Text style={{ color: "white", fontSize: 13, fontWeight: "bold" }}>
-                    {waitingQueueCount === 1
-                      ? "1 pedido urgente na Fila de Espera!"
-                      : `${waitingQueueCount} pedidos urgentes na Fila de Espera!`}
-                  </Text>
-                  <MaterialIcons name="chevron-right" size={18} color="white" />
-                </TouchableOpacity>
-              )}
-
-              {!!error && (
-                <Text
-                  style={{
-                    color: "#fbbf24",
-                    marginTop: 10,
-                    fontWeight: "700",
-                    fontSize: 13,
-                  }}
-                >
-                  {error}
-                </Text>
-              )}
+               {/* Map Style Layers */}
+               <TouchableOpacity 
+                 onPress={handleToggleMapStyle}
+                 className={`w-12 h-12 border rounded-xl items-center justify-center shadow-2xl ${
+                    isSwitchingMapStyle ? 'bg-[#02de95] border-[#02de95]' : 'bg-[#091A2F]/80 border-white/10'
+                 }`}
+               >
+                 <Layers size={22} color={isSwitchingMapStyle ? "#091A2F" : "#FFF"} />
+               </TouchableOpacity>
             </View>
+
+            {/* ⚠️ URGENT QUEUE BANNER (Inline Persistent Alert) */}
+            {waitingQueueCount > 0 && pendingRequests === 0 && (
+               <MotiView
+                 from={{ opacity: 0, translateY: -20 }}
+                 animate={{ opacity: 1, translateY: 0 }}
+                 className="absolute top-[120px] left-4 right-4 z-30 bg-amber-500 rounded-2xl p-4 flex-row items-center justify-between shadow-xl"
+               >
+                 <View className="flex-row items-center flex-1">
+                    <Info size={20} color="#091A2F" className="mr-3" />
+                    <Text className="text-[#091A2F] font-bold text-sm flex-1">
+                       Existem {waitingQueueCount} pedido(s) na Fila de Espera!
+                    </Text>
+                 </View>
+                 <TouchableOpacity onPress={handleNotifications} className="bg-[#091A2F] px-3 py-2 rounded-xl">
+                    <Text className="text-white font-black text-xs">ABRIR</Text>
+                 </TouchableOpacity>
+               </MotiView>
+            )}
+
+            {/* 🚫 ERROR ALERTS */}
+            {!!error && (
+               <MotiView
+                 from={{ opacity: 0, scale: 0.9 }}
+                 animate={{ opacity: 1, scale: 1 }}
+                 className="absolute top-[120px] left-4 right-4 z-40 bg-[#091A2F] border-2 border-amber-500/50 rounded-2xl p-4 flex-row items-center shadow-2xl"
+               >
+                  <ShieldAlert size={20} color="#FBBF24" className="mr-3" />
+                  <Text className="text-white font-bold text-xs flex-1">{error}</Text>
+               </MotiView>
+            )}
+
+            {/* 🔔 NEW REQUEST Ticker (Subtle reminder if visible) */}
+            {pendingRequests > 0 && !incomingRequest?.rideId && (
+               <TouchableOpacity 
+                 onPress={handleNotifications}
+                 className="absolute bottom-[40%] left-8 right-8 z-40 bg-[#02de95] rounded-full py-3 items-center shadow-2xl flex-row justify-center"
+               >
+                  <Text className="text-[#091A2F] font-black tracking-widest">VER SOLICITAÇÕES ATIVAS ({pendingRequests})</Text>
+               </TouchableOpacity>
+            )}
+
           </>
         )}
 
-        {/* Banner: Nova solicitação - só aparece quando o mapa carregou */}
-        {!!region && pendingRequests > 0 && (
-          <View
-            style={{
-              position: "absolute",
-              left: 14,
-              right: 14,
-              top: 78,
-              backgroundColor: "rgba(17,24,22,0.92)",
-              borderRadius: 16,
-              padding: 12,
-              borderWidth: 1,
-              borderColor: "rgba(239,68,68,0.35)",
-              zIndex: 55,
-            }}
-          >
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 12,
-              }}
-            >
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: "white", fontWeight: "900" }}>
-                  Nova solicitação
-                </Text>
-                <Text
-                  style={{
-                    color: "rgba(255,255,255,0.7)",
-                    marginTop: 2,
-                    fontWeight: "700",
-                  }}
-                >
-                  Veja no mapa e aceite ou recuse.
-                </Text>
-              </View>
-
-              <TouchableOpacity
-                onPress={handleNotifications}
-                activeOpacity={0.85}
-                style={{
-                  backgroundColor: "#02de95",
-                  paddingHorizontal: 12,
-                  paddingVertical: 10,
-                  borderRadius: 12,
-                }}
-              >
-                <Text style={{ color: "#091A2F", fontWeight: "900" }}>
-                  Abrir
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={clearIncoming}
-                activeOpacity={0.85}
-                style={{
-                  paddingHorizontal: 10,
-                  paddingVertical: 10,
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: "rgba(255,255,255,0.10)",
-                }}
-              >
-                <MaterialIcons name="volume-off" size={18} color="#fff" />
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-
-        {/* Card em baixo (preview da solicitação) - só aparece quando o mapa carregou */}
-        {!!region && !!incomingRequest?.rideId && (
-          <View
-            style={{
-              position: "absolute",
-              left: 14,
-              right: 14,
-              bottom: 140,
-              backgroundColor: "rgba(42,54,50,0.98)",
-              borderRadius: 18,
-              padding: 14,
-              borderWidth: 1,
-              borderColor: "rgba(255,255,255,0.22)",
-              zIndex: 55,
-            }}
-          >
-            {incomingRequest?.negotiation?.enabled ? (
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                <View style={{ backgroundColor: "rgba(2,222,149,0.18)", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: "rgba(2,222,149,0.3)" }}>
-                  <Text style={{ color: "#02de95", fontSize: 11, fontWeight: "900" }}>OFERTA DE NEGOCIAÇÃO</Text>
-                </View>
-              </View>
-            ) : null}
-
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-              <Text style={{ color: "white", fontWeight: "900", fontSize: 18 }}>
-                {incomingRequest?.negotiation?.enabled && incomingRequest?.negotiation?.clientOffer != null
-                  ? `R$ ${Number(incomingRequest.negotiation.clientOffer).toFixed(2)}`
-                  : incomingRequest?.pricing?.total != null
-                  ? `R$ ${Number(incomingRequest.pricing.total).toFixed(2)}`
-                  : "Nova solicitação"}
-              </Text>
-              {countdown !== null ? (
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(253,216,53,0.15)", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: "rgba(253,216,53,0.3)" }}>
-                  <MaterialIcons name="timer" size={14} color="#fdd835" />
-                  <Text style={{ color: "#fdd835", fontSize: 12, fontWeight: "900" }}>{countdown}s</Text>
-                </View>
-              ) : null}
-            </View>
-
-            <Text style={{ color: "rgba(255,255,255,0.7)", marginTop: 8 }}>
-              Coleta: {incomingRequest?.pickup?.address || "—"}
-            </Text>
-            <Text style={{ color: "rgba(255,255,255,0.7)", marginTop: 4 }}>
-              Destino: {incomingRequest?.dropoff?.address || "—"}
-            </Text>
-
-            <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
-              <TouchableOpacity
-                onPress={rejectIncoming}
-                activeOpacity={0.85}
-                style={{
-                  flex: 1,
-                  paddingVertical: 12,
-                  borderRadius: 14,
-                  borderWidth: 1,
-                  borderColor: "rgba(239,68,68,0.5)",
-                  alignItems: "center",
-                }}
-              >
-                <Text style={{ color: "#ef4444", fontWeight: "900" }}>
-                  Recusar
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={acceptIncoming}
-                activeOpacity={0.85}
-                style={{
-                  flex: 1,
-                  paddingVertical: 12,
-                  borderRadius: 14,
-                  backgroundColor: "#02de95",
-                  alignItems: "center",
-                }}
-              >
-                <Text style={{ color: "#091A2F", fontWeight: "900" }}>
-                  {incomingRequest?.negotiation?.enabled ? "Aceitar Oferta" : "Aceitar"}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {incomingRequest?.negotiation?.enabled ? (
-              <TouchableOpacity
-                onPress={async () => {
-                  await clearIncoming();
-                  (navigation as any).navigate("DriverRequests");
-                }}
-                activeOpacity={0.85}
-                style={{
-                  marginTop: 10,
-                  paddingVertical: 12,
-                  borderRadius: 14,
-                  borderWidth: 1,
-                  borderColor: "rgba(2,222,149,0.35)",
-                  alignItems: "center",
-                  backgroundColor: "rgba(2,222,149,0.08)",
-                }}
-              >
-                <Text style={{ color: "#02de95", fontWeight: "900" }}>
-                  Fazer contraoferta / Ver negociação
-                </Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
-        )}
-
-        {/* Bottom Sheet - sempre visível */}
-        <DriverBottomSheet
-          online={online}
-          services={services}
-          isTogglingOnline={isTogglingOnline}
-          onToggleOnline={toggleOnline}
-          onToggleService={toggleService}
-          vehicleType={vehicleType}
-          // Controla a altura do sheet. Exemplos:
-          // ["25%"] → altura fixa em 25%
-          // ["20%", "40%"] → mínima 20%, máxima 40% (pode arrastar)
-          snapPoints={["26%"]}
+        {/* 🎁 MASTER DISPATCH INTERCEPTION NODE */}
+        <IncomingRideCard 
+          isVisible={!!incomingRequest?.rideId}
+          request={incomingRequest}
+          countdown={countdown}
+          onAccept={acceptIncoming}
+          onReject={rejectIncoming}
+          onNegotiate={async () => {
+             // 🛸 Transfer operational theatre to complete Details Screen!
+             const targetId = incomingRequest.rideId || incomingRequest._id;
+             const currentOffer = incomingRequest;
+             await clearIncoming(); 
+             (navigation as any).navigate("DeliveryOfferScreen", { 
+                offerId: targetId, 
+                initialOffer: currentOffer 
+             });
+          }}
         />
+
+        {/* 📊 INTELLIGENT OPERATIONAL BASE CAMP (Hidden during active dispatch to prevent visual collision) */}
+        {!incomingRequest?.rideId && (
+          <DriverBottomSheet
+            online={online}
+            services={services}
+            isTogglingOnline={isTogglingOnline}
+            onToggleOnline={toggleOnline}
+            onToggleService={toggleService}
+            vehicleType={vehicleType}
+            snapPoints={["34%", "60%"]}
+          />
+        )}
+
       </View>
-    </SafeAreaView>
+    </GestureHandlerRootView>
   );
 }

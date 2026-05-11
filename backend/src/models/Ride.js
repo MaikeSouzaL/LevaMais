@@ -143,6 +143,7 @@ const rideSchema = new mongoose.Schema(
     details: {
       itemType: String, // Para entregas
       needsHelper: Boolean, // Precisa de ajudante
+      priority: Number, // 0=Econômico, 1=Rápido, 2=Urgente
       insurance: {
         type: String,
         enum: ["none", "basic", "standard", "premium"],

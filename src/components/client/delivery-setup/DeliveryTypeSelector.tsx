@@ -13,14 +13,14 @@ interface TypeOption {
 }
 
 const ALL_TYPES: TypeOption[] = [
-  { id: "doc", label: "Documento", vehicles: ["motorcycle", "car"] },
-  { id: "food", label: "Alimentos", vehicles: ["motorcycle", "car"] },
+  { id: "food", label: "Delivery", vehicles: ["motorcycle", "car"] },
+  { id: "doc", label: "Documentos", vehicles: ["motorcycle", "car"] },
   { id: "market", label: "Mercado", vehicles: ["motorcycle", "car", "van"] },
   { id: "box", label: "Caixa", vehicles: ["motorcycle", "car", "van", "truck"] },
   { id: "material", label: "Material", vehicles: ["car", "van", "truck"] },
   { id: "furniture", label: "Móveis", vehicles: ["van", "truck"] },
   { id: "moving", label: "Mudança", vehicles: ["van", "truck"] },
-  { id: "other", label: "Outros", vehicles: ["motorcycle", "car", "van", "truck"] },
+  { id: "other", label: "Outros", vehicles: ["car", "van", "truck"] },
 ];
 
 interface DeliveryTypeSelectorProps {

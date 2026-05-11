@@ -104,49 +104,8 @@ export default function SignInScreen() {
       const { email, id, name, photo } = user;
       const normalizedEmail = email.trim().toLowerCase();
 
-      // Verify user in backend
-      const existsRes = await checkEmailExists(normalizedEmail);
-
-      if (!existsRes.success) {
-        Toast.show({
-          type: "error",
-          text1: "Erro ao verificar email",
-          text2: existsRes.message || "Tente novamente.",
-        });
-        return;
-      }
-
-      if (existsRes.data?.exists && existsRes.data?.isActive === false) {
-        Toast.show({
-          type: "error",
-          text1: "Conta desativada",
-          text2: "Entre em contato com o suporte para reativar sua conta.",
-        });
-        return;
-      }
-
-      // If user doesn't exist, guide to profile selection
-      if (!existsRes.data?.exists) {
-        const generatedPassword = `${normalizedEmail}-${id}`;
-        navigation.navigate("SelectProfile", {
-          user: {
-            _id: "",
-            name: name || normalizedEmail.split("@")[0],
-            email: normalizedEmail,
-            password: generatedPassword,
-            phone: "",
-            city: "",
-            userType: undefined,
-            googleId: id,
-            profilePhoto: photo || undefined,
-            acceptedTerms: true,
-          },
-          token: "",
-        });
-        return;
-      }
-
-      // If user exists, finalize authentication
+      // 🔄 Execute Direct Unified Google Authentication.
+      // The backend will autonomously create new accounts OR correctly link/log in existing ones!
       const response = await googleAuth({
         googleId: id,
         email: normalizedEmail,

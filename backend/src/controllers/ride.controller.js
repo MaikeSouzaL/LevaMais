@@ -2262,6 +2262,7 @@ function buildRideRequestPayload(ride, extras = {}) {
     serviceType: ride.serviceType,
     vehicleType: ride.vehicleType,
     requestedAt: ride.requestedAt,
+    details: ride.details || {},
     scheduledFor: ride.scheduledFor || null,
     distanceToPickup: extras.distanceToPickup,
     negotiation: enabled

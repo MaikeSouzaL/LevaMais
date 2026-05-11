@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 
@@ -25,6 +25,11 @@ export type DriverStatusCardProps = {
   onComplete: () => void;
   onChat?: () => void;
   unreadCount?: number;
+  details?: {
+    itemType?: string;
+    priority?: number;
+    specialInstructions?: string;
+  };
 };
 
 export function DriverStatusCard({
@@ -41,6 +46,7 @@ export function DriverStatusCard({
   onComplete,
   onChat,
   unreadCount,
+  details,
 }: DriverStatusCardProps) {
   const busy = actionLoading != null;
 
@@ -124,6 +130,24 @@ export function DriverStatusCard({
             Destino: {dropoffAddress || "-"}
           </Text>
         </>
+      )}
+
+      {!!details?.specialInstructions && (
+        <View style={{ 
+          marginTop: driverTheme.spacing.sm, 
+          padding: driverTheme.spacing.sm, 
+          backgroundColor: "rgba(255,255,255,0.03)", 
+          borderRadius: 8,
+          borderLeftWidth: 2,
+          borderLeftColor: "#02de95" 
+        }}>
+          <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: "800", textTransform: "uppercase" }}>
+            Observações da Carga:
+          </Text>
+          <Text style={{ color: "#fff", fontSize: 12, marginTop: 2, fontWeight: "500" }}>
+            {details.specialInstructions}
+          </Text>
+        </View>
       )}
 
       <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>

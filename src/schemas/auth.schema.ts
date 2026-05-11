@@ -111,6 +111,9 @@ export const registerUserSchema = z.object({
   // Preferências (opcionais)
   preferredPayment: z.enum(["pix", "cash", "card"]).optional(),
   notificationsEnabled: z.boolean().optional(),
+  // Social Metadata (optional)
+  googleId: z.string().optional(),
+  profilePhoto: z.string().optional(),
 });
 
 // Schema para login

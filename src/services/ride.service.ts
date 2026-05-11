@@ -28,6 +28,7 @@ export interface RideDetails {
   itemType?: string;
   needsHelper?: boolean;
   insurance?: "none" | "basic" | "standard" | "premium";
+  priority?: number;
   specialInstructions?: string;
 }
 

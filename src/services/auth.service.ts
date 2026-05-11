@@ -368,20 +368,11 @@ export async function sendPhoneVerification(
       return { success: false, message: "Telefone invalido" };
     }
 
-    // 🛠️ Modo Dev Temporário: Retorno de sucesso sem bater no backend
-    return {
-      success: true,
-      message: "Código enviado com sucesso (Modo Dev)",
-      data: { message: "ok" },
-    };
-
-    /* 
     const response = await apiPost<ApiResponse<{ message: string }>>(
       "/auth/send-phone-code",
       { phone: normalizedPhone },
     );
     return response.data;
-    */
   } catch (error: any) {
     if (error.response?.data) return error.response.data;
     return { success: false, message: error.message || "Erro ao enviar codigo" };
@@ -395,29 +386,12 @@ export async function verifyPhoneCode(
   try {
     const currentCode = String(code || "").trim();
     
-    // 🛠️ Modo Dev Temporário: Aceitar código fixo "123456"
-    if (currentCode === "123456") {
-      return {
-        success: true,
-        message: "Verificado!",
-        data: { verified: true },
-      };
-    } else {
-      return {
-        success: false,
-        message: "Código inválido. Use 123456 para testes.",
-        data: { verified: false },
-      };
-    }
-
-    /*
     const normalizedPhone = String(phone || "").replace(/\D/g, "");
     const response = await apiPost<ApiResponse<{ verified: boolean }>>(
       "/auth/verify-phone-code",
       { phone: normalizedPhone, code: currentCode },
     );
     return response.data;
-    */
   } catch (error: any) {
     if (error.response?.data) return error.response.data;
     return { success: false, message: error.message || "Erro ao verificar codigo" };

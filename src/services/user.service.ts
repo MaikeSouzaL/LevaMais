@@ -1,4 +1,4 @@
-import api from "./api";
+import api, { apiPatch } from "./api";
 
 export type UserProfile = {
   _id: string;
@@ -44,7 +44,11 @@ async function getProfile(): Promise<UserProfile> {
   return res.data.data.user;
 }
 
-async function updateProfile(payload: UpdateProfilePayload): Promise<UserProfile> {
+async function updateProfile(payload: UpdateProfilePayload, token?: string): Promise<UserProfile> {
+  if (token) {
+    const res = await apiPatch<GetProfileResponse>("/auth/profile", payload, token);
+    return res.data.data.user;
+  }
   const res = await api.patch<GetProfileResponse>("/auth/profile", payload);
   return res.data.data.user;
 }
