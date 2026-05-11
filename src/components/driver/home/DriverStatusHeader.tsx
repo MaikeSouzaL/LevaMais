@@ -9,6 +9,7 @@ interface DriverStatusHeaderProps {
   todayEarnings: number;
   pendingRequests: number;
   scheduledCount: number;
+  waitingQueueCount: number;
   onPressNotifications: () => void;
   online: boolean;
 }
@@ -17,11 +18,12 @@ export function DriverStatusHeader({
   todayEarnings,
   pendingRequests,
   scheduledCount,
+  waitingQueueCount,
   onPressNotifications,
   online
 }: DriverStatusHeaderProps) {
   
-  const totalAlerts = pendingRequests + scheduledCount;
+  const totalAlerts = pendingRequests + scheduledCount + waitingQueueCount;
 
   return (
     <View className="flex-row items-center justify-between gap-4">

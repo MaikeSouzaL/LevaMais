@@ -529,6 +529,7 @@ export default function DriverHomeScreen() {
     webSocketService.on("new-ride-request", onNewRideRequest);
     webSocketService.on("ride-taken", onRideTaken);
     webSocketService.on("ride-cancelled", onRideCancelled);
+    webSocketService.on("waiting-queue-updated", syncAvailableRequests);
 
     webSocketService.connect().catch(() => {});
     syncAvailableRequests().catch(() => {});
@@ -538,6 +539,7 @@ export default function DriverHomeScreen() {
       webSocketService.off("new-ride-request", onNewRideRequest);
       webSocketService.off("ride-taken", onRideTaken);
       webSocketService.off("ride-cancelled", onRideCancelled);
+      webSocketService.off("waiting-queue-updated", syncAvailableRequests);
     };
   }, [online, incomingRequest?.rideId, isFocused]);
 
@@ -993,10 +995,11 @@ export default function DriverHomeScreen() {
 
                {/* Driver Status & Stats Hook */}
                <View className="flex-1">
-                 <DriverStatusHeader 
+                 <DriverStatusHeader
                    todayEarnings={todayEarnings}
                    pendingRequests={pendingRequests}
                    scheduledCount={scheduledCount}
+                   waitingQueueCount={waitingQueueCount}
                    onPressNotifications={handleNotifications}
                    online={online}
                  />

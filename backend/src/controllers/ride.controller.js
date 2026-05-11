@@ -247,6 +247,11 @@ class RideController {
               distanceToPickup,
             }),
           );
+
+          // 🔔 Notify driver of waiting queue modification real-time 
+          if (ride.isWaitingInQueue) {
+             io.to(`driver-${driver.driverId}`).emit("waiting-queue-updated");
+          }
         } catch (driverEmitErr) {
           console.error(`Erro ao despachar requisicao para driver=${driver?.driverId}:`, driverEmitErr);
         }
@@ -343,7 +348,7 @@ class RideController {
         ride.requestedAt = new Date();
         await ride.save();
 
-        await this.dispatchRideToNearbyDrivers(ride, io);
+        await module.exports.dispatchRideToNearbyDrivers(ride, io);
       } catch (error) {
         console.error("Erro ao disparar corrida agendada:", error);
       } finally {
@@ -1541,7 +1546,7 @@ class RideController {
         });
 
         // Despacha e envia notificações push para os motoristas próximos
-        await this.dispatchRideToNearbyDrivers(ride, io);
+        await module.exports.dispatchRideToNearbyDrivers(ride, io);
       }
 
       return res.json({
