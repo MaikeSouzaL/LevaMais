@@ -168,35 +168,8 @@ export default function DeliverySetupScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined} 
       className="flex-1 bg-[#091A2F]"
     >
-      {/* 🗺️ Cinema Backdrop: Map with Double Heavy Dark Overlay for contrast separation */}
-      <View className="absolute inset-0 opacity-60">
-        <MapView
-          ref={mapRef}
-          provider={PROVIDER_GOOGLE}
-          style={{ width: '100%', height: '100%' }}
-          customMapStyle={darkMapStyle}
-          showsCompass={false}
-        >
-          {path.length > 0 && (
-             <>
-               <Polyline coordinates={path} strokeColor="rgba(2, 222, 149, 0.2)" strokeWidth={7} />
-               <Polyline coordinates={path} strokeColor="#02de95" strokeWidth={2} lineDashPattern={[2, 8]} />
-             </>
-          )}
-          <Marker coordinate={params.pickup} anchor={{ x: 0.5, y: 0.5 }}><PremiumMapMarker type="origin" /></Marker>
-          <Marker coordinate={params.dropoff} anchor={{ x: 0.5, y: 0.5 }}><PremiumMapMarker type="destination" /></Marker>
-          <MapViewDirections
-            origin={params.pickup} destination={params.dropoff}
-            apikey={GOOGLE_API_KEY} mode="DRIVING"
-            strokeWidth={0} strokeColor="transparent"
-            onReady={handlePathReady}
-          />
-        </MapView>
-      </View>
-      
-      {/* Increased Blur Intensity + Heavy Dark Fade overlay */}
-      <BlurView intensity={95} tint="dark" className="absolute inset-0" />
-      <View className="absolute inset-0 bg-[#091A2F]/60" />
+      {/* Solid Dark Dashboard Substrate (Map background eradicated per user request) */}
+      <View className="absolute inset-0 bg-[#091A2F]" />
 
       <DeliverySetupHeader />
 

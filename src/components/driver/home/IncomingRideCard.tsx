@@ -109,7 +109,7 @@ export function IncomingRideCard({
         {/* 🤵 3. CLIENT PROFILE */}
         {!!request.client?.name && (
           <View 
-            className="bg-[#02de95]/[0.02] border border-[#02de95]/20 rounded-[24px] px-4 py-3.5 flex-row items-center mb-6"
+            className="bg-white/[0.03] rounded-[24px] px-4 py-3.5 flex-row items-center mb-6"
           >
              <View className="relative">
                {request.client.profilePhoto ? (
@@ -225,12 +225,8 @@ export function IncomingRideCard({
         {request.details?.specialInstructions && (
            <View style={{ 
              backgroundColor: 'rgba(245,158,11,0.05)', 
-             borderLeftWidth: 4, 
-             borderLeftColor: '#F59E0B', 
              borderWidth: 1,
-             borderTopColor: 'rgba(245,158,11,0.2)',
-             borderRightColor: 'rgba(245,158,11,0.2)',
-             borderBottomColor: 'rgba(245,158,11,0.2)',
+             borderColor: 'rgba(245,158,11,0.25)',
              paddingHorizontal: 16, 
              paddingVertical: 14, 
              borderRadius: 16, 
@@ -258,36 +254,53 @@ export function IncomingRideCard({
            </View>
         )}
 
-        {/* 📍 6. ROUTE BOX */}
+        {/* 📍 6. ROUTE BOX (High-Fidelity Dynamic Path) */}
         <View className="bg-white/[0.02] rounded-[24px] border border-white/20 p-5 mb-6">
-           <View className="flex-row items-start mb-4">
-              <View className="items-center mr-3 pt-1">
-                 <View className="w-3 h-3 rounded-full bg-[#02de95] border-2 border-[#070D15] z-10" />
-                 <View className="w-[1px] h-12 bg-white/10 my-1" />
+           <View className="flex-row items-start mb-6">
+              <View className="items-center mr-4 pt-1">
+                 <View className="w-6 h-6 rounded-full border-2 border-[#02de95] items-center justify-center bg-[#02de95]/10 shadow-sm z-10">
+                   <View className="w-2 h-2 rounded-full bg-[#02de95]" />
+                 </View>
+                 {/* Physical Intelligent Trace - Absolute connection bridging the gap */}
+                 <View style={{ 
+                    position: 'absolute', 
+                    top: 28, 
+                    bottom: -24, 
+                    width: 24, 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    zIndex: 0
+                 }}>
+                   <View style={{ flex: 1, width: 2, backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 1 }} />
+                   <MaterialCommunityIcons name="chevron-double-down" size={14} color="rgba(255,255,255,0.4)" style={{ marginVertical: 2 }} />
+                   <View style={{ flex: 1, width: 2, backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 1 }} />
+                 </View>
               </View>
-              <View className="flex-1">
-                 <Text className="text-white/30 text-[9px] font-black uppercase tracking-wider mb-0.5">Coleta</Text>
-                 <Text className="text-white font-bold text-[14px]" numberOfLines={2}>
-                   {request?.pickup?.address?.split("-")[0] || "Ponto de Coleta"}
+              <View className="flex-1 pt-0.5">
+                 <Text className="text-[#02de95] text-[10px] font-black uppercase tracking-[2px] mb-1">COLETA OFICIAL</Text>
+                 <Text className="text-white font-black text-[16px] leading-tight" numberOfLines={2}>
+                   {request?.pickup?.address?.split("-")[0]?.trim() || "Ponto de Coleta"}
                  </Text>
               </View>
            </View>
 
            <View className="flex-row items-start">
-              <View className="items-center mr-3 pt-1">
-                 <View className="w-3 h-3 rounded-full bg-red-500 border-2 border-[#070D15] z-10" />
+              <View className="items-center mr-4 pt-1">
+                 <View className="w-6 h-6 rounded-full border-2 border-red-500 items-center justify-center bg-red-500/10 shadow-sm z-10">
+                   <View className="w-2 h-2 rounded-full bg-red-500" />
+                 </View>
               </View>
-              <View className="flex-1">
-                 <Text className="text-white/30 text-[9px] font-black uppercase tracking-wider mb-0.5">Entrega</Text>
-                 <Text className="text-white font-bold text-[14px]" numberOfLines={2}>
-                   {request?.dropoff?.address?.split("-")[0] || "Ponto de Entrega"}
+              <View className="flex-1 pt-0.5">
+                 <Text className="text-red-400 text-[10px] font-black uppercase tracking-[2px] mb-1">ENTREGA FINAL</Text>
+                 <Text className="text-white font-black text-[16px] leading-tight" numberOfLines={2}>
+                   {request?.dropoff?.address?.split("-")[0]?.trim() || "Ponto de Entrega"}
                  </Text>
               </View>
            </View>
 
            {/* Metrics Subbox */}
            {(request?.distance?.text || request?.duration?.text) && (
-              <View className="mt-5 pt-4 border-t border-white/[0.06] flex-row items-center justify-between px-2">
+              <View className="mt-5 pt-4 border-t border-white/20 flex-row items-center justify-between px-2">
                  {request?.distance?.text && (
                    <View className="flex-row items-center">
                       <Route size={12} color="rgba(255,255,255,0.4)" className="mr-1.5" />
