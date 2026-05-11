@@ -682,7 +682,7 @@ export default function DriverRideScreen() {
                flat={true}
                anchor={{ x: 0.5, y: 0.5 }}
                tracksViewChanges={true}
-               style={{ width: 48, height: 48 }}
+               style={{ width: 40, height: 40 }}
              >
                 <VehicleMarker 
                   type={vehicleType as any} 

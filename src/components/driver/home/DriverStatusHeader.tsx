@@ -32,19 +32,17 @@ export function DriverStatusHeader({
         animate={{ opacity: 1, translateX: 0 }}
         className="flex-1 h-[58px] rounded-2xl overflow-hidden border border-white/10 shadow-2xl shadow-black"
       >
-        <BlurView intensity={45} tint="dark" className="flex-1 flex-row items-center px-4 bg-[#091A2F]/50">
+        <View className="flex-1 flex-row items-center px-4 bg-[#091A2F]">
            <View className="bg-[#02de95]/20 p-2 rounded-xl mr-3">
               <Wallet size={16} color="#02de95" />
            </View>
            <View>
-             <Text className="text-white/40 text-[10px] font-black uppercase tracking-widest mb-0.5">
-               Ganhos Hoje
-             </Text>
+             
              <Text className="text-[#02de95] font-black text-xl leading-none">
                {formatBRL(todayEarnings)}
              </Text>
            </View>
-        </BlurView>
+        </View>
       </MotiView>
 
       {/* 🔔 Alerts & Active Status Stack */}
@@ -54,7 +52,7 @@ export function DriverStatusHeader({
           activeOpacity={0.8}
           className="h-[58px] w-[58px] rounded-2xl overflow-hidden border border-white/10 items-center justify-center"
         >
-          <BlurView intensity={40} tint="dark" className="w-full h-full items-center justify-center bg-[#091A2F]/50">
+          <View className="w-full h-full items-center justify-center bg-[#091A2F]">
             <Bell size={20} color="rgba(255,255,255,0.8)" />
             
             {totalAlerts > 0 && (
@@ -68,20 +66,8 @@ export function DriverStatusHeader({
                 </Text>
               </MotiView>
             )}
-          </BlurView>
+          </View>
         </TouchableOpacity>
-
-        {/* Online Status Orb */}
-        <View className="h-[58px] px-4 rounded-2xl overflow-hidden border border-white/10 items-center justify-center">
-           <BlurView intensity={40} tint="dark" className={`w-full h-full flex-row items-center bg-[#091A2F]/50 ${online ? 'bg-[#02de95]/5' : ''}`}>
-             <View className={`w-2 h-2 rounded-full mr-2.5 ${online ? 'bg-[#02de95]' : 'bg-white/30'}`} 
-                   style={online ? { shadowColor: "#02de95", shadowOpacity: 1, shadowRadius: 6, elevation: 5 } : {}} 
-             />
-             <Text className={`font-bold text-sm ${online ? 'text-[#02de95]' : 'text-white/40'}`}>
-                {online ? 'ONLINE' : 'OFFLINE'}
-             </Text>
-           </BlurView>
-        </View>
       </View>
 
     </View>

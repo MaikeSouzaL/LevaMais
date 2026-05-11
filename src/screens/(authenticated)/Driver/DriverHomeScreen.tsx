@@ -916,7 +916,7 @@ export default function DriverHomeScreen() {
                 flat={true}
                 anchor={{ x: 0.5, y: 0.5 }}
                 tracksViewChanges={true}
-                style={{ width: 48, height: 48 }}
+                style={{ width: 40, height: 40 }}
               >
                  <VehicleMarker 
                    type={vehicleType as any} 
@@ -969,7 +969,7 @@ export default function DriverHomeScreen() {
                {/* Menu Toggle */}
                <TouchableOpacity
                  onPress={() => (navigation as any).openDrawer?.()}
-                 className="h-[58px] w-[58px] bg-[#091A2F]/90 rounded-2xl border border-white/10 items-center justify-center"
+                 className="h-[58px] w-[58px] bg-[#091A2F] rounded-2xl border border-white/10 items-center justify-center"
                >
                   <Menu size={24} color="#FFF" />
                </TouchableOpacity>
@@ -1002,7 +1002,7 @@ export default function DriverHomeScreen() {
                  disabled={isCentering}
                  className="w-12 h-12 bg-[#091A2F]/80 border border-white/10 rounded-xl items-center justify-center shadow-2xl"
                >
-                 <Target size={22} color={isCentering ? "#02de9550" : "#02de95"} />
+                 <MaterialIcons name="my-location" size={24} color={isCentering ? "#02de9550" : "#02de95"} />
                </TouchableOpacity>
 
                {/* Map Style Layers */}
