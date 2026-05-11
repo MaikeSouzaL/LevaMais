@@ -4,8 +4,9 @@ import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import { MotiView } from "moti";
 import { 
   MapPin, Check, X, DollarSign, Route, Timer, CreditCard, 
-  QrCode, Banknote, User, Star, ShieldCheck, TrendingUp, Zap 
+  QrCode, Banknote, User, Star, ShieldCheck, TrendingUp, Zap, Package 
 } from "lucide-react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { formatBRL } from "@/utils/mappers";
 
 interface IncomingRideCardProps {
@@ -146,9 +147,12 @@ export function IncomingRideCard({
             
             {/* Metrica 1: Veiculo */}
             <View style={{ flex: 1, marginRight: 6, height: 64, backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1, borderRadius: 16, alignItems: 'center', justifyContent: 'center' }}>
-               <Text style={{ fontSize: 18, marginBottom: 4 }}>
-                 {request.vehicleType === "motorcycle" ? "🛵" : request.vehicleType === "car" ? "🚗" : "🚚"}
-               </Text>
+               <MaterialCommunityIcons 
+                 name={request.vehicleType === "motorcycle" ? "motorbike" : request.vehicleType === "car" ? "car" : "truck-delivery"} 
+                 size={20} 
+                 color="white" 
+                 style={{ marginBottom: 4 }} 
+               />
                <Text numberOfLines={1} style={{ color: 'white', fontSize: 9, fontWeight: '900', letterSpacing: 0.5 }}>
                  {request.vehicleType === "motorcycle" ? "MOTO" : request.vehicleType === "car" ? "CARRO" : "VAN"}
                </Text>
@@ -157,7 +161,7 @@ export function IncomingRideCard({
             {/* Metrica 2: Tipo Carga */}
             {request.details?.itemType && (
               <View style={{ flex: 1, marginRight: 6, height: 64, backgroundColor: 'rgba(2,222,149,0.1)', borderColor: 'rgba(2,222,149,0.3)', borderWidth: 1, borderRadius: 16, alignItems: 'center', justifyContent: 'center' }}>
-                 <View style={{ width: 6, height: 6, backgroundColor: '#02de95', borderRadius: 3, marginBottom: 8 }} />
+                 <Package size={18} color="#02de95" style={{ marginBottom: 4 }} />
                  <Text numberOfLines={1} style={{ color: '#02de95', fontSize: 9, fontWeight: '900', letterSpacing: 0.5 }}>
                     {
                       {
@@ -176,9 +180,12 @@ export function IncomingRideCard({
               borderColor: request.details?.priority === 2 ? 'rgba(239,68,68,0.3)' : 'rgba(6,182,212,0.3)', 
               borderWidth: 1, borderRadius: 16, alignItems: 'center', justifyContent: 'center' 
             }}>
-               <Text style={{ fontSize: 18, marginBottom: 4 }}>
-                 {request.details?.priority === 2 ? "🚨" : "💸"}
-               </Text>
+               <MaterialCommunityIcons 
+                 name={request.details?.priority === 2 ? "lightning-bolt" : "leaf"} 
+                 size={18} 
+                 color={request.details?.priority === 2 ? '#EF4444' : '#06B6D4'} 
+                 style={{ marginBottom: 4 }} 
+               />
                <Text numberOfLines={1} style={{ 
                  color: request.details?.priority === 2 ? '#EF4444' : '#06B6D4', 
                  fontSize: 9, fontWeight: '900', letterSpacing: 0.5 
