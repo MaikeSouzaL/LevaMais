@@ -1052,14 +1052,22 @@ class RideController {
             buildRideRequestPayload(ride, { distanceToPickup: 0 })
           );
         } else {
-          // Se todos os motoristas disponíveis na região recusaram e está na fila de espera
-          if (ride.isWaitingInQueue) {
-            ride.status = "cancelled_no_driver";
-            await ride.save();
+          // 🚨 CRITICAL UPGRADE: If ALL nearby drivers rejected the offer, trigger terminal state instantly!
+          // This now applies whether in Queue OR in initial Broadcast mode!
+          ride.status = "cancelled_no_driver";
+          await ride.save();
 
-            io.to(`client-${ride.clientId}`).emit("ride-cancelled", {
+          // Re-populate client payload to guarantee valid connection
+          if (!ride.populated("clientId")) {
+             await ride.populate("clientId");
+          }
+
+          const resolvedClientId = ride.clientId?._id || ride.clientId;
+          if (resolvedClientId) {
+            io.to(`client-${resolvedClientId}`).emit("ride-cancelled", {
               rideId: ride._id,
-              reason: "Seu pedido foi cancelado automaticamente porque todos os motoristas e motoboys disponíveis na sua região recusaram a solicitação no momento.",
+              reason: "todos_recusaram",
+              message: "Todos os motoristas disponíveis no momento recusaram a solicitação. Sugerimos aumentar a oferta para atrair interessados.",
             });
           }
         }

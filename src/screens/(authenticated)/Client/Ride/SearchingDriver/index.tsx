@@ -43,6 +43,7 @@ export default function SearchingDriverScreen() {
   const [waitingInQueue, setWaitingInQueue] = useState(false);
   const [enteringQueue, setEnteringQueue] = useState(false);
   const [queueCancelled, setQueueCancelled] = useState(false);
+  const [allDriversRejected, setAllDriversRejected] = useState(false);
 
   // Ride Context Persistence
   const [rideData, setRideData] = useState<any>(null);
@@ -134,6 +135,11 @@ export default function SearchingDriverScreen() {
       if (doneRef.current) return;
       doneRef.current = true;
       cleanup();
+      if (data?.reason === "todos_recusaram") {
+        setAllDriversRejected(true);
+        setTimeoutState(true);
+        return;
+      }
       if (waitingInQueue || data?.reason?.includes("fila de espera")) {
         setQueueCancelled(true);
         return;
@@ -308,6 +314,7 @@ export default function SearchingDriverScreen() {
   const handleRetry = async () => {
     if (!rideId) return;
     setTimeoutState(false);
+    setAllDriversRejected(false);
     setWaitingInQueue(false);
     setSecondsLeft(SEARCH_TIME);
     doneRef.current = false;
@@ -338,14 +345,16 @@ export default function SearchingDriverScreen() {
           animate={{ opacity: 1, scale: 1 }}
           className="w-full bg-white/[0.02] border border-white/10 rounded-3xl p-6 items-center"
         >
-           <View className="w-20 h-20 rounded-full bg-amber-500/10 border border-amber-500/30 items-center justify-center mb-6">
-              <Clock size={36} color="#FBBF24" />
+           <View className={`w-20 h-20 rounded-full items-center justify-center mb-6 ${allDriversRejected ? 'bg-red-500/10 border border-red-500/30' : 'bg-amber-500/10 border border-amber-500/30'}`}>
+              {allDriversRejected ? <AlertTriangle size={36} color="#EF4444" /> : <Clock size={36} color="#FBBF24" />}
            </View>
            <Text className="text-white font-extrabold text-2xl text-center mb-3">
-             Tempo Esgotado
+             {allDriversRejected ? "Oferta Recusada" : "Tempo Esgotado"}
            </Text>
            <Text className="text-white/60 text-center mb-8 text-base px-4">
-             Ainda não encontramos motoristas próximos. Deseja tentar novamente ou entrar na fila prioritária?
+             {allDriversRejected 
+               ? "Todos os motoristas ativos no momento recusaram sua oferta. Sugerimos aumentar o valor proposto para atrair aceites!" 
+               : "Ainda não encontramos motoristas próximos. Deseja tentar novamente ou entrar na fila prioritária?"}
            </Text>
 
            {/* Extended Retry Button */}
