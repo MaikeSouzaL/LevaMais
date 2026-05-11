@@ -1402,6 +1402,44 @@ class RideController {
     }
   }
 
+  async retryRide(req, res) {
+    try {
+      const { rideId } = req.params;
+      const ride = await Ride.findById(rideId);
+      if (!ride) {
+        return sendError(res, 404, "Corrida não encontrada");
+      }
+
+      // 🔄 Reiniciar ciclo de busca dinâmico
+      ride.status = "requesting";
+      ride.requestedAt = new Date();
+      ride.isWaitingInQueue = false;
+      ride.cancelledAt = undefined;
+      // Limpa drivers anteriores recusados ou aceites perdidos se necessário
+      ride.driverId = undefined; 
+      
+      await ride.save();
+
+      // 👤 Popular dados necessários para o payload do despacho
+      await ride.populate("clientId", "name phone profilePhoto");
+
+      const io = req.app.get("io");
+      if (io) {
+        // 🚀 Disparar o Dispatcher central novamente para notificar os motoristas
+        await module.exports.dispatchRideToNearbyDrivers(ride, io);
+      }
+
+      res.json({
+        success: true,
+        message: "Busca reiniciada com sucesso",
+        ride,
+      });
+    } catch (error) {
+      console.error("Erro ao reiniciar busca da corrida:", error);
+      return sendError(res, 500, "Erro ao reiniciar busca");
+    }
+  }
+
   async addTip(req, res) {
     try {
       const { rideId } = req.params;

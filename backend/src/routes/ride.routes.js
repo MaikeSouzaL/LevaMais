@@ -26,6 +26,9 @@ router.post("/:rideId/offers/select", rideController.selectOffer);
 // Cancelar corrida
 router.post("/:rideId/cancel", rideController.cancel);
 
+// Reiniciar busca da corrida 🚀
+router.post("/:rideId/retry", rideController.retryRide);
+
 // Atualizar status da corrida
 router.patch("/:rideId/status", rideController.updateStatus);
 

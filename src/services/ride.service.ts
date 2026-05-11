@@ -307,6 +307,14 @@ class RideService {
   }
 
   /**
+   * Reiniciar busca da corrida (tentar novamente)
+   */
+  async retry(rideId: string): Promise<any> {
+    const response = await api.post(`/rides/${rideId}/retry`);
+    return response.data;
+  }
+
+  /**
    * Aceitar corrida (motorista)
    */
   async accept(rideId: string): Promise<Ride> {

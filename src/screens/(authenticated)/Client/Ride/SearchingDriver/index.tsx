@@ -316,6 +316,15 @@ export default function SearchingDriverScreen() {
     webSocketService.off("driver-found", driverFoundCallback);
     webSocketService.off("ride-expired", rideExpiredCallback);
     webSocketService.off("ride-cancelled", rideCancelledCallback);
+    // 🔄 EXPLICIT REACTIVATION: Wake up the backend dispatch cycle for this ride again!
+    try {
+      await rideService.retry(rideId);
+    } catch (e: any) {
+      console.error("Erro ao reiniciar dispatch no servidor:", e);
+      Toast.show({ type: "error", text1: "Erro", text2: "Não foi possível reconectar o pedido." });
+      return; // Stop restart loop if backend failed to reactivate
+    }
+
     await connectAndSearch();
   };
 
