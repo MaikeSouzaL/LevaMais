@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { View, Dimensions, StatusBar, Platform } from "react-native";
+import { View, Dimensions, StatusBar, Platform, Modal, Text, TextInput, TouchableOpacity, ActivityIndicator, Alert, KeyboardAvoidingView } from "react-native";
+import { Heart, X, Star } from "lucide-react-native";
+import favoriteAddressService from "@/services/favoriteAddress.service";
+import Toast from "react-native-toast-message";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import MapViewDirections from "react-native-maps-directions";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -37,21 +40,100 @@ export default function DestinationSearchScreen() {
 
   const { userRegion, currentAddress, region, mapRef } = useMapLocation();
 
-  const [destinationTxt, setDestinationTxt] = useState("");
-  const [destinationDetails, setDestinationDetails] = useState<PlaceDetails | null>(null);
+  const [destinationTxt, setDestinationTxt] = useState(params.dropoff?.address || "");
+  const [destinationDetails, setDestinationDetails] = useState<PlaceDetails | null>(
+    params.dropoff
+      ? {
+          placeId: "predefined",
+          formattedAddress: params.dropoff.address,
+          latitude: Number(params.dropoff.latitude),
+          longitude: Number(params.dropoff.longitude),
+        }
+      : null
+  );
   const [routeCoordinates, setRouteCoordinates] = useState<any[]>([]);
   
   const [distanceStr, setDistanceStr] = useState("");
   const [durationStr, setDurationStr] = useState("");
   const [distanceRaw, setDistanceRaw] = useState<number | null>(null);
   const [durationRaw, setDurationRaw] = useState<number | null>(null);
-  const [isReadyToContinue, setIsReadyToContinue] = useState(false);
+  const [isReadyToContinue, setIsReadyToContinue] = useState(!!params.dropoff);
   const [vehicles, setVehicles] = useState<RealtimeVehicle[]>([]);
 
-  const origin = params.pickup || {
-    latitude: userRegion?.latitude || region?.latitude || -23.55,
-    longitude: userRegion?.longitude || region?.longitude || -46.63,
-    address: currentAddress || "Local Atual",
+  // 🔥 Mutable Origin States
+  const [originTxt, setOriginTxt] = useState(params.pickup?.address || "");
+  const [originDetails, setOriginDetails] = useState<PlaceDetails | null>(
+    params.pickup
+      ? {
+          placeId: "predefined",
+          formattedAddress: params.pickup.address,
+          latitude: Number(params.pickup.latitude),
+          longitude: Number(params.pickup.longitude),
+        }
+      : null
+  );
+
+  // Automatically feed initial location if none set yet
+  useEffect(() => {
+    if (!originDetails && !originTxt && currentAddress && userRegion) {
+      setOriginTxt(currentAddress);
+      setOriginDetails({
+        placeId: "current",
+        formattedAddress: currentAddress,
+        latitude: userRegion.latitude,
+        longitude: userRegion.longitude,
+      });
+    }
+  }, [userRegion, currentAddress]);
+
+  const origin = {
+    latitude: originDetails?.latitude || userRegion?.latitude || region?.latitude || -23.55,
+    longitude: originDetails?.longitude || userRegion?.longitude || region?.longitude || -46.63,
+    address: originDetails?.formattedAddress || originTxt || currentAddress || "Local Atual",
+  };
+
+  // 🔥 Advanced Dynamic Favorites State
+  const [favModalVisible, setFavModalVisible] = useState(false);
+  const [favInputName, setFavInputName] = useState("");
+  const [targetAddressToSave, setTargetAddressToSave] = useState<any>(null);
+  const [isSavingFav, setIsSavingFav] = useState(false);
+
+  const triggerFavoriteModal = (addrData: any) => {
+    setTargetAddressToSave(addrData);
+    setFavInputName(""); // reset
+    setFavModalVisible(true);
+  };
+
+  const handleSaveFavorite = async () => {
+    if (!favInputName.trim()) {
+      Alert.alert("Atenção", "Por favor, dê um nome para este favorito.");
+      return;
+    }
+    if (!targetAddressToSave) return;
+
+    setIsSavingFav(true);
+    try {
+      await favoriteAddressService.create({
+        name: favInputName.trim(),
+        address: targetAddressToSave.address,
+        formattedAddress: targetAddressToSave.address,
+        latitude: Number(targetAddressToSave.latitude),
+        longitude: Number(targetAddressToSave.longitude),
+        icon: "place"
+      });
+      
+      Toast.show({
+        type: "success",
+        text1: "Favorito salvo!",
+        text2: `"${favInputName}" foi adicionado aos seus locais.`,
+      });
+      
+      setFavModalVisible(false);
+    } catch (err) {
+      Alert.alert("Erro", "Não foi possível salvar o favorito no momento. Verifique sua conexão.");
+    } finally {
+      setIsSavingFav(false);
+    }
   };
 
   useEffect(() => {
@@ -219,10 +301,29 @@ export default function DestinationSearchScreen() {
         <DestinationHeader />
 
         <FloatingSearchCard
-          originText={origin.address}
+          originText={originTxt}
           destinationText={destinationTxt}
+          onOriginChange={setOriginTxt}
           onDestinationChange={setDestinationTxt}
+          onSelectOrigin={(details) => {
+             setOriginDetails(details);
+             setOriginTxt(details.formattedAddress);
+          }}
           onSelectDestination={handleSelectDestination}
+          onFavoriteOrigin={() => {
+            triggerFavoriteModal({
+              address: origin.address,
+              latitude: origin.latitude,
+              longitude: origin.longitude
+            });
+          }}
+          onFavoriteDestination={destinationDetails ? () => {
+             triggerFavoriteModal({
+               address: destinationDetails.formattedAddress,
+               latitude: destinationDetails.latitude,
+               longitude: destinationDetails.longitude
+             });
+          } : undefined}
         />
 
         {!isReadyToContinue && (
@@ -236,6 +337,88 @@ export default function DestinationSearchScreen() {
         duration={durationStr}
         onConfirm={handleContinue}
       />
+
+      {/* 🌟 PREMIUM MODAL: Add Favorite Inline Inline Builder */}
+      <Modal
+        visible={favModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setFavModalVisible(false)}
+      >
+        <View className="flex-1 bg-black/80 justify-end px-6 pb-8">
+          <KeyboardAvoidingView
+             behavior={Platform.OS === "ios" ? "padding" : "padding"}
+             keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+             className="w-full"
+          >
+            <View className="bg-[#091A2F] rounded-3xl border border-white/10 w-full p-6 shadow-2xl overflow-hidden relative">
+               {/* Small Glow Circle background decoration */}
+               <View className="absolute -top-10 -right-10 w-32 h-32 bg-[#02de95]/10 rounded-full blur-2xl" />
+
+               <View className="flex-row justify-between items-center mb-6">
+                 <View className="flex-row items-center">
+                   <View className="bg-[#02de95]/10 p-2 rounded-xl mr-3">
+                     <Star size={18} color="#02de95" fill="#02de95" />
+                   </View>
+                   <Text className="text-white font-black text-lg tracking-tight">Salvar Favorito</Text>
+                 </View>
+                 <TouchableOpacity 
+                   onPress={() => setFavModalVisible(false)}
+                   className="bg-white/10 p-1.5 rounded-full"
+                 >
+                   <X size={16} color="#fff" opacity={0.7} />
+                 </TouchableOpacity>
+               </View>
+
+               <Text className="text-white/50 text-[11px] font-bold uppercase tracking-widest mb-2">Endereço Selecionado</Text>
+               <View className="bg-white/5 rounded-xl p-3 border border-white/5 mb-5">
+                 <Text className="text-white/80 text-xs leading-relaxed" numberOfLines={2}>
+                   {targetAddressToSave?.address || "..."}
+                 </Text>
+               </View>
+
+               <Text className="text-white/50 text-[11px] font-bold uppercase tracking-widest mb-2">Dê um nome (ex: Casa, Trabalho)</Text>
+               <View className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 mb-6">
+                 <TextInput
+                   value={favInputName}
+                   onChangeText={setFavInputName}
+                   placeholder="Digite o nome do favorito"
+                   placeholderTextColor="rgba(255,255,255,0.3)"
+                   className="text-white font-bold text-base p-0"
+                   autoFocus
+                   returnKeyType="done"
+                   onSubmitEditing={handleSaveFavorite}
+                 />
+               </View>
+
+               <View className="flex-row gap-3">
+                 <TouchableOpacity 
+                   onPress={() => setFavModalVisible(false)}
+                   disabled={isSavingFav}
+                   className="flex-1 h-12 rounded-xl border border-white/10 items-center justify-center bg-white/5"
+                 >
+                   <Text className="text-white/70 font-bold">Cancelar</Text>
+                 </TouchableOpacity>
+
+                 <TouchableOpacity 
+                   onPress={handleSaveFavorite}
+                   disabled={isSavingFav}
+                   className="flex-[1.5] h-12 rounded-xl bg-[#02de95] items-center justify-center flex-row shadow-lg shadow-[#02de95]/20"
+                 >
+                   {isSavingFav ? (
+                     <ActivityIndicator color="#091A2F" size="small" />
+                   ) : (
+                     <>
+                       <Heart size={16} color="#091A2F" fill="#091A2F" className="mr-2" />
+                       <Text className="text-[#091A2F] font-black uppercase tracking-wide text-sm">Salvar Agora</Text>
+                     </>
+                   )}
+                 </TouchableOpacity>
+               </View>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
     </View>
   );
 }

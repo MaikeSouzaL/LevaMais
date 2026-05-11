@@ -51,9 +51,13 @@ export function useMapLocation() {
         longitudeDelta: 0.01,
       });
 
-      setCurrentAddress(
-        `${address.street}${address.number ? ', ' + address.number : ''}`
-      );
+      const fullAddr = [
+        `${address.street}${address.number ? ', ' + address.number : ''}`,
+        address.neighborhood,
+        address.city
+      ].filter(Boolean).join(' - ');
+
+      setCurrentAddress(fullAddr);
 
       setUserRegion({
         latitude: location.latitude,
@@ -78,9 +82,13 @@ export function useMapLocation() {
 
     const { location, address } = result;
 
-    setCurrentAddress(
-      `${address.street}${address.number ? ', ' + address.number : ''}`
-    );
+    const fullAddr = [
+      `${address.street}${address.number ? ', ' + address.number : ''}`,
+      address.neighborhood,
+      address.city
+    ].filter(Boolean).join(' - ');
+
+    setCurrentAddress(fullAddr);
 
     if (mapRef.current) {
       mapRef.current.animateToRegion(

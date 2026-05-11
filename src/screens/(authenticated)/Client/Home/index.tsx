@@ -129,7 +129,7 @@ export default function HomeScreen() {
         favorites={favorites}
         onSelectFavorite={(fav) => {
           // Emulates handling of legacy favorite flow triggers
-          navigation.navigate("SelectVehicle", {
+          navigation.navigate("DestinationSearch", {
             pickup: { 
               address: currentAddress || "Localização Atual",
               latitude: userRegion?.latitude || region.latitude,
