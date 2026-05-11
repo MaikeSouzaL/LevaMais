@@ -221,16 +221,38 @@ export function IncomingRideCard({
           </View>
         )}
 
-        {/* 📦 5. CARGO DETAILS (Brighter text for visibility) */}
+        {/* 📦 5. CARGO DETAILS (Premium Tactical Alert Aesthetic) */}
         {request.details?.specialInstructions && (
-           <View className="bg-white/[0.02] border border-white/20 px-4 py-3 rounded-xl mb-6 flex-row items-center">
-             <View className="bg-amber-500/20 p-1.5 rounded-lg mr-3">
-               <Zap size={14} color="#F59E0B" fill="#F59E0B" />
+           <View style={{ 
+             backgroundColor: 'rgba(245,158,11,0.05)', 
+             borderLeftWidth: 4, 
+             borderLeftColor: '#F59E0B', 
+             borderWidth: 1,
+             borderTopColor: 'rgba(245,158,11,0.2)',
+             borderRightColor: 'rgba(245,158,11,0.2)',
+             borderBottomColor: 'rgba(245,158,11,0.2)',
+             paddingHorizontal: 16, 
+             paddingVertical: 14, 
+             borderRadius: 16, 
+             marginBottom: 24, 
+             flexDirection: 'row', 
+             alignItems: 'center' 
+           }}>
+             <View style={{ backgroundColor: 'rgba(245,158,11,0.2)', padding: 8, borderRadius: 10, marginRight: 12 }}>
+               <MaterialCommunityIcons name="package-variant" size={20} color="#F59E0B" />
              </View>
-             <View className="flex-1">
-               <Text className="text-white/60 text-[9px] font-black uppercase tracking-wider mb-0.5">Info da Carga</Text>
-               <Text className="text-white/90 text-xs font-semibold">
-                 {request.details.specialInstructions}
+             <View style={{ flex: 1 }}>
+               <Text style={{ color: 'rgba(245,158,11,0.8)', fontSize: 9, fontWeight: '900', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 2 }}>
+                 DETALHES DA CARGA
+               </Text>
+               <Text style={{ color: '#FFF', fontSize: 13, fontWeight: '800', letterSpacing: 0.5 }}>
+                 {request.details.specialInstructions
+                   .replace("[Tamanho: small]", "TAMANHO: PEQUENO")
+                   .replace("[Tamanho: medium]", "TAMANHO: MÉDIO")
+                   .replace("[Tamanho: large]", "TAMANHO: GRANDE")
+                   .replace(/\[|\]/g, "") // Removes generic brackets if user entered custom ones
+                   .toUpperCase()
+                 }
                </Text>
              </View>
            </View>
