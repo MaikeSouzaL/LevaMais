@@ -789,12 +789,12 @@ export default function DriverHomeScreen() {
       // Enquadra a rota automaticamente
       if (decoded.length >= 2 && mapRef.current) {
         mapRef.current.fitToCoordinates(decoded as any, {
-          edgePadding: { top: 220, right: 90, bottom: 460, left: 90 },
+          edgePadding: { top: 100, right: 80, bottom: 580, left: 80 },
           animated: true,
         });
         setTimeout(() => {
           mapRef.current?.fitToCoordinates(decoded as any, {
-            edgePadding: { top: 220, right: 90, bottom: 460, left: 90 },
+            edgePadding: { top: 100, right: 80, bottom: 580, left: 80 },
             animated: true,
           });
         }, 350);
