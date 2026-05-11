@@ -9,7 +9,7 @@ import Animated, {
   useDerivedValue,
 } from "react-native-reanimated";
 import { RoutePulseIndicator } from "./RoutePulseIndicator";
-import { View } from "moti";
+import { View } from "react-native";
 
 // Enables Native Reanimated drive directly into Native Map Prop 'coordinate'
 const AnimatedMarker = Animated.createAnimatedComponent(Marker);
@@ -102,9 +102,10 @@ export const AnimatedRoutePath = ({ coordinates }: AnimatedRoutePathProps) => {
         coordinate={sharedCoords.value[0]}
         animatedProps={trailProps}
         anchor={{ x: 0.5, y: 0.5 }}
+        tracksViewChanges={true}
         zIndex={21}
       >
-        <View className="w-6 h-6 items-center justify-center">
+        <View style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}>
           <Animated.View style={{ opacity: 0.35, transform: [{ scale: 0.75 }] }}>
             <RoutePulseIndicator />
           </Animated.View>
@@ -116,9 +117,10 @@ export const AnimatedRoutePath = ({ coordinates }: AnimatedRoutePathProps) => {
         coordinate={sharedCoords.value[0]}
         animatedProps={animatedProps}
         anchor={{ x: 0.5, y: 0.5 }}
+        tracksViewChanges={true}
         zIndex={22}
       >
-        <View className="w-6 h-6 items-center justify-center">
+        <View style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}>
           <RoutePulseIndicator />
         </View>
       </AnimatedMarker>
