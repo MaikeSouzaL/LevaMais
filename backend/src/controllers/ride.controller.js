@@ -193,6 +193,11 @@ class RideController {
     try {
       if (!io || !ride) return;
 
+      // Hydrate client details so the payload builder includes Name/Photo!
+      if (!ride.populated("clientId")) {
+        await ride.populate("clientId");
+      }
+
       let searchRadius = 15000;
       try {
         if (ride.cityId) {
@@ -1026,15 +1031,14 @@ class RideController {
           ride.driverId = next.driverId;
           ride.status = "driver_assigned";
           await ride.save();
+          
+          // Hydrate client data before re-casting to next driver
+          await ride.populate("clientId");
 
-          io.to(`driver-${next.driverId}`).emit("new-ride-request", {
-            rideId: ride._id,
-            pickup: ride.pickup,
-            dropoff: ride.dropoff,
-            pricing: ride.pricing,
-            distance: ride.distance,
-            vehicleType: ride.vehicleType,
-          });
+          io.to(`driver-${next.driverId}`).emit(
+            "new-ride-request",
+            buildRideRequestPayload(ride, { distanceToPickup: 0 })
+          );
         } else {
           // Se todos os motoristas disponíveis na região recusaram e está na fila de espera
           if (ride.isWaitingInQueue) {
@@ -1252,6 +1256,7 @@ class RideController {
 
       await ride.save();
       await ride.populate("driverId", "name phone profilePhoto");
+      await ride.populate("clientId");
 
       const io = req.app.get("io");
       if (io) {
