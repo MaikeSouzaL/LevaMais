@@ -43,6 +43,8 @@ export default function DestinationSearchScreen() {
   
   const [distanceStr, setDistanceStr] = useState("");
   const [durationStr, setDurationStr] = useState("");
+  const [distanceRaw, setDistanceRaw] = useState<number | null>(null);
+  const [durationRaw, setDurationRaw] = useState<number | null>(null);
   const [isReadyToContinue, setIsReadyToContinue] = useState(false);
   const [vehicles, setVehicles] = useState<RealtimeVehicle[]>([]);
 
@@ -91,6 +93,8 @@ export default function DestinationSearchScreen() {
   const onDirectionsReady = (result: any) => {
     setDistanceStr(`${result.distance.toFixed(1)} km`);
     setDurationStr(`${Math.ceil(result.duration)} min`);
+    setDistanceRaw(result.distance); // in KM
+    setDurationRaw(result.duration); // in MINUTES
     setRouteCoordinates(result.coordinates);
     
     mapRef.current?.fitToCoordinates(result.coordinates, {
@@ -118,6 +122,8 @@ export default function DestinationSearchScreen() {
         latitude: Number(destinationDetails.latitude),
         longitude: Number(destinationDetails.longitude),
       },
+      initialDistanceKm: distanceRaw,
+      initialDurationMin: durationRaw,
     });
   };
 

@@ -1823,13 +1823,25 @@ class RideController {
       const Purpose = require("../models/Purpose");
 
       // DistÃ¢ncia Haversine em metros
-      const distance = haversineDistance(
-        pickup.latitude,
-        pickup.longitude,
-        dropoff.latitude,
-        dropoff.longitude,
-      );
-      const distanceKm = distance / 1000;
+      // Pre-calculate explicit provided metrics or fallback to geometric Haversine
+      let distanceInMeters = req.body.distance;
+      let durationInSeconds = req.body.duration;
+
+      if (typeof distanceInMeters !== "number") {
+        distanceInMeters = haversineDistance(
+          pickup.latitude,
+          pickup.longitude,
+          dropoff.latitude,
+          dropoff.longitude,
+        );
+      }
+      
+      const distanceKm = distanceInMeters / 1000;
+      
+      if (typeof durationInSeconds !== "number") {
+         // Fallback estimation: basic 35km/h average including lights + startup penalty
+         durationInSeconds = (distanceKm / 35) * 3600 + 180;
+      }
 
       // Resolver purpose (aceita ObjectId OU slug)
       let purposeDoc = null;

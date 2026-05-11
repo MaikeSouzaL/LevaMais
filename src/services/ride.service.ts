@@ -124,6 +124,9 @@ export interface CalculatePriceRequest {
   cargoSize?: string;
   priority?: number;
   needsHelper?: boolean;
+  // Pre-computed precise routing metrics from trusted client
+  distance?: number;
+  duration?: number;
 }
 
 export interface CalculatePriceResponse {

@@ -21,9 +21,15 @@ export const FloatingSearchCard = ({
 }: FloatingSearchCardProps) => {
   const [results, setResults] = useState<PlaceAutocompleteResult[]>([]);
   const [loading, setLoading] = useState(false);
+
   const [showDrop, setShowDrop] = useState(false);
+  const [isSelecting, setIsSelecting] = useState(false);
 
   useEffect(() => {
+    if (isSelecting) {
+      setIsSelecting(false);
+      return;
+    }
     const trimmed = destinationText.trim();
     if (trimmed.length < 3) {
       setResults([]);
@@ -49,6 +55,8 @@ export const FloatingSearchCard = ({
     try {
       setLoading(true);
       setShowDrop(false);
+      setResults([]); // Clear immediate render
+      setIsSelecting(true); // Lock recursive useEffect
       Keyboard.dismiss();
       const details = await googlePlacesService.getPlaceDetails(item.placeId);
       if (details) {

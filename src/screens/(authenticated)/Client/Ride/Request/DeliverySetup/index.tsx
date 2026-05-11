@@ -30,6 +30,8 @@ interface DeliverySetupParams {
   vehicleType?: LogisticsVehicleType;
   pickup: { address: string; latitude: number; longitude: number };
   dropoff: { address: string; latitude: number; longitude: number };
+  initialDistanceKm?: number;
+  initialDurationMin?: number;
 }
 
 export default function DeliverySetupScreen() {
@@ -70,7 +72,10 @@ export default function DeliverySetupScreen() {
           priority: priority,
           needsHelper: needsHelper,
           serviceType: "delivery",
-          cityId: (detectedCity as any)?._id || undefined
+          cityId: (detectedCity as any)?._id || undefined,
+          // Convert KM -> Meters and Min -> Seconds
+          distance: params.initialDistanceKm ? Math.round(params.initialDistanceKm * 1000) : undefined,
+          duration: params.initialDurationMin ? Math.round(params.initialDurationMin * 60) : undefined,
         });
         
         setPriceData(res);
@@ -196,8 +201,8 @@ export default function DeliverySetupScreen() {
         <DeliverySummaryCard 
           originAddress={params.pickup.address} 
           dropoffAddress={params.dropoff.address} 
-          distance={priceData?.distance?.text}
-          duration={priceData?.duration?.text}
+          distance={priceData?.distance?.text || (params.initialDistanceKm ? `${params.initialDistanceKm.toFixed(1)} km` : "...")}
+          duration={priceData?.duration?.text || (params.initialDurationMin ? `${Math.ceil(params.initialDurationMin)} min` : "...")}
         />
         
         <View className="h-[1px] bg-white/[0.03] w-full my-2" />
