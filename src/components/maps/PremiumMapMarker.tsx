@@ -1,7 +1,7 @@
 import React from "react";
 import { View } from "react-native";
 import { MotiView } from "moti";
-import { MapPin } from "lucide-react-native";
+import { MapPin, Flag } from "lucide-react-native";
 
 interface PremiumMapMarkerProps {
   type: "origin" | "destination";
@@ -29,7 +29,7 @@ export const PremiumMapMarker = ({ type }: PremiumMapMarkerProps) => {
         ${isOrigin ? 'border-primary' : 'border-red-500'}`}
       >
         {isOrigin ? (
-          <View className="w-2.5 h-2.5 rounded-full bg-primary shadow-glow" />
+          <Flag size={13} color="#fff" className="fill-white" />
         ) : (
           <MapPin size={14} color="#fff" className="fill-red-500" />
         )}

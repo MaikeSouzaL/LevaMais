@@ -35,6 +35,8 @@ import { MotiView } from "moti";
 import { MapPin, Menu, Target, Layers, ShieldAlert, Info } from "lucide-react-native";
 import { DriverStatusHeader } from "@/components/driver/home/DriverStatusHeader";
 import { IncomingRideCard } from "@/components/driver/home/IncomingRideCard";
+import { PremiumMapMarker } from "@/components/maps/PremiumMapMarker";
+import { PremiumDottedRoute } from "@/components/routes/PremiumDottedRoute";
 
 
 export default function DriverHomeScreen() {
@@ -851,10 +853,10 @@ export default function DriverHomeScreen() {
                     latitude: incomingRequest.pickup.latitude,
                     longitude: incomingRequest.pickup.longitude,
                   }}
-                  tracksViewChanges={false}
-                  anchor={{ x: 0.5, y: 1 }}
+                  tracksViewChanges={true}
+                  anchor={{ x: 0.5, y: 0.5 }}
                 >
-                  <MapMarker type="client" />
+                  <PremiumMapMarker type="origin" />
                 </Marker>
               )}
 
@@ -865,33 +867,17 @@ export default function DriverHomeScreen() {
                     latitude: incomingRequest.dropoff.latitude,
                     longitude: incomingRequest.dropoff.longitude,
                   }}
-                  tracksViewChanges={false}
-                  anchor={{ x: 0.5, y: 1 }}
+                  tracksViewChanges={true}
+                  anchor={{ x: 0.5, y: 0.5 }}
                 >
-                  <MapMarker type="dropoff" />
+                  <PremiumMapMarker type="destination" />
                 </Marker>
               )}
 
             {!!incomingRequest?.pickup?.latitude &&
-              !!incomingRequest?.dropoff?.latitude && (
-                <Polyline
-                  coordinates={
-                    routeCoords.length >= 2
-                      ? (routeCoords as any)
-                      : ([
-                          {
-                            latitude: incomingRequest.pickup.latitude,
-                            longitude: incomingRequest.pickup.longitude,
-                          },
-                          {
-                            latitude: incomingRequest.dropoff.latitude,
-                            longitude: incomingRequest.dropoff.longitude,
-                          },
-                        ] as any)
-                  }
-                  strokeWidth={4}
-                  strokeColor="#02de95"
-                />
+              !!incomingRequest?.dropoff?.latitude && 
+              routeCoords.length >= 2 && (
+                <PremiumDottedRoute coordinates={routeCoords as any} />
               )}
           </GlobalMap>
         )}
