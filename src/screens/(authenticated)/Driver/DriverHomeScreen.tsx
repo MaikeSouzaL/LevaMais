@@ -1112,12 +1112,9 @@ export default function DriverHomeScreen() {
 
         <Modal
           visible={showCancelModal}
-          title={cancelModalReason === "tempo_limite_esgotado" ? "Tempo Esgotado" : "Pedido Cancelado"}
-          message={cancelModalReason === "tempo_limite_esgotado" 
-            ? "O tempo limite de busca acabou e a solicitação foi encerrada pelo sistema."
-            : "O cliente cancelou esta solicitação e ela não está mais disponível para aceite."
-          }
-          type={cancelModalReason === "tempo_limite_esgotado" ? "info" : "warning"}
+          title="Pedido Cancelado"
+          message="O cliente cancelou esta solicitação e ela não está mais disponível para aceite."
+          type="warning"
           confirmText="Entendido"
           onClose={() => {
             setShowCancelModal(false);
