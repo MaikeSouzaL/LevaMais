@@ -48,7 +48,7 @@ export default function DeliverySetupScreen() {
   
   // Dynamic User Entry Store (Delivery Context)
   const [vehicleType, setVehicleType] = useState<LogisticsVehicleType>(params.vehicleType || "motorcycle");
-  const [deliveryType, setDeliveryType] = useState<DeliveryType>("box");
+  const [deliveryType, setDeliveryType] = useState<DeliveryType>("food");
   const [cargoDescription, setCargoDescription] = useState("");
   const [cargoSize, setCargoSize] = useState<CargoSize>("medium");
   const [needsHelper, setNeedsHelper] = useState(false);

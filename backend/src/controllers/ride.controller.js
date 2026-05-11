@@ -1836,6 +1836,7 @@ class RideController {
         );
       }
       
+      const distance = distanceInMeters;
       const distanceKm = distanceInMeters / 1000;
       
       if (typeof durationInSeconds !== "number") {
@@ -2073,7 +2074,7 @@ class RideController {
       // Ajuste de duraÃ§Ã£o (opcional, se configurado)
       // if (rule.pricing.pricePerMinute) ...
 
-      const durationMinutes = Math.max(1, Math.ceil((distanceKm / 30) * 60)); // Estimativa simples 30km/h
+      const durationMinutes = Math.max(1, Math.ceil(durationInSeconds / 60)); // Uses injected time scalar
 
     const PlatformConfig = require("../models/PlatformConfig");
     let platformConfig = await PlatformConfig.findOne().sort({ createdAt: -1 });
@@ -2114,6 +2115,8 @@ class RideController {
         needsHelper: Boolean(needsHelper),
         demandLevel: "medium"
       });
+
+      console.log(`[calculatePrice] ✅ Preço FINAL Smart Engine: R$ ${smartCalculation.suggestedPrice}`);
 
       return res.json({
         pricing: {

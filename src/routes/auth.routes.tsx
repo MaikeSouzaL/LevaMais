@@ -30,7 +30,10 @@ const { Navigator, Screen } = createNativeStackNavigator();
 export default function AuthRoutes() {
   return (
     <Navigator
-      screenOptions={{ headerShown: false }}
+      screenOptions={{ 
+        headerShown: false,
+        animation: "slide_from_right" 
+      }}
       initialRouteName="IntroScreen"
     >
       <Screen name="IntroScreen" component={IntroScreen} />

@@ -150,7 +150,7 @@ export function IncomingRideCard({
               </View>
               <View className="flex-1">
                  <Text className="text-white/40 text-[10px] font-bold uppercase mb-0.5">Coleta</Text>
-                 <Text className="text-white font-bold text-sm" numberOfLines={1}>
+                 <Text className="text-white font-bold text-sm" numberOfLines={2}>
                    {request?.pickup?.address || "Endereço não informado"}
                  </Text>
               </View>
@@ -164,7 +164,7 @@ export function IncomingRideCard({
               </View>
               <View className="flex-1">
                  <Text className="text-white/40 text-[10px] font-bold uppercase mb-0.5">Entrega</Text>
-                 <Text className="text-white font-bold text-sm" numberOfLines={1}>
+                 <Text className="text-white font-bold text-sm" numberOfLines={2}>
                     {request?.dropoff?.address || "Endereço não informado"}
                  </Text>
               </View>
