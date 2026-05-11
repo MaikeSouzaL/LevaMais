@@ -284,7 +284,7 @@ export default function SearchingDriverScreen() {
       doneRef.current = true;
       cleanup();
       Toast.show({ type: "info", text1: "Solicitação cancelada com sucesso." });
-      navigation.reset({ index: 0, routes: [{ name: "Home" }] });
+      navigation.reset({ index: 0, routes: [{ name: "DestinationSearch" }] });
     } catch (e: any) {
       Toast.show({ type: "error", text1: "Erro", text2: e?.message || "Falha ao cancelar" });
     } finally {

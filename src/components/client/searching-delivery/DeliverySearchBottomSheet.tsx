@@ -152,8 +152,10 @@ export function DeliverySearchBottomSheet({
              </View>
           </View>
         </View>
+      </BottomSheetScrollView>
 
-        {/* 6. Major Cancel Call to Action */}
+      {/* 🛡️ FIXED ACTION BAR: Always visible button, no scrolling required */}
+      <View className="px-6 pt-2 pb-8 border-t border-white/[0.05] bg-[#0B1523]">
         <TouchableOpacity
           onPress={onCancel}
           disabled={cancelling}
@@ -164,14 +166,13 @@ export function DeliverySearchBottomSheet({
           ) : (
             <>
               <XCircle size={18} color="#EF4444" className="mr-2" opacity={0.8} />
-              <Text className="text-red-500/90 font-bold text-base">
-                Cancelar Solicitação
+              <Text className="text-red-500/90 font-black text-base uppercase tracking-wider">
+                Cancelar Busca
               </Text>
             </>
           )}
         </TouchableOpacity>
-
-      </BottomSheetScrollView>
+      </View>
     </BottomSheet>
   );
 }

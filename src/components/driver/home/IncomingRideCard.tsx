@@ -1,10 +1,8 @@
-import React from "react";
-import { View, Text, TouchableOpacity, Dimensions } from "react-native";
-import { MotiView, AnimatePresence } from "moti";
-import { MapPin, Timer, Check, X, DollarSign, Route } from "lucide-react-native";
+import React, { useMemo, useRef, useEffect } from "react";
+import { View, Text, TouchableOpacity } from "react-native";
+import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
+import { MapPin, Check, X, DollarSign, Route, Timer } from "lucide-react-native";
 import { formatBRL } from "@/utils/mappers";
-
-const { width } = Dimensions.get("window");
 
 interface IncomingRideCardProps {
   isVisible: boolean;
@@ -18,11 +16,23 @@ interface IncomingRideCardProps {
 export function IncomingRideCard({
   isVisible,
   request,
-  countdown,
   onAccept,
   onReject,
   onNegotiate,
 }: IncomingRideCardProps) {
+  
+  const sheetRef = useRef<BottomSheet>(null);
+
+  // Dynamic height tiers: Minimized (let's see map) / Full Expanded
+  const snapPoints = useMemo(() => ["55%", "88%"], []);
+
+  // When mount request toggles, automatically enforce the initial sheet state
+  useEffect(() => {
+    if (isVisible) {
+      sheetRef.current?.snapToIndex(0);
+    }
+  }, [isVisible]);
+
   if (!isVisible || !request) return null;
 
   const isNegotiation = !!request?.negotiation?.enabled;
@@ -34,17 +44,20 @@ export function IncomingRideCard({
     : 0;
 
   return (
-    <AnimatePresence>
-      <MotiView
-        from={{ translateY: 200, opacity: 0, scale: 0.9 }}
-        animate={{ translateY: 0, opacity: 1, scale: 1 }}
-        exit={{ translateY: 200, opacity: 0, scale: 0.9 }}
-        transition={{ type: "spring", damping: 18 }}
-        style={{ width: width - 32 }}
-        className="absolute bottom-32 left-4 z-[100] bg-[#0B1A2A] rounded-[36px] p-6 border border-white/10 shadow-2xl"
+    <BottomSheet
+      ref={sheetRef}
+      index={0}
+      snapPoints={snapPoints}
+      enablePanDownToClose={false} // Requires interaction or timeout to vanish
+      backgroundStyle={{ backgroundColor: "#0B1523", borderRadius: 36 }}
+      handleIndicatorStyle={{ backgroundColor: "rgba(255,255,255,0.25)", width: 40 }}
+      animateOnMount={true}
+    >
+      <BottomSheetScrollView 
+        contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 4, paddingBottom: 40 }}
       >
-        {/* ⚡ Top Status: Negotiation Badge & Countdown */}
-        <View className="flex-row items-center justify-between mb-6">
+        {/* ⚡ Top Status: Negotiation Badge */}
+        <View className="flex-row items-center justify-between mb-6 mt-2">
           {isNegotiation ? (
             <View className="bg-[#02de95]/10 border border-[#02de95]/20 px-3 py-1.5 rounded-xl flex-row items-center">
                <DollarSign size={12} color="#02de95" className="mr-1" />
@@ -56,13 +69,7 @@ export function IncomingRideCard({
                <Text className="text-blue-400 text-[10px] font-black uppercase tracking-wider">NOVA ENTREGA</Text>
             </View>
           )}
-
-          {countdown !== null && (
-             <View className="flex-row items-center bg-amber-500/10 border border-amber-500/30 rounded-full px-3 py-1.5">
-               <Timer size={12} color="#FBBF24" className="mr-1.5" />
-               <Text className="text-[#FBBF24] text-xs font-black tracking-wider">{countdown}s</Text>
-             </View>
-          )}
+          {/* Timer strictly removed per user strategic mandate 🚫⏰ */}
         </View>
 
         {/* 💵 VALUE DISPLAY SECTION */}
@@ -73,9 +80,9 @@ export function IncomingRideCard({
           </Text>
         </View>
 
-        {/* 📦 SHIPMENT METADATA (ADDED FOR TRANSPARENCY) */}
+        {/* 📦 SHIPMENT METADATA */}
         {request?.serviceType === "delivery" && (
-          <View className="mb-6 flex-row flex-wrap gap-2 px-1">
+          <View className="mb-6 flex-row flex-wrap gap-2 px-1 justify-center">
             {/* Tipo do Veículo */}
             <View className="bg-white/5 border border-white/10 px-2.5 py-1.5 rounded-xl flex-row items-center">
                <Text className="text-xs">
@@ -129,13 +136,13 @@ export function IncomingRideCard({
           </View>
         )}
 
-        {/* 📝 Cargo Spec and Instructions (ADDED) */}
+        {/* 📝 Cargo Spec and Instructions */}
         {request.details?.specialInstructions && (
-           <View className="bg-[#0B1A2A] border border-amber-500/20 px-4 py-3 rounded-2xl mb-4 flex-row items-start">
+           <View className="bg-white/[0.03] border border-amber-500/20 px-4 py-3 rounded-2xl mb-5 flex-row items-start">
              <Text className="text-base mr-2">💡</Text>
              <View className="flex-1">
                <Text className="text-amber-200/70 text-[10px] font-black uppercase tracking-wider mb-0.5">Instruções / Volume</Text>
-               <Text className="text-amber-100 text-xs font-medium" numberOfLines={2}>
+               <Text className="text-amber-100 text-xs font-medium">
                  {request.details.specialInstructions}
                </Text>
              </View>
@@ -222,8 +229,7 @@ export function IncomingRideCard({
              </Text>
            </TouchableOpacity>
         )}
-
-      </MotiView>
-    </AnimatePresence>
+      </BottomSheetScrollView>
+    </BottomSheet>
   );
 }

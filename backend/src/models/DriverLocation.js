@@ -98,8 +98,6 @@ driverLocationSchema.statics.findNearby = async function (
   limit = 10,
   serviceType,
 ) {
-  const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
-
   return this.find({
     location: {
       $near: {
@@ -111,7 +109,6 @@ driverLocationSchema.statics.findNearby = async function (
       },
     },
     status: "available", // Motorista deve estar online e disponível
-    updatedAt: { $gte: thirtyMinutesAgo }, // Ignora motoristas offline ha mais de 30 min
     ...(vehicleType && { vehicleType }),
     ...(serviceType && { serviceTypes: serviceType }),
   }).limit(limit);

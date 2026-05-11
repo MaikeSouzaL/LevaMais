@@ -505,40 +505,7 @@ export default function DriverHomeScreen() {
     };
   }, []);
 
-  useEffect(() => {
-    if (incomingRequest) {
-      setCountdown(60);
-      countdownIntervalRef.current = setInterval(() => {
-        setCountdown((prev) => {
-          if (prev === null || prev <= 1) {
-            clearInterval(countdownIntervalRef.current);
-            countdownIntervalRef.current = null;
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    } else {
-      if (countdownIntervalRef.current) {
-        clearInterval(countdownIntervalRef.current);
-        countdownIntervalRef.current = null;
-      }
-      setCountdown(null);
-    }
 
-    return () => {
-      if (countdownIntervalRef.current) {
-        clearInterval(countdownIntervalRef.current);
-        countdownIntervalRef.current = null;
-      }
-    };
-  }, [incomingRequest]);
-
-  useEffect(() => {
-    if (countdown === 0) {
-      rejectIncoming();
-    }
-  }, [countdown]);
 
   const toggleOnline = async () => {
     if (isTogglingOnline) return;
