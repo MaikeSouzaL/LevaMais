@@ -63,7 +63,7 @@ export function IncomingRideCard({
       index={0}
       snapPoints={snapPoints}
       enablePanDownToClose={false}
-      backgroundStyle={{ backgroundColor: "#070D15", borderRadius: 40 }}
+      backgroundStyle={{ backgroundColor: "#091A2F", borderRadius: 40 }}
       handleIndicatorStyle={{ backgroundColor: "rgba(255,255,255,0.15)", width: 36 }}
       animateOnMount={true}
     >
@@ -241,15 +241,33 @@ export function IncomingRideCard({
                <Text style={{ color: 'rgba(245,158,11,0.8)', fontSize: 9, fontWeight: '900', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 2 }}>
                  DETALHES DA CARGA
                </Text>
-               <Text style={{ color: '#FFF', fontSize: 13, fontWeight: '800', letterSpacing: 0.5 }}>
-                 {request.details.specialInstructions
-                   .replace("[Tamanho: small]", "TAMANHO: PEQUENO")
-                   .replace("[Tamanho: medium]", "TAMANHO: MÉDIO")
-                   .replace("[Tamanho: large]", "TAMANHO: GRANDE")
-                   .replace(/\[|\]/g, "") // Removes generic brackets if user entered custom ones
-                   .toUpperCase()
-                 }
-               </Text>
+                {(() => {
+                   const raw = request.details.specialInstructions || "";
+                   const match = raw.match(/\[Tamanho:\s*(.*?)\]/i);
+                   const sizeKey = match ? match[1].toLowerCase() : "";
+                   const description = raw.replace(/\[Tamanho:.*?\]/i, "").trim();
+                   
+                   let sizeLabel = "";
+                   if (sizeKey === "small") sizeLabel = "PEQUENO";
+                   else if (sizeKey === "medium") sizeLabel = "MÉDIO";
+                   else if (sizeKey === "large") sizeLabel = "GRANDE";
+                   else if (sizeKey) sizeLabel = sizeKey.toUpperCase();
+
+                   return (
+                     <View>
+                       {!!sizeLabel && (
+                         <Text style={{ color: '#FFF', fontSize: 13, fontWeight: '800', letterSpacing: 0.5, marginBottom: description ? 4 : 0 }}>
+                           TAMANHO: {sizeLabel}
+                         </Text>
+                       )}
+                       {!!description && (
+                         <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12, fontWeight: '600', lineHeight: 16 }}>
+                           {description.toUpperCase()}
+                         </Text>
+                       )}
+                     </View>
+                   );
+                })()}
              </View>
            </View>
         )}

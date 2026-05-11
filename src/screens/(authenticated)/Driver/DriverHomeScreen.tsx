@@ -511,8 +511,19 @@ export default function DriverHomeScreen() {
       }
     };
 
+    const onRideCancelled = async (payload: any) => {
+      if (!mounted) return;
+      const cancelledId = payload?.rideId;
+      if (!cancelledId) return;
+
+      if (incomingRequest?.rideId && incomingRequest.rideId === cancelledId) {
+        await clearIncoming();
+      }
+    };
+
     webSocketService.on("new-ride-request", onNewRideRequest);
     webSocketService.on("ride-taken", onRideTaken);
+    webSocketService.on("ride-cancelled", onRideCancelled);
 
     webSocketService.connect().catch(() => {});
     syncAvailableRequests().catch(() => {});
@@ -521,6 +532,7 @@ export default function DriverHomeScreen() {
       mounted = false;
       webSocketService.off("new-ride-request", onNewRideRequest);
       webSocketService.off("ride-taken", onRideTaken);
+      webSocketService.off("ride-cancelled", onRideCancelled);
     };
   }, [online, incomingRequest?.rideId, isFocused]);
 

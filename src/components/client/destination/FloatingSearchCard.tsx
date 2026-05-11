@@ -163,13 +163,20 @@ export const FloatingSearchCard = ({
                 
                 <View className="flex-row items-center gap-2">
                   {activeField === 'origin' && loading && <ActivityIndicator size="small" color="#02de95" />}
-                  
-                  {onFavoriteOrigin && originText.length > 0 && (
-                     <TouchableOpacity onPress={onFavoriteOrigin} hitSlop={8}>
-                       <Heart size={15} color="#ffffff" opacity={0.35} />
-                     </TouchableOpacity>
-                  )}
-                  <Navigation size={15} color="#02de95" opacity={0.8} />
+                  {originText.length > 0 ? (
+                     <>
+                       {onFavoriteOrigin && (
+                          <TouchableOpacity onPress={onFavoriteOrigin} hitSlop={8}>
+                            <Heart size={15} color="#ffffff" opacity={0.35} />
+                          </TouchableOpacity>
+                       )}
+                       <TouchableOpacity onPress={() => onOriginChange("")} hitSlop={8}>
+                         <X size={16} color="rgba(255,255,255,0.5)" />
+                       </TouchableOpacity>
+                     </>
+                   ) : (
+                     <Navigation size={15} color="#02de95" opacity={0.8} />
+                   )}
                 </View>
               </View>
             </View>

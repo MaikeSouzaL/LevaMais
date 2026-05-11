@@ -202,6 +202,13 @@ export default function DriverRequestsScreen() {
       setRequests((prev) => prev.filter((r) => r.rideId !== expiredId));
     };
 
+    const onRideCancelled = (payload: any) => {
+      if (!mounted) return;
+      const cancelledId = payload?.rideId;
+      if (!cancelledId) return;
+      setRequests((prev) => prev.filter((r) => r.rideId !== cancelledId));
+    };
+
     const onSocketConnected = () => {
       syncAvailableRequests().catch(() => {});
     };
@@ -213,6 +220,7 @@ export default function DriverRequestsScreen() {
         webSocketService.on("new-ride-request", onNewRide);
         webSocketService.on("ride-taken", onRideTaken);
         webSocketService.on("ride-expired", onRideExpired);
+        webSocketService.on("ride-cancelled", onRideCancelled);
       } catch (e) {
         console.log("Falha ao conectar WS", e);
       }
@@ -230,6 +238,7 @@ export default function DriverRequestsScreen() {
       webSocketService.off("new-ride-request", onNewRide);
       webSocketService.off("ride-taken", onRideTaken);
       webSocketService.off("ride-expired", onRideExpired);
+      webSocketService.off("ride-cancelled", onRideCancelled);
       webSocketService.off("connect", onSocketConnected);
       driverAlertService.stop().catch(() => {});
     };

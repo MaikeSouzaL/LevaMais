@@ -1348,6 +1348,35 @@ class RideController {
             reason,
             cancellationFee,
           });
+        } else if (isClient && !ride.driverId) {
+          // Broadcast cancel message to ALL notified drivers in the region
+          try {
+             let searchRadius = 15000;
+             if (ride.cityId) {
+               const city = await City.findById(ride.cityId).select("searchRadius");
+               if (city?.searchRadius) {
+                 searchRadius = city.searchRadius;
+               }
+             }
+             const nearbyDrivers = await DriverLocation.findNearby(
+                ride.pickup.latitude,
+                ride.pickup.longitude,
+                searchRadius,
+                ride.vehicleType,
+                50,
+                ride.serviceType
+             );
+             nearbyDrivers.forEach(drv => {
+                if (!drv.driverId) return;
+                io.to(`driver-${drv.driverId}`).emit("ride-cancelled", {
+                   rideId: ride._id,
+                   cancelledBy: "client",
+                   reason: "cancelamento_pre_aceite"
+                });
+             });
+          } catch (broadcastErr) {
+             console.error("Erro ao disparar broadcast de cancelamento:", broadcastErr);
+          }
         }
       }
 
