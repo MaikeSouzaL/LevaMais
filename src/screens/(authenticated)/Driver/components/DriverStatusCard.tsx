@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
+import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
 
 import ActionButton from "../../../../components/ui/ActionButton";
 import { driverTheme } from "./driverTheme";
@@ -30,6 +30,11 @@ export type DriverStatusCardProps = {
     priority?: number;
     specialInstructions?: string;
   };
+  payment?: {
+    method?: {
+      type?: string;
+    } | string;
+  };
 };
 
 export function DriverStatusCard({
@@ -47,6 +52,7 @@ export function DriverStatusCard({
   onChat,
   unreadCount,
   details,
+  payment,
 }: DriverStatusCardProps) {
   const busy = actionLoading != null;
 
@@ -131,6 +137,45 @@ export function DriverStatusCard({
           </Text>
         </>
       )}
+
+      {/* Payment Method Prompt */}
+      {(() => {
+        const rawType = typeof payment?.method === "object" ? payment?.method?.type : payment?.method;
+        const type = rawType || "cash";
+
+        let label = "DINHEIRO";
+        let color = "#02de95";
+        let icon = "money-bill-wave";
+
+        if (type === "pix") {
+          label = "PIX";
+          color = "#32BCAD";
+          icon = "qrcode";
+        } else if (["card", "credit_card", "debit_card"].includes(String(type))) {
+          label = "CARTÃO";
+          color = "#3b82f6";
+          icon = "credit-card";
+        }
+
+        return (
+          <View style={{
+            flexDirection: "row",
+            alignItems: "center",
+            backgroundColor: `${color}15`,
+            paddingHorizontal: 12,
+            paddingVertical: 6,
+            borderRadius: 8,
+            marginTop: 8,
+            borderWidth: 1,
+            borderColor: `${color}30`
+          }}>
+            <FontAwesome5 name={icon} size={12} color={color} />
+            <Text style={{ color: "#fff", fontSize: 11, fontWeight: "900", marginLeft: 8, opacity: 0.9 }}>
+              Pagamento: <Text style={{ color: color }}>{label}</Text>
+            </Text>
+          </View>
+        );
+      })()}
 
       {!!details?.specialInstructions && (
         <View style={{ 

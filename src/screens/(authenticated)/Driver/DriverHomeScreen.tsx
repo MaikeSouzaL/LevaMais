@@ -37,6 +37,7 @@ import { DriverStatusHeader } from "@/components/driver/home/DriverStatusHeader"
 import { IncomingRideCard } from "@/components/driver/home/IncomingRideCard";
 import { PremiumMapMarker } from "@/components/maps/PremiumMapMarker";
 import { PremiumDottedRoute } from "@/components/routes/PremiumDottedRoute";
+import { VehicleMarker } from "@/components/maps/VehicleMarker";
 
 
 export default function DriverHomeScreen() {
@@ -65,6 +66,8 @@ export default function DriverHomeScreen() {
   const [incomingRequest, setIncomingRequest] = useState<any>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [routeCoords, setRouteCoords] = useState<LatLng[]>([]);
+  const [driverCoords, setDriverCoords] = useState<{latitude: number, longitude: number, heading?: number} | null>(null);
+  const watchRef = useRef<any>(null);
   const intervalRef = useRef<any>(null);
   const pendingSyncIntervalRef = useRef<any>(null);
   const countdownIntervalRef = useRef<any>(null);
@@ -348,6 +351,63 @@ export default function DriverHomeScreen() {
       mounted = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 🛰️ Real-Time High-Definition Tracking for User Puck Marker
+  useEffect(() => {
+    let mounted = true;
+    
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") return;
+
+        // Immediate initial snapshot
+        let currentLoc = await Location.getLastKnownPositionAsync();
+        
+        // Fallback to fresh capture if last known isn't cached yet
+        if (!currentLoc?.coords) {
+          currentLoc = await Location.getCurrentPositionAsync({ 
+             accuracy: Location.Accuracy.Balanced 
+          });
+        }
+
+        if (mounted && currentLoc?.coords) {
+           setDriverCoords({
+             latitude: currentLoc.coords.latitude,
+             longitude: currentLoc.coords.longitude,
+             heading: currentLoc.coords.heading ?? 0
+           });
+        }
+
+        // Set up permanent efficient stream
+        watchRef.current = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.High,
+            timeInterval: 3000, // Update visually every 3s
+            distanceInterval: 5, // or 5 meters
+          },
+          (pos) => {
+            if (mounted && pos?.coords) {
+              setDriverCoords({
+                latitude: pos.coords.latitude,
+                longitude: pos.coords.longitude,
+                heading: pos.coords.heading ?? undefined,
+              });
+            }
+          }
+        );
+      } catch (e) {
+        console.log("Failed to watch user tracker", e);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+      if (watchRef.current && typeof watchRef.current.remove === "function") {
+        watchRef.current.remove();
+      }
+    };
   }, []);
 
   // Sincroniza status online inicial com backend (evita UI divergente ao reabrir app)
@@ -839,13 +899,31 @@ export default function DriverHomeScreen() {
           <GlobalMap
             initialRegion={region as any}
             region={region ?? undefined}
-            showsUserLocation
+            showsUserLocation={false}
             useDarkStyle={useDarkMap}
             onMapRef={(ref) => {
               mapRef.current = ref;
             }}
             onRegionChangeComplete={(r) => setRegion(r as any)}
           >
+            {/* 🚗 The Premium Custom High-Def Driver Tracker Puck */}
+            {!!driverCoords && (
+              <Marker
+                coordinate={{
+                  latitude: driverCoords.latitude,
+                  longitude: driverCoords.longitude,
+                }}
+                flat={true}
+                anchor={{ x: 0.5, y: 0.5 }}
+                tracksViewChanges={true}
+                style={{ width: 48, height: 48 }}
+              >
+                 <VehicleMarker 
+                   type={vehicleType as any} 
+                   isOnline={online} 
+                 />
+              </Marker>
+            )}
             {!!incomingRequest?.pickup?.latitude &&
               !!incomingRequest?.pickup?.longitude && (
                 <Marker

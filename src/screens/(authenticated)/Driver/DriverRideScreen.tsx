@@ -20,6 +20,7 @@ import { useAuthStore } from "../../../context/authStore";
 import { useChatStore } from "../../../context/chatStore";
 import MapMarker, { getClientMarkerType } from "../../../components/MapMarker";
 import { decodePolyline, LatLng } from "../../../utils/polyline";
+import { VehicleMarker } from "@/components/maps/VehicleMarker";
 
 type Params = {
   DriverRide: {
@@ -32,6 +33,7 @@ export default function DriverRideScreen() {
   const route = useRoute<RouteProp<Params, "DriverRide">>();
   const rideId = route.params?.rideId;
   const currentUserId = useAuthStore((s) => s.userData?.id) || "";
+  const vehicleType = useAuthStore((s) => s.userData?.vehicleType) || "motorcycle";
   const unreadCount = useChatStore((s) => s.unreadCounts[rideId || ""]) || 0;
 
   const [ride, setRide] = useState<Ride | null>(null);
@@ -666,11 +668,28 @@ export default function DriverRideScreen() {
       <View style={{ flex: 1 }}>
         <GlobalMap
           initialRegion={initialRegion as any}
-          showsUserLocation
+          showsUserLocation={false}
           onMapRef={(ref) => {
             mapRef.current = ref;
           }}
         >
+          {!!driverCoords && (
+             <Marker
+               coordinate={{
+                 latitude: driverCoords.latitude,
+                 longitude: driverCoords.longitude,
+               }}
+               flat={true}
+               anchor={{ x: 0.5, y: 0.5 }}
+               tracksViewChanges={true}
+               style={{ width: 48, height: 48 }}
+             >
+                <VehicleMarker 
+                  type={vehicleType as any} 
+                  isOnline={true} 
+                />
+             </Marker>
+          )}
           {routeCoords.length >= 2 ? (
             <Polyline
               coordinates={routeCoords as any}
@@ -755,6 +774,7 @@ export default function DriverRideScreen() {
             pickupAddress={ride?.pickup?.address}
             dropoffAddress={ride?.dropoff?.address}
             details={ride?.details}
+            payment={ride?.payment}
             showRouteDetails
             canArrive={canArrive}
             canStart={canStart}

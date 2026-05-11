@@ -24,7 +24,9 @@ export const AnimatedRoutePath = ({ coordinates }: AnimatedRoutePathProps) => {
   const progress = useSharedValue(0);
 
   useEffect(() => {
-    sharedCoords.value = coordinates;
+    if (coordinates && coordinates.length >= 2) {
+      sharedCoords.value = [...coordinates];
+    }
   }, [coordinates]);
 
   useEffect(() => {

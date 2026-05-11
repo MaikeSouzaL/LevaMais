@@ -2280,6 +2280,7 @@ function buildRideRequestPayload(ride, extras = {}) {
     details: ride.details || {},
     scheduledFor: ride.scheduledFor || null,
     distanceToPickup: extras.distanceToPickup,
+    payment: ride.payment || { method: { type: "cash" } },
     negotiation: enabled
       ? {
           enabled: true,

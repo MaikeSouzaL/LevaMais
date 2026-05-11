@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useEffect } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
-import { MapPin, Check, X, DollarSign, Route, Timer } from "lucide-react-native";
+import { MapPin, Check, X, DollarSign, Route, Timer, CreditCard, QrCode, Banknote } from "lucide-react-native";
 import { formatBRL } from "@/utils/mappers";
 
 interface IncomingRideCardProps {
@@ -132,6 +132,31 @@ export function IncomingRideCard({
                    "🐢 Econômico"
                  }
                </Text>
+            </View>
+            {/* Badge de Forma de Pagamento 💰 */}
+            <View className="bg-white/5 border border-white/10 px-2.5 py-1.5 rounded-xl flex-row items-center">
+               {(() => {
+                 const type = request.payment?.method?.type || request.payment?.method || "cash";
+                 
+                 if (type === "pix") return (
+                   <>
+                     <QrCode size={11} color="#32BCAD" className="mr-1.5" />
+                     <Text className="text-[#32BCAD] text-[11px] font-black uppercase">PIX</Text>
+                   </>
+                 );
+                 if (["card", "credit_card", "debit_card"].includes(type)) return (
+                   <>
+                     <CreditCard size={11} color="#3b82f6" className="mr-1.5" />
+                     <Text className="text-blue-400 text-[11px] font-black uppercase">Cartão</Text>
+                   </>
+                 );
+                 return (
+                   <>
+                     <Banknote size={11} color="#02de95" className="mr-1.5" />
+                     <Text className="text-[#02de95] text-[11px] font-black uppercase">Dinheiro</Text>
+                   </>
+                 );
+               })()}
             </View>
           </View>
         )}

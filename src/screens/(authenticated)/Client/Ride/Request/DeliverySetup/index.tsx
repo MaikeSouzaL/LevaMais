@@ -19,6 +19,7 @@ import { CargoDescriptionInput } from "@/components/client/delivery-setup/CargoD
 import { DeliveryOfferCard } from "@/components/client/delivery-setup/DeliveryOfferCard";
 import { DeliveryPrioritySelector, DeliveryPriority } from "@/components/client/delivery-setup/DeliveryPrioritySelector";
 import { SearchDeliveryButton } from "@/components/client/delivery-setup/SearchDeliveryButton";
+import { PaymentMethodSelector, PaymentMethodType } from "@/components/client/delivery-setup/PaymentMethodSelector";
 
 // Visual Foundations 🗺️
 import { PremiumMapMarker } from "@/components/maps/PremiumMapMarker";
@@ -54,6 +55,7 @@ export default function DeliverySetupScreen() {
   const [needsHelper, setNeedsHelper] = useState(false);
   const [offerValue, setOfferValue] = useState<number>(20.00);
   const [priority, setPriority] = useState<DeliveryPriority>(0);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType>("cash");
 
   const [path, setPath] = useState<any[]>([]);
 
@@ -133,6 +135,12 @@ export default function DeliverySetupScreen() {
         negotiation: {
           enabled: true,
           clientOffer: offerValue
+        },
+        payment: {
+          method: {
+            // Match the backend typing from service.ts
+            type: paymentMethod === "card" ? "credit_card" : paymentMethod
+          }
         }
       };
 
@@ -224,6 +232,10 @@ export default function DeliverySetupScreen() {
         <View className="h-[1px] bg-white/[0.03] w-full mb-6 mt-2" />
 
         <DeliveryPrioritySelector value={priority} onChange={setPriority} />
+
+        <View className="h-[1px] bg-white/[0.03] w-full mb-6 mt-2" />
+
+        <PaymentMethodSelector value={paymentMethod} onChange={setPaymentMethod} />
 
         {loadingPricing ? (
           <View className="h-32 items-center justify-center"><ActivityIndicator color="#02de95" /></View>
