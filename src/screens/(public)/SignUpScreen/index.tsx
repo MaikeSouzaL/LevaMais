@@ -123,8 +123,7 @@ export default function SignUpScreen() {
         });
       }
     } catch (error) {
-      console.error("Erro ao obter localização:", error);
-    } finally {
+          } finally {
       setLocationLoading(false);
     }
   }, []);
@@ -151,8 +150,7 @@ export default function SignUpScreen() {
           }
         }
       } catch (err) {
-        console.error(err);
-        if (isMounted) {
+                if (isMounted) {
           setShowPermissionScreen(true);
           setHasCheckedPermission(true);
         }
@@ -292,8 +290,7 @@ export default function SignUpScreen() {
         });
       }
     } catch (error: any) {
-      console.error("Erro google auth:", error);
-      if (isErrorWithCode(error)) {
+            if (isErrorWithCode(error)) {
         if (error.code === statusCodes.SIGN_IN_CANCELLED) return;
       }
       Toast.show({ type: "error", text1: "Falha ao conectar com Google" });

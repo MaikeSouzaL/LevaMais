@@ -68,7 +68,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary[500],
     borderRadius: 60,
     opacity: 0.08,
-    blurRadius: 20,
     zIndex: -1,
   },
 });

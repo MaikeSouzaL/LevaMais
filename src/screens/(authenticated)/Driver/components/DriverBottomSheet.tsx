@@ -9,6 +9,12 @@ export type DriverServicePrefs = {
   delivery: boolean;
 };
 
+interface DriverStats {
+  rating?: number;
+  acceptanceRate?: number;
+  onlineTime?: number;
+}
+
 interface DriverBottomSheetProps {
   online: boolean;
   services: DriverServicePrefs;
@@ -17,6 +23,7 @@ interface DriverBottomSheetProps {
   onToggleService: (key: keyof DriverServicePrefs) => void;
   snapPoints?: string[];
   vehicleType?: string;
+  stats?: DriverStats;
 }
 
 export function DriverBottomSheet({
@@ -27,10 +34,27 @@ export function DriverBottomSheet({
   onToggleService,
   snapPoints: userSnapPoints,
   vehicleType,
+  stats,
 }: DriverBottomSheetProps) {
   const finalSnapPoints = useMemo(() => userSnapPoints || ["38%", "65%"], [userSnapPoints]);
 
   const canDoRides = vehicleType === "car" || vehicleType === "motorcycle";
+
+  const displayRating = stats?.rating != null ? stats.rating.toFixed(1) : "—";
+  const displayAcceptance = stats?.acceptanceRate != null ? `${Math.round(stats.acceptanceRate)}%` : "—";
+  
+  const displayOnlineTime = useMemo(() => {
+    if (stats?.onlineTime == null) return "—";
+    const totalSecs = Math.round(stats.onlineTime);
+    const h = Math.floor(totalSecs / 3600);
+    const m = Math.floor((totalSecs % 3600) / 60);
+    const s = totalSecs % 60;
+
+    if (h > 0) {
+      return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+    }
+    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  }, [stats?.onlineTime]);
 
   return (
     <BottomSheet
@@ -53,30 +77,30 @@ export function DriverBottomSheet({
           />
         </View>
 
-        {/* 📊 OPERATIONAL PERFORMANCE PRESETS */}
-        <View className="flex-row items-center justify-between gap-3 mb-6 bg-white/[0.02] border border-white/5 rounded-2xl p-4">
-           <View className="items-center flex-1 border-r border-white/10">
-              <View className="flex-row items-center mb-1">
-                 <Star size={14} color="#FBBF24" fill="#FBBF24" className="mr-1" />
-                 <Text className="text-white font-black text-base">4.9</Text>
-              </View>
-              <Text className="text-white/30 text-[10px] font-bold uppercase tracking-wider">Avaliação</Text>
-           </View>
-           <View className="items-center flex-1 border-r border-white/10">
-              <View className="flex-row items-center mb-1">
-                 <TrendingUp size={14} color="#02de95" className="mr-1" />
-                 <Text className="text-white font-black text-base">98%</Text>
-              </View>
-              <Text className="text-white/30 text-[10px] font-bold uppercase tracking-wider">Aceitação</Text>
-           </View>
-           <View className="items-center flex-1">
-              <View className="flex-row items-center mb-1">
-                 <Clock size={14} color="#3B82F6" className="mr-1" />
-                 <Text className="text-white font-black text-base">4.5h</Text>
-              </View>
-              <Text className="text-white/30 text-[10px] font-bold uppercase tracking-wider">Online</Text>
-           </View>
-        </View>
+         {/* 📊 OPERATIONAL PERFORMANCE PRESETS */}
+         <View className="flex-row items-center justify-between gap-3 mb-6 bg-white/[0.02] border border-white/5 rounded-2xl p-4">
+            <View className="items-center flex-1 border-r border-white/10">
+               <View className="flex-row items-center mb-1">
+                  <Star size={14} color="#FBBF24" fill="#FBBF24" className="mr-1" />
+                  <Text className="text-white font-black text-base">{displayRating}</Text>
+               </View>
+               <Text className="text-white/30 text-[10px] font-bold uppercase tracking-wider">Avaliação</Text>
+            </View>
+            <View className="items-center flex-1 border-r border-white/10">
+               <View className="flex-row items-center mb-1">
+                  <TrendingUp size={14} color="#02de95" className="mr-1" />
+                  <Text className="text-white font-black text-base">{displayAcceptance}</Text>
+               </View>
+               <Text className="text-white/30 text-[10px] font-bold uppercase tracking-wider">Aceitação</Text>
+            </View>
+            <View className="items-center flex-1">
+               <View className="flex-row items-center mb-1">
+                  <Clock size={14} color="#3B82F6" className="mr-1" />
+                  <Text className="text-white font-black text-base">{displayOnlineTime}</Text>
+               </View>
+               <Text className="text-white/30 text-[10px] font-bold uppercase tracking-wider">Online</Text>
+            </View>
+         </View>
 
         {/* 🎛️ SERVICE PREFERENCES GRID */}
         <Text className="text-white/50 text-xs font-black uppercase tracking-widest mb-3 px-1">

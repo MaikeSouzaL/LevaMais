@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   View,
@@ -10,7 +9,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 
-import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
+import { colors } from "@/theme";
 import { ClientScreenHeader, LoadingButton } from "../Shared/components";
 import userService from "@/services/user.service";
 import { useAuthStore } from "@/context/authStore";
@@ -38,7 +37,8 @@ export default function EditAccountScreen() {
         setPhone(profile.phone || "");
         setCity(profile.city || "");
         setEmail(profile.email || "");
-      } catch {
+      } catch (error) {
+        console.error("Error loading profile:", error);
         if (!mounted) return;
         Toast.show({
           type: "error",
@@ -107,12 +107,12 @@ export default function EditAccountScreen() {
 
   if (loadingProfile) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView className="flex-1 bg-[#091A2F]">
         <ClientScreenHeader
           title="Editar conta"
           subtitle="Atualize seus dados pessoais"
         />
-        <View style={styles.loaderWrap}>
+        <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color={colors.primary[500]} />
         </View>
       </SafeAreaView>
@@ -120,14 +120,14 @@ export default function EditAccountScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView className="flex-1 bg-[#091A2F]">
       <ClientScreenHeader title="Editar conta" subtitle="Dados pessoais" />
 
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        <View style={styles.fieldGroup}>
-          <Text style={styles.label}>Nome</Text>
+      <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 48 }}>
+        <View className="gap-1">
+          <Text className="text-white text-sm font-semibold">Nome</Text>
           <TextInput
-            style={styles.input}
+            className="bg-[#0d2838] border border-gray-700 rounded-lg px-4 py-3 text-white text-base"
             value={name}
             onChangeText={setName}
             placeholder="Seu nome completo"
@@ -135,23 +135,23 @@ export default function EditAccountScreen() {
           />
         </View>
 
-        <View style={styles.fieldGroup}>
-          <Text style={styles.label}>Email</Text>
+        <View className="gap-1">
+          <Text className="text-white text-sm font-semibold">Email</Text>
           <TextInput
-            style={[styles.input, styles.readonlyInput]}
+            className="bg-[#0d2838] border border-gray-700 rounded-lg px-4 py-3 text-white text-base opacity-70"
             value={email}
             editable={false}
             selectTextOnFocus={false}
           />
-          <Text style={styles.helperText}>
+          <Text className="text-gray-500 text-xs">
             O email nao pode ser alterado por esta tela.
           </Text>
         </View>
 
-        <View style={styles.fieldGroup}>
-          <Text style={styles.label}>Telefone</Text>
+        <View className="gap-1">
+          <Text className="text-white text-sm font-semibold">Telefone</Text>
           <TextInput
-            style={styles.input}
+            className="bg-[#0d2838] border border-gray-700 rounded-lg px-4 py-3 text-white text-base"
             value={phone}
             onChangeText={setPhone}
             keyboardType="phone-pad"
@@ -160,10 +160,10 @@ export default function EditAccountScreen() {
           />
         </View>
 
-        <View style={styles.fieldGroup}>
-          <Text style={styles.label}>Cidade</Text>
+        <View className="gap-1">
+          <Text className="text-white text-sm font-semibold">Cidade</Text>
           <TextInput
-            style={styles.input}
+            className="bg-[#0d2838] border border-gray-700 rounded-lg px-4 py-3 text-white text-base"
             value={city}
             onChangeText={setCity}
             placeholder="Sua cidade"
@@ -183,42 +183,3 @@ export default function EditAccountScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background.primary },
-  content: { flex: 1 },
-  contentContainer: {
-    padding: spacing.lg,
-    gap: spacing.md,
-    paddingBottom: spacing["3xl"],
-  },
-  loaderWrap: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  fieldGroup: {
-    gap: spacing.xs,
-  },
-  label: {
-    color: colors.text.primary,
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.semibold,
-  },
-  input: {
-    backgroundColor: colors.background.secondary,
-    borderWidth: 1,
-    borderColor: colors.border.light,
-    borderRadius: borderRadius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    color: colors.text.primary,
-    fontSize: fontSize.base,
-  },
-  readonlyInput: {
-    opacity: 0.7,
-  },
-  helperText: {
-    color: colors.text.tertiary,
-    fontSize: fontSize.xs,
-  },
-});

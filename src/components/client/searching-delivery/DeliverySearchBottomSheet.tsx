@@ -92,7 +92,7 @@ export function DeliverySearchBottomSheet({
         {/* 3. Conditional AI Persuasion Engine 🤖💡 */}
         <AnimatePresence>
            {showAISuggestion && (
-             <AISuggestionCard onBoost={() => console.log("Boost requested")} />
+             <AISuggestionCard onBoost={() => {}} />
            )}
         </AnimatePresence>
 

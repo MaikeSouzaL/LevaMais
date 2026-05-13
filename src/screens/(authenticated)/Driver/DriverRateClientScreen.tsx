@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from "react";
-import { View, Text, TextInput, ScrollView, ActivityIndicator, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, TextInput, ScrollView, ActivityIndicator, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -53,8 +53,7 @@ export default function DriverRateClientScreen() {
         setRide(res);
       })
       .catch((err) => {
-        console.log("Erro ao carregar detalhes da corrida:", err);
-      })
+              })
       .finally(() => {
         setLoadingRide(false);
       });
@@ -107,76 +106,46 @@ export default function DriverRateClientScreen() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#091A2F" }}>
-      <View
-        style={{
-          padding: 16,
-          borderBottomWidth: 1,
-          borderBottomColor: "rgba(255,255,255,0.08)",
-        }}
-      >
-        <Text style={{ color: "#fff", fontWeight: "900", fontSize: 18 }}>
-          Corrida Concluída
-        </Text>
-        <Text style={{ color: "rgba(255,255,255,0.65)", marginTop: 4 }}>
-          Confira seus ganhos e avalie seu cliente.
-        </Text>
+    <SafeAreaView className="flex-1 bg-[#091A2F]">
+      <View className="px-4 py-3 border-b border-white/10">
+        <Text className="text-white font-black text-lg">Corrida Concluída</Text>
+        <Text className="text-white/65 mt-1">Confira seus ganhos e avalie seu cliente.</Text>
       </View>
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
+      <ScrollView className="flex-1 px-4 py-4">
         {loadingRide ? (
-          <View style={{ padding: 20, alignItems: "center" }}>
+          <View className="py-5 items-center">
             <ActivityIndicator size="small" color="#02de95" />
           </View>
         ) : ride ? (
-          <View
-            style={{
-              backgroundColor: "rgba(2,222,149,0.06)",
-              borderRadius: 18,
-              borderWidth: 1,
-              borderColor: "rgba(2,222,149,0.18)",
-              padding: 16,
-              marginBottom: 20,
-              alignItems: "center",
-            }}
-          >
-            <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, fontWeight: "800", letterSpacing: 1 }}>
-              VOCÊ FATUROU NESSA CORRIDA
-            </Text>
-            <Text style={{ color: "#02de95", fontSize: 32, fontWeight: "900", marginTop: 4 }}>
-              R$ {Number(ride.pricing?.driverValue ?? ride.pricing?.total ?? 0).toFixed(2)}
-            </Text>
+          <View className="bg-[rgba(2,222,149,0.06)] rounded-3xl border border-[rgba(2,222,149,0.18)] p-4 mb-5 items-center">
+            <Text className="text-white/50 text-xs font-black tracking-wider">VOCÊ FATUROU NESSA CORRIDA</Text>
+            <Text className="text-[#02de95] text-4xl font-black mt-1">R$ {Number(ride.pricing?.driverValue ?? ride.pricing?.total ?? 0).toFixed(2)}</Text>
             
-            <View style={{ width: "100%", height: 1, backgroundColor: "rgba(255,255,255,0.06)", marginVertical: 14 }} />
+            <View className="w-full h-px bg-white/10 my-3.5" />
             
-            <View style={{ flexDirection: "row", width: "100%", justifyContent: "space-between" }}>
+            <View className="flex-row w-full justify-between">
               <View>
-                <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 11 }}>Distância</Text>
-                <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700", marginTop: 2 }}>
-                  {ride.distance?.text || "—"}
-                </Text>
+                <Text className="text-white/40 text-xs">Distância</Text>
+                <Text className="text-white text-sm font-bold mt-0.5">{ride.distance?.text || "—"}</Text>
               </View>
-              <View style={{ alignItems: "center" }}>
-                <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 11 }}>Duração</Text>
-                <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700", marginTop: 2 }}>
-                  {ride.duration?.text || "—"}
-                </Text>
+              <View className="items-center">
+                <Text className="text-white/40 text-xs">Duração</Text>
+                <Text className="text-white text-sm font-bold mt-0.5">{ride.duration?.text || "—"}</Text>
               </View>
-              <View style={{ alignItems: "flex-end" }}>
-                <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 11 }}>Total Pago</Text>
-                <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700", marginTop: 2 }}>
-                  R$ {Number(ride.pricing?.total ?? 0).toFixed(2)}
-                </Text>
+              <View className="items-end">
+                <Text className="text-white/40 text-xs">Total Pago</Text>
+                <Text className="text-white text-sm font-bold mt-0.5">R$ {Number(ride.pricing?.total ?? 0).toFixed(2)}</Text>
               </View>
             </View>
           </View>
         ) : null}
 
         {/* Avaliação do Cliente */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Como foi sua experiência com o cliente?</Text>
+        <View className="bg-white/3 border border-white/6 rounded-2xl p-4 mb-4">
+          <Text className="text-white text-base font-bold mb-3">Como foi sua experiência com o cliente?</Text>
           
-          <View style={styles.stars}>
+          <View className="flex-row justify-center gap-3">
             {[1, 2, 3, 4, 5].map((star) => (
               <TouchableOpacity key={star} onPress={() => setStars(star)}>
                 <MaterialIcons
@@ -188,26 +157,26 @@ export default function DriverRateClientScreen() {
             ))}
           </View>
 
-          <Text style={styles.ratingLabel}>
+          <Text className="text-white/50 text-sm text-center mt-2.5 font-semibold">
             {stars > 0 ? RATING_LABELS[stars] : "Toque nas estrelas para avaliar"}
           </Text>
         </View>
 
         {/* Destaques */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Destaques do Cliente (opcional)</Text>
+        <View className="bg-white/3 border border-white/6 rounded-2xl p-4 mb-4">
+          <Text className="text-white text-base font-bold mb-3">Destaques do Cliente (opcional)</Text>
           
-          <View style={styles.tagsWrap}>
+          <View className="flex-row flex-wrap gap-2 mb-3.5">
             {QUICK_TAGS.map((tag) => {
               const selected = hasTag(tag);
               return (
                 <TouchableOpacity
                   key={tag}
                   onPress={() => toggleTag(tag)}
-                  style={[styles.tagChip, selected && styles.tagChipSelected]}
+                  className={`border rounded-full px-3 py-1.5 ${selected ? 'border-[#02de95] bg-[rgba(2,222,149,0.15)]' : 'border-white/10 bg-white/2'}`}
                   activeOpacity={0.8}
                 >
-                  <Text style={[styles.tagText, selected && styles.tagTextSelected]}>{tag}</Text>
+                  <Text className={`text-xs ${selected ? 'text-[#02de95] font-bold' : 'text-white/70'}`}>{tag}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -219,19 +188,20 @@ export default function DriverRateClientScreen() {
             placeholder="Escreva um comentário ou adicione tags acima..."
             placeholderTextColor="rgba(255,255,255,0.35)"
             multiline
-            style={styles.input}
+            className="min-h-[100px] bg-white/2 border border-white/6 rounded-xl p-3 text-white text-sm"
+            style={{textAlignVertical: 'top'}}
           />
         </View>
       </ScrollView>
 
-      <View style={{ padding: 16, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.05)", backgroundColor: "rgba(9,26,47,0.9)" }}>
+      <View className="px-4 py-4 border-t border-white/5 bg-[rgba(9,26,47,0.9)]">
         <ActionButton
           title={loading ? "Enviando..." : "Enviar avaliação"}
           variant="primary"
           onPress={submit}
           disabled={!canSubmit || loading}
         />
-        <View style={{ height: 10 }} />
+        <View className="h-2.5" />
         <ActionButton
           title="Pular"
           variant="secondary"
@@ -248,69 +218,3 @@ export default function DriverRateClientScreen() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  card: {
-    backgroundColor: "rgba(255,255,255,0.03)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-  },
-  cardTitle: {
-    color: "#fff",
-    fontSize: 15,
-    fontWeight: "bold",
-    marginBottom: 12,
-  },
-  stars: {
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 12,
-  },
-  ratingLabel: {
-    color: "rgba(255,255,255,0.5)",
-    fontSize: 13,
-    textAlign: "center",
-    marginTop: 10,
-    fontWeight: "600",
-  },
-  tagsWrap: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 14,
-  },
-  tagChip: {
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: "rgba(255,255,255,0.02)",
-  },
-  tagChipSelected: {
-    borderColor: "#02de95",
-    backgroundColor: "rgba(2,222,149,0.15)",
-  },
-  tagText: {
-    color: "rgba(255,255,255,0.7)",
-    fontSize: 12,
-  },
-  tagTextSelected: {
-    color: "#02de95",
-    fontWeight: "700",
-  },
-  input: {
-    minHeight: 100,
-    backgroundColor: "rgba(255,255,255,0.02)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
-    borderRadius: 12,
-    padding: 12,
-    color: "#fff",
-    textAlignVertical: "top",
-    fontSize: 13,
-  },
-});

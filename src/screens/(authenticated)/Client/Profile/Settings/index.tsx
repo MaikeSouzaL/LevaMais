@@ -71,8 +71,7 @@ export default function SettingsScreen() {
           }));
         }
       } catch (err) {
-        console.error("Erro ao carregar configuracoes:", err);
-      }
+              }
     })();
 
     return () => {

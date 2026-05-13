@@ -63,8 +63,7 @@ export default function SelectProfileScreen() {
 
   async function handleProceed() {
     if (!user) {
-      console.error("Profile Data missing upstream");
-      return;
+            return;
     }
     
     const choice = selectedProfile || "client";
@@ -80,10 +79,8 @@ export default function SelectProfileScreen() {
           if (user.phone && initialToken) {
             try {
               await userService.updateProfile({ phone: user.phone }, initialToken);
-              console.log("[SelectProfile] Phone number successfully synchronized to backend.");
-            } catch (err) {
-              console.error("[SelectProfile] Failed silently syncing phone number:", err);
-              // Keep going, we won't block entry, but this should pass.
+                          } catch (err) {
+                            // Keep going, we won't block entry, but this should pass.
             }
           }
 

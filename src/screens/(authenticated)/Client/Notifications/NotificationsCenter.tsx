@@ -1,7 +1,6 @@
 import React, { useCallback, useState } from "react";
 import {
   FlatList,
-  StyleSheet,
   Text,
   TouchableOpacity,
   View,
@@ -10,7 +9,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { MaterialIcons } from "@expo/vector-icons";
-import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
+import { colors } from "@/theme";
 import { ClientScreenHeader, EmptyState } from "../Shared/components";
 import { getNotifications } from "@/services/auth.service";
 
@@ -43,8 +42,8 @@ export default function NotificationsCenterScreen() {
 
       const items = await getNotifications();
       setNotifications((items || []) as NotificationItem[]);
-    } catch {
-      // silent
+    } catch (error) {
+      console.error("Error loading notifications:", error);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -64,7 +63,7 @@ export default function NotificationsCenterScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView className="flex-1 bg-[#091A2F]">
       <ClientScreenHeader title="Notificacoes" subtitle="Historico de alertas e mensagens" />
 
       {loading && !refreshing ? null : notifications.length === 0 ? (
@@ -77,32 +76,40 @@ export default function NotificationsCenterScreen() {
         <FlatList
           data={notifications}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={{ padding: 16 }}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={() => loadNotifications(true)} tintColor={colors.primary[500]} />
           }
           renderItem={({ item }) => (
             <TouchableOpacity
-              style={[styles.card, !item.read && styles.cardUnread]}
+              className={`flex-row items-start rounded-lg border mb-2 p-4 ${
+                !item.read
+                  ? "border-[rgba(2,222,149,0.25)] bg-[rgba(2,222,149,0.03)]"
+                  : "border-gray-700 bg-[#0d2838]"
+              }`}
               onPress={() => handlePress(item)}
               activeOpacity={0.7}
             >
-              <View style={[styles.iconBg, !item.read && styles.iconBgUnread]}>
+              <View className={`w-11 h-11 rounded-lg items-center justify-center mr-3 ${
+                !item.read ? "bg-[rgba(2,222,149,0.1)]" : "bg-white/5"
+              }`}>
                 <MaterialIcons
                   name={NOTIF_ICONS[item.type] as any}
                   size={22}
                   color={!item.read ? colors.primary[500] : "#666"}
                 />
               </View>
-              <View style={{ flex: 1 }}>
-                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                  <Text style={[styles.cardTitle, !item.read && styles.cardTitleUnread]}>
+              <View className="flex-1">
+                <View className="flex-row justify-between">
+                  <Text className={`text-sm font-semibold flex-1 ${
+                    !item.read ? "text-white font-bold" : "text-gray-300"
+                  }`}>
                     {item.title}
                   </Text>
-                  {!item.read && <View style={styles.dot} />}
+                  {!item.read && <View className="w-2 h-2 rounded-full bg-[#02de95] ml-2 mt-1.5" />}
                 </View>
-                <Text style={styles.cardBody} numberOfLines={2}>{item.body}</Text>
-                <Text style={styles.cardTime}>
+                <Text className="text-gray-400 text-sm mt-1" numberOfLines={2}>{item.body}</Text>
+                <Text className="text-gray-500 text-xs mt-1.5">
                   {new Date(item.createdAt).toLocaleDateString("pt-BR")}
                 </Text>
               </View>
@@ -114,53 +121,3 @@ export default function NotificationsCenterScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background.primary },
-  list: { padding: spacing.lg },
-  card: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.border.light,
-    padding: spacing.lg,
-    marginBottom: spacing.sm,
-    gap: spacing.md,
-  },
-  cardUnread: {
-    borderColor: "rgba(2,222,149,0.25)",
-    backgroundColor: "rgba(2,222,149,0.03)",
-  },
-  iconBg: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.05)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  iconBgUnread: {
-    backgroundColor: "rgba(2,222,149,0.1)",
-  },
-  cardTitle: {
-    color: colors.text.secondary,
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.semibold,
-    flex: 1,
-  },
-  cardTitleUnread: {
-    color: colors.text.primary,
-    fontWeight: fontWeight.bold,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.primary[500],
-    marginLeft: spacing.sm,
-    marginTop: 6,
-  },
-  cardBody: { color: colors.text.tertiary, fontSize: fontSize.sm, marginTop: 4 },
-  cardTime: { color: "#555", fontSize: fontSize.xs, marginTop: 6 },
-});

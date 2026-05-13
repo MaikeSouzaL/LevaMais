@@ -68,7 +68,7 @@ export default function DriverProfileScreen() {
   }
 
   return (
-    <DriverScreen title="Perfil">
+    <DriverScreen title="Perfil" hideHeader={true}>
       <SectionCard>
         <Text style={{ color: "#fff", fontWeight: "900" }}>Dados</Text>
         <View style={{ height: 12 }} />

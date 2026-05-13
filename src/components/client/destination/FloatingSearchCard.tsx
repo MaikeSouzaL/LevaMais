@@ -96,7 +96,7 @@ export const FloatingSearchCard = ({
         finalizeSelect(details);
       }
     } catch (e) {
-      console.log("Select fail", e);
+      console.error("Error getting place details:", e);
     } finally {
       setLoading(false);
     }

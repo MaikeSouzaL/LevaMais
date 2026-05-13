@@ -86,8 +86,7 @@ export default function DeliverySetupScreen() {
         const smartSuggestion = res.smartPricing?.suggestedPrice || res.pricing?.total || 20;
         setOfferValue(Math.round(smartSuggestion));
       } catch (e) {
-        console.log("Logistics compute error", e);
-      } finally {
+              } finally {
         setLoadingPricing(false);
       }
     };

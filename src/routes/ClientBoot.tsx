@@ -9,6 +9,7 @@ import {
 } from "../utils/location";
 import { resolveCityIdByNameAndState } from "../services/cityResolver.service";
 import { useClientCityStore } from "../context/clientCityStore";
+import { logger } from "../utils/logger";
 
 export default function ClientBoot() {
   const setCity = useClientCityStore((s) => s.setCity);
@@ -23,11 +24,11 @@ export default function ClientBoot() {
         // 1) Detectar cidade via GPS (se permitido) e mapear para cityId do backend.
         // Se falhar, seguimos sem cityId (o app ainda funciona, mas sem precificação por cidade correta).
         try {
-          console.log("[ClientBoot] 🔍 Iniciando detecção de cidade...");
+          logger.info("ClientBoot", "Iniciando detecção de cidade...");
           const coords = await getCurrentLocation();
 
           if (coords) {
-            console.log("[ClientBoot] 📍 GPS obtido:", {
+            logger.debug("ClientBoot", "GPS obtido", {
               lat: coords.latitude,
               lng: coords.longitude,
             });
@@ -36,7 +37,7 @@ export default function ClientBoot() {
               coords.latitude,
               coords.longitude,
             );
-            console.log("[ClientBoot] 🗺️ Reverse geocode:", {
+            logger.debug("ClientBoot", "Reverse geocode", {
               city: addr?.city,
               region: addr?.region,
               subregion: addr?.subregion,
@@ -79,17 +80,14 @@ export default function ClientBoot() {
                 ? estadoParaSigla[addr.region] || addr.region
                 : addr?.region;
 
-            console.log("[ClientBoot] 🔄 Estado convertido:", {
-              original: addr?.region,
-              convertido: stateCode,
-            });
-
+            
             const resolved = await resolveCityIdByNameAndState({
               cityName: addr?.city || addr?.subregion,
               stateCode,
             });
-            console.log(
-              "[ClientBoot] 🏙️ Cidade resolvida pelo backend:",
+            logger.info(
+              "ClientBoot",
+              "Cidade resolvida pelo backend",
               resolved,
             );
 
@@ -101,20 +99,21 @@ export default function ClientBoot() {
                 source: "gps",
                 updatedAt: Date.now(),
               });
-              console.log("[ClientBoot] ✅ Cidade salva no store:", {
+              logger.info("ClientBoot", "Cidade salva no store", {
                 cityId: resolved.cityId,
                 name: resolved.name,
               });
             } else {
-              console.log(
-                "[ClientBoot] ⚠️ Cidade não encontrada no backend. Cadastre via Leva Web!",
+              logger.warn(
+                "ClientBoot",
+                "Cidade não encontrada no backend. Cadastre via Leva Web!",
               );
             }
           } else {
-            console.log("[ClientBoot] ⚠️ GPS não disponível");
+            logger.warn("ClientBoot", "GPS não disponível");
           }
         } catch (e: any) {
-          console.log("[ClientBoot] ❌ Erro:", e?.message);
+          logger.error("ClientBoot", "Erro ao detectar cidade", e);
         }
 
         // 2) Retomar corrida ativa (se existir)

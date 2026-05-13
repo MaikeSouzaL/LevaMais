@@ -49,13 +49,14 @@ export default function DriverStatementScreen() {
         setLoading(true);
       }
 
-      const response = await walletService.getStatement(nextPage, 30);
-      setHasNext(Boolean(response?.pagination?.hasNext));
-      setPage(nextPage);
-      setItems((prev) => (append ? [...prev, ...(response?.items || [])] : response?.items || []));
-    } catch {
-      Toast.show({ type: "error", text1: "Erro ao carregar extrato" });
-    } finally {
+       const response = await walletService.getStatement(nextPage, 30);
+       setHasNext(Boolean(response?.pagination?.hasNext));
+       setPage(nextPage);
+       setItems((prev) => (append ? [...prev, ...(response?.items || [])] : response?.items || []));
+     } catch (error) {
+       console.error('Failed to load statement:', error);
+       Toast.show({ type: "error", text1: "Erro ao carregar extrato" });
+     } finally {
       setLoading(false);
       setLoadingMore(false);
       setRefreshing(false);

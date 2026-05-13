@@ -2,20 +2,24 @@ import React from "react";
 import { View, Text, TextInput } from "react-native";
 
 export type TextFieldProps = {
-  label: string;
+  label?: string;
   value: string;
   onChangeText: (text: string) => void;
   placeholder?: string;
   keyboardType?: any;
   multiline?: boolean;
+  autoCapitalize?: "none" | "sentences" | "words" | "characters";
+  maxLength?: number;
 };
 
 export default function TextField(props: TextFieldProps) {
   return (
     <View style={{ marginBottom: 12 }}>
-      <Text style={{ color: "rgba(255,255,255,0.65)", marginBottom: 6 }}>
-        {props.label}
-      </Text>
+      {!!props.label && (
+        <Text style={{ color: "rgba(255,255,255,0.65)", marginBottom: 6 }}>
+          {props.label}
+        </Text>
+      )}
       <TextInput
         value={props.value}
         onChangeText={props.onChangeText}
@@ -23,6 +27,8 @@ export default function TextField(props: TextFieldProps) {
         placeholderTextColor="rgba(255,255,255,0.35)"
         keyboardType={props.keyboardType}
         multiline={props.multiline}
+        autoCapitalize={props.autoCapitalize}
+        maxLength={props.maxLength}
         style={{
           color: "#fff",
           backgroundColor: "rgba(255,255,255,0.06)",

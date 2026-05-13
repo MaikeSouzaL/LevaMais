@@ -19,6 +19,8 @@ const platformConfigRoutes = require("./routes/platformConfig.routes");
 const chatRoutes = require("./routes/chat.routes");
 const shiftOfferRoutes = require("./routes/shiftOffer.routes");
 const promotionRoutes = require("./routes/promotion.routes");
+const driverRoutes = require("./routes/driver.routes");
+const configRoutes = require("./routes/config.routes");
 
 function applyMiddlewares(app) {
   app.use(
@@ -51,6 +53,8 @@ function applyRoutes(app) {
   app.use("/api/chat", chatRoutes);
   app.use("/api/shift-offers", shiftOfferRoutes);
   app.use("/api/promotions", promotionRoutes);
+  app.use("/api/drivers", driverRoutes);
+  app.use("/api/config", configRoutes);
 
   app.get("/api/health", (req, res) => {
     res.json({

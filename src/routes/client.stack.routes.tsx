@@ -19,7 +19,7 @@ import OrderSummaryScreen from "../screens/(authenticated)/Client/Ride/Request/O
 import CancelFeeScreen from "../screens/(authenticated)/Client/Ride/Cancellation/CancelFee";
 import ChatScreen from "../screens/(authenticated)/Client/Ride/Tracking/Chat";
 import OrderDetailsScreen from "../screens/(authenticated)/Client/History/OrderDetails";
-import PaymentScreen from "../screens/(authenticated)/Client/Ride/Request/Payment";
+import PaymentEnhancedScreen from "../screens/(authenticated)/Client/Ride/Request/PaymentEnhanced";
 import RideTrackingScreen from "../screens/(authenticated)/Client/Ride/Tracking/RideTracking";
 import RideCompletedScreen from "../screens/(authenticated)/Client/Ride/Completion/RideCompleted";
 import RateDriverScreen from "../screens/(authenticated)/Client/Ride/Completion/RateDriver";
@@ -74,7 +74,7 @@ export default function ClientStackRoutes({
       <Stack.Screen name="DeliverySetup" component={DeliverySetupScreen} />
       <Stack.Screen name="ServicePurpose" component={ServicePurposeScreen} />
       <Stack.Screen name="FinalOrderSummary" component={OrderSummaryScreen} />
-      <Stack.Screen name="Payment" component={PaymentScreen} />
+       <Stack.Screen name="Payment" component={PaymentEnhancedScreen} />
       <Stack.Screen name="SearchingDriver" component={SearchingDriverScreen} />
       <Stack.Screen name="ActiveOrders" component={ActiveOrdersScreen} />
       <Stack.Screen name="ShiftOffersClient" component={ShiftOffersClientScreen} />

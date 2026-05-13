@@ -241,16 +241,17 @@ class RideController {
             console.error(`Erro ao calcular distancia para driver=${driver.driverId}:`, distErr);
           }
 
-          io.to(`driver-${driver.driverId}`).emit(
-            "new-ride-request",
-            buildRideRequestPayload(ride, {
-              distanceToPickup,
-            }),
-          );
-
-          // 🔔 Notify driver of waiting queue modification real-time 
           if (ride.isWaitingInQueue) {
-             io.to(`driver-${driver.driverId}`).emit("waiting-queue-updated");
+            // 🔔 Light notification only (amber banner & bell)
+            io.to(`driver-${driver.driverId}`).emit("waiting-queue-updated");
+          } else {
+            // 🚀 Standard pop-up card flow for active search
+            io.to(`driver-${driver.driverId}`).emit(
+              "new-ride-request",
+              buildRideRequestPayload(ride, {
+                distanceToPickup,
+              }),
+            );
           }
         } catch (driverEmitErr) {
           console.error(`Erro ao despachar requisicao para driver=${driver?.driverId}:`, driverEmitErr);
@@ -258,31 +259,34 @@ class RideController {
       });
 
       // Enviar Notificação Push para motoristas em segundo plano ou fechados
-      try {
-        const driverIds = nearbyDrivers.map(d => d.driverId).filter(Boolean);
-        if (driverIds.length > 0) {
-          User.find({ _id: { $in: driverIds } }).select("pushToken")
-            .then(users => {
-              const pushTokens = users.map(u => u.pushToken).filter(Boolean);
-              if (pushTokens.length > 0) {
-                const pushNotificationService = require("../services/push-notification.service");
-                pushNotificationService.sendPushNotifications(
-                  pushTokens,
-                  "🚀 Novo pedido disponível!",
-                  `Nova solicitação de ${ride.serviceType === "delivery" ? "entrega" : "corrida"} por R$ ${Number(ride.pricing?.total || 0).toFixed(2).replace(".", ",")}`,
-                  {
-                    type: "new_order",
-                    rideId: String(ride._id),
-                    serviceType: ride.serviceType,
-                  },
-                  "urgent_delivery"
-                ).catch(err => console.error("Erro ao enviar push:", err));
-              }
-            })
-            .catch(err => console.error("Erro ao buscar pushTokens:", err));
+      // 🔇 Silenciar Push para a Fila de Espera (apenas alerta leve interno na Tarja)
+      if (!ride.isWaitingInQueue) {
+        try {
+          const driverIds = nearbyDrivers.map(d => d.driverId).filter(Boolean);
+          if (driverIds.length > 0) {
+            User.find({ _id: { $in: driverIds } }).select("pushToken")
+              .then(users => {
+                const pushTokens = users.map(u => u.pushToken).filter(Boolean);
+                if (pushTokens.length > 0) {
+                  const pushNotificationService = require("../services/push-notification.service");
+                  pushNotificationService.sendPushNotifications(
+                    pushTokens,
+                    "🚀 Novo pedido disponível!",
+                    `Nova solicitação de ${ride.serviceType === "delivery" ? "entrega" : "corrida"} por R$ ${Number(ride.pricing?.total || 0).toFixed(2).replace(".", ",")}`,
+                    {
+                      type: "new_order",
+                      rideId: String(ride._id),
+                      serviceType: ride.serviceType,
+                    },
+                    "urgent_delivery"
+                  ).catch(err => console.error("Erro ao enviar push:", err));
+                }
+              })
+              .catch(err => console.error("Erro ao buscar pushTokens:", err));
+          }
+        } catch (pushErr) {
+          console.error("Erro ao enviar notificações push em lote para motoristas:", pushErr);
         }
-      } catch (pushErr) {
-        console.error("Erro ao enviar notificações push em lote para motoristas:", pushErr);
       }
 
       setTimeout(async () => {
@@ -518,11 +522,16 @@ class RideController {
       ) {
         let waitingQueueCount = 0;
         if (driverLocation) {
+          const fallbackSvcs = Array.isArray(driverLocation.serviceTypes) ? driverLocation.serviceTypes : [];
+          if (fallbackSvcs.length > 0) {
           waitingQueueCount = await Ride.countDocuments({
-            status: "requesting",
-            isWaitingInQueue: true,
-            vehicleType: driverLocation.vehicleType,
-          });
+              status: "requesting",
+              isWaitingInQueue: true,
+              vehicleType: driverLocation.vehicleType,
+              serviceType: { $in: fallbackSvcs },
+              "rejectedBy.driverId": { $ne: driverId },
+            });
+          }
         }
         return res.json({ count: 0, requests: [], waitingQueueCount });
       }
@@ -531,11 +540,7 @@ class RideController {
         ? driverLocation.serviceTypes
         : [];
       if (!serviceTypes.length) {
-        const waitingQueueCount = await Ride.countDocuments({
-          status: "requesting",
-          isWaitingInQueue: true,
-          vehicleType: driverLocation.vehicleType,
-        });
+        const waitingQueueCount = 0;
         return res.json({ count: 0, requests: [], waitingQueueCount });
       }
 
@@ -544,7 +549,6 @@ class RideController {
         status: { $in: ["requesting", "driver_assigned"] },
         vehicleType: driverLocation.vehicleType,
         serviceType: { $in: serviceTypes },
-        "rejectedBy.driverId": { $ne: driverId },
         $and: [
           {
             $or: [
@@ -552,12 +556,24 @@ class RideController {
               { status: "driver_assigned", driverId },
             ],
           },
-          {
-            $or: [
-              { isWaitingInQueue: true },
-              { requestedAt: { $gte: requestedAfter } },
-            ],
-          },
+           {
+             $or: [
+               // 🌍 Fila de Espera Pública: Fica permanentemente visível (mas respeitando rejeições)
+               {
+                 $and: [
+                   { isWaitingInQueue: true },
+                   { "rejectedBy.driverId": { $ne: driverId } },
+                 ],
+               },
+               // 🚀 Oferta Direta em Tempo Real: Respeita o limite de 2min e esconde de quem já recusou
+               {
+                 $and: [
+                   { requestedAt: { $gte: requestedAfter } },
+                   { "rejectedBy.driverId": { $ne: driverId } },
+                 ],
+               },
+             ],
+           },
         ],
       })
         .sort({ requestedAt: -1 })
@@ -600,12 +616,9 @@ class RideController {
         `[rides/available-requests] driver=${driverId} requests=${requests.length}`,
       );
 
-      const waitingQueueCount = await Ride.countDocuments({
-        status: "requesting",
-        isWaitingInQueue: true,
-        vehicleType: driverLocation.vehicleType,
-        serviceType: { $in: serviceTypes },
-      });
+      // ✅ Derive waitingQueueCount from already-filtered requests so the badge
+      // always matches exactly what the driver sees in the queue tab.
+      const waitingQueueCount = requests.filter((r) => r.isWaitingInQueue === true).length;
 
       return res.json({ count: requests.length, requests, waitingQueueCount });
     } catch (error) {
@@ -1023,9 +1036,9 @@ class RideController {
 
       await ride.save();
 
-      // Tenta oferecer para o próximo motorista
+      // Tenta oferecer para o próximo motorista (Ignorado se já estiver na fila de espera pública!)
       const io = req.app.get("io");
-      if (io && ["requesting", "driver_assigned"].includes(ride.status)) {
+      if (io && ["requesting", "driver_assigned"].includes(ride.status) && !ride.isWaitingInQueue) {
         const searchRadius = 15000; // Buscar motoristas num raio de 15km
         const nearbyDrivers = await DriverLocation.findNearby(
           ride.pickup.latitude,
@@ -1627,6 +1640,57 @@ class RideController {
             currentRideId: null,
           },
         );
+
+        try {
+          const rideValue = ride.pricing?.driverValue || ride.pricing?.total || 0;
+          const deductionPercentage = 0.2;
+          const deductAmount = toMoney(rideValue * deductionPercentage);
+
+          if (deductAmount > 0) {
+            const driver = await User.findById(driverId);
+            if (driver && driver.userType === "driver") {
+              if (!driver.driverBalance) {
+                driver.driverBalance = {
+                  balance: 0,
+                  totalDeposits: 0,
+                  totalDeductions: 0,
+                  transactions: [],
+                  selectedCategories: [],
+                  selectedVehicles: [],
+                };
+              }
+
+              driver.driverBalance.balance = toMoney(
+                Math.max(0, driver.driverBalance.balance - deductAmount)
+              );
+              driver.driverBalance.totalDeductions = toMoney(
+                (driver.driverBalance.totalDeductions || 0) + deductAmount
+              );
+
+              driver.driverBalance.transactions.push({
+                type: "deduction",
+                amount: deductAmount,
+                description: `Dedução de 20% da corrida ${ride._id}`,
+                rideId: ride._id,
+                status: "completed",
+                createdAt: new Date(),
+              });
+
+              await driver.save();
+
+              const io = req.app.get("io");
+              if (io) {
+                io.to(`driver-${driverId}`).emit("balance_updated", {
+                  balance: driver.driverBalance.balance,
+                  deducted: deductAmount,
+                  rideId: ride._id,
+                });
+              }
+            }
+          }
+        } catch (deductionErr) {
+          console.error("Erro ao descontar saldo do motorista:", deductionErr);
+        }
       }
 
       await ride.save();
@@ -1775,11 +1839,78 @@ class RideController {
       // prioriza pricing.driverValue e usa fallback legado (80% de pricing.total).
       const driverShare = Number((result.totalEarnings || 0).toFixed(2));
 
+      let rating = 5.0;
+      let acceptanceRate = 100;
+      let onlineTime = 0;
+
+      try {
+        // 1. Calcular Rating MÃ©dio das Corridas
+        const ratingAgg = await Ride.aggregate([
+          {
+            $match: {
+              driverId: new mongoose.Types.ObjectId(driverId),
+              status: "completed",
+              "rating.clientRating.stars": { $exists: true, $ne: null },
+            },
+          },
+          {
+            $group: {
+              _id: null,
+              avgRating: { $avg: "$rating.clientRating.stars" },
+            },
+          },
+        ]);
+        if (ratingAgg.length > 0 && ratingAgg[0].avgRating != null) {
+          rating = Number(ratingAgg[0].avgRating.toFixed(1));
+        }
+
+        // 2. Calcular Taxa de AceitaÃ§Ã£o (Aceitas / Total Ofertadas)
+        const acceptedCount = await Ride.countDocuments({
+          driverId: new mongoose.Types.ObjectId(driverId),
+        });
+        const rejectedCount = await Ride.countDocuments({
+          "rejectedBy.driverId": new mongoose.Types.ObjectId(driverId),
+        });
+        const totalOffers = acceptedCount + rejectedCount;
+        if (totalOffers > 0) {
+          acceptanceRate = Math.round((acceptedCount / totalOffers) * 100);
+        }
+
+        // 3. Obter Tempo Online Acumulado Real do Banco (com Interpolação em Tempo Real ao Segundo)
+        const user = await User.findById(driverId).select("onlineStats");
+        if (user && user.onlineStats) {
+          const todayStr = new Date().toISOString().split("T")[0];
+          if (user.onlineStats.activeDateStr === todayStr) {
+            let baseTime = user.onlineStats.totalSecondsToday || 0;
+
+            // 💡 MÁGICA DO TEMPO REAL: Se ele está online agora, soma os segundos exatos
+            // decorridos desde a última gravação para bater 100% com o cronômetro do app!
+            if (user.onlineStats.isOnline && user.onlineStats.lastHeartbeatAt) {
+              const last = new Date(user.onlineStats.lastHeartbeatAt).getTime();
+              const diffMs = Date.now() - last;
+              const diffSec = Math.floor(diffMs / 1000);
+
+              // Apenas interpola se for uma janela realista (menos de 60s)
+              if (diffSec > 0 && diffSec < 60) {
+                baseTime += diffSec;
+              }
+            }
+            
+            onlineTime = baseTime;
+          }
+        }
+      } catch (innerErr) {
+        console.error("Erro ao computar mÃ©tricas adicionais do motorista:", innerErr);
+      }
+
       res.json({
         earnings: driverShare,
         rides: result.ridesCount,
         goal: dailyGoal,
         bonus: bonusAmount,
+        rating,
+        acceptanceRate,
+        onlineTime,
       });
     } catch (error) {
       console.error("Erro ao buscar estatÃ­sticas:", error);
@@ -1875,7 +2006,7 @@ class RideController {
           // Format Label
           let label = "";
           if (period === "week") {
-            const days = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "SÃ¡b"];
+            const days = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
             label = days[current.getDay()];
           } else {
             label = `${current.getDate()}/${current.getMonth() + 1}`;
@@ -2374,6 +2505,7 @@ function buildRideRequestPayload(ride, extras = {}) {
     serviceType: ride.serviceType,
     vehicleType: ride.vehicleType,
     requestedAt: ride.requestedAt,
+    isWaitingInQueue: ride.isWaitingInQueue || false,
     details: ride.details || {},
     scheduledFor: ride.scheduledFor || null,
     distanceToPickup: extras.distanceToPickup,

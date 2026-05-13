@@ -37,6 +37,7 @@ class DriverLocationService {
     status: DriverStatus;
     acceptingRides?: boolean;
     serviceTypes?: Array<"ride" | "delivery">;
+    onlineSessionStart?: string;
   }) {
     const res = await api.patch("/driver-location/status", data);
     return res.data;

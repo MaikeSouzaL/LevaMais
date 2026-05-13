@@ -20,6 +20,17 @@ export type UserProfile = {
     color?: string;
     year?: number;
   };
+  gpsQuality?: "low" | "balanced" | "high";
+  driverStatus?: "pending" | "approved" | "rejected";
+  driverDocuments?: {
+    cnhFront?: string;
+    cnhBack?: string;
+    crlvFront?: string;
+    crlvBack?: string;
+    vehiclePhoto?: string;
+    selfie?: string;
+    submittedAt?: string;
+  };
 };
 
 export type GetProfileResponse = { success: boolean; data: { user: UserProfile } };
@@ -33,6 +44,7 @@ export type UpdateProfilePayload = Partial<
     | "profilePhoto"
     | "preferredPayment"
     | "notificationsEnabled"
+    | "gpsQuality"
     | "queueRedispatchInterval"
     | "vehicleType"
     | "vehicleInfo"

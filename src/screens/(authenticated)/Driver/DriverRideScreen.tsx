@@ -42,6 +42,10 @@ export default function DriverRideScreen() {
     latitude: number;
     longitude: number;
   } | null>(null);
+  const [clientCoords, setClientCoords] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
   const [routeCoords, setRouteCoords] = useState<LatLng[]>([]);
   const [liveEtaText, setLiveEtaText] = useState<string>("");
   const [liveDistanceText, setLiveDistanceText] = useState<string>("");
@@ -208,8 +212,7 @@ export default function DriverRideScreen() {
         setRide(r as any);
         setStatus(r?.status || "accepted");
       } catch (e) {
-        console.log("Falha ao carregar corrida", e);
-        if (mounted) {
+                if (mounted) {
           recoverActiveRide().catch(() => {});
         }
       }
@@ -305,7 +308,7 @@ export default function DriverRideScreen() {
       const sender =
         data?.senderName || (data?.senderType === "client" ? "Cliente" : "Motorista");
       const preview = String(data?.message || "").slice(0, 80);
-      const navState = (navigation as any).getState?.();
+      const navState = navigation.getState?.();
       const activeRoute =
         navState?.routes?.[
           typeof navState?.index === "number" ? navState.index : (navState?.routes?.length || 1) - 1
@@ -318,12 +321,23 @@ export default function DriverRideScreen() {
       }
     };
 
+    const onClientLocationUpdate = (payload: any) => {
+      if (!mounted) return;
+      if (payload?.rideId !== rideId) return;
+      const lat = Number(payload?.latitude);
+      const lng = Number(payload?.longitude);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        setClientCoords({ latitude: lat, longitude: lng });
+      }
+    };
+
     (async () => {
       try {
         await webSocketService.connect();
         webSocketService.on("ride-status-updated", onStatusUpdated);
         webSocketService.on("ride-cancelled", onRideCancelled);
         webSocketService.on("new-message", onNewMsg);
+        webSocketService.on("client-location-update", onClientLocationUpdate);
       } catch {}
     })();
 
@@ -332,6 +346,7 @@ export default function DriverRideScreen() {
       webSocketService.off("ride-status-updated", onStatusUpdated);
       webSocketService.off("ride-cancelled", onRideCancelled);
       webSocketService.off("new-message", onNewMsg);
+      webSocketService.off("client-location-update", onClientLocationUpdate);
     };
   }, [navigation, rideId, currentUserId]);
 
@@ -538,8 +553,7 @@ export default function DriverRideScreen() {
         text1: "Nao foi possivel continuar",
         text2: msg,
       });
-      console.log("Falha ao atualizar status", e);
-    } finally {
+          } finally {
       setActionLoading(null);
     }
   };
@@ -689,6 +703,19 @@ export default function DriverRideScreen() {
                   isOnline={true} 
                 />
              </Marker>
+          )}
+          {!!clientCoords && (
+            <Marker
+              coordinate={{
+                latitude: clientCoords.latitude,
+                longitude: clientCoords.longitude,
+              }}
+              title="Cliente"
+              tracksViewChanges={false}
+              anchor={{ x: 0.5, y: 1 }}
+            >
+              <MapMarker type="client" />
+            </Marker>
           )}
           {routeCoords.length >= 2 ? (
             <Polyline

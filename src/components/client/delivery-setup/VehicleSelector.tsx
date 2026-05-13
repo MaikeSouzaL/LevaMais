@@ -1,7 +1,8 @@
-import React from "react";
-import { View, Text, TouchableOpacity, ScrollView } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
 import { MotiView } from "moti";
 import { Car, Bike, Truck, Container } from "lucide-react-native";
+import configService from "@/services/config.service";
 
 export type LogisticsVehicleType = "motorcycle" | "car" | "van" | "truck";
 
@@ -13,7 +14,14 @@ interface VehicleTypeConfig {
   icon: any;
 }
 
-const VEHICLES: VehicleTypeConfig[] = [
+const ICON_MAP: Record<string, any> = {
+  motorcycle: Bike,
+  car: Car,
+  van: Truck,
+  truck: Container,
+};
+
+const DEFAULT_VEHICLES: VehicleTypeConfig[] = [
   { id: "motorcycle", label: "Moto", desc: "Entregas rápidas", cap: "Até 20kg", icon: Bike },
   { id: "car", label: "Carro", desc: "Pequenos volumes", cap: "Até 100kg", icon: Car },
   { id: "van", label: "Van", desc: "Cargas médias", cap: "Até 800kg", icon: Truck },
@@ -26,6 +34,39 @@ interface VehicleSelectorProps {
 }
 
 export const VehicleSelector = ({ selected, onSelect }: VehicleSelectorProps) => {
+  const [vehicles, setVehicles] = useState<VehicleTypeConfig[]>(DEFAULT_VEHICLES);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadVehicles = async () => {
+      try {
+        setLoading(true);
+        const data = await configService.getDeliveryVehicles();
+        const formattedVehicles: VehicleTypeConfig[] = data.map((v: any) => ({
+          id: v.id as LogisticsVehicleType,
+          label: v.label || v.name,
+          desc: v.description || "",
+          cap: v.capacity || "",
+          icon: ICON_MAP[v.id] || Car,
+        }));
+        setVehicles(formattedVehicles);
+      } catch (error) {
+        setVehicles(DEFAULT_VEHICLES);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadVehicles();
+  }, []);
+
+  if (loading) {
+    return (
+      <View className="mb-6 mt-2 items-center py-4">
+        <ActivityIndicator size="small" color="#02de95" />
+      </View>
+    );
+  }
   return (
     <View className="mb-6 mt-2">
       <View className="px-6 mb-3 flex-row items-center justify-between">
@@ -37,7 +78,7 @@ export const VehicleSelector = ({ selected, onSelect }: VehicleSelectorProps) =>
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 24, gap: 14 }}
       >
-        {VEHICLES.map((vehicle) => {
+        {vehicles.map((vehicle) => {
           const isSelected = selected === vehicle.id;
           const Icon = vehicle.icon;
 
@@ -52,7 +93,6 @@ export const VehicleSelector = ({ selected, onSelect }: VehicleSelectorProps) =>
                   scale: isSelected ? 1.02 : 0.98,
                   borderColor: isSelected ? "#02de95" : "transparent",
                   backgroundColor: isSelected ? "#1E2D3D" : "#11253E",
-                  elevation: isSelected ? 8 : 2,
                 }}
                 transition={{ type: "spring", damping: 18 }}
                 className="w-36 p-4 rounded-3xl border-[1.5px] overflow-hidden relative shadow-2xl shadow-black"

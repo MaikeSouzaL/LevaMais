@@ -195,6 +195,11 @@ export interface DriverStats {
   rides: number;
   goal: number;
   bonus: number;
+  rating?: number;
+  acceptanceRate?: number;
+  onlineTime?: number;
+  totalRides?: number;
+  completedRides?: number;
 }
 
 class RideService {

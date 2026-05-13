@@ -71,8 +71,7 @@ export default function RideSetupScreen() {
         const serverTotal = resp.pricing?.total || 20;
         setOfferPrice(Math.round(serverTotal));
       } catch (e: any) {
-        console.error("Pricing calculation failed", e);
-        Toast.show({ type: "error", text1: "Erro ao calcular", text2: e.message });
+                Toast.show({ type: "error", text1: "Erro ao calcular", text2: e.message });
       } finally {
         setLoadingPricing(false);
       }

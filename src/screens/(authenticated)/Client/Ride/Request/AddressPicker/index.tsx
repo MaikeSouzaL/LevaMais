@@ -167,8 +167,7 @@ export default function AddressPickerScreen() {
             };
          }
        } catch (error) {
-         console.log("Erro ao obter endereço reverso:", error);
-       }
+                }
     }, 450);
   };
 
@@ -207,8 +206,7 @@ export default function AddressPickerScreen() {
           setAddressDetails(details);
         }
       } catch (error) {
-        console.log("Falha ao resolver endereco antes de confirmar:", error);
-      }
+              }
     }
 
     if (!resolvedAddress) {
@@ -219,8 +217,7 @@ export default function AddressPickerScreen() {
       return;
     }
 
-    console.log(`[AddressPicker] Confirmando ${selectionMode}:`, resolvedAddress, finalLat, finalLng);
-
+    
     // Fluxo: Veiculo -> Destino -> Tipo de servico
     if (initialVehicle && (selectionMode === "dropoff" || selectionMode === "home_dropoff")) {
       const pickupLat =
@@ -333,7 +330,7 @@ export default function AddressPickerScreen() {
               Alert.alert('Sucesso', 'Endereço salvo nos favoritos!');
           }
       } catch (error: any) {
-          console.log(error); 
+           
           const errorMessage = error?.response?.data?.error || error?.response?.data?.message || error?.message || 'Erro desconhecido';
           Alert.alert('Erro ao Salvar', `O servidor retornou: ${errorMessage}`);
       } finally {

@@ -111,7 +111,7 @@ export default function DriverWorkPreferencesScreen() {
   };
 
   return (
-    <DriverScreen title="Preferencias de trabalho" scroll>
+    <DriverScreen title="Preferencias de trabalho" scroll hideHeader={true}>
       <SectionCard>
         <SettingRow
           title="Aceitar corridas"

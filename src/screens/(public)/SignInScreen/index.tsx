@@ -196,8 +196,7 @@ export default function SignInScreen() {
         });
       }
     } catch (error: any) {
-      console.error("Erro no login com Google:", error);
-      Toast.show({
+            Toast.show({
         type: "error",
         text1: "Erro ao fazer login com Google",
         text2: error.message || "Verifique sua conexão.",
@@ -258,8 +257,7 @@ export default function SignInScreen() {
         });
       }
     } catch (error: any) {
-      console.error("Erro no login:", error);
-      Toast.show({
+            Toast.show({
         type: "error",
         text1: "Erro ao fazer login",
         text2: error.message || "Verifique sua conexão e tente novamente",

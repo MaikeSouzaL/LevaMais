@@ -1,7 +1,8 @@
-import React from "react";
-import { View, Text, TouchableOpacity, ScrollView, Image } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
 import { MotiView } from "moti";
 import { Car, Bike, ShieldCheck } from "lucide-react-native";
+import configService from "@/services/config.service";
 
 export type CategoryType = "car" | "motorcycle" | "comfort";
 
@@ -12,18 +13,56 @@ interface Category {
   icon: any;
 }
 
-const CATEGORIES: Category[] = [
-  { id: "car", label: "LEVA POP", description: "Econômico diário", icon: Car },
-  { id: "motorcycle", label: "LEVA MOTO", description: "Rápido & prático", icon: Bike },
-  { id: "comfort", label: "LEVA COMFORT", description: "Premium especial", icon: ShieldCheck },
-];
-
 interface CategorySelectorProps {
   selected: CategoryType;
   onSelect: (id: CategoryType) => void;
 }
 
+const ICON_MAP: Record<string, any> = {
+  car: Car,
+  motorcycle: Bike,
+  comfort: ShieldCheck,
+};
+
+const DEFAULT_CATEGORIES: Category[] = [
+  { id: "car", label: "LEVA POP", description: "Econômico diário", icon: Car },
+  { id: "motorcycle", label: "LEVA MOTO", description: "Rápido & prático", icon: Bike },
+  { id: "comfort", label: "LEVA COMFORT", description: "Premium especial", icon: ShieldCheck },
+];
+
 export const CategorySelector = ({ selected, onSelect }: CategorySelectorProps) => {
+  const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        setLoading(true);
+        const data = await configService.getRideCategories();
+        const formattedCategories: Category[] = data.map((cat: any) => ({
+          id: cat.id as CategoryType,
+          label: cat.label || cat.name,
+          description: cat.description || "",
+          icon: ICON_MAP[cat.id] || Car,
+        }));
+        setCategories(formattedCategories);
+      } catch (error) {
+        setCategories(DEFAULT_CATEGORIES);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadCategories();
+  }, []);
+
+  if (loading) {
+    return (
+      <View className="mb-6 mt-2 items-center py-4">
+        <ActivityIndicator size="small" color="#02de95" />
+      </View>
+    );
+  }
   return (
     <View className="mb-6 mt-2">
       <View className="px-6 mb-2.5">
@@ -34,7 +73,7 @@ export const CategorySelector = ({ selected, onSelect }: CategorySelectorProps) 
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 24, gap: 12 }}
       >
-        {CATEGORIES.map((cat) => {
+        {categories.map((cat) => {
           const isSelected = selected === cat.id;
           const Icon = cat.icon;
           

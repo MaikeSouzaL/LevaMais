@@ -44,7 +44,7 @@ export default function DriverSupportCenterScreen() {
   ];
 
   return (
-    <DriverScreen title="Suporte" scroll>
+    <DriverScreen title="Suporte" scroll hideHeader={true}>
       <SectionCard>
         <Text style={{ color: "rgba(255,255,255,0.72)", lineHeight: 20 }}>
           Selecione o assunto para atendimento rapido. Fluxo inspirado nos centros de ajuda de apps de mobilidade.

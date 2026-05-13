@@ -107,8 +107,7 @@ export default function VerifyCodeScreen() {
         });
       }
     } catch (error: any) {
-      console.error("Erro ao verificar código:", error);
-      Toast.show({
+            Toast.show({
         type: "error",
         text1: "Erro",
         text2: "Falha de conexão, tente novamente",

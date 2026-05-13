@@ -105,8 +105,7 @@ export default function GooglePhonePromptScreen() {
         });
       }
     } catch (error: any) {
-      console.error("Erro send SMS:", error);
-      Toast.show({
+            Toast.show({
         type: "error",
         text1: "Erro de conexão",
         text2: "Falha ao requisitar código, verifique sua internet",

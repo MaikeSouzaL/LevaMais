@@ -42,8 +42,7 @@ export default function DriverRideDetailsScreen() {
       const data = await rideService.getById(rideId!);
       setDetails(data);
     } catch (error) {
-      console.error(error);
-    } finally {
+          } finally {
       setLoading(false);
     }
   };

@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   RefreshControl,
@@ -13,7 +13,9 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 
 import rideService, { Ride } from "../../../services/ride.service";
 import walletService, { Balance } from "../../../services/wallet.service";
+import websocketService from "../../../services/websocket.service";
 import { DriverScreen } from "./components/DriverScreen";
+import { DriverDepositModal } from "@/components/DriverDepositModal";
 
 function formatBRL(value: number) {
   try {
@@ -46,6 +48,7 @@ export default function DriverEarningsScreen() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [balanceVisible, setBalanceVisible] = useState(true);
+  const [showDepositModal, setShowDepositModal] = useState(false);
 
   const [balance, setBalance] = useState<Balance>({
     available: 0,
@@ -54,7 +57,7 @@ export default function DriverEarningsScreen() {
   });
   const [driverStats, setDriverStats] = useState({ earnings: 0, rides: 0, goal: 10, bonus: 0 });
   const [rides, setRides] = useState<Ride[]>([]);
-  const [chartData, setChartData] = useState<{ label: string; value: number }[]>([]);
+  const [chartData, setChartData] = useState<{ label: string; value: number; count?: number }[]>([]);
 
   const loadData = useCallback(async (isRefresh = false) => {
     try {
@@ -74,10 +77,11 @@ export default function DriverEarningsScreen() {
       setBalance(balanceRes);
       setDriverStats(statsRes);
       setRides(historyRes.rides || []);
-      setChartData((chartRes || []).map((item) => ({ label: item.label, value: item.value || 0 })));
-    } catch {
-      setChartData([]);
-    } finally {
+       setChartData((chartRes || []).map((item) => ({ label: item.label, value: item.value || 0, count: item.count || 0 })));
+     } catch (error) {
+       console.error('Failed to load earnings data:', error);
+       setChartData([]);
+     } finally {
       setLoading(false);
       setRefreshing(false);
     }
@@ -89,10 +93,34 @@ export default function DriverEarningsScreen() {
     }, [loadData]),
   );
 
+  useEffect(() => {
+    const handleBalanceUpdate = (data: any) => {
+      console.log("✅ WebSocket balance updated received", data);
+      loadData(true); // reload data silently
+    };
+
+    websocketService.on("balance_updated", handleBalanceUpdate);
+
+    return () => {
+      websocketService.off("balance_updated", handleBalanceUpdate);
+    };
+  }, [loadData]);
+
   const completedCount = useMemo(
     () => rides.filter((ride) => ride.status === "completed").length,
     [rides],
   );
+
+  const periodTotals = useMemo(() => {
+    return chartData.reduce(
+      (acc, item) => {
+        acc.earnings += item.value || 0;
+        acc.rides += item.count || 0;
+        return acc;
+      },
+      { earnings: 0, rides: 0 }
+    );
+  }, [chartData]);
 
   const goalProgress = useMemo(() => {
     const goal = Math.max(1, Number(driverStats.goal || 0));
@@ -194,7 +222,7 @@ export default function DriverEarningsScreen() {
   };
 
   return (
-    <DriverScreen title="Financeiro" scroll>
+    <DriverScreen title="Financeiro" scroll hideHeader={true}>
       <ScrollView
         refreshControl={
           <RefreshControl
@@ -238,22 +266,41 @@ export default function DriverEarningsScreen() {
             </TouchableOpacity>
           </View>
 
-          <View style={{ flexDirection: "row", gap: 12, marginTop: 24 }}>
+          <TouchableOpacity
+            onPress={() => setShowDepositModal(true)}
+            style={{
+              backgroundColor: "#02de95",
+              paddingVertical: 14,
+              borderRadius: 14,
+              alignItems: "center",
+              flexDirection: "row",
+              justifyContent: "center",
+              gap: 8,
+              marginTop: 24,
+            }}
+          >
+            <FontAwesome5 name="plus-circle" size={16} color="#091A2F" />
+            <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 15 }}>DEPOSITAR / RECARREGAR</Text>
+          </TouchableOpacity>
+
+          <View style={{ flexDirection: "row", gap: 12, marginTop: 12 }}>
             <TouchableOpacity
               onPress={() => navigation.navigate("DriverWithdraw")}
               style={{
                 flex: 1,
-                backgroundColor: "#02de95",
+                backgroundColor: "rgba(255,255,255,0.06)",
                 paddingVertical: 14,
                 borderRadius: 14,
                 alignItems: "center",
                 flexDirection: "row",
                 justifyContent: "center",
                 gap: 8,
+                borderWidth: 1,
+                borderColor: "rgba(255,255,255,0.1)",
               }}
             >
-              <FontAwesome5 name="money-bill-wave" size={16} color="#091A2F" />
-              <Text style={{ color: "#091A2F", fontWeight: "800", fontSize: 15 }}>SACAR</Text>
+              <FontAwesome5 name="money-bill-wave" size={16} color="#fff" />
+              <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>SACAR</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -276,36 +323,7 @@ export default function DriverEarningsScreen() {
             </TouchableOpacity>
           </View>
 
-          <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
-            <TouchableOpacity
-              onPress={() => navigation.navigate("DriverPayouts")}
-              style={{
-                flex: 1,
-                backgroundColor: "rgba(255,255,255,0.06)",
-                paddingVertical: 10,
-                borderRadius: 12,
-                alignItems: "center",
-                borderWidth: 1,
-                borderColor: "rgba(255,255,255,0.1)",
-              }}
-            >
-              <Text style={{ color: "#fff", fontWeight: "700" }}>Repasses</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => navigation.navigate("DriverIncentives")}
-              style={{
-                flex: 1,
-                backgroundColor: "rgba(2,222,149,0.14)",
-                paddingVertical: 10,
-                borderRadius: 12,
-                alignItems: "center",
-                borderWidth: 1,
-                borderColor: "rgba(2,222,149,0.35)",
-              }}
-            >
-              <Text style={{ color: "#02de95", fontWeight: "800" }}>Incentivos</Text>
-            </TouchableOpacity>
-          </View>
+
         </LinearGradient>
 
         <View style={{ marginTop: 24 }}>
@@ -348,7 +366,7 @@ export default function DriverEarningsScreen() {
                 Total ganho
               </Text>
               <Text style={{ color: "#fff", fontSize: 20, fontWeight: "800", marginTop: 4 }}>
-                {balanceVisible ? formatBRL(balance.totalEarnings) : "---"}
+                {balanceVisible ? formatBRL(periodTotals.earnings) : "---"}
               </Text>
             </View>
 
@@ -366,7 +384,7 @@ export default function DriverEarningsScreen() {
                 Corridas concluidas
               </Text>
               <Text style={{ color: "#fff", fontSize: 20, fontWeight: "800", marginTop: 4 }}>
-                {completedCount}
+                {periodTotals.rides}
               </Text>
             </View>
 
@@ -487,6 +505,15 @@ export default function DriverEarningsScreen() {
           )}
         </View>
       </ScrollView>
+
+      <DriverDepositModal
+        visible={showDepositModal}
+        onClose={() => setShowDepositModal(false)}
+        onSuccess={() => {
+          setShowDepositModal(false);
+          loadData(true);
+        }}
+      />
     </DriverScreen>
   );
 }

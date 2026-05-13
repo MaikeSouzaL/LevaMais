@@ -71,8 +71,7 @@ export default function DriverSelfieScreen() {
         }, 2800);
       }
     } catch (error) {
-      console.error("Selfie error:", error);
-      setStep("idle");
+            setStep("idle");
       Alert.alert("Erro", "Não foi possível capturar a selfie.");
     }
   };
@@ -96,8 +95,7 @@ export default function DriverSelfieScreen() {
 
       // 🛡️ SAFETY GATE: IF user is not registered on backend yet (missing ID or token), REGISTER NOW!
       if (!activeToken || !activeUserId || activeUserId === "") {
-        console.log("[SelfieFlow] User unregistered, initiating lazy registration...");
-        
+                
         const registrationPayload = {
           name: user.name || "Motorista",
           email: user.email,
@@ -118,8 +116,7 @@ export default function DriverSelfieScreen() {
         const newUser = regResponse.data.user;
         const newToken = regResponse.data.token;
 
-        console.log("[SelfieFlow] Registration Success! Logging in now...");
-
+        
         // ✅ Commit user session globally immediately so app state persists!
         useAuthStore.getState().login(
           "driver",
@@ -144,10 +141,8 @@ export default function DriverSelfieScreen() {
       if (user.phone && activeToken) {
         try {
           await userService.updateProfile({ phone: user.phone }, activeToken);
-          console.log("[SelfieFlow] User phone synchronized successfully.");
-        } catch (phErr) {
-          console.warn("[SelfieFlow] Warning: Phone sync failed, proceeding anyway:", phErr);
-        }
+                  } catch (phErr) {
+                  }
       }
 
       // 📤 1. Bundle and build dynamic FormData with all gathered artifacts!
@@ -194,8 +189,7 @@ export default function DriverSelfieScreen() {
         Alert.alert("Falha no Envio", response.message || "Não foi possível salvar seus dados no servidor.");
       }
     } catch (err: any) {
-      console.error("Flow Exception:", err);
-      Alert.alert("Erro no Cadastro", err.message || "Ocorreu um erro crítico ao tentar finalizar o processo.");
+            Alert.alert("Erro no Cadastro", err.message || "Ocorreu um erro crítico ao tentar finalizar o processo.");
     } finally {
       setIsUploading(false);
     }

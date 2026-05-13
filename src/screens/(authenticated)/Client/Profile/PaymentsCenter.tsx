@@ -1,11 +1,11 @@
 ﻿import React, { useCallback, useState } from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import Toast from "react-native-toast-message";
 
-import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
+import { colors } from "@/theme";
 import { ClientScreenHeader, LoadingButton } from "../Shared/components";
 import {
   deletePaymentMethod,
@@ -55,13 +55,13 @@ export default function PaymentsCenterScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView className="flex-1 bg-[#091A2F]">
       <ClientScreenHeader
         title="Pagamentos"
         subtitle="Gerencie cartoes e forma padrao"
       />
 
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
+      <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, gap: 12 }}>
         <LoadingButton
           title="Adicionar cartao"
           onPress={() => navigation.navigate("AddPaymentMethod")}
@@ -69,28 +69,28 @@ export default function PaymentsCenterScreen() {
           loading={loading}
         />
 
-        <Text style={styles.sectionTitle}>SEUS CARTOES</Text>
+        <Text className="text-xs font-bold text-gray-500 tracking-wider mt-3">SEUS CARTOES</Text>
 
         {methods.length === 0 ? (
-          <View style={styles.emptyState}>
+          <View className="items-center p-6 border border-gray-700 rounded-lg bg-[#0d2838]">
             <MaterialIcons name="credit-card-off" size={42} color={colors.text.tertiary} />
-            <Text style={styles.emptyText}>Nenhum cartao cadastrado</Text>
+            <Text className="text-gray-500 text-base mt-3">Nenhum cartao cadastrado</Text>
           </View>
         ) : (
           methods.map((method) => (
-            <View key={method._id} style={styles.methodCard}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.methodTitle}>
+            <View key={method._id} className="flex-row gap-3 bg-[#0d2838] border border-gray-700 rounded-lg p-4 items-start">
+              <View className="flex-1">
+                <Text className="text-white font-bold text-base">
                   {String(method.brand || "card").toUpperCase()} •••• {method.last4}
                 </Text>
-                <Text style={styles.methodSubtitle}>{method.holderName}</Text>
-                <Text style={styles.methodSubtitle}>
+                <Text className="text-gray-400 text-sm mt-0.5">{method.holderName}</Text>
+                <Text className="text-gray-400 text-sm mt-0.5">
                   Validade: {String(method.expiryMonth).padStart(2, "0")}/{String(method.expiryYear).padStart(2, "0")}
                 </Text>
-                {method.isDefault && <Text style={styles.defaultBadge}>Padrao</Text>}
+                {method.isDefault && <Text className="text-[#02de95] text-xs font-bold mt-1 uppercase">Padrao</Text>}
               </View>
 
-              <TouchableOpacity onPress={() => handleDelete(method._id)} style={styles.deleteBtn}>
+              <TouchableOpacity onPress={() => handleDelete(method._id)} className="w-9 h-9 rounded-full items-center justify-center bg-[rgba(239,68,68,0.12)] border border-[rgba(239,68,68,0.2)]">
                 <MaterialIcons name="delete-outline" size={20} color="#ef4444" />
               </TouchableOpacity>
             </View>
@@ -101,57 +101,4 @@ export default function PaymentsCenterScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background.primary },
-  content: { flex: 1 },
-  contentContainer: { padding: spacing.lg, gap: spacing.md },
-  sectionTitle: {
-    color: colors.text.tertiary,
-    fontSize: fontSize.xs,
-    fontWeight: fontWeight.bold,
-    letterSpacing: 0.8,
-    marginTop: spacing.md,
-  },
-  emptyState: {
-    alignItems: "center",
-    padding: spacing.xl,
-    borderWidth: 1,
-    borderColor: colors.border.light,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.background.secondary,
-  },
-  emptyText: {
-    color: colors.text.tertiary,
-    fontSize: fontSize.base,
-    marginTop: spacing.md,
-  },
-  methodCard: {
-    flexDirection: "row",
-    gap: spacing.md,
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.border.light,
-    padding: spacing.lg,
-    alignItems: "flex-start",
-  },
-  methodTitle: { color: colors.text.primary, fontSize: fontSize.base, fontWeight: fontWeight.bold },
-  methodSubtitle: { color: colors.text.secondary, fontSize: fontSize.sm, marginTop: 2 },
-  defaultBadge: {
-    color: colors.primary[500],
-    fontSize: fontSize.xs,
-    fontWeight: fontWeight.bold,
-    marginTop: spacing.xs,
-    textTransform: "uppercase",
-  },
-  deleteBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(239,68,68,0.12)",
-    borderWidth: 1,
-    borderColor: "rgba(239,68,68,0.2)",
-  },
-});
+

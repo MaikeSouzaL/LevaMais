@@ -5,7 +5,6 @@ import {
   TouchableOpacity,
   FlatList,
   ActivityIndicator,
-  StyleSheet,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -33,7 +32,8 @@ export default function ClientCityScreen() {
       setLoading(true);
       const data = await citiesService.list({ isActive: true });
       setCities(data);
-    } catch {
+    } catch (error) {
+      console.error("Error loading cities:", error);
       Toast.show({
         type: "error",
         text1: "Erro ao carregar cidades",
@@ -73,58 +73,61 @@ export default function ClientCityScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView className="flex-1 bg-[#091A2F]">
       <ClientScreenHeader
         title="Selecionar cidade"
         subtitle="Escolha a cidade onde voce esta para precificacao correta"
       />
 
       {loading ? (
-        <View style={styles.loadingContainer}>
+        <View className="flex-1 items-center justify-center gap-3">
           <ActivityIndicator size="large" color={colors.primary[500]} />
-          <Text style={styles.loadingText}>Carregando cidades...</Text>
+          <Text className="text-gray-400 text-base">Carregando cidades...</Text>
         </View>
       ) : cities.length === 0 ? (
-        <View style={styles.emptyContainer}>
+        <View className="flex-1 items-center justify-center px-6 gap-2">
           <MaterialIcons name="location-off" size={64} color="#555" />
-          <Text style={styles.emptyTitle}>Nenhuma cidade disponivel</Text>
-          <Text style={styles.emptySubtitle}>
+          <Text className="text-white text-lg font-bold mt-3">Nenhuma cidade disponivel</Text>
+          <Text className="text-gray-400 text-sm text-center">
             Cadastre cidades via painel administrativo Leva Web
           </Text>
-          <TouchableOpacity style={styles.retryButton} onPress={loadCities}>
-            <Text style={styles.retryButtonText}>Tentar novamente</Text>
+          <TouchableOpacity className="mt-6 px-6 py-3 bg-[#02de95] rounded-lg" onPress={loadCities}>
+            <Text className="text-[#091A2F] font-bold text-base">Tentar novamente</Text>
           </TouchableOpacity>
         </View>
       ) : (
         <FlatList
           data={cities}
           keyExtractor={(item) => item._id}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={{ padding: spacing.lg }}
           renderItem={({ item }) => {
             const isSelected = selectedId === item._id;
             return (
               <TouchableOpacity
-                style={[styles.cityCard, isSelected && styles.cityCardSelected]}
+                className={`flex-row items-center rounded-lg border mb-2 p-4 ${
+                  isSelected
+                    ? "border-[#02de95] bg-[rgba(2,222,149,0.06)]"
+                    : "border-gray-700 bg-[#0d2838]"
+                }`}
                 onPress={() => handleSelectCity(item)}
                 activeOpacity={0.7}
               >
-                <View style={styles.cityIconContainer}>
+                <View className="w-12 h-12 rounded-xl bg-[rgba(2,222,149,0.08)] items-center justify-center mr-4">
                   <MaterialCommunityIcons
                     name="city"
                     size={24}
                     color={isSelected ? colors.primary[500] : "#8ea6a3"}
                   />
                 </View>
-                <View style={styles.cityInfo}>
+                <View className="flex-1">
                   <Text
-                    style={[
-                      styles.cityName,
-                      isSelected && styles.cityNameSelected,
-                    ]}
+                    className={`text-base font-semibold ${
+                      isSelected ? "text-[#02de95]" : "text-white"
+                    }`}
                   >
                     {item.name}
                   </Text>
-                  <Text style={styles.cityState}>{item.state}</Text>
+                  <Text className="text-gray-400 text-sm mt-0.5">{item.state}</Text>
                 </View>
                 {isSelected && (
                   <MaterialIcons
@@ -142,81 +145,3 @@ export default function ClientCityScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background.primary },
-  loadingContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.md,
-  },
-  loadingText: { color: colors.text.tertiary, fontSize: fontSize.base },
-  emptyContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: spacing.xl,
-    gap: spacing.sm,
-  },
-  emptyTitle: {
-    color: colors.text.primary,
-    fontSize: fontSize.lg,
-    fontWeight: fontWeight.bold,
-    marginTop: spacing.md,
-  },
-  emptySubtitle: {
-    color: colors.text.tertiary,
-    fontSize: fontSize.sm,
-    textAlign: "center",
-  },
-  retryButton: {
-    marginTop: spacing.lg,
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.md,
-    backgroundColor: colors.primary[500],
-    borderRadius: borderRadius.md,
-  },
-  retryButtonText: {
-    color: colors.background.primary,
-    fontWeight: fontWeight.bold,
-    fontSize: fontSize.base,
-  },
-  listContent: { padding: spacing.lg },
-  cityCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.border.light,
-    padding: spacing.lg,
-    marginBottom: spacing.sm,
-  },
-  cityCardSelected: {
-    borderColor: colors.primary[500],
-    backgroundColor: "rgba(2,222,149,0.06)",
-  },
-  cityIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: "rgba(2,222,149,0.08)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: spacing.md,
-  },
-  cityInfo: { flex: 1 },
-  cityName: {
-    color: colors.text.primary,
-    fontSize: fontSize.base,
-    fontWeight: fontWeight.semibold,
-  },
-  cityNameSelected: {
-    color: colors.primary[500],
-  },
-  cityState: {
-    color: colors.text.tertiary,
-    fontSize: fontSize.sm,
-    marginTop: 2,
-  },
-});

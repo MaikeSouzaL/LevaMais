@@ -394,6 +394,7 @@ class AuthController {
         // driver
         vehicleType,
         vehicleInfo,
+        gpsQuality,
       } = req.body || {};
 
       if (name !== undefined) user.name = String(name);
@@ -424,6 +425,9 @@ class AuthController {
       if (user.userType === "driver") {
         if (vehicleType !== undefined) user.vehicleType = vehicleType;
         if (vehicleInfo !== undefined) user.vehicleInfo = vehicleInfo;
+        if (gpsQuality !== undefined && ["low", "balanced", "high"].includes(gpsQuality)) {
+          user.gpsQuality = gpsQuality;
+        }
       }
 
       await user.save();

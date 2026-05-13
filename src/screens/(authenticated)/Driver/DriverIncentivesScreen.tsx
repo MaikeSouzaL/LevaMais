@@ -31,11 +31,13 @@ export default function DriverIncentivesScreen() {
     setBonus(Number(stats.bonus || 0));
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      load().catch(() => {});
-    }, [load]),
-  );
+   useFocusEffect(
+     useCallback(() => {
+       load().catch((error) => {
+         console.error('Failed to load driver incentives:', error);
+       });
+     }, [load]),
+   );
 
   return (
     <DriverScreen title="Incentivos" scroll>

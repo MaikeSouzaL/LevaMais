@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Linking, Share } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -6,6 +6,8 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import { MaterialIcons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
+import * as Location from "expo-location";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
 import rideService, { Ride } from "@/services/ride.service";
@@ -131,6 +133,7 @@ export default function RideTrackingScreen() {
   const currentUserId = useAuthStore((s) => s.userData?.id) || "";
   const unreadCount = useChatStore((s) => s.unreadCounts[rideId]) || 0;
   const mapRef = useRef<MapView>(null);
+  const watchRef = useRef<any>(null);
 
   const [ride, setRide] = useState<Ride | null>(null);
   const [loading, setLoading] = useState(true);
@@ -283,6 +286,52 @@ export default function RideTrackingScreen() {
       webSocketService.off("connect", onSocketConnected);
     };
   }, [rideId, loadRide, navigation, currentUserId]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const startLocationTracking = async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") return;
+
+        if (watchRef.current) {
+          await watchRef.current();
+          watchRef.current = null;
+        }
+
+        watchRef.current = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.Balanced,
+            timeInterval: 2000,
+            distanceInterval: 5,
+          },
+          (pos) => {
+            if (!mounted) return;
+            try {
+              webSocketService.emit("client-location-update", {
+                rideId,
+                latitude: pos.coords.latitude,
+                longitude: pos.coords.longitude,
+                heading: pos.coords.heading ?? undefined,
+                speed: pos.coords.speed ?? undefined,
+              });
+            } catch {}
+          }
+        );
+      } catch {}
+    };
+
+    startLocationTracking();
+
+    return () => {
+      mounted = false;
+      if (watchRef.current) {
+        watchRef.current();
+        watchRef.current = null;
+      }
+    };
+  }, [rideId]);
 
   const pickupCoord = useMemo(() => {
     const pickupLat = Number(ride?.pickup?.latitude);
@@ -438,7 +487,8 @@ export default function RideTrackingScreen() {
       : 0;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <ErrorBoundary componentName="RideTrackingScreen">
+      <SafeAreaView style={styles.container}>
       <MapView
         ref={mapRef}
         style={styles.map}
@@ -587,6 +637,7 @@ export default function RideTrackingScreen() {
         </View>
       </View>
     </SafeAreaView>
+    </ErrorBoundary>
   );
 }
 

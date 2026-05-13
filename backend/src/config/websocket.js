@@ -300,33 +300,8 @@ function initializeWebSocket(server) {
               }
             } catch (distErr) {}
 
-            io.to(`driver-${driver.driverId}`).emit("new-ride-request", {
-              rideId: ride._id,
-              pickup: ride.pickup,
-              dropoff: ride.dropoff,
-              pricing: ride.pricing,
-              distance: ride.distance,
-              duration: ride.duration,
-              serviceType: ride.serviceType,
-              vehicleType: ride.vehicleType,
-              requestedAt: ride.requestedAt,
-              scheduledFor: ride.scheduledFor || null,
-              distanceToPickup,
-              negotiation: ride.negotiation?.enabled
-                ? {
-                    enabled: true,
-                    clientOffer: ride.negotiation.clientOffer ?? null,
-                    suggestedMinPrice: ride.negotiation.suggestedMinPrice ?? null,
-                    finalAgreedPrice: ride.negotiation.finalAgreedPrice ?? null,
-                  }
-                : { enabled: false },
-              client: {
-                name: ride.clientId?.name,
-                phone: ride.clientId?.phone,
-                profilePhoto: ride.clientId?.profilePhoto,
-                rating: ride.clientId?.rating || 5.0,
-              },
-            });
+            // 🔇 FIXED: Silencing disruptive re-popups. Queued items must only trigger passive updates!
+            io.to(`driver-${driver.driverId}`).emit("waiting-queue-updated");
           });
         }
       }

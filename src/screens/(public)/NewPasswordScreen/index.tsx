@@ -96,8 +96,7 @@ export default function NewPasswordScreen() {
         });
       }
     } catch (error: any) {
-      console.error("Erro ao alterar senha:", error);
-      Toast.show({
+            Toast.show({
         type: "error",
         text1: "Erro ao alterar senha",
         text2: error.message || "Verifique sua conexão e tente novamente",

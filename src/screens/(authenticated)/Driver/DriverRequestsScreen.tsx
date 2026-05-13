@@ -1,15 +1,18 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, Linking, ActivityIndicator, ScrollView, Alert } from "react-native";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 
 import webSocketService from "../../../services/websocket.service";
 import driverAlertService from "../../../services/driverAlert.service";
 import rideService from "../../../services/ride.service";
+import walletService from "../../../services/wallet.service";
 import driverLocationService from "../../../services/driverLocation.service";
+import driverService from "../../../services/driver.service";
 import Toast from "react-native-toast-message";
 import { DriverScreen } from "./components/DriverScreen";
 import { DriverEmptyState } from "./components/DriverEmptyState";
 import { DriverRequestCard } from "./components/DriverRequestCard";
+import { Modal } from "../../../components/Modal";
 import { formatBRL } from "@/utils/mappers";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
@@ -32,14 +35,21 @@ type RideRequestItem = {
     clientOffer?: number | null;
     suggestedMinPrice?: number | null;
   };
+  isWaitingInQueue?: boolean;
 };
 
 export default function DriverRequestsScreen() {
   const navigation = useNavigation();
+  const route = useRoute<any>();
   const [requests, setRequests] = useState<RideRequestItem[]>([]);
-  const [activeTab, setActiveTab] = useState<"realtime" | "scheduled">("realtime");
+  
+  const requestedInitialTab = route.params?.initialTab || "queue";
+  const [activeTab, setActiveTab] = useState<"queue" | "realtime" | "scheduled">(
+    requestedInitialTab as any
+  );
   const [scheduledRides, setScheduledRides] = useState<any[]>([]);
   const [loadingScheduled, setLoadingScheduled] = useState(false);
+  const [showNoBalanceModal, setShowNoBalanceModal] = useState(false);
 
   const loadScheduledRides = async () => {
     try {
@@ -47,7 +57,7 @@ export default function DriverRequestsScreen() {
       const res = await rideService.getAvailableScheduledRides();
       setScheduledRides(res?.rides || []);
     } catch (e) {
-      console.log("Erro ao carregar agendamentos", e);
+      setScheduledRides([]);
     } finally {
       setLoadingScheduled(false);
     }
@@ -107,6 +117,7 @@ export default function DriverRequestsScreen() {
             serviceType: item.serviceType,
             vehicleType: item.vehicleType,
             details: item.details,
+            isWaitingInQueue: item.isWaitingInQueue,
             negotiation: item.negotiation,
           })),
         );
@@ -171,6 +182,7 @@ export default function DriverRequestsScreen() {
         serviceType: payload?.serviceType,
         vehicleType: payload?.vehicleType,
         details: payload?.details,
+        isWaitingInQueue: payload?.isWaitingInQueue,
         negotiation: payload?.negotiation,
       };
 
@@ -184,7 +196,7 @@ export default function DriverRequestsScreen() {
       try {
         await driverAlertService.start();
       } catch (e) {
-        console.log("Falha ao tocar alerta", e);
+        console.error("Error starting driver alert service:", e);
       }
     };
 
@@ -221,8 +233,8 @@ export default function DriverRequestsScreen() {
         webSocketService.on("ride-taken", onRideTaken);
         webSocketService.on("ride-expired", onRideExpired);
         webSocketService.on("ride-cancelled", onRideCancelled);
-      } catch (e) {
-        console.log("Falha ao conectar WS", e);
+       } catch (e) {
+        console.error("Error connecting to websocket:", e);
       }
     })();
 
@@ -274,6 +286,14 @@ export default function DriverRequestsScreen() {
     }
 
     try {
+      const rideValue = request?.pricing?.total || 0;
+      
+      const canAccept = await driverService.canAcceptRide(rideValue);
+      if (!canAccept) {
+        setShowNoBalanceModal(true);
+        return;
+      }
+
       const ride = await rideService.accept(rideId);
       await driverAlertService.stop();
       setRequests((prev) => prev.filter((r) => r.rideId !== rideId));
@@ -282,8 +302,7 @@ export default function DriverRequestsScreen() {
       const currentRideId = e?.response?.data?.currentRideId;
       const msg = e?.response?.data?.error || e?.message;
 
-      console.log("Falha ao aceitar", msg || e);
-
+      
       if (currentRideId) {
         try {
           (navigation as any).navigate("DriverRide", { rideId: currentRideId });
@@ -329,7 +348,7 @@ export default function DriverRequestsScreen() {
       await rideService.reject(rideId, "driver_rejected");
       await driverAlertService.stop();
     } catch (e) {
-      console.log("Falha ao rejeitar", e);
+      console.error("Error rejecting ride:", e);
     } finally {
       setRequests((prev) => prev.filter((r) => r.rideId !== rideId));
     }
@@ -346,6 +365,17 @@ export default function DriverRequestsScreen() {
           style: "default",
           onPress: async () => {
             try {
+              // Check driver balance before accepting
+              const balance = await walletService.getBalance();
+              if (balance.available <= 0) {
+                Toast.show({
+                  type: "error",
+                  text1: "Saldo insuficiente",
+                  text2: "Você precisa recarregar seu saldo para aceitar um agendamento.",
+                });
+                return;
+              }
+
               await rideService.acceptScheduledRide(rideId);
               Toast.show({
                 type: "success",
@@ -372,19 +402,62 @@ export default function DriverRequestsScreen() {
     Linking.openURL(url);
   };
 
+  const queueRequests = requests.filter((r) => r.isWaitingInQueue === true);
+  const realtimeRequests = requests.filter((r) => r.isWaitingInQueue !== true);
+
   return (
     <DriverScreen
       title="Solicitações"
       padded={false}
-      scroll={activeTab === "realtime"}
+      hideHeader={true}
+      scroll={activeTab !== "scheduled"}
       headerRight={
         <Text style={{ color: "rgba(255,255,255,0.7)", fontWeight: "800" }}>
-          {activeTab === "realtime" ? requests.length : scheduledRides.length}
+          {activeTab === "queue"
+            ? queueRequests.length
+            : activeTab === "realtime"
+            ? realtimeRequests.length
+            : scheduledRides.length}
         </Text>
       }
     >
-      {/* Abas Personalizadas Premium */}
-      <View style={{ flexDirection: "row", backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 14, padding: 4, marginHorizontal: 16, marginTop: 12, marginBottom: 12, borderWidth: 1, borderColor: "rgba(255,255,255,0.06)" }}>
+      {/* Abas Personalizadas Premium (3 Tabs System) */}
+      <View
+        style={{
+          flexDirection: "row",
+          backgroundColor: "rgba(255,255,255,0.05)",
+          borderRadius: 14,
+          padding: 4,
+          marginHorizontal: 16,
+          marginTop: 12,
+          marginBottom: 12,
+          borderWidth: 1,
+          borderColor: "rgba(255,255,255,0.06)",
+        }}
+      >
+        <TouchableOpacity
+          onPress={() => setActiveTab("queue")}
+          style={{
+            flex: 1,
+            paddingVertical: 10,
+            alignItems: "center",
+            borderRadius: 12,
+            backgroundColor: activeTab === "queue" ? "#02de95" : "transparent",
+          }}
+          activeOpacity={0.8}
+        >
+          <Text
+            style={{
+              color: activeTab === "queue" ? "#091A2F" : "#9ca5a3",
+              fontWeight: "900",
+              fontSize: 11,
+            }}
+            numberOfLines={1}
+          >
+            Fila ({queueRequests.length})
+          </Text>
+        </TouchableOpacity>
+
         <TouchableOpacity
           onPress={() => setActiveTab("realtime")}
           style={{
@@ -392,14 +465,22 @@ export default function DriverRequestsScreen() {
             paddingVertical: 10,
             alignItems: "center",
             borderRadius: 12,
-            backgroundColor: activeTab === "realtime" ? "#02de95" : "transparent"
+            backgroundColor: activeTab === "realtime" ? "#02de95" : "transparent",
           }}
           activeOpacity={0.8}
         >
-          <Text style={{ color: activeTab === "realtime" ? "#091A2F" : "#9ca5a3", fontWeight: "900", fontSize: 13 }}>
-            Em tempo real ({requests.length})
+          <Text
+            style={{
+              color: activeTab === "realtime" ? "#091A2F" : "#9ca5a3",
+              fontWeight: "900",
+              fontSize: 11,
+            }}
+            numberOfLines={1}
+          >
+            Direto ({realtimeRequests.length})
           </Text>
         </TouchableOpacity>
+
         <TouchableOpacity
           onPress={() => {
             setActiveTab("scheduled");
@@ -410,21 +491,42 @@ export default function DriverRequestsScreen() {
             paddingVertical: 10,
             alignItems: "center",
             borderRadius: 12,
-            backgroundColor: activeTab === "scheduled" ? "#02de95" : "transparent"
+            backgroundColor: activeTab === "scheduled" ? "#02de95" : "transparent",
           }}
           activeOpacity={0.8}
         >
-          <Text style={{ color: activeTab === "scheduled" ? "#091A2F" : "#9ca5a3", fontWeight: "900", fontSize: 13 }}>
-            Agendados ({scheduledRides.length})
+          <Text
+            style={{
+              color: activeTab === "scheduled" ? "#091A2F" : "#9ca5a3",
+              fontWeight: "900",
+              fontSize: 11,
+            }}
+            numberOfLines={1}
+          >
+            Agendado ({scheduledRides.length})
           </Text>
         </TouchableOpacity>
       </View>
 
-      {activeTab === "realtime" ? (
-        requests.length === 0 ? (
-          <DriverEmptyState title="Nenhuma solicitação no momento." />
+      {activeTab === "queue" ? (
+        queueRequests.length === 0 ? (
+          <DriverEmptyState title="Nenhuma solicitação na fila de espera." />
         ) : (
-          requests.map((r) => (
+          queueRequests.map((r) => (
+            <DriverRequestCard
+              key={r.rideId}
+              item={r}
+              onAccept={accept}
+              onReject={reject}
+              onCounterOffer={counterOffer}
+            />
+          ))
+        )
+      ) : activeTab === "realtime" ? (
+        realtimeRequests.length === 0 ? (
+          <DriverEmptyState title="Nenhuma solicitação direta no momento." />
+        ) : (
+          realtimeRequests.map((r) => (
             <DriverRequestCard
               key={r.rideId}
               item={r}
@@ -553,6 +655,19 @@ export default function DriverRequestsScreen() {
           )}
         </ScrollView>
       )}
+
+      <Modal
+        visible={showNoBalanceModal}
+        title="Saldo Insuficiente"
+        message="Você precisa adicionar saldo para aceitar esta corrida. Acesse a tela de Ganhos e Carteira para recarregar."
+        type="error"
+        confirmText="Ir para Recarga"
+        onClose={() => setShowNoBalanceModal(false)}
+        onConfirm={() => {
+          setShowNoBalanceModal(false);
+          (navigation as any).navigate("DriverFinance", { screen: "DriverEarnings" });
+        }}
+      />
     </DriverScreen>
   );
 }

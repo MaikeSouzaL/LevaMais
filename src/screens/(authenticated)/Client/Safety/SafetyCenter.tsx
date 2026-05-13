@@ -4,7 +4,6 @@ import {
   Text,
   TouchableOpacity,
   ScrollView,
-  StyleSheet,
   Linking,
   Share,
   Alert,
@@ -12,7 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
+import { colors } from "@/theme";
 import { ClientScreenHeader } from "../Shared/components";
 
 const EMERGENCY_CONTACTS = [
@@ -54,56 +53,58 @@ export default function SafetyCenterScreen() {
       await Share.share({
         message: "Estou em uma viagem no Leva+. Acompanhe minha localizacao: [link da viagem]",
       });
-    } catch {}
+    } catch (error) {
+      console.error("Error sharing trip:", error);
+    }
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView className="flex-1 bg-[#091A2F]">
       <ClientScreenHeader title="Central de Seguranca" subtitle="Recursos de protecao durante as viagens" />
 
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.emergencySection}>
-          <Text style={styles.sectionTitle}>EMERGENCIA</Text>
-          <View style={styles.emergencyGrid}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 48 }}>
+        <View className="mb-6">
+          <Text className="text-xs font-bold text-gray-500 tracking-wider mb-4 mt-4">EMERGENCIA</Text>
+          <View className="flex-row justify-between gap-3">
             {EMERGENCY_CONTACTS.map((item) => (
               <TouchableOpacity
                 key={item.id}
-                style={styles.emergencyCard}
+                className="flex-1 bg-[#0d2838] border border-gray-700 rounded-lg p-3 items-center"
                 onPress={() => handleCallEmergency(item.number)}
                 activeOpacity={0.7}
               >
-                <View style={[styles.emergencyIconBg, { backgroundColor: item.color + "20" }]}>
+                <View className="w-13 h-13 rounded-full items-center justify-center mb-2" style={{ backgroundColor: item.color + "20" }}>
                   <MaterialIcons name={item.icon as any} size={28} color={item.color} />
                 </View>
-                <Text style={styles.emergencyLabel}>{item.label}</Text>
-                <Text style={styles.emergencyNumber}>{item.number}</Text>
+                <Text className="text-white text-sm font-bold">{item.label}</Text>
+                <Text className="text-gray-500 text-xs mt-0.5">{item.number}</Text>
               </TouchableOpacity>
             ))}
           </View>
         </View>
 
-        <Text style={styles.sectionTitle}>FERRAMENTAS</Text>
+        <Text className="text-xs font-bold text-gray-500 tracking-wider mb-3 mt-4">FERRAMENTAS</Text>
         {SAFETY_FEATURES.map((feature) => (
           <TouchableOpacity
             key={feature.id}
-            style={styles.featureCard}
+            className="flex-row items-center bg-[#0d2838] border border-gray-700 rounded-lg p-4 mb-2"
             onPress={feature.id === "share" ? handleShareTrip : undefined}
             activeOpacity={0.7}
           >
-            <View style={styles.featureIcon}>
+            <View className="w-12 h-12 rounded-lg bg-[rgba(2,222,149,0.08)] items-center justify-center mr-3">
               <MaterialIcons name={feature.icon as any} size={24} color={colors.primary[500]} />
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.featureLabel}>{feature.label}</Text>
-              <Text style={styles.featureDesc}>{feature.description}</Text>
+            <View className="flex-1">
+              <Text className="text-white text-base font-semibold">{feature.label}</Text>
+              <Text className="text-gray-500 text-xs mt-0.5">{feature.description}</Text>
             </View>
             <MaterialIcons name="chevron-right" size={24} color="#555" />
           </TouchableOpacity>
         ))}
 
-        <View style={styles.safetyTipCard}>
-          <MaterialIcons name="lightbulb" size={20} color="#fbbf24" style={{ marginRight: spacing.sm }} />
-          <Text style={styles.safetyTipText}>
+        <View className="flex-row bg-[rgba(251,191,36,0.08)] border border-[rgba(251,191,36,0.2)] rounded-lg p-4 mt-6">
+          <MaterialIcons name="lightbulb" size={20} color="#fbbf24" className="mr-3" />
+          <Text className="text-[#fbbf24] text-sm flex-1 leading-5">
             Confira sempre a placa e o modelo do veiculo antes de entrar. Nao compartilhe seus dados pessoais com o motorista.
           </Text>
         </View>
@@ -112,71 +113,3 @@ export default function SafetyCenterScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background.primary },
-  content: { padding: spacing.lg, paddingBottom: spacing["3xl"] },
-  sectionTitle: {
-    color: colors.text.tertiary,
-    fontSize: fontSize.xs,
-    fontWeight: fontWeight.bold,
-    marginBottom: spacing.md,
-    marginTop: spacing.lg,
-    letterSpacing: 1,
-  },
-  emergencySection: { marginBottom: spacing.xl },
-  emergencyGrid: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: spacing.md,
-  },
-  emergencyCard: {
-    flex: 1,
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: colors.border.light,
-  },
-  emergencyIconBg: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: spacing.sm,
-  },
-  emergencyLabel: { color: colors.text.primary, fontSize: fontSize.sm, fontWeight: fontWeight.bold },
-  emergencyNumber: { color: colors.text.tertiary, fontSize: fontSize.xs, marginTop: 2 },
-  featureCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.border.light,
-    padding: spacing.lg,
-    marginBottom: spacing.sm,
-  },
-  featureIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: "rgba(2,222,149,0.08)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: spacing.md,
-  },
-  featureLabel: { color: colors.text.primary, fontSize: fontSize.base, fontWeight: fontWeight.semibold },
-  featureDesc: { color: colors.text.tertiary, fontSize: fontSize.xs, marginTop: 2 },
-  safetyTipCard: {
-    flexDirection: "row",
-    backgroundColor: "rgba(251,191,36,0.08)",
-    borderRadius: borderRadius.md,
-    padding: spacing.lg,
-    marginTop: spacing.xl,
-    borderWidth: 1,
-    borderColor: "rgba(251,191,36,0.2)",
-  },
-  safetyTipText: { color: "#fbbf24", fontSize: fontSize.sm, flex: 1, lineHeight: 20 },
-});

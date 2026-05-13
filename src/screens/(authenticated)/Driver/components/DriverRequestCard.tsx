@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { formatBRL } from "../../../../utils/mappers";
 
@@ -20,6 +20,7 @@ export type DriverRequestCardItem = {
     clientOffer?: number | null;
     suggestedMinPrice?: number | null;
   };
+  isWaitingInQueue?: boolean;
 };
 
 export type DriverRequestCardProps = {
@@ -35,6 +36,9 @@ export function DriverRequestCard({
   onReject,
   onCounterOffer,
 }: DriverRequestCardProps) {
+  const [showDetails, setShowDetails] = useState(false);
+  const isQueueItem = item.isWaitingInQueue === true;
+
   return (
     <View
       style={{
@@ -98,26 +102,53 @@ export function DriverRequestCard({
         </View>
       )}
 
-      {item.details?.specialInstructions && (
-        <View style={{ backgroundColor: "rgba(251,191,36,0.06)", padding: 8, borderRadius: 10, marginTop: 6, marginBottom: 4, borderWidth: 1, borderColor: "rgba(251,191,36,0.1)" }}>
-           <Text style={{ color: "rgba(251,191,36,0.8)", fontSize: 10, fontWeight: "800" }}>VOLUME/OBS:</Text>
-           <Text style={{ color: "#fef3c7", fontSize: 12, marginTop: 2 }} numberOfLines={2}>
-             {item.details.specialInstructions}
+       {item.details?.specialInstructions && (
+         <View style={{ backgroundColor: "rgba(251,191,36,0.06)", padding: 8, borderRadius: 10, marginTop: 6, marginBottom: 4, borderWidth: 1, borderColor: "rgba(251,191,36,0.1)" }}>
+            <Text style={{ color: "rgba(251,191,36,0.8)", fontSize: 10, fontWeight: "800" }}>VOLUME/OBS:</Text>
+            <Text style={{ color: "#fef3c7", fontSize: 12, marginTop: 2 }} numberOfLines={2}>
+              {item.details.specialInstructions}
+            </Text>
+         </View>
+       )}
+
+       {!isQueueItem || showDetails ? (
+         <>
+           <Text style={{ color: "rgba(255,255,255,0.7)", marginTop: 6 }}>
+             Coleta: {item.pickup?.address || "—"}
            </Text>
-        </View>
-      )}
+           <Text style={{ color: "rgba(255,255,255,0.7)", marginTop: 2 }}>
+             Destino: {item.dropoff?.address || "—"}
+           </Text>
+           <Text style={{ color: "rgba(255,255,255,0.6)", marginTop: 6 }}>
+             {item.distance?.text || ""}
+           </Text>
+         </>
+       ) : (
+         <View style={{ backgroundColor: "rgba(251,191,36,0.1)", padding: 10, borderRadius: 10, marginTop: 6, marginBottom: 6, borderWidth: 1, borderColor: "rgba(251,191,36,0.3)" }}>
+           <Text style={{ color: "#fef3c7", fontSize: 12, fontWeight: "700" }}>
+             📍 Detalhes da localização ocultos até aceitar
+           </Text>
+         </View>
+       )}
 
-      <Text style={{ color: "rgba(255,255,255,0.7)", marginTop: 6 }}>
-        Coleta: {item.pickup?.address || "—"}
-      </Text>
-      <Text style={{ color: "rgba(255,255,255,0.7)", marginTop: 2 }}>
-        Destino: {item.dropoff?.address || "—"}
-      </Text>
-      <Text style={{ color: "rgba(255,255,255,0.6)", marginTop: 6 }}>
-        {item.distance?.text || ""}
-      </Text>
+       {isQueueItem && !showDetails && (
+         <TouchableOpacity
+           onPress={() => setShowDetails(true)}
+           style={{
+             marginTop: 10,
+             paddingVertical: 10,
+             borderRadius: 12,
+             borderWidth: 1,
+             borderColor: "rgba(251,191,36,0.5)",
+             alignItems: "center",
+             backgroundColor: "rgba(251,191,36,0.1)",
+           }}
+         >
+           <Text style={{ color: "#fef3c7", fontWeight: "800" }}>Ver Detalhes da Localização</Text>
+         </TouchableOpacity>
+       )}
 
-      <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
+       <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
         <TouchableOpacity
           onPress={() => onReject(item.rideId)}
           style={{

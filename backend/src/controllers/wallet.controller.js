@@ -1,5 +1,6 @@
 const Ride = require("../models/Ride");
 const Withdrawal = require("../models/Withdrawal");
+const User = require("../models/User");
 const mongoose = require("mongoose");
 
 function sendError(res, status, message, extras = {}) {
@@ -38,24 +39,8 @@ function normalizePositiveInteger(value, fallback, options = {}) {
   return Math.min(max, Math.max(min, Math.floor(parsed)));
 }
 
-function getDriverNetValueFromRide(ride) {
-  const pricing = ride?.pricing || {};
-  const driverValue = Number(pricing.driverValue);
-
-  if (Number.isFinite(driverValue) && driverValue > 0) {
-    return toMoney(driverValue);
-  }
-
-  const total = Number(pricing.total);
-  if (Number.isFinite(total) && total > 0) {
-    return toMoney(total * 0.8);
-  }
-
-  return 0;
-}
-
 class WalletController {
-  // Calcular saldo disponivel
+  // Calcular saldo disponivel unificado (pré-pago)
   async getBalance(req, res) {
     try {
       const userId = req.user.id;
@@ -67,66 +52,33 @@ class WalletController {
     }
   }
 
-  // Metodo auxiliar reutilizavel
+  // Metodo auxiliar unificado
   static async _calculateBalance(userId) {
-    const userObjectId = new mongoose.Types.ObjectId(userId);
+    const user = await User.findById(userId).select("driverBalance");
+    if (!user) {
+      return { totalEarnings: 0, totalWithdrawn: 0, available: 0 };
+    }
 
-    // 1. Total ganho em corridas (completed)
-    const earningsAgg = await Ride.aggregate([
-      {
-        $match: {
-          driverId: userObjectId,
-          status: "completed",
-        },
-      },
-      {
-        $project: {
-          rideNetValue: {
-            $cond: [
-              { $gt: [{ $ifNull: ["$pricing.driverValue", 0] }, 0] },
-              "$pricing.driverValue",
-              {
-                $multiply: [{ $ifNull: ["$pricing.total", 0] }, 0.8],
-              },
-            ],
-          },
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          total: { $sum: "$rideNetValue" },
-        },
-      },
-    ]);
+    const db = user.driverBalance || {
+      balance: 0,
+      totalDeposits: 0,
+      totalDeductions: 0,
+      transactions: [],
+    };
 
-    const totalEarnings = toMoney(earningsAgg[0]?.total || 0);
-
-    // 2. Total sacado (considerando pending e paid como "saiu" do saldo disponivel)
-    const withdrawalsAgg = await Withdrawal.aggregate([
-      {
-        $match: {
-          userId: userObjectId,
-          status: { $in: ["pending", "processing", "paid"] },
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          total: { $sum: "$amount" },
-        },
-      },
-    ]);
-    const totalWithdrawn = withdrawalsAgg[0] ? withdrawalsAgg[0].total : 0;
+    // Calcula saques ativos no ledger para totalWithdrawn
+    const totalWithdrawn = (db.transactions || [])
+      .filter((t) => t.type === "withdrawal" && t.status !== "failed")
+      .reduce((sum, t) => sum + (t.amount || 0), 0);
 
     return {
-      totalEarnings,
+      totalEarnings: toMoney(db.totalDeposits),
       totalWithdrawn: toMoney(totalWithdrawn),
-      available: toMoney(totalEarnings - totalWithdrawn),
+      available: toMoney(db.balance),
     };
   }
 
-  // Solicitar saque
+  // Solicitar saque da carteira pré-paga
   async withdraw(req, res) {
     try {
       const userId = req.user.id;
@@ -148,15 +100,41 @@ class WalletController {
         return sendError(res, 400, "Tipo de chave PIX invalido");
       }
 
-      // Verificar saldo
-      const balance = await WalletController._calculateBalance(userId);
-      if (balance.available < amountValue) {
+      // 1. Consultar Usuário para manipulação de saldo
+      const user = await User.findById(userId);
+      if (!user) {
+        return sendError(res, 404, "Usuário não encontrado");
+      }
+
+      if (!user.driverBalance) {
+        user.driverBalance = {
+          balance: 0,
+          totalDeposits: 0,
+          totalDeductions: 0,
+          transactions: [],
+        };
+      }
+
+      if (user.driverBalance.balance < amountValue) {
         return sendError(res, 400, "Saldo insuficiente", {
-          available: balance.available,
+          available: user.driverBalance.balance,
         });
       }
 
-      // Criar saque
+      // 2. Debitar e registrar transação no ledger
+      user.driverBalance.balance = toMoney(user.driverBalance.balance - amountValue);
+      user.driverBalance.transactions.push({
+        type: "withdrawal",
+        amount: amountValue,
+        description: `Saque de R$ ${amountValue.toFixed(2)}`,
+        pixKey: pixKeyValue,
+        status: "pending",
+        createdAt: new Date(),
+      });
+
+      await user.save();
+
+      // 3. Criar documento de Saque independente para compatibilidade com Painel Admin
       const withdrawal = await Withdrawal.create({
         userId,
         amount: amountValue,
@@ -165,10 +143,20 @@ class WalletController {
         status: "pending",
       });
 
+      // 4. Emitir Websocket para sincronização em tempo real do app
+      const io = req.app?.get("io");
+      if (io) {
+        io.to(`driver-${userId}`).emit("balance_updated", {
+          balance: user.driverBalance.balance,
+          totalDeposits: user.driverBalance.totalDeposits,
+          totalDeductions: user.driverBalance.totalDeductions,
+        });
+      }
+
       return res.status(201).json({
         message: "Solicitacao de saque realizada",
         withdrawal,
-        newBalance: toMoney(balance.available - amountValue),
+        newBalance: user.driverBalance.balance,
       });
     } catch (error) {
       console.error("Erro ao solicitar saque:", error);
@@ -176,55 +164,52 @@ class WalletController {
     }
   }
 
-  // Extrato Unificado
+  // Extrato Unificado a partir do Ledger da Carteira
   async getStatement(req, res) {
     try {
       const userId = req.user.id;
       const { limit = 50, page = 1 } = req.query;
       const numericPage = normalizePositiveInteger(page, 1, { min: 1, max: 100000 });
       const numericLimit = normalizePositiveInteger(limit, 50, { min: 1, max: 100 });
-      const fetchWindow = Math.min(1000, Math.max(100, numericPage * numericLimit * 2));
 
-      // Buscar Corridas (Entradas)
-      const rides = await Ride.find({
-        driverId: userId,
-        status: "completed",
-      })
-        .select("pricing completedAt pickup dropoff")
-        .sort({ completedAt: -1 })
-        .limit(fetchWindow)
-        .lean();
+      const user = await User.findById(userId).select("driverBalance");
+      if (!user) {
+        return res.json({
+          items: [],
+          pagination: {
+            page: numericPage,
+            limit: numericLimit,
+            total: 0,
+            totalPages: 1,
+            hasNext: false,
+          },
+        });
+      }
 
-      // Buscar Saques (Saidas)
-      const withdrawals = await Withdrawal.find({ userId })
-        .sort({ createdAt: -1 })
-        .limit(fetchWindow)
-        .lean();
+      const transactions = user.driverBalance?.transactions || [];
 
-      // Normalizar e mergear
-      const entries = rides.map((r) => ({
-        _id: r._id,
-        type: "ride",
-        amount: getDriverNetValueFromRide(r),
-        date: r.completedAt,
-        description: "Corrida finalizada",
-        status: "completed",
-      }));
+      // Mapear transações ledger para o formato uniformizado esperado pelo Extrato do frontend
+      const all = transactions
+        .map((t) => {
+          const isPositive = t.type === "deposit";
+          return {
+            _id: t._id || new mongoose.Types.ObjectId(),
+            type: t.type === "withdrawal" ? "withdrawal" : "ride",
+            amount: isPositive ? t.amount : -t.amount,
+            date: t.createdAt,
+            description:
+              t.description ||
+              (t.type === "deposit"
+                ? "Depósito Pix"
+                : t.type === "deduction"
+                ? "Dedução de Corrida"
+                : "Saque via Pix"),
+            status: t.status || "completed",
+          };
+        })
+        .sort((a, b) => new Date(b.date) - new Date(a.date));
 
-      const exits = withdrawals.map((w) => ({
-        _id: w._id,
-        type: "withdrawal",
-        amount: -w.amount,
-        date: w.createdAt,
-        description: "Saque via PIX",
-        status: w.status,
-      }));
-
-      const all = [...entries, ...exits].sort((a, b) => {
-        return new Date(b.date) - new Date(a.date);
-      });
-
-      // Paginacao simples em memoria
+      // Paginação simples
       const startIndex = (numericPage - 1) * numericLimit;
       const items = all.slice(startIndex, startIndex + numericLimit);
       const total = all.length;

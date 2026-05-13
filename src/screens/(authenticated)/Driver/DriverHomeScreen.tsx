@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { AppState, View, Text, TouchableOpacity, useColorScheme, } from "react-native";
+import { AppState, View, Text, TouchableOpacity, useColorScheme, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import * as Location from "expo-location";
@@ -10,6 +10,10 @@ import {
   useNavigation,
 } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { BalanceWidget } from "@/components/BalanceWidget";
+import { DriverDepositModal } from "@/components/DriverDepositModal";
+import { QueueTagYellowFloating } from "@/components/QueueTagYellow";
 
 import GlobalMap from "../../../components/GlobalMap";
 import { useAuthStore } from "../../../context/authStore";
@@ -20,6 +24,9 @@ import driverLocationService, {
 import webSocketService from "../../../services/websocket.service";
 import driverAlertService from "../../../services/driverAlert.service";
 import rideService from "../../../services/ride.service";
+import walletService from "../../../services/wallet.service";
+import driverService from "../../../services/driver.service";
+import userService from "../../../services/user.service";
 import { DriverBottomSheet } from "./components/DriverBottomSheet";
 import { getCurrentLocationAndAddress } from "../../../utils/location";
 import MapView, { Marker, Polyline } from "react-native-maps";
@@ -40,6 +47,28 @@ import { PremiumMapMarker } from "@/components/maps/PremiumMapMarker";
 import { PremiumDottedRoute } from "@/components/routes/PremiumDottedRoute";
 import { VehicleMarker } from "@/components/maps/VehicleMarker";
 
+
+// 🔋 ConfiguraÃ§Ãµes de Sinal GPS baseadas na Escolha de ConservaÃ§Ã£o de Bateria
+const GPS_PRESETS = {
+  high: { 
+    accuracy: Location.Accuracy.High, 
+    timeInterval: 3000, 
+    distanceInterval: 5, 
+    pollMs: 5000 
+  },
+  balanced: { 
+    accuracy: Location.Accuracy.Balanced, 
+    timeInterval: 10000, 
+    distanceInterval: 15, 
+    pollMs: 15000 
+  },
+  low: { 
+    accuracy: Location.Accuracy.Low, 
+    timeInterval: 30000, 
+    distanceInterval: 50, 
+    pollMs: 45000 
+  }
+} as const;
 
 export default function DriverHomeScreen() {
   const navigation = useNavigation();
@@ -68,8 +97,15 @@ export default function DriverHomeScreen() {
   const [countdown, setCountdown] = useState<number | null>(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelModalReason, setCancelModalReason] = useState<string | null>(null);
+  const [showNoBalanceModal, setShowNoBalanceModal] = useState(false);
   const [routeCoords, setRouteCoords] = useState<LatLng[]>([]);
   const [driverCoords, setDriverCoords] = useState<{latitude: number, longitude: number, heading?: number} | null>(null);
+  const [showDepositModal, setShowDepositModal] = useState(false);
+  const [driverBalance, setDriverBalance] = useState<number | null>(null);
+  const [balanceLoading, setBalanceLoading] = useState(false);
+  const [driverStats, setDriverStats] = useState<any>(null);
+  const [onlineSessionStart, setOnlineSessionStart] = useState<string | null>(null);
+  const [gpsQuality, setGpsQuality] = useState<"low" | "balanced" | "high">("high");
   const watchRef = useRef<any>(null);
   const intervalRef = useRef<any>(null);
   const pendingSyncIntervalRef = useRef<any>(null);
@@ -115,6 +151,7 @@ export default function DriverHomeScreen() {
   const publishDriverLocation = async (
     nextStatus: DriverStatus = "available",
     serviceTypes?: Array<"ride" | "delivery">,
+    onlineSessionStart?: string,
   ) => {
     const types = serviceTypes || currentServiceTypes();
 
@@ -168,6 +205,7 @@ export default function DriverHomeScreen() {
     await driverLocationService.setStatus({
       status: nextStatus,
       serviceTypes: types,
+      onlineSessionStart,
     });
 
     if (!hasIncomingRequestRef.current) {
@@ -183,6 +221,12 @@ export default function DriverHomeScreen() {
   const showIncomingRideRequest = async (payload: any, totalCount?: number) => {
     if (!payload?.rideId || !payload?.pickup || !payload?.dropoff) return;
 
+    // NÃO mostrar chamadas da fila de espera no bottom sheet
+    // Elas devem aparecer apenas na aba "Fila" do DriverRequestsScreen
+    if (payload?.isWaitingInQueue === true) {
+      return;
+    }
+
     const alreadyShowing = incomingRequest?.rideId === payload.rideId;
     setIncomingRequest(payload);
     hasIncomingRequestRef.current = true;
@@ -195,7 +239,7 @@ export default function DriverHomeScreen() {
     try {
       await driverAlertService.start();
     } catch (e) {
-      console.log("Falha ao tocar alerta", e);
+      console.error("Error starting driver alert:", e);
     }
   };
 
@@ -221,9 +265,17 @@ export default function DriverHomeScreen() {
         return;
       }
 
-      await showIncomingRideRequest(requests[0], response.count || requests.length);
+      // Filtrar apenas chamadas que NÃO são da fila de espera
+      // Fila será mostrada apenas na aba "Fila" do DriverRequestsScreen
+      const realtimeRequests = requests.filter((r: any) => r.isWaitingInQueue !== true);
+      
+      if (realtimeRequests.length > 0) {
+        await showIncomingRideRequest(realtimeRequests[0], response.count || requests.length);
+      } else {
+        setPendingRequests(0);
+      }
     } catch (e) {
-      console.log("Falha ao sincronizar solicitacoes disponiveis", e);
+      console.error("Error syncing available requests:", e);
     }
   };
 
@@ -383,12 +435,24 @@ export default function DriverHomeScreen() {
            });
         }
 
-        // Set up permanent efficient stream
+        // Fetch current persisted GPS configuration choice from backend
+        let currentQuality: "low" | "balanced" | "high" = "high";
+        try {
+          const u = await userService.getProfile();
+          if (u?.gpsQuality) {
+            currentQuality = u.gpsQuality;
+            if (mounted) setGpsQuality(currentQuality);
+          }
+        } catch {}
+
+        const activePreset = GPS_PRESETS[currentQuality] || GPS_PRESETS.high;
+
+        // Set up permanent efficient stream with dynamic user-based battery options
         watchRef.current = await Location.watchPositionAsync(
           {
-            accuracy: Location.Accuracy.High,
-            timeInterval: 3000, // Update visually every 3s
-            distanceInterval: 5, // or 5 meters
+            accuracy: activePreset.accuracy,
+            timeInterval: activePreset.timeInterval,
+            distanceInterval: activePreset.distanceInterval,
           },
           (pos) => {
             if (mounted && pos?.coords) {
@@ -401,8 +465,7 @@ export default function DriverHomeScreen() {
           }
         );
       } catch (e) {
-        console.log("Failed to watch user tracker", e);
-      }
+              }
     })();
 
     return () => {
@@ -451,8 +514,7 @@ export default function DriverHomeScreen() {
       await webSocketService.connect();
     } catch (e: any) {
       const message = String(e?.message || "");
-      console.log("Falha ao conectar WS", e);
-
+      
       if (/sessao expirada|token inv[aá]lido|token n[aã]o fornecido|jwt/i.test(message)) {
         setError("Sua sessao expirou. Faca login novamente para ficar online.");
       } else {
@@ -466,11 +528,16 @@ export default function DriverHomeScreen() {
       intervalRef.current = null;
     }
 
-    await publishDriverLocation("available", currentServiceTypes());
+    const sessionStart = new Date().toISOString();
+    setOnlineSessionStart(sessionStart);
+
+    await publishDriverLocation("available", currentServiceTypes(), sessionStart);
+
+    const preset = GPS_PRESETS[gpsQuality] || GPS_PRESETS.high;
 
     intervalRef.current = setInterval(() => {
-      publishDriverLocation("available", currentServiceTypes()).catch(() => {});
-    }, 10000);
+      publishDriverLocation("available", currentServiceTypes(), sessionStart).catch(() => {});
+    }, preset.pollMs);
 
     setOnline(true);
     driverAlertService.playOnlineSound().catch(() => {});
@@ -526,10 +593,21 @@ export default function DriverHomeScreen() {
       }
     };
 
+    const onOnlineTimeUpdated = (payload: any) => {
+      if (!mounted) return;
+      if (payload?.totalSecondsToday != null) {
+        setDriverStats((prev: any) => {
+          if (!prev) return { onlineTime: payload.totalSecondsToday };
+          return { ...prev, onlineTime: payload.totalSecondsToday };
+        });
+      }
+    };
+
     webSocketService.on("new-ride-request", onNewRideRequest);
     webSocketService.on("ride-taken", onRideTaken);
     webSocketService.on("ride-cancelled", onRideCancelled);
     webSocketService.on("waiting-queue-updated", syncAvailableRequests);
+    webSocketService.on("online_time_updated", onOnlineTimeUpdated);
 
     webSocketService.connect().catch(() => {});
     syncAvailableRequests().catch(() => {});
@@ -540,8 +618,28 @@ export default function DriverHomeScreen() {
       webSocketService.off("ride-taken", onRideTaken);
       webSocketService.off("ride-cancelled", onRideCancelled);
       webSocketService.off("waiting-queue-updated", syncAvailableRequests);
+      webSocketService.off("online_time_updated", onOnlineTimeUpdated);
     };
   }, [online, incomingRequest?.rideId, isFocused]);
+
+  // 🕒 CronÃ´metro de Atividade Fluido (PrediÃ§Ã£o Local Suave)
+  useEffect(() => {
+    if (!online || !isFocused) return;
+
+    const timer = setInterval(() => {
+      setDriverStats((prev: any) => {
+        if (!prev || prev.onlineTime == null) return prev;
+        return {
+          ...prev,
+          onlineTime: Number(prev.onlineTime) + 1,
+        };
+      });
+    }, 1000);
+
+    return () => {
+      clearInterval(timer);
+    };
+  }, [online, isFocused]);
 
   useEffect(() => {
     if (!online || !isFocused) {
@@ -607,6 +705,18 @@ export default function DriverHomeScreen() {
           );
           setIsTogglingOnline(false);
           return;
+        }
+
+        // ✅ Verificar saldo antes de ficar online
+        try {
+          const balance = await walletService.getBalance();
+          if (balance.available <= 0) {
+            setIsTogglingOnline(false);
+            setShowNoBalanceModal(true);
+            return;
+          }
+        } catch {
+          // Se falhar ao consultar saldo, permite ir online (evita bloquear por erro de rede)
         }
 
         await startSharing();
@@ -694,8 +804,7 @@ export default function DriverHomeScreen() {
         longitudeDelta: 0.02,
       });
     } catch (e) {
-      console.log("Falha ao centralizar", e);
-      setError("Falha ao centralizar sua localização.");
+            setError("Falha ao centralizar sua localização.");
     } finally {
       setIsCentering(false);
     }
@@ -706,8 +815,7 @@ export default function DriverHomeScreen() {
     try {
       (navigation as any).navigate("DriverSafety");
     } catch (e) {
-      console.log("Falha ao abrir segurança", e);
-    }
+          }
   };
 
   const handleToggleMapStyle = () => {
@@ -751,8 +859,7 @@ export default function DriverHomeScreen() {
       setPendingRequests(0);
       // mantém alerta tocando até aceitar/rejeitar
     } catch (e) {
-      console.log("Falha ao abrir solicitações", e);
-    }
+          }
   };
 
   const clearIncoming = async () => {
@@ -763,10 +870,29 @@ export default function DriverHomeScreen() {
     await driverAlertService.stop();
   };
 
+  const loadBalance = React.useCallback(async () => {
+    try {
+      setBalanceLoading(true);
+      const balance = await driverService.getBalance();
+      setDriverBalance(balance.balance);
+    } catch (error) {
+      setDriverBalance(0);
+    } finally {
+      setBalanceLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isFocused) {
+      loadBalance();
+    }
+  }, [isFocused, loadBalance]);
+
   const refreshTodayEarnings = async () => {
     try {
       const stats = await rideService.getDriverStats();
       setTodayEarnings(Number(stats?.earnings || 0));
+      setDriverStats(stats);
     } catch {
       // silencioso para nao impactar operacao
     }
@@ -782,13 +908,13 @@ export default function DriverHomeScreen() {
     };
 
     run();
-    const timer = setInterval(run, 60000);
+    const timer = setInterval(run, 60000); // ⏱️ EstatÃ­sticas fixas a cada 60s (Tempo real tratado por Sockets)
 
     return () => {
       mounted = false;
       clearInterval(timer);
     };
-  }, []);
+  }, [online]);
 
   const acceptIncoming = async () => {
     if (!incomingRequest?.rideId) {
@@ -797,6 +923,14 @@ export default function DriverHomeScreen() {
     }
 
     try {
+      // Check driver balance before accepting
+      const balance = await walletService.getBalance();
+      if (balance.available <= 0) {
+        await clearIncoming();
+        setShowNoBalanceModal(true);
+        return;
+      }
+
       if (incomingRequest?.negotiation?.enabled) {
         await rideService.respondToOffer(incomingRequest.rideId, { action: "accept" });
         Toast.show({
@@ -812,7 +946,6 @@ export default function DriverHomeScreen() {
       await clearIncoming();
       (navigation as any).navigate("DriverRide", { rideId: ride._id });
     } catch (e: any) {
-      console.log("Falha ao aceitar", e);
       Toast.show({
         type: "error",
         text1: "Falha ao aceitar",
@@ -831,18 +964,14 @@ export default function DriverHomeScreen() {
       await rideService.reject(incomingRequest.rideId, "driver_rejected");
       await clearIncoming();
     } catch (e) {
-      console.log("Falha ao rejeitar", e);
-    }
+          }
   };
 
   const loadRealRoute = async (pickup: LatLng, dropoff: LatLng) => {
     try {
       const key = getGoogleMapsApiKey();
       if (!key) {
-        console.log(
-          "Google Maps API key não encontrada. Defina EXPO_PUBLIC_GOOGLE_MAPS_API_KEY",
-        );
-        setRouteCoords([]);
+                setRouteCoords([]);
         return;
       }
 
@@ -859,8 +988,7 @@ export default function DriverHomeScreen() {
 
       const points = data?.routes?.[0]?.overview_polyline?.points;
       if (!points) {
-        console.log("Directions sem rota", data?.status, data?.error_message);
-        setRouteCoords([]);
+                setRouteCoords([]);
         return;
       }
 
@@ -881,8 +1009,7 @@ export default function DriverHomeScreen() {
         }, 350);
       }
     } catch (e) {
-      console.log("Falha ao carregar rota real", e);
-      setRouteCoords([]);
+            setRouteCoords([]);
     }
   };
 
@@ -908,7 +1035,8 @@ export default function DriverHomeScreen() {
   }, [incomingRequest?.rideId]);
 
   return (
-    <GestureHandlerRootView className="flex-1 bg-[#091A2F]">
+    <ErrorBoundary componentName="DriverHomeScreen">
+      <GestureHandlerRootView className="flex-1 bg-[#091A2F]">
       <StatusBar style="light" />
 
       <View className="flex-1 relative">
@@ -982,34 +1110,46 @@ export default function DriverHomeScreen() {
         {/* 🌌 Dynamic UI Overlay Layer */}
         {!!region && (
           <>
-            {/* 🎛️ TOP FLOATING DASHBOARD HUD */}
-            <View className="absolute top-12 left-4 right-4 z-50 flex-row items-center gap-3">
-               
-               {/* Menu Toggle */}
-               <TouchableOpacity
-                 onPress={() => (navigation as any).openDrawer?.()}
-                 className="h-[58px] w-[58px] bg-[#091A2F] rounded-2xl border border-white/10 items-center justify-center"
-               >
-                  <Menu size={24} color="#FFF" />
-               </TouchableOpacity>
+             {/* 🎛️ TOP FLOATING DASHBOARD HUD */}
+             <View className="absolute top-12 left-4 right-4 z-50 flex-row items-center gap-3">
+                
+                {/* Menu Toggle */}
+                <TouchableOpacity
+                  onPress={() => (navigation as any).openDrawer?.()}
+                  className="h-[58px] w-[58px] bg-[#091A2F] rounded-2xl border border-white/10 items-center justify-center"
+                >
+                   <Menu size={24} color="#FFF" />
+                </TouchableOpacity>
 
-               {/* Driver Status & Stats Hook */}
-               <View className="flex-1">
-                 <DriverStatusHeader
-                   todayEarnings={todayEarnings}
-                   pendingRequests={pendingRequests}
-                   scheduledCount={scheduledCount}
-                   waitingQueueCount={waitingQueueCount}
-                   onPressNotifications={handleNotifications}
-                   online={online}
-                 />
-               </View>
-            </View>
+                {/* Driver Status & Stats Hook */}
+                <View className="flex-1">
+                  <DriverStatusHeader
+                    todayEarnings={todayEarnings}
+                    pendingRequests={pendingRequests}
+                    scheduledCount={scheduledCount}
+                    waitingQueueCount={waitingQueueCount}
+                    onPressNotifications={handleNotifications}
+                    online={online}
+                  />
+                </View>
+             </View>
 
-            {/* 📡 OPERATIONAL RIGHT WING CONTROLS */}
-            {!incomingRequest?.rideId && (
-              <View className="absolute right-4 top-[30%] z-40 flex-col gap-3">
-                 {/* SOS Panic */}
+
+
+            {/* Driver Status & Stats Hook - REMOVED DUPLICATE */}
+
+             {/* 📡 OPERATIONAL RIGHT WING CONTROLS */}
+             {!incomingRequest?.rideId && (
+               <View className="absolute right-4 top-[30%] z-40 flex-col gap-3">
+                  {/* Queue Tag Yellow (Floating) */}
+                  {waitingQueueCount > 0 && (
+                    <QueueTagYellowFloating
+                      queueCount={waitingQueueCount}
+                      onPress={() => (navigation as any).navigate("DriverRequests", { initialTab: "queue" })}
+                    />
+                  )}
+
+                  {/* SOS Panic */}
                  <TouchableOpacity 
                    onPress={handleSOS}
                    className="w-12 h-12 bg-red-500/10 border border-red-500/30 rounded-xl items-center justify-center shadow-2xl"
@@ -1051,7 +1191,10 @@ export default function DriverHomeScreen() {
                        Existem {waitingQueueCount} pedido(s) na Fila de Espera!
                     </Text>
                  </View>
-                 <TouchableOpacity onPress={handleNotifications} className="bg-[#091A2F] px-3 py-2 rounded-xl">
+                 <TouchableOpacity 
+                   onPress={() => (navigation as any).navigate("DriverRequests", { initialTab: "queue" })}
+                   className="bg-[#091A2F] px-3 py-2 rounded-xl"
+                 >
                     <Text className="text-white font-black text-xs">ABRIR</Text>
                  </TouchableOpacity>
                </MotiView>
@@ -1110,6 +1253,7 @@ export default function DriverHomeScreen() {
             onToggleOnline={toggleOnline}
             onToggleService={toggleService}
             vehicleType={vehicleType}
+            stats={driverStats}
           />
         )}
 
@@ -1125,7 +1269,30 @@ export default function DriverHomeScreen() {
           }}
         />
 
+        <Modal
+          visible={showNoBalanceModal}
+          title="Saldo Insuficiente"
+          message="Você precisa adicionar saldo para ficar online e receber corridas. Acesse a tela de Ganhos e Carteira para recarregar."
+          type="error"
+          confirmText="Ir para Recarga"
+          onClose={() => setShowNoBalanceModal(false)}
+          onConfirm={() => {
+            setShowNoBalanceModal(false);
+            (navigation as any).navigate("DriverFinance", { screen: "DriverEarnings" });
+          }}
+        />
+
+        <DriverDepositModal
+          visible={showDepositModal}
+          onClose={() => setShowDepositModal(false)}
+          onSuccess={() => {
+            setShowDepositModal(false);
+            loadBalance(); // ⚡ Refresh balance immediately on success!
+          }}
+        />
+
       </View>
     </GestureHandlerRootView>
+    </ErrorBoundary>
   );
 }

@@ -49,7 +49,7 @@ export default function SplashScreen({ durationMs = 3500, onFinish }: SplashScre
         {/* Animated Logo "LEVA" with Glowing Clone behind it */}
         <View style={styles.logoWrapper}>
           <MotiView
-            from={{ opacity: 0, scale: 1.5, blur: 10 }}
+            from={{ opacity: 0, scale: 1.5 }}
             animate={{ opacity: 0.6, scale: 1.1 }}
             transition={{ type: 'timing', duration: 2000, delay: 300 }}
             style={[StyleSheet.absoluteFill, styles.logoGlow]}

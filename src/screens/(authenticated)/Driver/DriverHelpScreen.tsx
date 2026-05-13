@@ -10,7 +10,7 @@ export default function DriverHelpScreen() {
   const navigation = useNavigation<any>();
 
   return (
-    <DriverScreen title="Ajuda">
+    <DriverScreen title="Ajuda" hideHeader={true}>
       <SectionCard>
         <Text style={{ color: "#fff", fontWeight: "900" }}>FAQ</Text>
         <Text style={{ color: "rgba(255,255,255,0.65)", marginTop: 10 }}>

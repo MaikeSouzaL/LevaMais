@@ -1,237 +1,258 @@
-import * as Notifications from "expo-notifications";
-import * as Device from "expo-device";
-import { Platform } from "react-native";
+import * as Notifications from 'expo-notifications';
+import * as Device from 'expo-device';
+import Constants from 'expo-constants';
+import apiClient from './api';
+import { logger } from '@/utils/logger';
+import webSocketService from './websocket.service';
 
-/**
- * Configurar handler de notificações
- * Define como as notificações devem se comportar quando o app está em foreground
- */
-export function setupNotificationHandler() {
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true, // Mostrar alerta quando app está aberto
-      shouldPlaySound: true, // Tocar som
-      shouldSetBadge: true, // Atualizar badge do ícone
-      shouldShowBanner: true, // Mostrar banner (iOS 14+)
-      shouldShowList: true, // Mostrar na lista de notificações
-    }),
-  });
+export interface PushNotification {
+  id: string;
+  title: string;
+  body: string;
+  data?: Record<string, any>;
+  timestamp: string;
+  read: boolean;
+  actionUrl?: string;
 }
 
-/**
- * Configurar canais de notificação para Android
- * Necessário para Android 8.0+
- */
-export async function setupNotificationChannels() {
-  if (Platform.OS === "android") {
-    // Canal padrão
-    await Notifications.setNotificationChannelAsync("default", {
-      name: "Notificações Gerais",
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-      lightColor: "#00E096",
-      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-      bypassDnd: true,
-      enableLights: true,
-      enableVibrate: true,
-      showBadge: true,
-    });
+class NotificationService {
+  private expoPushToken: string | null = null;
+  private listeners: Map<string, Set<Function>> = new Map();
 
-    // Canal para entregas urgentes
-    await Notifications.setNotificationChannelAsync("urgent_delivery", {
-      name: "Entregas Urgentes",
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-      lightColor: "#FF0000",
-      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-      bypassDnd: true,
-      enableLights: true,
-      enableVibrate: true,
-      showBadge: true,
-      sound: "default",
-    });
+  async initialize() {
+    try {
+      logger.info('NotificationService', 'Inicializando serviço de notificações');
 
-    // Canal para mensagens do chat
-    await Notifications.setNotificationChannelAsync("messages", {
-      name: "Mensagens",
-      importance: Notifications.AndroidImportance.HIGH,
-      vibrationPattern: [0, 250, 250, 250],
-      lightColor: "#00E096",
-      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-      enableLights: true,
-      enableVibrate: true,
-      showBadge: true,
-      sound: "default",
-    });
-
-    // Canal para atualizações de status
-    await Notifications.setNotificationChannelAsync("status_updates", {
-      name: "Atualizações de Status",
-      importance: Notifications.AndroidImportance.DEFAULT,
-      vibrationPattern: [0, 250, 250, 250],
-      lightColor: "#00E096",
-      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-      enableLights: true,
-      enableVibrate: true,
-      showBadge: true,
-    });
-  }
-}
-
-/**
- * Solicitar permissões de notificação
- */
-export async function requestNotificationPermissions(): Promise<boolean> {
-  try {
-    // Verificar se é um dispositivo físico
-    if (!Device.isDevice) {
-      console.warn("Notificações push não funcionam em emulador/simulador");
-      return false;
-    }
-
-    // Verificar permissão atual
-    const { status: existingStatus } =
-      await Notifications.getPermissionsAsync();
-
-    let finalStatus = existingStatus;
-
-    // Se não tiver permissão, solicitar
-    if (existingStatus !== "granted") {
-      const { status } = await Notifications.requestPermissionsAsync({
-        ios: {
-          allowAlert: true,
-          allowBadge: true,
-          allowSound: true,
-          allowDisplayInCarPlay: true,
-          allowCriticalAlerts: true,
-          provideAppNotificationSettings: true,
-        },
-        android: {
-          allowAlert: true,
-          allowBadge: true,
-          allowSound: true,
+      // Set notification handler
+      Notifications.setNotificationHandler({
+        handleNotification: async (notification) => {
+          logger.info('NotificationService', 'Notificação recebida', {
+            title: notification.request.content.title,
+          });
+          return {
+            shouldShowAlert: true,
+            shouldPlaySound: true,
+            shouldSetBadge: true,
+            shouldShowBanner: true,
+            shouldShowList: true,
+          } as any;
         },
       });
-      finalStatus = status;
+
+      // Registrar para notificações push
+      if (Device.isDevice) {
+        const permission = await Notifications.getPermissionsAsync();
+        if (permission.status !== 'granted') {
+          const newPermission = await Notifications.requestPermissionsAsync();
+          if (newPermission.status !== 'granted') {
+            logger.warn('NotificationService', 'Permissão de notificação não concedida');
+            return;
+          }
+        }
+
+        // Obter Expo Push Token
+        const projectId =
+          (Constants.expoConfig as any)?.extra?.eas?.projectId ||
+          (Constants.expoConfig as any)?.projectId;
+        if (projectId) {
+          const token = await Notifications.getExpoPushTokenAsync({
+            projectId,
+          });
+          this.expoPushToken = token.data;
+          logger.info(
+            'NotificationService',
+            'Expo Push Token obtido',
+            { token: token.data.substring(0, 20) + '...' }
+          );
+
+          // Enviar token para o backend
+          await this.registerPushToken(token.data);
+        }
+      }
+
+      // Listeners de notificações
+      this.setupNotificationListeners();
+      this.setupWebSocketListeners();
+
+      logger.info('NotificationService', 'Serviço de notificações inicializado');
+    } catch (error) {
+      logger.error(
+        'NotificationService',
+        'Erro ao inicializar serviço de notificações',
+        error as Error
+      );
     }
+  }
 
-    if (finalStatus !== "granted") {
-      console.warn("Permissão de notificação negada");
-      return false;
+  private setupNotificationListeners() {
+    // Quando notificação é recebida enquanto o app está em foreground
+    this.notificationReceivedSubscription =
+      Notifications.addNotificationReceivedListener((notification) => {
+        logger.debug('NotificationService', 'Notificação em foreground', {
+          title: notification.request.content.title,
+        });
+        this.emit('notification:received', notification);
+      });
+
+    // Quando usuário toca na notificação
+    this.notificationResponseSubscription =
+      Notifications.addNotificationResponseReceivedListener((response) => {
+        logger.info('NotificationService', 'Notificação tocada', {
+          title: response.notification.request.content.title,
+        });
+        this.emit('notification:tapped', response.notification);
+      });
+  }
+
+  private setupWebSocketListeners() {
+    webSocketService.on('notification:send', (data) => {
+      logger.info('NotificationService', 'Notificação via WebSocket', {
+        title: data.title,
+      });
+      this.emit('notification:received', {
+        request: {
+          content: {
+            title: data.title,
+            body: data.body,
+            data: data.data,
+          },
+        },
+      });
+    });
+  }
+
+  private async registerPushToken(token: string) {
+    try {
+      logger.info('NotificationService', 'Registrando push token no backend');
+      await apiClient.post('/notifications/register-token', {
+        token,
+        deviceType: Device.osName,
+      });
+      logger.info('NotificationService', 'Push token registrado com sucesso');
+    } catch (error) {
+      logger.error('NotificationService', 'Erro ao registrar push token', error as Error);
     }
+  }
 
-    // Configurar canais se for Android
-    await setupNotificationChannels();
+  async sendLocalNotification(
+    title: string,
+    body: string,
+    data?: Record<string, any>,
+    delay = 0
+  ) {
+    try {
+      logger.info('NotificationService', 'Enviando notificação local', { title });
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title,
+          body,
+          data: data || {},
+        },
+        trigger: delay > 0 ? ({ seconds: Math.ceil(delay / 1000) } as any) : null,
+      });
+    } catch (error) {
+      logger.error(
+        'NotificationService',
+        'Erro ao enviar notificação local',
+        error as Error
+      );
+    }
+  }
 
-    return true;
-  } catch (error) {
-    console.error("Erro ao solicitar permissões de notificação:", error);
-    return false;
+  async getNotifications(limit = 50, offset = 0): Promise<PushNotification[]> {
+    try {
+      logger.info('NotificationService', 'Buscando notificações');
+      const response = await apiClient.get('/notifications', {
+        params: { limit, offset },
+      });
+      return response.data?.notifications || [];
+    } catch (error) {
+      logger.error('NotificationService', 'Erro ao buscar notificações', error as Error);
+      throw error;
+    }
+  }
+
+  async markAsRead(notificationId: string): Promise<void> {
+    try {
+      await apiClient.put(`/notifications/${notificationId}/read`);
+    } catch (error) {
+      logger.error('NotificationService', 'Erro ao marcar notificação como lida', error as Error);
+    }
+  }
+
+  async deleteNotification(notificationId: string): Promise<void> {
+    try {
+      await apiClient.delete(`/notifications/${notificationId}`);
+    } catch (error) {
+      logger.error('NotificationService', 'Erro ao deletar notificação', error as Error);
+    }
+  }
+
+  // Event Emitter
+  private notificationReceivedSubscription: any;
+  private notificationResponseSubscription: any;
+
+  on(event: string, callback: Function) {
+    if (!this.listeners.has(event)) {
+      this.listeners.set(event, new Set());
+    }
+    this.listeners.get(event)!.add(callback);
+
+    return () => {
+      this.listeners.get(event)?.delete(callback);
+    };
+  }
+
+  emit(event: string, data: any) {
+    const callbacks = this.listeners.get(event);
+    if (callbacks) {
+      callbacks.forEach((cb) => cb(data));
+    }
+  }
+
+  cleanup() {
+    if (this.notificationReceivedSubscription) {
+      this.notificationReceivedSubscription.remove();
+    }
+    if (this.notificationResponseSubscription) {
+      this.notificationResponseSubscription.remove();
+    }
+    this.listeners.clear();
   }
 }
 
-/**
- * Obter token de push do dispositivo
- */
+// Module level function helpers for direct usage (compat layer)
+export async function requestNotificationPermissions(): Promise<boolean> {
+  if (!Device.isDevice) return false;
+  const { status: existingStatus } = await Notifications.getPermissionsAsync();
+  let finalStatus = existingStatus;
+  if (existingStatus !== 'granted') {
+    const { status } = await Notifications.requestPermissionsAsync();
+    finalStatus = status;
+  }
+  return finalStatus === 'granted';
+}
+
 export async function getPushToken(projectId: string): Promise<string | null> {
   try {
-    if (!Device.isDevice) {
-      console.warn("Não é possível obter push token em emulador/simulador");
-      return null;
-    }
-
-    const token = await Notifications.getExpoPushTokenAsync({
-      projectId: projectId,
-    });
-
+    const token = await Notifications.getExpoPushTokenAsync({ projectId });
     return token.data;
-  } catch (error) {
-    console.error("Erro ao obter push token:", error);
+  } catch (e) {
+    logger.error('NotificationService', 'Error getting push token:', e as Error);
     return null;
   }
 }
 
-/**
- * Enviar notificação local (teste)
- */
-export async function sendLocalNotification(
-  title: string,
-  body: string,
-  data?: any,
-  channelId: string = "default"
-) {
-  try {
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: title,
-        body: body,
-        data: data,
-        sound: true,
-        priority: Notifications.AndroidNotificationPriority.MAX,
-        vibrate: [0, 250, 250, 250],
-      },
-      trigger: null, // Enviar imediatamente
-    });
-  } catch (error) {
-    console.error("Erro ao enviar notificação local:", error);
-  }
+export function setupNotificationHandler(): void {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    } as any),
+  });
 }
 
-/**
- * Limpar todas as notificações
- */
-export async function clearAllNotifications() {
-  try {
-    await Notifications.dismissAllNotificationsAsync();
-  } catch (error) {
-    console.error("Erro ao limpar notificações:", error);
-  }
-}
-
-/**
- * Obter badge count
- */
-export async function getBadgeCount(): Promise<number> {
-  try {
-    return await Notifications.getBadgeCountAsync();
-  } catch (error) {
-    console.error("Erro ao obter badge count:", error);
-    return 0;
-  }
-}
-
-/**
- * Definir badge count
- */
-export async function setBadgeCount(count: number) {
-  try {
-    await Notifications.setBadgeCountAsync(count);
-  } catch (error) {
-    console.error("Erro ao definir badge count:", error);
-  }
-}
-
-/**
- * Tipos de notificações do app
- */
-export enum NotificationType {
-  NEW_ORDER = "new_order",
-  ORDER_ACCEPTED = "order_accepted",
-  ORDER_IN_PROGRESS = "order_in_progress",
-  ORDER_DELIVERED = "order_delivered",
-  ORDER_CANCELLED = "order_cancelled",
-  NEW_MESSAGE = "new_message",
-  DRIVER_NEARBY = "driver_nearby",
-  PAYMENT_RECEIVED = "payment_received",
-}
-
-/**
- * Interface para dados de notificação
- */
-export interface NotificationData {
-  type: NotificationType;
-  orderId?: string;
-  userId?: string;
-  message?: string;
-  [key: string]: any;
-}
+export default new NotificationService();

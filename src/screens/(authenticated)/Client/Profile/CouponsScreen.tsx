@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Toast from "react-native-toast-message";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
+import { colors } from "@/theme";
 import { ClientScreenHeader, LoadingButton } from "../Shared/components";
 import promotionService, { Promotion } from "@/services/promotion.service";
 
@@ -108,14 +108,14 @@ export default function CouponsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView className="flex-1 bg-[#091A2F]">
       <ClientScreenHeader title="Cupons" subtitle="Promocoes e descontos" />
 
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        <Text style={styles.sectionTitle}>ADICIONAR CUPOM</Text>
-        <View style={styles.inputRow}>
+      <ScrollView className="flex-1" contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 12, gap: 12 }}>
+        <Text className="text-xs font-bold text-gray-500 tracking-wider">ADICIONAR CUPOM</Text>
+        <View className="mb-2">
           <TextInput
-            style={styles.input}
+            className="bg-[#0d2838] border border-gray-700 rounded-lg px-4 py-3 text-white text-base"
             placeholder="Ex: LEVA10"
             placeholderTextColor={colors.text.tertiary}
             value={input}
@@ -131,90 +131,43 @@ export default function CouponsScreen() {
           loading={loading}
         />
 
-        <Text style={styles.sectionTitle}>CUPONS DISPONIVEIS</Text>
+        <Text className="text-xs font-bold text-gray-500 tracking-wider mt-3">CUPONS DISPONIVEIS</Text>
         {fetching ? (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>Carregando cupons...</Text>
+          <View className="border border-gray-700 rounded-lg p-4 bg-[#0d2838]">
+            <Text className="text-gray-500 text-center">Carregando cupons...</Text>
           </View>
         ) : available.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>Nenhum cupom disponivel agora</Text>
+          <View className="border border-gray-700 rounded-lg p-4 bg-[#0d2838]">
+            <Text className="text-gray-500 text-center">Nenhum cupom disponivel agora</Text>
           </View>
         ) : (
           available.map((item) => (
-            <TouchableOpacity key={item.code} style={styles.couponCard} onPress={() => applyCoupon(item.code)}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.couponCode}>{item.code}</Text>
-                <Text style={styles.couponDesc}>{item.description || item.title}</Text>
+            <TouchableOpacity key={item.code} className="flex-row items-center bg-[#0d2838] border border-gray-700 rounded-lg p-4" onPress={() => applyCoupon(item.code)}>
+              <View className="flex-1">
+                <Text className="text-white font-bold text-base">{item.code}</Text>
+                <Text className="text-gray-400 text-sm mt-1">{item.description || item.title}</Text>
               </View>
-              <Text style={styles.useText}>Usar</Text>
+              <Text className="text-[#02de95] font-bold">Usar</Text>
             </TouchableOpacity>
           ))
         )}
 
-        <Text style={styles.sectionTitle}>SEUS CUPONS</Text>
+        <Text className="text-xs font-bold text-gray-500 tracking-wider mt-3">SEUS CUPONS</Text>
         {savedCodes.length === 0 ? (
-          <View style={styles.emptyState}><Text style={styles.emptyText}>Nenhum cupom salvo</Text></View>
+          <View className="border border-gray-700 rounded-lg p-4 bg-[#0d2838]">
+            <Text className="text-gray-500 text-center">Nenhum cupom salvo</Text>
+          </View>
         ) : (
-          savedCodes.map((code) => (
-            <View key={code} style={styles.savedCoupon}><Text style={styles.savedCouponText}>{code}</Text></View>
-          ))
+          <View className="flex-row flex-wrap gap-2">
+            {savedCodes.map((code) => (
+              <View key={code} className="border border-[rgba(2,222,149,0.35)] rounded-full px-4 py-1.5 bg-[rgba(2,222,149,0.1)]">
+                <Text className="text-[#02de95] font-bold text-sm">{code}</Text>
+              </View>
+            ))}
+          </View>
         )}
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background.primary },
-  content: { flex: 1 },
-  contentContainer: { padding: spacing.lg, gap: spacing.md },
-  sectionTitle: {
-    color: colors.text.tertiary,
-    fontSize: fontSize.xs,
-    fontWeight: fontWeight.bold,
-    letterSpacing: 0.8,
-  },
-  inputRow: { marginBottom: spacing.sm },
-  input: {
-    backgroundColor: colors.background.secondary,
-    borderWidth: 1,
-    borderColor: colors.border.light,
-    borderRadius: borderRadius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    color: colors.text.primary,
-    fontSize: fontSize.base,
-  },
-  couponCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.border.light,
-    padding: spacing.md,
-  },
-  couponCode: { color: colors.text.primary, fontSize: fontSize.base, fontWeight: fontWeight.bold },
-  couponDesc: { color: colors.text.secondary, fontSize: fontSize.sm, marginTop: 2 },
-  useText: { color: colors.primary[500], fontWeight: fontWeight.bold },
-  emptyState: {
-    borderWidth: 1,
-    borderColor: colors.border.light,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    backgroundColor: colors.background.secondary,
-  },
-  emptyText: { color: colors.text.tertiary },
-  savedCoupon: {
-    borderWidth: 1,
-    borderColor: "rgba(2,222,149,0.35)",
-    borderRadius: borderRadius.full,
-    alignSelf: "flex-start",
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    backgroundColor: "rgba(2,222,149,0.1)",
-  },
-  savedCouponText: { color: colors.primary[500], fontWeight: fontWeight.bold },
-});

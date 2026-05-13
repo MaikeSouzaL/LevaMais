@@ -127,7 +127,29 @@ const userSchema = new mongoose.Schema(
         },
       ],
     },
-    // PreferÃªncias
+    // Saldo do Motorista (para trabalhar com o sistema de depósito)
+    driverBalance: {
+      balance: { type: Number, default: 0 },
+      totalDeposits: { type: Number, default: 0 },
+      totalDeductions: { type: Number, default: 0 },
+      transactions: [
+        {
+          type: {
+            type: String,
+            enum: ["deposit", "deduction", "withdrawal"],
+          },
+          amount: { type: Number, required: true },
+          description: { type: String, trim: true },
+          rideId: { type: String, trim: true },
+          pixKey: { type: String, trim: true },
+          status: { type: String, enum: ["pending", "completed", "failed"], default: "completed" },
+          createdAt: { type: Date, default: Date.now },
+        },
+      ],
+      selectedCategories: [{ type: String }], // Ex: ["ride", "delivery"]
+      selectedVehicles: [{ type: String }], // Ex: ["motorcycle", "car"]
+    },
+    // Preferências
     preferredPayment: {
       type: String,
       enum: ["pix", "cash", "card"],
@@ -194,6 +216,19 @@ const userSchema = new mongoose.Schema(
       vehiclePhoto: { type: String },
       selfie: { type: String },
       submittedAt: { type: Date },
+    },
+    // ConfiguraÃ§Ã£o de qualidade do GPS para economia de bateria
+    gpsQuality: {
+      type: String,
+      enum: ["low", "balanced", "high"],
+      default: "high",
+    },
+    // MÃ©tricas exatas de tempo online acumulado
+    onlineStats: {
+      totalSecondsToday: { type: Number, default: 0 },
+      lastHeartbeatAt: { type: Date, default: Date.now },
+      activeDateStr: { type: String, default: "" },
+      isOnline: { type: Boolean, default: false },
     },
     createdAt: {
       type: Date,

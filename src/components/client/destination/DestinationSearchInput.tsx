@@ -4,7 +4,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
   FlatList,
   ActivityIndicator,
   Keyboard,
@@ -72,7 +71,7 @@ export const DestinationSearchInput = ({
         onSelectDestination(details);
       }
     } catch (e) {
-      console.log("Search input select error:", e);
+      console.error("Error getting place details:", e);
     } finally {
       setLoading(false);
     }
@@ -83,52 +82,64 @@ export const DestinationSearchInput = ({
       from={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ type: "timing", duration: 500, delay: 100 }}
-      style={styles.wrapper}
+      className="mx-6 mt-6 z-90"
     >
-      <BlurView intensity={50} tint="dark" style={styles.glassPanel}>
+      <BlurView intensity={50} tint="dark" className="rounded-2xl bg-slate-800/50 border border-white/10 p-4 overflow-hidden">
         {/* Origin Display Row */}
-        <View style={styles.row}>
-          <View style={styles.indicatorWrapper}>
-            <View style={[styles.dot, styles.originDot]} />
-            <View style={styles.dashedLine} />
+        <View className="flex-row items-center">
+          <View className="w-[30px] items-center justify-center h-11">
+            <View className="w-2 h-2 rounded-full bg-emerald-400" />
+            <View className="w-[1px] flex-1 border border-dashed border-white/20 my-1" />
           </View>
           
-          <View style={styles.inputWrapper}>
+          <View className="flex-1 h-11 flex-row items-center bg-slate-900/30 rounded-lg px-3">
             <TextInput
               value={originText}
               editable={false}
-              style={[styles.input, styles.inputDisabled]}
+              style={{
+                flex: 1,
+                color: "rgba(255,255,255,0.6)",
+                fontSize: fontSize.sm,
+                height: "100%",
+                padding: 0,
+              }}
               placeholderTextColor="rgba(255,255,255,0.4)"
             />
-            <Navigation size={16} color={colors.primary[400]} style={styles.endIcon} />
+            <Navigation size={16} color={colors.primary[400]} className="ml-2" />
           </View>
         </View>
 
         {/* Destination Input Row */}
-        <View style={[styles.row, { marginTop: spacing.sm }]}>
-          <View style={styles.indicatorWrapper}>
-            <MapPin size={18} color={colors.error || "#ef4444"} style={{ marginTop: 4 }} />
+        <View className="flex-row items-center mt-3">
+          <View className="w-[30px] items-center justify-center h-11">
+            <MapPin size={18} color="#ef4444" />
           </View>
 
-          <View style={[styles.inputWrapper, styles.activeInput]}>
+          <View className="flex-1 h-11 flex-row items-center bg-white/5 border border-emerald-500/20 rounded-lg px-3">
             <TextInput
               ref={searchInputRef}
               value={destinationText}
               onChangeText={onDestinationChange}
               placeholder="Para onde vamos?"
               placeholderTextColor={colors.text.secondary}
-              style={styles.input}
+              style={{
+                flex: 1,
+                color: colors.text.primary,
+                fontSize: fontSize.sm,
+                height: "100%",
+                padding: 0,
+              }}
               autoFocus
               returnKeyType="search"
             />
             {loading ? (
-              <ActivityIndicator size="small" color={colors.primary[500]} style={styles.endIcon} />
+              <ActivityIndicator size="small" color={colors.primary[500]} className="ml-2" />
             ) : destinationText.length > 0 ? (
-              <TouchableOpacity onPress={() => onDestinationChange("")} style={styles.endIcon}>
+              <TouchableOpacity onPress={() => onDestinationChange("")} className="ml-2">
                 <X size={16} color={colors.text.secondary} />
               </TouchableOpacity>
             ) : (
-              <Search size={16} color={colors.text.secondary} style={styles.endIcon} />
+              <Search size={16} color={colors.text.secondary} className="ml-2" />
             )}
           </View>
         </View>
@@ -141,26 +152,26 @@ export const DestinationSearchInput = ({
             from={{ opacity: 0, translateY: -10, height: 0 }}
             animate={{ opacity: 1, translateY: 0, height: 300 }}
             exit={{ opacity: 0, height: 0 }}
-            style={styles.dropdownContainer}
+            className="mt-2 rounded-2xl overflow-hidden"
           >
-            <BlurView intensity={80} tint="dark" style={styles.resultsBlur}>
+            <BlurView intensity={80} tint="dark" className="flex-1 bg-slate-900/80 border border-white/10">
               <FlatList
                 data={results}
                 keyExtractor={(item) => item.placeId}
                 keyboardShouldPersistTaps="handled"
-                ItemSeparatorComponent={() => <View style={styles.separator} />}
+                ItemSeparatorComponent={() => <View className="h-[1px] bg-white/5 mx-4" />}
                 renderItem={({ item }) => (
                   <TouchableOpacity
                     onPress={() => handleSelect(item)}
-                    style={styles.resultItem}
+                    className="flex-row items-center px-4 py-3"
                     activeOpacity={0.7}
                   >
-                    <View style={styles.historyIconWrapper}>
+                    <View className="w-8 h-8 rounded-full bg-white/5 items-center justify-center mr-3">
                       <History size={16} color={colors.text.tertiary} />
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.mainText} numberOfLines={1}>{item.mainText}</Text>
-                      <Text style={styles.subText} numberOfLines={1}>{item.secondaryText}</Text>
+                    <View className="flex-1">
+                      <Text className="text-white text-sm font-semibold" numberOfLines={1}>{item.mainText}</Text>
+                      <Text className="text-slate-400 text-xs font-medium mt-0.5" numberOfLines={1}>{item.secondaryText}</Text>
                     </View>
                   </TouchableOpacity>
                 )}
@@ -172,113 +183,3 @@ export const DestinationSearchInput = ({
     </MotiView>
   );
 };
-
-const styles = StyleSheet.create({
-  wrapper: {
-    marginHorizontal: spacing.lg,
-    marginTop: spacing.md,
-    zIndex: 90,
-  },
-  glassPanel: {
-    borderRadius: borderRadius.xl,
-    backgroundColor: "rgba(30, 41, 59, 0.5)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.08)",
-    padding: spacing.md,
-    overflow: "hidden",
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  indicatorWrapper: {
-    width: 30,
-    alignItems: "center",
-    justifyContent: "center",
-    height: 44,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginTop: 4,
-  },
-  originDot: {
-    backgroundColor: colors.primary[500],
-  },
-  dashedLine: {
-    width: 1,
-    flex: 1,
-    borderWidth: 1,
-    borderStyle: "dashed",
-    borderColor: "rgba(255, 255, 255, 0.2)",
-    marginVertical: 4,
-  },
-  inputWrapper: {
-    flex: 1,
-    height: 44,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(15, 23, 42, 0.3)",
-    borderRadius: borderRadius.lg,
-    paddingHorizontal: spacing.md,
-  },
-  activeInput: {
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
-    borderWidth: 1,
-    borderColor: "rgba(2, 222, 149, 0.2)",
-  },
-  input: {
-    flex: 1,
-    color: colors.text.primary,
-    fontSize: fontSize.sm,
-    height: "100%",
-    padding: 0,
-  },
-  inputDisabled: {
-    color: "rgba(255,255,255,0.6)",
-  },
-  endIcon: {
-    marginLeft: spacing.sm,
-  },
-  dropdownContainer: {
-    marginTop: spacing.sm,
-    overflow: "hidden",
-    borderRadius: borderRadius.xl,
-  },
-  resultsBlur: {
-    flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.8)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.08)",
-  },
-  resultItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: spacing.md,
-  },
-  historyIconWrapper: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: spacing.md,
-  },
-  mainText: {
-    color: colors.text.primary,
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.semibold,
-  },
-  subText: {
-    color: colors.text.tertiary,
-    fontSize: fontSize.xs,
-    marginTop: 2,
-  },
-  separator: {
-    height: 1,
-    backgroundColor: "rgba(255, 255, 255, 0.04)",
-    marginHorizontal: spacing.md,
-  }
-});

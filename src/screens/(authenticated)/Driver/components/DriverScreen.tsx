@@ -11,6 +11,8 @@ export type DriverScreenProps = {
   padded?: boolean;
   /** Default: false */
   scroll?: boolean;
+  /** Default: false */
+  hideHeader?: boolean;
   children: React.ReactNode;
 };
 
@@ -19,11 +21,18 @@ export function DriverScreen({
   headerRight,
   padded = true,
   scroll = false,
+  hideHeader = false,
   children,
 }: DriverScreenProps) {
+  // If we are hiding our custom header, we assume a standard navigator header is visible,
+  // in which case we do not need safe area padding at the top edge.
+  const safeAreaEdges: Array<'top' | 'bottom' | 'left' | 'right'> = hideHeader
+    ? ['bottom', 'left', 'right']
+    : ['top', 'bottom', 'left', 'right'];
+
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#091A2F" }}>
-      <DriverHeader title={title} right={headerRight} />
+    <SafeAreaView edges={safeAreaEdges} style={{ flex: 1, backgroundColor: "#091A2F" }}>
+      {!hideHeader && <DriverHeader title={title} right={headerRight} />}
       {scroll ? (
         <ScrollView
           contentContainerStyle={{

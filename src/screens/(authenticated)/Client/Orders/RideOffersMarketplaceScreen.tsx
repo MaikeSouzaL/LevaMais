@@ -45,8 +45,7 @@ export default function RideOffersMarketplaceScreen() {
       const details = await rideService.getById(rideId);
       setRideDetails(details);
     } catch (e) {
-      console.log("Failed loading ride context for map", e);
-    }
+          }
   }, [rideId]);
 
   // Live Bidding Fetch Function 💸

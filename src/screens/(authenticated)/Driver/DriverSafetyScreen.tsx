@@ -6,7 +6,7 @@ import { DriverScreen } from "./components/DriverScreen";
 
 export default function DriverSafetyScreen() {
   return (
-    <DriverScreen title="Segurança">
+    <DriverScreen title="Segurança" hideHeader={true}>
       <SectionCard>
         <Text style={{ color: "#fff", fontWeight: "900" }}>SOS</Text>
         <Text style={{ color: "rgba(255,255,255,0.65)", marginTop: 10 }}>

@@ -12,11 +12,13 @@ import { MaterialIcons } from "@expo/vector-icons";
 
 interface ModalProps {
   visible: boolean;
-  title: string;
-  message: string;
+  title?: string;
+  message?: string;
   type?: "success" | "error" | "info" | "warning";
   onClose?: () => void;
+  onConfirm?: () => void | Promise<void>;
   confirmText?: string;
+  children?: React.ReactNode;
 }
 
 const { width } = Dimensions.get("window");
@@ -27,7 +29,9 @@ export function Modal({
   message,
   type = "info",
   onClose,
-  confirmText = "OK",
+  onConfirm,
+  confirmText,
+  children,
 }: ModalProps) {
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
@@ -101,25 +105,55 @@ export function Modal({
           ]}
         >
           <View style={styles.content}>
-            <View
-              style={[
-                styles.iconContainer,
-                { backgroundColor: `${getColor()}20` },
-              ]}
-            >
-              <MaterialIcons name={getIcon()} size={32} color={getColor()} />
+            {!children && (
+              <View
+                style={[
+                  styles.iconContainer,
+                  { backgroundColor: `${getColor()}20` },
+                ]}
+              >
+                <MaterialIcons name={getIcon()} size={32} color={getColor()} />
+              </View>
+            )}
+
+            {!!title && <Text style={styles.title}>{title}</Text>}
+            {!!message && <Text style={styles.message}>{message}</Text>}
+
+            {children ? (
+              <View style={{ flexShrink: 1, width: "100%" }}>
+                {children}
+              </View>
+            ) : null}
+
+            <View style={styles.actionsContainer}>
+              {onConfirm ? (
+                <View style={styles.rowButtons}>
+                  <TouchableOpacity
+                    onPress={onClose}
+                    activeOpacity={0.8}
+                    style={[styles.button, styles.cancelButton]}
+                  >
+                    <Text style={styles.cancelButtonText}>Cancelar</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    onPress={onConfirm}
+                    activeOpacity={0.8}
+                    style={[styles.button, { backgroundColor: getColor(), flex: 1.5 }]}
+                  >
+                    <Text style={styles.buttonText}>{confirmText || "Confirmar"}</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  onPress={onClose}
+                  activeOpacity={0.8}
+                  style={[styles.button, { backgroundColor: getColor() }]}
+                >
+                  <Text style={styles.buttonText}>{confirmText || "OK"}</Text>
+                </TouchableOpacity>
+              )}
             </View>
-
-            <Text style={styles.title}>{title}</Text>
-            <Text style={styles.message}>{message}</Text>
-
-            <TouchableOpacity
-              onPress={onClose}
-              activeOpacity={0.8}
-              style={[styles.button, { backgroundColor: getColor() }]}
-            >
-              <Text style={styles.buttonText}>{confirmText}</Text>
-            </TouchableOpacity>
           </View>
         </Animated.View>
       </View>
@@ -139,6 +173,7 @@ const styles = StyleSheet.create({
   },
   container: {
     width: width * 0.85,
+    maxHeight: "85%",
     backgroundColor: "#1c2727",
     borderRadius: 24,
     borderWidth: 1,
@@ -153,6 +188,7 @@ const styles = StyleSheet.create({
   content: {
     padding: 24,
     alignItems: "center",
+    maxHeight: "100%",
   },
   iconContainer: {
     width: 64,
@@ -176,16 +212,34 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     lineHeight: 22,
   },
-  button: {
+  actionsContainer: {
     width: "100%",
+    marginTop: 24,
+  },
+  rowButtons: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  button: {
     height: 48,
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
+    flex: 1,
+  },
+  cancelButton: {
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.2)",
   },
   buttonText: {
     color: "#111818",
     fontSize: 16,
     fontWeight: "bold",
+  },
+  cancelButtonText: {
+    color: "#9db9b9",
+    fontSize: 16,
+    fontWeight: "600",
   },
 });

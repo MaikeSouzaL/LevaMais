@@ -1,11 +1,11 @@
 import React from "react";
-import { ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ScrollView, Share, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import Toast from "react-native-toast-message";
 
-import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
+import { colors } from "@/theme";
 import { ClientScreenHeader } from "../Shared/components";
 import { exportPrivacyData, PrivacyExportPayload } from "@/services/auth.service";
 
@@ -22,7 +22,8 @@ export default function PrivacyDataScreen() {
         const data = await exportPrivacyData();
         if (!mounted) return;
         setSummary(data);
-      } catch {
+      } catch (error) {
+        console.error("Error exporting privacy data:", error);
         if (!mounted) return;
         setSummary(null);
       }
@@ -52,61 +53,34 @@ export default function PrivacyDataScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView className="flex-1 bg-[#091A2F]">
       <ClientScreenHeader title="Privacidade e dados" subtitle="Controle da sua conta" />
 
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        <View style={styles.infoCard}>
+      <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, gap: 12 }}>
+        <View className="bg-[#0d2838] border border-gray-700 rounded-lg p-4 gap-2">
           <MaterialIcons name="verified-user" size={28} color={colors.primary[500]} />
-          <Text style={styles.infoTitle}>Seus dados</Text>
-          <Text style={styles.infoText}>
+          <Text className="text-white font-bold text-base">Seus dados</Text>
+          <Text className="text-gray-400 text-sm leading-5">
             Voce pode exportar seus dados e revisar informacoes principais da conta.
           </Text>
           {summary && (
-            <Text style={styles.infoSubtext}>
+            <Text className="text-[#02de95] text-xs font-semibold">
               Corridas registradas: {summary.rides.total} | Cartoes salvos: {summary.paymentMethods.length}
             </Text>
           )}
         </View>
 
-        <TouchableOpacity style={styles.row} onPress={exportData} disabled={loading}>
+        <TouchableOpacity className="flex-row items-center gap-3 bg-[#0d2838] border border-gray-700 rounded-lg p-3" onPress={exportData} disabled={loading}>
           <MaterialIcons name="download" size={20} color={colors.primary[500]} />
-          <Text style={styles.rowText}>{loading ? "Exportando..." : "Exportar meus dados"}</Text>
+          <Text className="text-white font-semibold text-base">{loading ? "Exportando..." : "Exportar meus dados"}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.row} onPress={() => navigation.navigate("Settings") }>
+        <TouchableOpacity className="flex-row items-center gap-3 bg-[#0d2838] border border-gray-700 rounded-lg p-3" onPress={() => navigation.navigate("Settings") }>
           <MaterialIcons name="settings" size={20} color={colors.primary[500]} />
-          <Text style={styles.rowText}>Gerenciar preferencias de privacidade</Text>
+          <Text className="text-white font-semibold text-base">Gerenciar preferencias de privacidade</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background.primary },
-  content: { flex: 1 },
-  contentContainer: { padding: spacing.lg, gap: spacing.md },
-  infoCard: {
-    backgroundColor: colors.background.secondary,
-    borderWidth: 1,
-    borderColor: colors.border.light,
-    borderRadius: borderRadius.md,
-    padding: spacing.lg,
-    gap: spacing.sm,
-  },
-  infoTitle: { color: colors.text.primary, fontWeight: fontWeight.bold, fontSize: fontSize.base },
-  infoText: { color: colors.text.secondary, fontSize: fontSize.sm, lineHeight: 20 },
-  infoSubtext: { color: colors.primary[500], fontSize: fontSize.xs, fontWeight: fontWeight.semibold },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    backgroundColor: colors.background.secondary,
-    borderWidth: 1,
-    borderColor: colors.border.light,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-  },
-  rowText: { color: colors.text.primary, fontWeight: fontWeight.semibold, fontSize: fontSize.base },
-});

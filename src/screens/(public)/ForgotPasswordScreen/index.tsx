@@ -79,8 +79,7 @@ export default function ForgotPasswordScreen() {
         });
       }
     } catch (error: any) {
-      console.error("Erro ao solicitar recuperação de senha:", error);
-      Toast.show({
+            Toast.show({
         type: "error",
         text1: "Erro",
         text2: "Verifique sua conexão e tente novamente",

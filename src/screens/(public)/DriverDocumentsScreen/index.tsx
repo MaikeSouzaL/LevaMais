@@ -104,8 +104,7 @@ export default function DriverDocumentsScreen() {
       }
 
     } catch (error) {
-      console.error("File Pick Error:", error);
-      Toast.show({ type: "error", text1: "Falha ao selecionar arquivo." });
+            Toast.show({ type: "error", text1: "Falha ao selecionar arquivo." });
     }
   };
 

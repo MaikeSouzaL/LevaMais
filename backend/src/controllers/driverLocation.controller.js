@@ -1,4 +1,5 @@
-﻿const DriverLocation = require("../models/DriverLocation");
+const DriverLocation = require("../models/DriverLocation");
+const User = require("../models/User");
 
 const DRIVER_STATUSES = new Set(["offline", "available", "busy", "on_ride"]);
 const VEHICLE_TYPES = new Set(["motorcycle", "car", "van", "truck"]);
@@ -147,6 +148,60 @@ class DriverLocationController {
             speed: speedValue,
           });
         }
+      }
+
+      try {
+        const user = await User.findById(driverId);
+        if (user) {
+          const todayStr = new Date().toISOString().split("T")[0];
+          
+          if (!user.onlineStats) {
+            user.onlineStats = {
+              totalSecondsToday: 0,
+              lastHeartbeatAt: new Date(),
+              activeDateStr: todayStr,
+              isOnline: false,
+            };
+          }
+
+          // Se mudou o dia no fuso UTC/ISO, reseta o acumulador
+          if (user.onlineStats.activeDateStr !== todayStr) {
+            user.onlineStats.totalSecondsToday = 0;
+            user.onlineStats.lastHeartbeatAt = new Date();
+            user.onlineStats.activeDateStr = todayStr;
+            user.onlineStats.isOnline = normalizedStatus !== "offline";
+          } else {
+            const wasOnline = Boolean(user.onlineStats.isOnline);
+            const isNowOnline = normalizedStatus !== "offline";
+
+            // Calcula tempo real transcorrido desde a última batida de coração
+            const last = new Date(user.onlineStats.lastHeartbeatAt).getTime();
+            const diffMs = Date.now() - last;
+            const diffSec = Math.floor(diffMs / 1000);
+
+            // 💡 REGRA MATEMÁTICA ABSOLUTA: Só acumula tempo se o status ANTERIOR era ONLINE!
+            // Impede o acúmulo de períodos offline e captura os segundos finais ao ficar offline.
+            if (wasOnline && diffSec > 0 && diffSec < 60) {
+              user.onlineStats.totalSecondsToday += diffSec;
+            }
+
+            // Atualiza referências de estado para a próxima rodada
+            user.onlineStats.lastHeartbeatAt = new Date();
+            user.onlineStats.isOnline = isNowOnline;
+          }
+          
+          await user.save();
+
+          // 📡 Emitir atualizaÃ§Ã£o em tempo real via Socket para esse motorista
+          const io = req.app.get("io");
+          if (io) {
+            io.to(`driver-${driverId}`).emit("online_time_updated", {
+              totalSecondsToday: user.onlineStats.totalSecondsToday,
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Erro ao atualizar batida de coraÃ§Ã£o do tempo online:", err);
       }
 
       return res.json({
@@ -321,6 +376,61 @@ class DriverLocationController {
 
       if (!driverLocation) {
         return sendError(res, 404, "Motorista nao encontrado. Atualize sua localizacao primeiro.");
+      }
+
+      // ⚡️ CORREÇÃO CRÍTICA DO DRIFT DE CLOCK: Processar Máquina de Estados Online/Offline
+      // Garante que ao clicar "Ficar Offline", os segundos finais sejam salvos e isOnline vire FALSE!
+      try {
+        const user = await User.findById(driverId);
+        if (user) {
+          const todayStr = new Date().toISOString().split("T")[0];
+          
+          if (!user.onlineStats) {
+            user.onlineStats = {
+              totalSecondsToday: 0,
+              lastHeartbeatAt: new Date(),
+              activeDateStr: todayStr,
+              isOnline: false,
+            };
+          }
+
+          // Se mudou o dia no fuso UTC/ISO, reseta o acumulador
+          if (user.onlineStats.activeDateStr !== todayStr) {
+            user.onlineStats.totalSecondsToday = 0;
+            user.onlineStats.lastHeartbeatAt = new Date();
+            user.onlineStats.activeDateStr = todayStr;
+            user.onlineStats.isOnline = normalizedStatus !== "offline";
+          } else {
+            const wasOnline = Boolean(user.onlineStats.isOnline);
+            const isNowOnline = normalizedStatus !== "offline";
+
+            // Calcula tempo real transcorrido desde a última batida de coração
+            const last = new Date(user.onlineStats.lastHeartbeatAt).getTime();
+            const diffMs = Date.now() - last;
+            const diffSec = Math.floor(diffMs / 1000);
+
+            // 💡 REGRA MATEMÁTICA ABSOLUTA: Só acumula tempo se o status ANTERIOR era ONLINE!
+            if (wasOnline && diffSec > 0 && diffSec < 60) {
+              user.onlineStats.totalSecondsToday += diffSec;
+            }
+
+            // Atualiza referências de estado para parar a contagem IMEDIATAMENTE no banco
+            user.onlineStats.lastHeartbeatAt = new Date();
+            user.onlineStats.isOnline = isNowOnline;
+          }
+          
+          await user.save();
+
+          // 📡 Emitir atualização instantânea via Socket para sincronizar o front na hora
+          const io = req.app.get("io");
+          if (io) {
+            io.to(`driver-${driverId}`).emit("online_time_updated", {
+              totalSecondsToday: user.onlineStats.totalSecondsToday,
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Erro ao atualizar estado de tempo no updateStatus:", err);
       }
 
       return res.json({

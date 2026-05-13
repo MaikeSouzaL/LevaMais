@@ -17,6 +17,7 @@ import { SearchingHeader } from "@/components/client/searching-delivery/Searchin
 import { NearbyDriversLayer } from "@/components/client/searching-delivery/NearbyDriversLayer";
 import { DeliverySearchBottomSheet } from "@/components/client/searching-delivery/DeliverySearchBottomSheet";
 import { useRealtimeDelivery } from "@/hooks/useRealtimeDelivery";
+import {Modal} from "@/components/Modal";
 
 const SEARCH_TIME = 30; // Max extended search loop (1 minute for testing)
 const TERMINAL_CANCEL_STATUSES = [
@@ -28,6 +29,7 @@ const TERMINAL_CANCEL_STATUSES = [
 ];
 
 export default function SearchingDriverScreen() {
+  const [showQueueModal, setShowQueueModal] = useState(false);
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const rideId = route.params?.rideId || "";
@@ -76,8 +78,7 @@ export default function SearchingDriverScreen() {
         const data = await rideService.getById(rideId);
         setRideData(data);
       } catch (e) {
-        console.log("Erro ao buscar dados da corrida", e);
-      }
+              }
     };
     fetchRide();
   }, [rideId]);
@@ -125,8 +126,7 @@ export default function SearchingDriverScreen() {
       try {
         await rideService.cancel(rideId, "tempo_limite_esgotado");
       } catch (err) {
-        console.log("Erro ao notificar expiração ao servidor:", err);
-      }
+              }
     }
   }, [rideId]);
 
@@ -271,12 +271,10 @@ export default function SearchingDriverScreen() {
     setEnteringQueue(true);
     try {
       await rideService.enterWaitingQueue(rideId);
-      setWaitingInQueue(true);
-      setTimeoutState(false);
-      Toast.show({
-        type: "success",
-        text1: "Fila de Espera Ativada!",
-        text2: "Os motoristas estão visualizando seu pedido.",
+      cleanup();
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "Home", params: { showSuccessQueueModal: true } }],
       });
     } catch (e: any) {
       Toast.show({
@@ -327,8 +325,7 @@ export default function SearchingDriverScreen() {
     try {
       await rideService.retry(rideId);
     } catch (e: any) {
-      console.error("Erro ao reiniciar dispatch no servidor:", e);
-      Toast.show({ type: "error", text1: "Erro", text2: "Não foi possível reconectar o pedido." });
+            Toast.show({ type: "error", text1: "Erro", text2: "Não foi possível reconectar o pedido." });
       return; // Stop restart loop if backend failed to reactivate
     }
 

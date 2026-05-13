@@ -57,19 +57,19 @@ function DriverFinanceStack() {
 
 const menuItems = [
   { name: "DriverHome", label: "Mapa", icon: "map" },
-  { name: "DriverRequests", label: "Solicitacoes", icon: "car" },
+  { name: "DriverRequests", label: "Solicitações", icon: "car" },
   { name: "DriverFinance", label: "Ganhos e carteira", icon: "cash" },
-  { name: "DriverShiftOffers", label: "Plantoes", icon: "store-clock-outline" },
-  { name: "DriverRatings", label: "Avaliacoes", icon: "star-circle" },
-  { name: "DriverHistory", label: "Historico", icon: "history" },
-  { name: "DriverVehicle", label: "Veiculo", icon: "car-info" },
+  { name: "DriverShiftOffers", label: "Plantões", icon: "store-clock-outline" },
+  { name: "DriverRatings", label: "Avaliações", icon: "star-circle" },
+  { name: "DriverHistory", label: "Histórico", icon: "history" },
+  { name: "DriverVehicle", label: "Veículo", icon: "car-info" },
   { name: "DriverDocuments", label: "Documentos", icon: "file-document-outline" },
-  { name: "DriverWorkPreferences", label: "Preferencias", icon: "tune" },
+  { name: "DriverWorkPreferences", label: "Preferências", icon: "tune" },
   { name: "DriverProfile", label: "Perfil", icon: "account" },
-  { name: "DriverSafety", label: "Seguranca", icon: "shield" },
+  { name: "DriverSafety", label: "Segurança", icon: "shield" },
   { name: "DriverSupportCenter", label: "Suporte", icon: "lifebuoy" },
-  { name: "DriverHelp", label: "Ajuda rapida", icon: "help-circle" },
-  { name: "DriverSettings", label: "Configuracoes", icon: "cog" },
+  { name: "DriverHelp", label: "Ajuda rápida", icon: "help-circle" },
+  { name: "DriverSettings", label: "Configurações", icon: "cog" },
 ] as const;
 
 function CustomDrawerContent(props: DrawerContentComponentProps) {
@@ -198,20 +198,20 @@ export default function DrawerDriverRoutes({ initialRideId }: DrawerDriverRoutes
         overlayColor: "rgba(0, 0, 0, 0.5)",
       }}
     >
-      <Drawer.Screen name="DriverHome" component={DriverHomeScreen} options={{ title: "Inicio", headerShown: false }} />
-      <Drawer.Screen name="DriverRequests" component={DriverRequestsScreen} options={{ title: "Solicitacoes" }} />
+      <Drawer.Screen name="DriverHome" component={DriverHomeScreen} options={{ title: "Início", headerShown: false }} />
+      <Drawer.Screen name="DriverRequests" component={DriverRequestsScreen} options={{ title: "Solicitações" }} />
       <Drawer.Screen name="DriverFinance" component={DriverFinanceStack} options={{ title: "Ganhos e carteira" }} />
-      <Drawer.Screen name="DriverShiftOffers" component={DriverShiftOffersScreen} options={{ title: "Plantoes" }} />
-      <Drawer.Screen name="DriverHistory" component={DriverHistoryScreen} options={{ title: "Historico" }} />
-      <Drawer.Screen name="DriverVehicle" component={DriverVehicleScreen} options={{ title: "Veiculo" }} />
-      <Drawer.Screen name="DriverRatings" component={DriverRatingsScreen} options={{ title: "Avaliacoes" }} />
+      <Drawer.Screen name="DriverShiftOffers" component={DriverShiftOffersScreen} options={{ title: "Plantões" }} />
+      <Drawer.Screen name="DriverHistory" component={DriverHistoryScreen} options={{ title: "Histórico" }} />
+      <Drawer.Screen name="DriverVehicle" component={DriverVehicleScreen} options={{ title: "Veículo" }} />
+      <Drawer.Screen name="DriverRatings" component={DriverRatingsScreen} options={{ title: "Avaliações" }} />
       <Drawer.Screen name="DriverDocuments" component={DriverDocumentsScreen} options={{ title: "Documentos" }} />
-      <Drawer.Screen name="DriverWorkPreferences" component={DriverWorkPreferencesScreen} options={{ title: "Preferencias" }} />
+      <Drawer.Screen name="DriverWorkPreferences" component={DriverWorkPreferencesScreen} options={{ title: "Preferências" }} />
       <Drawer.Screen name="DriverProfile" component={DriverProfileScreen} options={{ title: "Perfil" }} />
-      <Drawer.Screen name="DriverSafety" component={DriverSafetyScreen} options={{ title: "Seguranca" }} />
+      <Drawer.Screen name="DriverSafety" component={DriverSafetyScreen} options={{ title: "Segurança" }} />
       <Drawer.Screen name="DriverSupportCenter" component={DriverSupportCenterScreen} options={{ title: "Suporte" }} />
       <Drawer.Screen name="DriverHelp" component={DriverHelpScreen} options={{ title: "Ajuda" }} />
-      <Drawer.Screen name="DriverSettings" component={DriverSettingsScreen} options={{ title: "Configuracoes" }} />
+      <Drawer.Screen name="DriverSettings" component={DriverSettingsScreen} options={{ title: "Configurações" }} />
 
       <Drawer.Screen
         name="DriverRide"

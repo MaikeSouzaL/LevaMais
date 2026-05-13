@@ -117,11 +117,11 @@ export const ClientBottomSheet = ({
                 <Text style={styles.itemTitle} numberOfLines={1}>{item.name || item.address}</Text>
                 <Text style={styles.itemSub} numberOfLines={1}>{item.formattedAddress || item.address}</Text>
               </View>
-              <ChevronRight size={18} color={colors.text.quaternary} />
+              <ChevronRight size={18} color={colors.text.disabled} />
             </TouchableOpacity>
           )) : (
             <View style={styles.emptyState}>
-              <Clock size={40} color={colors.text.quaternary} strokeWidth={1} />
+              <Clock size={40} color={colors.text.disabled} strokeWidth={1} />
               <Text style={styles.emptyText}>Nenhuma viagem recente ainda.</Text>
             </View>
           )}
@@ -214,7 +214,7 @@ const styles = StyleSheet.create({
   },
   sectionLabel: {
     color: colors.text.primary,
-    fontSize: fontSize.md,
+    fontSize: fontSize.base,
     fontWeight: "700",
     letterSpacing: 0.3,
   },

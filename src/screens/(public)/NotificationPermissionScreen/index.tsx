@@ -112,8 +112,7 @@ export default function NotificationPermissionScreen() {
 
       handleContinue();
     } catch (error: any) {
-      console.error("Erro ao solicitar permissoes de notificacao:", error);
-      Toast.show({
+            Toast.show({
         type: "error",
         text1: "Erro ao ativar notificacoes",
         text2: error.message || "Tente novamente mais tarde",
