@@ -9,10 +9,11 @@ interface DriverOfferListItemProps {
   offer: RideOffer;
   clientBudget: number;
   onSelect: (offer: RideOffer) => void;
+  onDecline: (offer: RideOffer) => void;
   loading: boolean;
 }
 
-export function DriverOfferListItem({ offer, clientBudget, onSelect, loading }: DriverOfferListItemProps) {
+export function DriverOfferListItem({ offer, clientBudget, onSelect, onDecline, loading }: DriverOfferListItemProps) {
   
   const driverName = useMemo(() => {
     if (typeof offer.driverId === "string") return "Entregador Parceiro";
@@ -120,13 +121,25 @@ export function DriverOfferListItem({ offer, clientBudget, onSelect, loading }: 
       )}
 
       {/* Bottom Actions Area 🚀 */}
-      <View className="flex-row space-x-3 items-center">
+      <View className="flex-row items-center">
+        {/* Decline Action */}
+        <TouchableOpacity
+          onPress={() => onDecline(offer)}
+          disabled={loading}
+          activeOpacity={0.7}
+          className="flex-1 h-14 flex-row items-center justify-center rounded-2xl bg-red-500/10 border border-red-500/20 mr-3"
+        >
+          <Text className="text-red-400 font-bold text-base">
+            Recusar
+          </Text>
+        </TouchableOpacity>
+
         {/* Accept Main Action */}
         <TouchableOpacity
           onPress={() => onSelect(offer)}
           disabled={loading}
           activeOpacity={0.85}
-          className={`flex-1 h-14 flex-row items-center justify-center rounded-2xl shadow-lg ${isCheaperOrEqual ? 'bg-[#02de95]' : 'bg-white'}`}
+          className={`flex-[1.6] h-14 flex-row items-center justify-center rounded-2xl shadow-lg ${isCheaperOrEqual ? 'bg-[#02de95]' : 'bg-white'}`}
         >
           {loading ? (
             <ActivityIndicator color="#091A2F" />
@@ -134,18 +147,10 @@ export function DriverOfferListItem({ offer, clientBudget, onSelect, loading }: 
             <>
               <Check size={18} color="#091A2F" className="mr-2" strokeWidth={3} />
               <Text className="text-[#091A2F] font-black text-base">
-                Aceitar Proposta
+                Aceitar
               </Text>
             </>
           )}
-        </TouchableOpacity>
-        
-        {/* Secondary Counter-Action (Contextual) */}
-        <TouchableOpacity 
-          className="w-14 h-14 bg-white/[0.06] border border-white/10 items-center justify-center rounded-2xl ml-3"
-          activeOpacity={0.7}
-        >
-          <MessageCircle size={20} color="#FFF" strokeWidth={2} />
         </TouchableOpacity>
       </View>
 

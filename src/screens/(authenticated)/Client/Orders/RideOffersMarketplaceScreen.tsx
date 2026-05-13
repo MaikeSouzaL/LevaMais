@@ -7,7 +7,8 @@ import MapViewDirections from "react-native-maps-directions";
 import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { MotiView, AnimatePresence } from "moti";
-import { Search, AlertCircle, RefreshCw, MapPin, TrendingUp, Zap, Flame, Coins, TrendingDown } from "lucide-react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Search, AlertCircle, RefreshCw, MapPin, TrendingUp, Zap, Flame, Coins, TrendingDown, Trash2 } from "lucide-react-native";
 
 import rideService, { RideOffer } from "@/services/ride.service";
 import { darkMapStyle } from "@/utils/mapStyle";
@@ -28,6 +29,8 @@ export default function RideOffersMarketplaceScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const rideId = String(route.params?.rideId || "");
+  
+  const insets = useSafeAreaInsets();
 
   const [loading, setLoading] = useState(true);
   const [selectingId, setSelectingId] = useState<string | null>(null);
@@ -37,6 +40,10 @@ export default function RideOffersMarketplaceScreen() {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [pendingIncrement, setPendingIncrement] = useState("5");
   const [isSubtractMode, setIsSubtractMode] = useState(false);
+  
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [sheetIndex, setSheetIndex] = useState(0);
 
   const [rideDetails, setRideDetails] = useState<any>(null);
   const [negotiation, setNegotiation] = useState<any>(null);
@@ -200,6 +207,53 @@ export default function RideOffersMarketplaceScreen() {
     }
   };
 
+  const handleDeclineOffer = async (offer: RideOffer) => {
+    const driverId = typeof offer.driverId === "string" ? offer.driverId : offer.driverId?._id;
+    if (!driverId) return;
+
+    setSelectingId(driverId); // Reutiliza o loader no card do motorista
+    try {
+      await rideService.declineOffer(rideId, driverId);
+      Toast.show({
+        type: "info",
+        text1: "Oferta Recusada",
+        text2: "A proposta do entregador foi removida da lista.",
+      });
+      await loadOffers(); // Recarrega a lista imediatamente
+    } catch (e: any) {
+      Toast.show({
+        type: "error",
+        text1: "Falha ao recusar",
+        text2: e?.response?.data?.error || "Tente novamente.",
+      });
+    } finally {
+      setSelectingId(null);
+    }
+  };
+
+  const handleConfirmCancel = async () => {
+    if (!rideId || isCancelling) return;
+    setIsCancelling(true);
+    try {
+      await rideService.cancel(rideId, "Cancelado pelo cliente no painel de ofertas.");
+      setShowCancelModal(false);
+      Toast.show({
+        type: "success",
+        text1: "Corrida Cancelada",
+        text2: "O chamado foi encerrado com sucesso.",
+      });
+      navigation.navigate("Home");
+    } catch (e: any) {
+      Toast.show({
+        type: "error",
+        text1: "Erro ao cancelar",
+        text2: e?.response?.data?.error || "Tente novamente.",
+      });
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
   return (
     <GestureHandlerRootView className="flex-1 bg-[#091A2F]">
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
@@ -285,6 +339,7 @@ export default function RideOffersMarketplaceScreen() {
         ref={bottomSheetRef}
         index={0}
         snapPoints={snapPoints}
+        onChange={(index) => setSheetIndex(index)}
         backgroundStyle={{ backgroundColor: "#0B1A2A", borderRadius: 36 }}
         handleIndicatorStyle={{ backgroundColor: "rgba(255,255,255,0.15)", width: 40, height: 5 }}
       >
@@ -382,10 +437,10 @@ export default function RideOffersMarketplaceScreen() {
         </View>
 
         {/* Section 2: Scrollable Offers Matrix 🧬 */}
-        <BottomSheetScrollView contentContainerStyle={{ padding: 24, paddingBottom: 40 }}>
+        <BottomSheetScrollView contentContainerStyle={{ padding: 24, paddingBottom: sheetIndex === 1 ? 120 : 40 }}>
           
-          {/* 💡 Dica de Aceleração de Pedido */}
-          {!loading && (
+          {/* 💡 Dica de Aceleração de Pedido (Mostrada Apenas se Estiver Vazio!) */}
+          {!loading && sortedOffers.length === 0 && (
             <MotiView 
               from={{ opacity: 0, translateY: -10 }} 
               animate={{ opacity: 1, translateY: 0 }}
@@ -439,6 +494,7 @@ export default function RideOffersMarketplaceScreen() {
                     clientBudget={Number(negotiation?.clientOffer || 0)}
                     loading={selectingId === dId}
                     onSelect={handleSelectOffer}
+                    onDecline={handleDeclineOffer}
                   />
                 );
               })
@@ -541,6 +597,66 @@ export default function RideOffersMarketplaceScreen() {
             </View>
          </View>
       </Modal>
+
+      {/* Luxury Cancel Confirmation Modal 🛑 */}
+      <Modal
+        visible={showCancelModal}
+        title="Cancelar Pedido?"
+        type="error"
+        confirmText={isCancelling ? "Cancelando..." : "Confirmar Cancelamento"}
+        onClose={() => !isCancelling && setShowCancelModal(false)}
+        onConfirm={handleConfirmCancel}
+      >
+         <View style={{ width: "100%", marginTop: 12 }}>
+            <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 13, textAlign: "center", lineHeight: 18 }}>
+               Tem certeza que deseja cancelar a sua solicitação? O chamado será encerrado e todos os entregadores próximos deixarão de ver o seu pedido.
+            </Text>
+         </View>
+      </Modal>
+
+      {/* 🛑 Fixed Root-Level Cancel Button (Hoisted beyond BottomSheet off-screen container limits!) */}
+      {/* 🛑 Fixed Root-Level Cancel Button (Permanently mounted to solve layout calculation passes) */}
+      <View
+        style={{ 
+          position: "absolute", 
+          bottom: 0, 
+          left: 0, 
+          right: 0,
+          paddingHorizontal: 24,
+          paddingBottom: Math.max(insets.bottom, 24),
+          paddingTop: 16,
+          backgroundColor: "#0B1A2A",
+          borderTopWidth: 1,
+          borderTopColor: "rgba(255,255,255,0.07)",
+          zIndex: 9999,
+          elevation: 99,
+          display: sheetIndex > 0 ? "flex" : "none",
+        }}
+      >
+         <TouchableOpacity 
+            onPress={() => setShowCancelModal(true)}
+            activeOpacity={0.85}
+            style={{ 
+               flexDirection: "row", 
+               alignItems: "center", 
+               justifyContent: "center", 
+               width: "100%",
+               height: 56,
+               borderRadius: 20,
+               backgroundColor: "#ef4444",
+               shadowColor: "#ef4444",
+               shadowOffset: { width: 0, height: 6 },
+               shadowOpacity: 0.4,
+               shadowRadius: 12,
+               elevation: 8,
+            }}
+         >
+            <Trash2 size={20} color="#fff" style={{ marginRight: 10 }} />
+            <Text style={{ color: "#fff", fontSize: 15, fontWeight: "900", letterSpacing: 1 }}>
+               CANCELAR ESTE PEDIDO
+            </Text>
+         </TouchableOpacity>
+      </View>
 
     </GestureHandlerRootView>
   );

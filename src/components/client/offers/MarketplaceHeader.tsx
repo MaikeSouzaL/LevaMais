@@ -30,37 +30,41 @@ export function MarketplaceHeader({ onBack, offerCount }: MarketplaceHeaderProps
           </BlurView>
         </TouchableOpacity>
 
-        {/* Center Title Capsule */}
-        <View className="flex-1 px-2 items-center">
+        {/* Center Title Capsule (Minimalist, clean, without background) */}
+        <View className="flex-1 px-2 items-center justify-center h-[52px]">
           <MotiView
-            from={{ opacity: 0, translateY: -10 }}
-            animate={{ opacity: 1, translateY: 0 }}
-            className="bg-[#091A2F]/85 border border-white/10 rounded-2xl px-4 py-3 shadow-xl overflow-hidden items-center w-full"
+            from={{ opacity: 0.5 }}
+            animate={{ opacity: 1 }}
+            transition={{
+              type: "timing",
+              duration: 1000,
+              loop: true,
+              repeatReverse: true
+            }}
+            className="flex-row items-center justify-center"
           >
-            <BlurView intensity={25} tint="dark" className="absolute inset-0" />
+            {/* Premium Glowing Pulsing Dot */}
+            <View className="w-1.5 h-1.5 rounded-full bg-[#02de95] mr-2 shadow-md shadow-[#02de95]" />
             
-            <Text className="text-white font-extrabold text-[15px] tracking-tight text-center leading-tight" numberOfLines={1}>
-              Mercado ao Vivo
-            </Text>
-            <Text className="text-white/60 text-[10px] font-medium text-center mt-0.5" numberOfLines={1}>
-              Escolha o melhor negócio
+            <Text className="text-white font-black text-[10px] tracking-widest uppercase" numberOfLines={1}>
+              Buscando Entregadores
             </Text>
           </MotiView>
         </View>
 
-        {/* Right Live Counter Pill */}
-        <View className="overflow-hidden rounded-2xl border border-[#02de95]/30 bg-[#091A2F]/80 shadow-lg h-[52px] min-w-[52px] items-center justify-center">
-          <BlurView intensity={30} tint="dark" className="h-full flex-row items-center justify-center px-3.5">
-            <ShoppingBag size={16} color="#02de95" />
+        {/* Right Live Counter Pill (Larger, Elevated design) 🛍️ */}
+        <View className="overflow-hidden rounded-2xl border border-[#02de95]/40 bg-[#091A2F]/80 shadow-lg shadow-[#02de95]/5 h-[52px] min-w-[64px] items-center justify-center">
+          <BlurView intensity={30} tint="dark" className="h-full flex-row items-center justify-center px-4">
+            <ShoppingBag size={19} color="#02de95" fill="rgba(2, 222, 149, 0.15)" />
             <AnimatePresence exitBeforeEnter>
               <MotiView
                 key={offerCount}
-                from={{ opacity: 0, scale: 0.5 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ type: "spring" }}
-                className="ml-1.5"
+                from={{ opacity: 0, scale: 0.5, translateY: 4 }}
+                animate={{ opacity: 1, scale: 1, translateY: 0 }}
+                transition={{ type: "spring", damping: 12 }}
+                className="ml-2"
               >
-                <Text className="text-[#02de95] font-black text-lg leading-none">
+                <Text className="text-[#02de95] font-black text-xl leading-none">
                   {offerCount}
                 </Text>
               </MotiView>

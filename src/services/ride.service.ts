@@ -405,6 +405,11 @@ class RideService {
     return response.data?.ride;
   }
 
+  async declineOffer(rideId: string, driverId: string): Promise<any> {
+    const response = await api.post(`/rides/${rideId}/offers/decline`, { driverId });
+    return response.data;
+  }
+
   /**
    * Prova de coleta (entrega)
    */
