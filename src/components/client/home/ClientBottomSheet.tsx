@@ -70,34 +70,8 @@ export const ClientBottomSheet = ({
 
         <View style={styles.divider} />
 
-        {/* 🏷️ Quick Shortcuts Horizontal */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionLabel}>Favoritos rapidos</Text>
-        </View>
-        
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false} 
-          contentContainerStyle={styles.shortcutsContainer}
-        >
-          <TouchableOpacity style={styles.pillShortcut} activeOpacity={0.7}>
-            <Home size={16} color={colors.text.tertiary} />
-            <Text style={styles.pillText}>Casa</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.pillShortcut} activeOpacity={0.7}>
-            <Briefcase size={16} color={colors.text.tertiary} />
-            <Text style={styles.pillText}>Trabalho</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={[styles.pillShortcut, { borderColor: colors.primary[500] + "40" }]} activeOpacity={0.7}>
-            <Star size={16} color={colors.primary[500]} />
-            <Text style={[styles.pillText, { color: colors.primary[500] }]}>Adicionar</Text>
-          </TouchableOpacity>
-        </ScrollView>
-
         {/* 🕒 Recent Searches / Detailed Favorites */}
-        <View style={[styles.sectionHeader, { marginTop: spacing.xl }]}>
+        <View style={styles.sectionHeader}>
           <Text style={styles.sectionLabel}>Locais recentes</Text>
         </View>
 

@@ -69,15 +69,10 @@ export function DeliverySearchBottomSheet({
 
         {/* 2 & 6. CONSOLIDATED ACTIVE NETWORK ROSTER 📡🏍️ */}
         <View className="mb-5">
-          <View className="flex-row items-center justify-between mb-1.5">
+          <View className="mb-1.5">
             <Text className="text-white/40 text-[10px] font-black uppercase tracking-widest">
               {vehicleType === "motorcycle" ? "Entregadores no Perímetro" : "Motoristas no Perímetro"}
             </Text>
-            
-            <View className="flex-row items-center bg-[#02de95]/5 border border-[#02de95]/20 px-2 py-0.5 rounded-full">
-              <View className="w-1.5 h-1.5 bg-[#02de95] rounded-full mr-1.5" />
-              <Text className="text-[#02de95] text-[8px] font-black uppercase tracking-wider">Rede Ativa</Text>
-            </View>
           </View>
 
           {/* Live Pulse integrated dynamic text feedback */}

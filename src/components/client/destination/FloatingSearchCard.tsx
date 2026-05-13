@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { View, Text, TextInput, TouchableOpacity, FlatList, ActivityIndicator, Keyboard, Modal, Alert } from "react-native";
 import { MotiView, AnimatePresence } from "moti";
 import { BlurView } from "expo-blur";
@@ -194,6 +194,35 @@ export const FloatingSearchCard = ({
     }
   };
 
+  const isOriginFavorite = favorites.some(fav => {
+    const favAddr = (fav.formattedAddress || fav.address || "").trim().toLowerCase();
+    const inpAddr = originText.trim().toLowerCase();
+    return inpAddr.length > 0 && favAddr === inpAddr;
+  });
+
+  const isDestinationFavorite = favorites.some(fav => {
+    const favAddr = (fav.formattedAddress || fav.address || "").trim().toLowerCase();
+    const inpAddr = destinationText.trim().toLowerCase();
+    return inpAddr.length > 0 && favAddr === inpAddr;
+  });
+
+  // 🧠 Smart Concatenation & Filter: Mantém favoritos visíveis no topo junto com resultados de busca!
+  const combinedList = useMemo(() => {
+    const typed = (activeField === 'origin' ? originText : destinationText) || "";
+    
+    // Se nada estiver digitado, mostra todos os favoritos
+    if (!typed.trim()) return favorites;
+
+    const term = typed.toLowerCase();
+    const filteredFavorites = favorites.filter(f => 
+      f.name.toLowerCase().includes(term) ||
+      (f.formattedAddress || f.address || "").toLowerCase().includes(term)
+    );
+
+    // Concatena os favoritos filtrados no topo e os resultados do Google logo abaixo!
+    return [...filteredFavorites, ...results];
+  }, [favorites, results, activeField, originText, destinationText]);
+
   return (
     <MotiView
       from={{ opacity: 0, translateY: -20 }}
@@ -221,7 +250,7 @@ export const FloatingSearchCard = ({
                   onChangeText={onOriginChange}
                   placeholder="Local de Coleta"
                   placeholderTextColor="rgba(255,255,255,0.35)"
-                  className="flex-1 text-white text-sm h-full p-0"
+                  className="flex-1 text-white text-sm h-full p-0 pr-4"
                   autoFocus={!originText}
                   onFocus={() => {
                      setActiveField('origin');
@@ -230,13 +259,18 @@ export const FloatingSearchCard = ({
                   returnKeyType="search"
                 />
                 
-                <View className="flex-row items-center gap-2">
+                <View className="flex-row items-center gap-2 ml-3">
                   {activeField === 'origin' && loading && <ActivityIndicator size="small" color="#02de95" />}
                   {originText.length > 0 ? (
                      <>
                        {onFavoriteOrigin && (
                           <TouchableOpacity onPress={onFavoriteOrigin} hitSlop={8}>
-                            <Heart size={15} color="#ffffff" opacity={0.35} />
+                            <Heart 
+                              size={15} 
+                              color={isOriginFavorite ? "#ef4444" : "#ffffff"} 
+                              fill={isOriginFavorite ? "#ef4444" : "transparent"}
+                              opacity={isOriginFavorite ? 1 : 0.35} 
+                            />
                           </TouchableOpacity>
                        )}
                        <TouchableOpacity onPress={() => onOriginChange("")} hitSlop={8}>
@@ -261,7 +295,7 @@ export const FloatingSearchCard = ({
                   onChangeText={onDestinationChange}
                   placeholder="Insira o destino"
                   placeholderTextColor="rgba(255,255,255,0.35)"
-                  className="flex-1 text-white text-sm h-full p-0"
+                  className="flex-1 text-white text-sm h-full p-0 pr-4"
                   onFocus={() => {
                     setActiveField('destination');
                     setShowDrop(true);
@@ -269,14 +303,19 @@ export const FloatingSearchCard = ({
                   returnKeyType="search"
                 />
                 
-                <View className="flex-row items-center gap-2">
+                <View className="flex-row items-center gap-2 ml-3">
                   {activeField === 'destination' && loading && <ActivityIndicator size="small" color="#02de95" />}
                   
                   {destinationText.length > 0 ? (
                     <>
                       {onFavoriteDestination && (
                          <TouchableOpacity onPress={onFavoriteDestination} hitSlop={8}>
-                           <Heart size={15} color="#ffffff" opacity={0.35} />
+                           <Heart 
+                             size={15} 
+                             color={isDestinationFavorite ? "#ef4444" : "#ffffff"} 
+                             fill={isDestinationFavorite ? "#ef4444" : "transparent"}
+                             opacity={isDestinationFavorite ? 1 : 0.35} 
+                           />
                          </TouchableOpacity>
                       )}
                       <TouchableOpacity onPress={() => onDestinationChange("")}>
@@ -292,9 +331,9 @@ export const FloatingSearchCard = ({
           </View>
         </View>
 
-        {/* DROPDOWN RESULTS: Suggestions OR Favorites */}
+        {/* DROPDOWN RESULTS: UNIFIED FAVORITES + GOOGLE SUGGESTIONS */}
         <AnimatePresence>
-          {showDrop && activeField && (results.length > 0 || favorites.length > 0) && (
+          {showDrop && activeField && combinedList.length > 0 && (
             <MotiView
               from={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 300 }}
@@ -309,8 +348,8 @@ export const FloatingSearchCard = ({
                 )}
                 
                 <FlatList
-                  data={results.length > 0 ? results : favorites}
-                  keyExtractor={(i: any) => i.placeId || i._id}
+                  data={combinedList}
+                  keyExtractor={(i: any, index) => (i.placeId || i._id || index.toString())}
                   keyboardShouldPersistTaps="handled"
                   ItemSeparatorComponent={() => <View className="h-[1px] bg-white/5 mx-4" />}
                   renderItem={({ item }: any) => {

@@ -53,7 +53,7 @@ export default function HomeScreen() {
   // Component States
   const [favorites, setFavorites] = useState<any[]>([]);
   const [sheetSnapIndex, setSheetSnapIndex] = useState(0);
-  const [activeQueueRideId, setActiveQueueRideId] = useState<string | null>(null);
+  const [waitingQueueCount, setWaitingQueueCount] = useState<number>(0);
   
   // Map Operational Visual States 🎨
   const [useDarkMap, setUseDarkMap] = useState(true);
@@ -67,39 +67,48 @@ export default function HomeScreen() {
 
     const checkActiveRide = async () => {
       try {
-        const res = await rideService.getActive();
+        // 1. Sincroniza a lista completa de corridas do cliente para lidar com multiplos pedidos! ⚡
+        const res = await rideService.getActiveList();
         if (!isMounted) return;
         
-        if (res?.active && res.ride) {
-          const ride = res.ride;
-          
-          // Scenario 1: Negotiations Exist -> GO TO MARKETPLACE IMMEDIATELY!
-          const offerCount = ride.negotiation?.offers?.length || 0;
+        const activeRides = res?.rides || [];
+        
+        // 2. Filtra e conta quantas estão ativamente na Fila de Espera Geral (isWaitingInQueue)
+        const queuedRides = activeRides.filter(ride => ride.isWaitingInQueue === true && ride.status === "requesting");
+        setWaitingQueueCount(queuedRides.length);
+
+        // 3. Busca um pedido primário (que NÃO esteja em fila silenciosa) para disparar redirecionamento de tela ativa
+        const primaryRide = activeRides.find(ride => !ride.isWaitingInQueue);
+
+        if (primaryRide) {
+          // Cenário A: Existem propostas ativas de motorista? VAI DIRETO AO MARKETPLACE!
+          const offerCount = primaryRide.negotiation?.offers?.length || 0;
           if (offerCount > 0) {
-             navigation.navigate("RideOffersMarketplace", { rideId: ride._id } as never);
+             navigation.navigate("RideOffersMarketplace", { rideId: primaryRide._id } as never);
              return;
           }
           
-          // Scenario 2: Driver Assigned -> GO TO TRACKING IMMEDIATELY!
-          if (ride.driverId && ["accepted", "driver_arriving", "arrived", "in_progress"].includes(ride.status)) {
+          // Cenário B: Motorista aceitou? VAI DIRETO AO TRACKING/MAPA DE CORRIDA!
+          if (primaryRide.driverId && ["accepted", "driver_arriving", "arrived", "in_progress"].includes(primaryRide.status)) {
              navigation.reset({
                index: 0,
-               routes: [{ name: "RideTracking", params: { rideId: ride._id } }],
+               routes: [{ name: "RideTracking", params: { rideId: primaryRide._id } }],
              });
              return;
           }
-          
-          // Scenario 3: Still waiting in queue -> Show Floating Banner locally on Home!
-          if (ride.status === "requesting") {
-             setActiveQueueRideId(ride._id);
-          } else {
-             setActiveQueueRideId(null);
-          }
-        } else {
-          setActiveQueueRideId(null);
         }
+
+        // Cenário C: E se algum pedido da fila de espera receber uma proposta?
+        // Devemos monitorar TODOS os pedidos na fila e pular pro Marketplace instantaneamente se o motorista ofertar!
+        const queuedWithOffers = activeRides.find(ride => (ride.negotiation?.offers?.length || 0) > 0);
+        if (queuedWithOffers) {
+           navigation.navigate("RideOffersMarketplace", { rideId: queuedWithOffers._id } as never);
+           return;
+        }
+        
       } catch (err) {
-              }
+        // Captura silenciosa de rede
+      }
     };
 
     // ⚡ Add Socket Listener to check instantaneously when backend notifies ANY update!
@@ -220,8 +229,8 @@ export default function HomeScreen() {
         currentAddress={currentAddress}
       />
 
-      {/* 🚁 Premium Background Queue Awareness Banner */}
-      {activeQueueRideId && (
+      {/* 🚁 Premium Background Queue Awareness Banner (Sempre ativo enquanto houver pedidos em espera) */}
+      {waitingQueueCount > 0 && (
         <MotiView
           from={{ opacity: 0, translateY: -20 }}
           animate={{ opacity: 1, translateY: 0 }}
@@ -229,15 +238,19 @@ export default function HomeScreen() {
         >
           <TouchableOpacity
             activeOpacity={0.9}
-            onPress={() => navigation.navigate("SearchingDriver", { rideId: activeQueueRideId } as never)}
+            onPress={() => navigation.navigate("ActiveOrders" as never)}
             className="bg-[#02de95] rounded-2xl p-4 flex-row items-center border border-white/10 shadow-xl"
           >
             <View className="bg-[#091A2F]/20 p-2 rounded-xl mr-3">
                <Info size={20} color="#091A2F" />
             </View>
             <View className="flex-1">
-               <Text className="text-[#091A2F] font-black text-sm">BUSCA EM FILA ATIVA</Text>
-               <Text className="text-[#091A2F]/80 font-bold text-xs">Toque para ver detalhes do pedido</Text>
+               <Text className="text-[#091A2F] font-black text-sm uppercase">
+                 {waitingQueueCount === 1 ? "1 Pedido em Fila" : `${waitingQueueCount} Pedidos em Fila`}
+               </Text>
+               <Text className="text-[#091A2F]/80 font-bold text-xs">
+                 {waitingQueueCount === 1 ? "Toque para ver detalhes da busca" : "Toque para acompanhar todas as buscas"}
+               </Text>
             </View>
             <View className="bg-[#091A2F] rounded-xl px-3 py-2">
                <Text className="text-white font-black text-[10px]">VER</Text>
