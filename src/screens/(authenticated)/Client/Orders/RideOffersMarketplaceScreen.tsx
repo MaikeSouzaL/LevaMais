@@ -7,7 +7,7 @@ import MapViewDirections from "react-native-maps-directions";
 import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { MotiView, AnimatePresence } from "moti";
-import { Search, AlertCircle, RefreshCw, MapPin, TrendingUp, Zap, Flame, Coins } from "lucide-react-native";
+import { Search, AlertCircle, RefreshCw, MapPin, TrendingUp, Zap, Flame, Coins, TrendingDown } from "lucide-react-native";
 
 import rideService, { RideOffer } from "@/services/ride.service";
 import { darkMapStyle } from "@/utils/mapStyle";
@@ -36,6 +36,7 @@ export default function RideOffersMarketplaceScreen() {
   
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [pendingIncrement, setPendingIncrement] = useState("5");
+  const [isSubtractMode, setIsSubtractMode] = useState(false);
 
   const [rideDetails, setRideDetails] = useState<any>(null);
   const [negotiation, setNegotiation] = useState<any>(null);
@@ -48,18 +49,38 @@ export default function RideOffersMarketplaceScreen() {
 
   const openConfirmModal = (val: number) => {
     setPendingIncrement(val > 0 ? String(val) : "");
+    setIsSubtractMode(false); // Reseta para somar ao iniciar o ajuste pelas pílulas rápidas
     setShowConfirmModal(true);
   };
 
   const handleConfirmIncrease = async () => {
     const cleanVal = pendingIncrement.replace(",", ".");
-    const numVal = parseFloat(cleanVal);
+    let numVal = parseFloat(cleanVal);
     
     if (isNaN(numVal) || numVal <= 0) {
       Toast.show({
         type: "error",
         text1: "Valor inválido",
         text2: "Por favor, informe um valor maior que zero.",
+      });
+      return;
+    }
+
+    // Se estiver marcado para subtrair, nega o valor! 📉
+    if (isSubtractMode) {
+       numVal = -numVal;
+    }
+
+    // Proteção contra redução abaixo do valor original da corrida! 🛡️
+    const currentBase = Number(negotiation?.clientOffer || 0);
+    const minFloor = Number(negotiation?.initialClientOffer || rideDetails?.pricing?.subtotal || 5.00);
+    const finalPredict = currentBase + numVal;
+
+    if (finalPredict < minFloor) {
+      Toast.show({
+        type: "error",
+        text1: "Limite Mínimo Atingido",
+        text2: `Sua proposta não pode ser menor que o valor inicial de ${formatBRL(minFloor)}.`,
       });
       return;
     }
@@ -72,7 +93,7 @@ export default function RideOffersMarketplaceScreen() {
       if (res.success) {
         Toast.show({
           type: "success",
-          text1: "Oferta Aumentada! 🚀",
+          text1: isSubtractMode ? "Oferta Reduzida! 📉" : "Oferta Aumentada! 🚀",
           text2: `Sua nova oferta base agora é ${formatBRL(res.newOffer)}!`,
         });
         await loadOffers();
@@ -80,7 +101,7 @@ export default function RideOffersMarketplaceScreen() {
     } catch (e: any) {
       Toast.show({
         type: "error",
-        text1: "Falha ao aumentar",
+        text1: "Falha ao ajustar",
         text2: e?.response?.data?.error || e?.message || "Tente novamente.",
       });
     } finally {
@@ -429,16 +450,60 @@ export default function RideOffersMarketplaceScreen() {
       
       <Modal
         visible={showConfirmModal}
-        title="Aumentar Oferta"
-        type="success"
+        title="Ajustar Oferta"
+        type="info"
         confirmText="Confirmar"
         onClose={() => setShowConfirmModal(false)}
         onConfirm={handleConfirmIncrease}
       >
          <View style={{ width: "100%", marginTop: 12, alignItems: "center" }}>
-            <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 14, marginBottom: 16, textAlign: "center", lineHeight: 20 }}>
-               Insira o valor Adicional (em Reais) que deseja somar à sua proposta base atual:
+            <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 13, marginBottom: 12, textAlign: "center", lineHeight: 18 }}>
+               Ajuste o valor da proposta base. (Valor mínimo do seu chamado: <Text style={{ color: "#fff", fontWeight: "bold" }}>{formatBRL(Number(negotiation?.initialClientOffer || rideDetails?.pricing?.subtotal || 5.00))}</Text>)
             </Text>
+
+            {/* Chaveador de Operação (Somar / Subtrair) 🧬 */}
+            <View style={{ 
+               flexDirection: "row", 
+               backgroundColor: "rgba(255,255,255,0.06)", 
+               borderRadius: 12, 
+               padding: 4, 
+               width: "100%", 
+               marginBottom: 16 
+            }}>
+               <TouchableOpacity 
+                  onPress={() => setIsSubtractMode(false)}
+                  activeOpacity={0.8}
+                  style={{ 
+                     flex: 1, 
+                     height: 40, 
+                     borderRadius: 8, 
+                     backgroundColor: !isSubtractMode ? "#02de95" : "transparent", 
+                     alignItems: "center", 
+                     justifyContent: "center", 
+                     flexDirection: "row" 
+                  }}
+               >
+                  <Zap size={13} fill={!isSubtractMode ? "#091A2F" : "rgba(255,255,255,0.5)"} color={!isSubtractMode ? "#091A2F" : "rgba(255,255,255,0.5)"} style={{ marginRight: 6 }} />
+                  <Text style={{ color: !isSubtractMode ? "#091A2F" : "rgba(255,255,255,0.5)", fontSize: 13, fontWeight: "bold" }}>Somar (+)</Text>
+               </TouchableOpacity>
+
+               <TouchableOpacity 
+                  onPress={() => setIsSubtractMode(true)}
+                  activeOpacity={0.8}
+                  style={{ 
+                     flex: 1, 
+                     height: 40, 
+                     borderRadius: 8, 
+                     backgroundColor: isSubtractMode ? "#ef4444" : "transparent", 
+                     alignItems: "center", 
+                     justifyContent: "center", 
+                     flexDirection: "row" 
+                  }}
+               >
+                  <TrendingDown size={14} color={isSubtractMode ? "#fff" : "rgba(255,255,255,0.5)"} style={{ marginRight: 6 }} />
+                  <Text style={{ color: isSubtractMode ? "#fff" : "rgba(255,255,255,0.5)", fontSize: 13, fontWeight: "bold" }}>Subtrair (-)</Text>
+               </TouchableOpacity>
+            </View>
             
             <View style={{
                width: "100%",
@@ -451,7 +516,14 @@ export default function RideOffersMarketplaceScreen() {
                paddingHorizontal: 16,
                height: 56,
             }}>
-               <Text style={{ color: "#02de95", fontSize: 18, fontWeight: "bold", marginRight: 8 }}>R$</Text>
+               <Text style={{ 
+                  color: !isSubtractMode ? "#02de95" : "#ef4444", 
+                  fontSize: 18, 
+                  fontWeight: "bold", 
+                  marginRight: 8 
+               }}>
+                  {isSubtractMode ? "- R$" : "R$"}
+               </Text>
                <TextInput
                   value={pendingIncrement}
                   onChangeText={setPendingIncrement}

@@ -805,6 +805,7 @@ class RideController {
         negotiation: {
           enabled: wantsNegotiation,
           clientOffer: wantsNegotiation ? toMoney(requestedOffer) : null,
+          initialClientOffer: wantsNegotiation ? toMoney(requestedOffer) : null,
           suggestedMinPrice: wantsNegotiation ? suggestedMinPrice : null,
           finalAgreedPrice: null,
           offers: [],
@@ -1322,6 +1323,42 @@ class RideController {
       return sendError(res, 500, "Erro ao selecionar oferta", {
         details: error.message,
       });
+    }
+  }
+
+  async declineOffer(req, res) {
+    try {
+      const { rideId } = req.params;
+      const { driverId } = req.body;
+      const clientId = String(req.user.id);
+
+      const ride = await Ride.findById(rideId);
+      if (!ride) return sendError(res, 404, "Corrida não encontrada");
+      if (String(ride.clientId) !== clientId) {
+        return sendError(res, 403, "Sem permissão para recusar esta oferta");
+      }
+
+      const offers = Array.isArray(ride.negotiation?.offers) ? ride.negotiation.offers : [];
+      const targetIndex = offers.findIndex(
+        (o) => String(o.driverId) === String(driverId)
+      );
+
+      if (targetIndex >= 0) {
+        ride.negotiation.offers[targetIndex].status = "rejected";
+        ride.negotiation.offers[targetIndex].updatedAt = new Date();
+        await ride.save();
+
+        const io = req.app.get("socketio") || req.app.get("io");
+        if (io) {
+          io.to(`client-${clientId}`).emit("ride-offers-updated", { rideId });
+          io.to(`driver-${driverId}`).emit("ride-offer-rejected-by-client", { rideId });
+        }
+      }
+
+      return res.json({ success: true, message: "Oferta recusada com sucesso." });
+    } catch (error) {
+      console.error("Erro em declineOffer:", error);
+      return sendError(res, 500, "Erro ao recusar oferta", { details: error.message });
     }
   }
 
@@ -2521,7 +2558,15 @@ class RideController {
       }
 
       const currentOffer = Number(ride.negotiation.clientOffer || ride.pricing.total || 0);
-      const newOffer = toMoney(currentOffer + Number(incrementAmount || 2));
+      
+      // Define o piso dinâmico: a oferta inicial feita ao criar o chamado! 🛡️
+      const minFloor = Number(ride.negotiation.initialClientOffer || ride.pricing.subtotal || 5.00);
+
+      const parsedInc = Number(incrementAmount);
+      const rawNewOffer = currentOffer + (isNaN(parsedInc) ? 2 : parsedInc);
+      
+      // Não permite reduzir abaixo do valor inicial em hipótese alguma!
+      const newOffer = toMoney(Math.max(minFloor, rawNewOffer));
 
       ride.negotiation.clientOffer = newOffer;
       ride.pricing.total = newOffer;
@@ -2534,21 +2579,21 @@ class RideController {
         
         const formattedVal = `R$ ${Number(newOffer).toFixed(2).replace(".", ",")}`;
         
-        // Canal global de alerta de aumento! 🔔
+        // Canal global de alerta de ajuste! 🔔
         io.emit("queue-ride-offer-increased", {
           rideId: ride._id,
           newOffer: newOffer,
-          message: `🚀 OFERTA AUMENTADA! Um pedido subiu a oferta para ${formattedVal}!`
+          message: `🚀 OFERTA ATUALIZADA! Um pedido ajustou o valor para ${formattedVal}!`
         });
         
-        // Re-despacha com alta prioridade para motoristas no raio!
+        // Re-despacha para os motoristas ativos notificando o ajuste!
         await this.dispatchRideToNearbyDrivers(ride, io);
       }
 
       return res.json({ 
         success: true, 
         newOffer, 
-        message: "Oferta aumentada com sucesso." 
+        message: "Oferta atualizada com sucesso." 
       });
 
     } catch (error) {

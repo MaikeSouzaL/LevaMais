@@ -196,6 +196,7 @@ const rideSchema = new mongoose.Schema(
     negotiation: {
       enabled: { type: Boolean, default: false },
       clientOffer: { type: Number, default: null },
+      initialClientOffer: { type: Number, default: null },
       suggestedMinPrice: { type: Number, default: null },
       finalAgreedPrice: { type: Number, default: null },
       selectedDriverId: {
