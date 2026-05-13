@@ -281,6 +281,21 @@ export default function RideOffersMarketplaceScreen() {
     }
   };
 
+  const routeColor = mapTheme === 'light' 
+    ? '#1D4ED8' 
+    : mapTheme === 'hybrid' 
+      ? '#FFEA00' 
+      : '#02de95';
+
+  const routeGlowColor = mapTheme === 'light' 
+    ? 'rgba(29, 78, 216, 0.25)'
+    : mapTheme === 'hybrid' 
+      ? 'rgba(255, 234, 0, 0.3)' 
+      : 'rgba(2, 222, 149, 0.2)';
+
+  const routeWidth = mapTheme === 'light' ? 3.5 : 2;
+  const glowWidth = mapTheme === 'light' ? 8 : 6;
+
   return (
     <GestureHandlerRootView className="flex-1 bg-[#091A2F]">
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
@@ -329,13 +344,13 @@ export default function RideOffersMarketplaceScreen() {
               <>
                 <Polyline 
                   coordinates={pathCoords} 
-                  strokeColor="rgba(2, 222, 149, 0.2)" 
-                  strokeWidth={6} 
+                  strokeColor={routeGlowColor} 
+                  strokeWidth={glowWidth} 
                 />
                 <Polyline 
                   coordinates={pathCoords} 
-                  strokeColor="#02de95" 
-                  strokeWidth={2} 
+                  strokeColor={routeColor} 
+                  strokeWidth={routeWidth} 
                   lineDashPattern={[2, 8]} 
                 />
               </>
