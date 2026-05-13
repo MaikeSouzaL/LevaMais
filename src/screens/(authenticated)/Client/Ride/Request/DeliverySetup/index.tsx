@@ -187,7 +187,11 @@ export default function DeliverySetupScreen() {
         
         <View className="h-[1px] bg-white/[0.03] w-full my-2" />
 
-        <VehicleSelector selected={vehicleType} onSelect={setVehicleType} />
+        <VehicleSelector 
+          selected={vehicleType} 
+          onSelect={setVehicleType} 
+          pickupLocation={params.pickup}
+        />
 
         <View className="h-[1px] bg-white/[0.03] w-full mb-6" />
 
