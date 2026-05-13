@@ -135,12 +135,8 @@ export const VehicleSelector = ({ selected, onSelect, pickupLocation }: VehicleS
         <Text className="text-slate-400 text-[11px] font-bold uppercase tracking-widest">Selecione o Veículo</Text>
       </View>
       
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 24, paddingVertical: 12, gap: 10 }}
-      >
-        {vehicles.map((vehicle) => {
+      <View className="px-6 py-2 flex-row justify-between">
+        {vehicles.map((vehicle, index) => {
           const isSelected = selected === vehicle.id;
           const Icon = vehicle.icon;
           const isAvailable = !hasCheckedOnline ? true : onlineTypes.has(vehicle.id);
@@ -149,9 +145,9 @@ export const VehicleSelector = ({ selected, onSelect, pickupLocation }: VehicleS
             <TouchableOpacity
               key={vehicle.id}
               activeOpacity={0.85}
+              className={`flex-1 ${index !== vehicles.length - 1 ? "mr-2" : ""}`}
               onPress={() => {
                 if (!isAvailable) {
-                  // Instantly populates and triggers dynamic rich-aesthetic UI modal!
                   setErrorModal({ visible: true, vehicleLabel: vehicle.label });
                   return;
                 }
@@ -163,41 +159,46 @@ export const VehicleSelector = ({ selected, onSelect, pickupLocation }: VehicleS
                   scale: isSelected ? 1.02 : 0.98,
                 }}
                 transition={{ type: "spring", damping: 18 }}
-                className={`w-[108px] p-3 rounded-2xl border-[1.5px] overflow-hidden relative shadow-lg shadow-black ${
+                className={`p-2 rounded-2xl border-[1.5px] items-start overflow-hidden relative shadow shadow-black ${
                   isSelected ? "border-[#02de95] bg-[#1E2D3D]" : "border-transparent bg-[#11253E]"
                 } ${!isAvailable ? "opacity-50" : "opacity-100"}`}
               >
-                {/* 🔒 Premium Frosted Amber Lock Badge */}
+                {/* 🔒 Robust absolute Lock placement at Top Right */}
                 {!isAvailable && (
-                  <MotiView 
-                    from={{ scale: 0 }} 
-                    animate={{ scale: 1 }}
-                    className="absolute top-2 right-2 bg-amber-500/20 w-5 h-5 rounded-full items-center justify-center border border-amber-500/40 shadow-sm"
+                  <View 
+                    style={{ position: "absolute", top: 5, right: 5, zIndex: 10 }}
+                    className="bg-amber-500/20 w-[18px] h-[18px] rounded-full items-center justify-center border border-amber-500/40 shadow-sm"
                   >
-                    <Lock size={9} color="#fbbf24" strokeWidth={3} />
-                  </MotiView>
+                    <MotiView from={{ scale: 0 }} animate={{ scale: 1 }}>
+                      <Lock size={8} color="#fbbf24" strokeWidth={3} />
+                    </MotiView>
+                  </View>
                 )}
 
-                <View className={`w-10 h-10 rounded-xl items-center justify-center mb-3 border ${
+                {/* 🎨 Drawing Icon framed on Left Side */}
+                <View className={`w-7 h-7 rounded-lg items-center justify-center mb-1.5 border ${
                   isSelected ? 'bg-[#02de95]/10 border-[#02de95]/30' : 
                   !isAvailable ? 'bg-white/5 border-white/5' : 'bg-[#1E2D3D] border-white/[0.03]'
                 }`}>
                   <Icon 
-                    size={20} 
+                    size={14} 
                     color={isSelected ? "#02de95" : !isAvailable ? "#475569" : "#94a3b8"} 
-                    strokeWidth={isSelected ? 2.5 : 2} 
+                    strokeWidth={2.5} 
                   />
                 </View>
 
-                <Text className={`text-sm font-bold ${isSelected ? 'text-white' : !isAvailable ? 'text-slate-400' : 'text-slate-200'}`}>
+                <Text 
+                  numberOfLines={1} 
+                  className={`text-[10px] font-extrabold text-left mb-1 ${isSelected ? 'text-white' : !isAvailable ? 'text-slate-400' : 'text-slate-200'}`}
+                >
                   {vehicle.label}
                 </Text>
-                <Text className="text-[9px] text-slate-500 font-medium mb-1.5 leading-tight" numberOfLines={1}>
-                  {vehicle.desc}
-                </Text>
 
-                <View className={`self-start px-1.5 py-0.5 rounded-md ${isSelected ? 'bg-primary/20' : !isAvailable ? 'bg-slate-800/50' : 'bg-white/10'}`}>
-                  <Text className={`text-[8.5px] font-bold ${isSelected ? 'text-primary' : !isAvailable ? 'text-slate-500' : 'text-slate-400'}`}>
+                <View className={`px-1 py-0.5 rounded-md self-stretch items-center justify-center ${isSelected ? 'bg-primary/20' : !isAvailable ? 'bg-slate-800/50' : 'bg-white/10'}`}>
+                  <Text 
+                    numberOfLines={1} 
+                    className={`text-[7.5px] font-black text-center ${isSelected ? 'text-primary' : !isAvailable ? 'text-slate-500' : 'text-slate-400'}`}
+                  >
                     {vehicle.cap}
                   </Text>
                 </View>
@@ -205,7 +206,7 @@ export const VehicleSelector = ({ selected, onSelect, pickupLocation }: VehicleS
             </TouchableOpacity>
           );
         })}
-      </ScrollView>
+      </View>
 
       {/* 💎 Custom Glassmorphic Animated Warning Modal */}
       <Modal

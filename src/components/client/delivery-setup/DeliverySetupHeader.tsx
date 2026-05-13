@@ -14,7 +14,7 @@ export const DeliverySetupHeader = () => {
       className="absolute top-0 left-0 right-0 z-[100] overflow-hidden bg-[#091A2F]" 
       style={{ paddingTop: insets.top }}
     >
-      <BlurView intensity={90} tint="dark" className="px-6 py-4 flex-row items-center bg-[#091A2F] border-b border-white/[0.05]">
+      <View className="px-6 py-4 flex-row items-center bg-[#091A2F] border-b border-white/[0.03]">
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           className="w-10 h-10 rounded-xl bg-slate-800/70 border border-white/10 items-center justify-center mr-4"
@@ -29,7 +29,7 @@ export const DeliverySetupHeader = () => {
             Escolha o veículo ideal para sua entrega.
           </Text>
         </View>
-      </BlurView>
+      </View>
     </View>
   );
 };
