@@ -50,7 +50,7 @@ export default function RideOffersMarketplaceScreen() {
   const [negotiation, setNegotiation] = useState<any>(null);
   const [offers, setOffers] = useState<RideOffer[]>([]);
   const [isCentering, setIsCentering] = useState(false);
-  const [useDarkMap, setUseDarkMap] = useState(true);
+  const [mapTheme, setMapTheme] = useState<'dark' | 'light' | 'hybrid'>('dark');
   const [isSwitchingStyle, setIsSwitchingStyle] = useState(false);
 
   const mapRef = useRef<MapView>(null);
@@ -71,7 +71,13 @@ export default function RideOffersMarketplaceScreen() {
   const handleToggleMapStyle = useCallback(() => {
     if (isSwitchingStyle) return;
     setIsSwitchingStyle(true);
-    setUseDarkMap(prev => !prev);
+    
+    setMapTheme((prev) => {
+      if (prev === 'dark') return 'light';
+      if (prev === 'light') return 'hybrid';
+      return 'dark';
+    });
+
     setTimeout(() => setIsSwitchingStyle(false), 350);
   }, [isSwitchingStyle]);
 
@@ -283,7 +289,7 @@ export default function RideOffersMarketplaceScreen() {
       <MarketplaceHeader 
         onBack={() => navigation.goBack()} 
         offerCount={sortedOffers.length} 
-        useDarkMap={useDarkMap}
+        useDarkMap={mapTheme !== 'light'}
       />
 
       {/* 🗺️ Full Screen Dynamic Topographic Map */}
@@ -291,7 +297,8 @@ export default function RideOffersMarketplaceScreen() {
         ref={mapRef}
         style={{ width, height }}
         provider={PROVIDER_GOOGLE}
-        customMapStyle={useDarkMap ? darkMapStyle : []}
+        mapType={mapTheme === 'hybrid' ? 'hybrid' : 'standard'}
+        customMapStyle={mapTheme === 'dark' ? darkMapStyle : []}
         initialRegion={pickup ? {
           latitude: pickup.latitude,
           longitude: pickup.longitude,
@@ -361,7 +368,7 @@ export default function RideOffersMarketplaceScreen() {
         onLocationPress={handleCenterOnRoute}
         onSosPress={() => navigation.navigate("ClientSafety")}
         onMapStylePress={handleToggleMapStyle}
-        useDarkMap={useDarkMap}
+        useDarkMap={mapTheme !== 'light'}
         isCentering={isCentering}
         isSwitchingStyle={isSwitchingStyle}
         topOffset={insets.top + 100}
