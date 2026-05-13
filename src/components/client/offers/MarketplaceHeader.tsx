@@ -8,9 +8,10 @@ import { MotiView, AnimatePresence } from "moti";
 interface MarketplaceHeaderProps {
   onBack: () => void;
   offerCount: number;
+  useDarkMap?: boolean;
 }
 
-export function MarketplaceHeader({ onBack, offerCount }: MarketplaceHeaderProps) {
+export function MarketplaceHeader({ onBack, offerCount, useDarkMap = true }: MarketplaceHeaderProps) {
   const insets = useSafeAreaInsets();
 
   return (
@@ -46,7 +47,10 @@ export function MarketplaceHeader({ onBack, offerCount }: MarketplaceHeaderProps
             {/* Premium Glowing Pulsing Dot */}
             <View className="w-1.5 h-1.5 rounded-full bg-[#02de95] mr-2 shadow-md shadow-[#02de95]" />
             
-            <Text className="text-white font-black text-[10px] tracking-widest uppercase" numberOfLines={1}>
+            <Text 
+              className={`${useDarkMap ? "text-white" : "text-[#091A2F]"} font-black text-[10px] tracking-widest uppercase`} 
+              numberOfLines={1}
+            >
               Buscando Entregadores
             </Text>
           </MotiView>

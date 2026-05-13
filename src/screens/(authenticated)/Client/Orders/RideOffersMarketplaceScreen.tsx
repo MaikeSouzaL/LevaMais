@@ -50,6 +50,8 @@ export default function RideOffersMarketplaceScreen() {
   const [negotiation, setNegotiation] = useState<any>(null);
   const [offers, setOffers] = useState<RideOffer[]>([]);
   const [isCentering, setIsCentering] = useState(false);
+  const [useDarkMap, setUseDarkMap] = useState(true);
+  const [isSwitchingStyle, setIsSwitchingStyle] = useState(false);
 
   const mapRef = useRef<MapView>(null);
   const bottomSheetRef = useRef<BottomSheet>(null);
@@ -65,6 +67,13 @@ export default function RideOffersMarketplaceScreen() {
     });
     setTimeout(() => setIsCentering(false), 600);
   }, [pathCoords]);
+
+  const handleToggleMapStyle = useCallback(() => {
+    if (isSwitchingStyle) return;
+    setIsSwitchingStyle(true);
+    setUseDarkMap(prev => !prev);
+    setTimeout(() => setIsSwitchingStyle(false), 350);
+  }, [isSwitchingStyle]);
 
   const openConfirmModal = (val: number) => {
     setPendingIncrement(val > 0 ? String(val) : "");
@@ -274,6 +283,7 @@ export default function RideOffersMarketplaceScreen() {
       <MarketplaceHeader 
         onBack={() => navigation.goBack()} 
         offerCount={sortedOffers.length} 
+        useDarkMap={useDarkMap}
       />
 
       {/* 🗺️ Full Screen Dynamic Topographic Map */}
@@ -281,7 +291,7 @@ export default function RideOffersMarketplaceScreen() {
         ref={mapRef}
         style={{ width, height }}
         provider={PROVIDER_GOOGLE}
-        customMapStyle={darkMapStyle}
+        customMapStyle={useDarkMap ? darkMapStyle : []}
         initialRegion={pickup ? {
           latitude: pickup.latitude,
           longitude: pickup.longitude,
@@ -346,11 +356,14 @@ export default function RideOffersMarketplaceScreen() {
         )}
       </MapView>
 
-      {/* 🛸 Floating Camera & Security Control Suite */}
+      {/* 🛸 Floating Camera, Style & Security Control Suite */}
       <FloatingActions 
         onLocationPress={handleCenterOnRoute}
         onSosPress={() => navigation.navigate("ClientSafety")}
+        onMapStylePress={handleToggleMapStyle}
+        useDarkMap={useDarkMap}
         isCentering={isCentering}
+        isSwitchingStyle={isSwitchingStyle}
         topOffset={insets.top + 100}
       />
 
