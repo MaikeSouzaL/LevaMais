@@ -57,6 +57,7 @@ export interface CreateRideRequest {
 }
 
 export interface Ride {
+  searchTimeoutSeconds?: number;
   _id: string;
   clientId: any;
   driverId?: any;

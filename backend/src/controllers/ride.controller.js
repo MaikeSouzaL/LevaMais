@@ -324,7 +324,7 @@ class RideController {
         } catch (timeoutErr) {
           console.error("Erro no timeout de cancelamento por falta de motorista:", timeoutErr);
         }
-      }, 60000); // 1 minute match for faster testing loop
+      }, (ride.searchTimeoutSeconds || 60) * 1000);
     } catch (dispatchErr) {
       console.error("Erro critico em dispatchRideToNearbyDrivers:", dispatchErr);
     }

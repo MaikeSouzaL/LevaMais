@@ -26,18 +26,28 @@ export function useRealtimeDelivery(
   
   // 🧠 Progressive Search Scaler (Keep high-end logic)
   const searchState = useMemo(() => {
-    if (secondsElapsed < 20) return { stage: "nearby" as const, radius: 2.5, label: "Busca Local" };
-    if (secondsElapsed < 60) return { stage: "expanded" as const, radius: 6.0, label: "Raio Expandido" };
-    return { stage: "regional" as const, radius: 12.0, label: "Busca Regional" };
-  }, [secondsElapsed]);
+    // 💎 Definição de raios progressivos customizados por categoria de veículo
+    const radiusConfig: Record<string, { nearby: number; expanded: number; regional: number }> = {
+      motorcycle: { nearby: 2.5, expanded: 8.0, regional: 15.0 },
+      car: { nearby: 5.0, expanded: 15.0, regional: 30.0 },
+      van: { nearby: 10.0, expanded: 35.0, regional: 80.0 },
+      truck: { nearby: 15.0, expanded: 80.0, regional: 200.0 },
+    };
+
+    const active = radiusConfig[type] || radiusConfig.motorcycle;
+
+    if (secondsElapsed < 20) return { stage: "nearby" as const, radius: active.nearby, label: "Busca Local" };
+    if (secondsElapsed < 60) return { stage: "expanded" as const, radius: active.expanded, label: "Raio Expandido" };
+    return { stage: "regional" as const, radius: active.regional, label: "Busca Regional" };
+  }, [secondsElapsed, type]);
 
   // 📡 Production Grade Polling Loop: Fetches REAL coordinates from DB
   useEffect(() => {
     if (!centerLat || !centerLng) return;
 
     // Helper to pluralize display tags
-    const label = type === "motorcycle" ? "motoboy" : type === "car" ? "carro" : type === "van" ? "van" : "caminhão";
-    const plural = type === "motorcycle" ? "motoboys" : type === "car" ? "carros" : type === "van" ? "vans" : "caminhões";
+    const label = type === "motorcycle" ? "motoboy" : type === "car" ? "carro" : type === "van" ? "van" : "frete";
+    const plural = type === "motorcycle" ? "motoboys" : type === "car" ? "carros" : type === "van" ? "vans" : "fretes";
 
     const fetchRealNearbyDrivers = async () => {
       try {

@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import { View, Text, TouchableOpacity, ActivityIndicator, StatusBar } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import Toast from "react-native-toast-message";
-import MapView, { PROVIDER_GOOGLE, Marker } from "react-native-maps";
+import MapView, { PROVIDER_GOOGLE, Marker, Circle } from "react-native-maps";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { MotiView } from "moti";
 import { AlertTriangle, RefreshCcw, Home, Settings, Info, Clock } from "lucide-react-native";
@@ -19,7 +19,7 @@ import { DeliverySearchBottomSheet } from "@/components/client/searching-deliver
 import { useRealtimeDelivery } from "@/hooks/useRealtimeDelivery";
 import {Modal} from "@/components/Modal";
 
-const SEARCH_TIME = 30; // Max extended search loop (1 minute for testing)
+const SEARCH_TIME = 60; // Tempo de busca padrão caso o banco de dados venha vazio (60 segundos)
 const TERMINAL_CANCEL_STATUSES = [
   "cancelled",
   "cancelled_by_client",
@@ -78,31 +78,40 @@ export default function SearchingDriverScreen() {
       try {
         const data = await rideService.getById(rideId);
         setRideData(data);
+        // ⏱️ Sincronização Vital: Seta a contagem regressiva inicial EXATAMENTE com o tempo configurado no banco!
+        if (data?.searchTimeoutSeconds && secondsElapsed === 0) {
+          setSecondsLeft(data.searchTimeoutSeconds);
+        }
       } catch (e) {
               }
     };
     fetchRide();
   }, [rideId]);
 
-  // 🎥 CINEMATIC AUTO-ZOOM ENTRY EFFECT 
-  // Moves the camera from close-up to a broad urban view automatically
+  // 🎥 DYNAMIC AUTO-ZOOM & LOGARITHMIC RADIUS EXPANSION
+  // Whenever the search radius increases, the camera smoothly floats up to fit the entire radius circle!
   useEffect(() => {
-    if (!pickupCoords) return;
+    if (!pickupCoords || !mapRef.current) return;
     
+    // 🧠 Cálculo logarítmico preciso de Nível de Zoom baseado no raio dinâmico da busca!
+    // Base: Raio de 2.5km mapeia para o zoom ideal 14.2. Para cada dobra do raio, diminuímos 1 nível de zoom.
+    const radiusKm = searchState.radius;
+    const dynamicZoom = 13.5 - Math.log2(radiusKm / 2.5);
+
     const timer = setTimeout(() => {
       mapRef.current?.animateCamera({
         center: {
           latitude: pickupCoords.latitude,
           longitude: pickupCoords.longitude,
         },
-        zoom: 14, // Higher altitude for massive urban grid look
-        pitch: 35, // Slight isometric tech tilt
+        zoom: Math.max(2, Math.min(20, dynamicZoom)), // Proteção matemática de limites
+        pitch: 35, // Mantém o belíssimo visual técnico 3D inclinado!
         heading: 0,
-      }, { duration: 4500 }); // Ultra-smooth cinematic 4.5 second drift
-    }, 1500);
+      }, { duration: 3000 }); // 3 segundos de flutuação super suave e premium
+    }, 200);
 
     return () => clearTimeout(timer);
-  }, [!!pickupCoords]);
+  }, [searchState.radius, !!pickupCoords]);
 
   const driverFoundCallback = useCallback(
     (data: any) => {
@@ -138,6 +147,10 @@ export default function SearchingDriverScreen() {
       cleanup();
       if (data?.reason === "todos_recusaram") {
         setAllDriversRejected(true);
+        setTimeoutState(true);
+        return;
+      }
+      if (data?.reason === "no_driver_found" || data?.reason === "tempo_limite_esgotado") {
         setTimeoutState(true);
         return;
       }
@@ -315,7 +328,7 @@ export default function SearchingDriverScreen() {
     setTimeoutState(false);
     setAllDriversRejected(false);
     setWaitingInQueue(false);
-    setSecondsLeft(SEARCH_TIME);
+    setSecondsLeft(rideData?.searchTimeoutSeconds || SEARCH_TIME);
     doneRef.current = false;
     setSearchCycle((prev) => prev + 1);
     cleanup();
@@ -444,6 +457,7 @@ export default function SearchingDriverScreen() {
         customMapStyle={darkMapStyle}
         pitchEnabled={false}
         rotateEnabled={false}
+        mapPadding={{ top: 110, right: 0, bottom: 390, left: 0 }}
         initialRegion={pickupCoords ? {
           latitude: pickupCoords.latitude,
           longitude: pickupCoords.longitude,
@@ -464,6 +478,19 @@ export default function SearchingDriverScreen() {
             >
               <RadarScanner size={500} />
             </Marker>
+
+            {/* Visual Pulse Search Radius Circle 🟢 */}
+            <Circle
+              center={{ 
+                latitude: pickupCoords.latitude, 
+                longitude: pickupCoords.longitude 
+              }}
+              radius={searchState.radius * 1000}
+              fillColor="rgba(2, 222, 149, 0.06)" 
+              strokeColor="rgba(2, 222, 149, 0.35)" 
+              strokeWidth={1.8}
+              zIndex={1}
+            />
 
             {/* Simulated Realtime Nearby Layer 🛰️ */}
             <NearbyDriversLayer drivers={drivers} />

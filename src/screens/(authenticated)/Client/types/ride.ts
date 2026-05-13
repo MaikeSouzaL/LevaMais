@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Tipos do modulo Client para corridas.
  */
 
@@ -86,6 +86,7 @@ export interface RideOffer {
 }
 
 export interface Ride {
+  searchTimeoutSeconds?: number;
   id: string;
   status: RideStatus;
   vehicleType: VehicleType;

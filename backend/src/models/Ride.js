@@ -313,6 +313,10 @@ const rideSchema = new mongoose.Schema(
       type: Number,
       default: 60,
     },
+    searchTimeoutSeconds: {
+      type: Number,
+      default: 60,
+    },
   },
   {
     timestamps: true,
