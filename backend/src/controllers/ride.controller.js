@@ -2502,6 +2502,60 @@ class RideController {
       return sendError(res, 500, "Erro ao aceitar corrida agendada", { details: error.message });
     }
   }
+
+  async increaseOffer(req, res) {
+    try {
+      const { rideId } = req.params;
+      const { incrementAmount } = req.body;
+      
+      const io = req.app.get("socketio");
+
+      const ride = await Ride.findById(rideId).populate("clientId");
+      if (!ride) {
+        return sendError(res, 404, "Corrida não encontrada.");
+      }
+
+      // Valida se ainda está em negociação e permite aumento
+      if (!ride.negotiation || !ride.negotiation.enabled || ["accepted", "driver_arriving", "arrived", "in_progress", "completed", "cancelled"].includes(ride.status)) {
+        return sendError(res, 400, "Não é possível alterar a oferta desta corrida agora.");
+      }
+
+      const currentOffer = Number(ride.negotiation.clientOffer || ride.pricing.total || 0);
+      const newOffer = toMoney(currentOffer + Number(incrementAmount || 2));
+
+      ride.negotiation.clientOffer = newOffer;
+      ride.pricing.total = newOffer;
+      
+      await ride.save();
+
+      // Disparos em tempo real via sockets e push! ✨🏎️
+      if (io) {
+        io.to(`ride_${rideId}`).emit("ride-status-updated", ride);
+        
+        const formattedVal = `R$ ${Number(newOffer).toFixed(2).replace(".", ",")}`;
+        
+        // Canal global de alerta de aumento! 🔔
+        io.emit("queue-ride-offer-increased", {
+          rideId: ride._id,
+          newOffer: newOffer,
+          message: `🚀 OFERTA AUMENTADA! Um pedido subiu a oferta para ${formattedVal}!`
+        });
+        
+        // Re-despacha com alta prioridade para motoristas no raio!
+        await this.dispatchRideToNearbyDrivers(ride, io);
+      }
+
+      return res.json({ 
+        success: true, 
+        newOffer, 
+        message: "Oferta aumentada com sucesso." 
+      });
+
+    } catch (error) {
+      console.error("Erro em increaseOffer:", error);
+      return sendError(res, 500, "Erro interno ao aumentar oferta", { details: error.message });
+    }
+  }
 }
 
 function buildRideRequestPayload(ride, extras = {}) {

@@ -22,6 +22,7 @@ router.post("/:rideId/reject", rideController.reject);
 router.get("/:rideId/offers", rideController.listOffers);
 router.post("/:rideId/offers/respond", rideController.submitOfferResponse);
 router.post("/:rideId/offers/select", rideController.selectOffer);
+router.post("/:rideId/offers/increase", rideController.increaseOffer);
 
 // Cancelar corrida
 router.post("/:rideId/cancel", rideController.cancel);

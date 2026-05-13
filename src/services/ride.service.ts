@@ -465,6 +465,14 @@ class RideService {
     const response = await api.post(`/rides/${rideId}/queue`);
     return response.data;
   }
+
+  /**
+   * Aumentar oferta base do cliente para atrair motoristas ✨💸
+   */
+  async increaseOffer(rideId: string, incrementAmount: number = 2): Promise<any> {
+    const response = await api.post(`/rides/${rideId}/offers/increase`, { incrementAmount });
+    return response.data;
+  }
 }
 
 export default new RideService();

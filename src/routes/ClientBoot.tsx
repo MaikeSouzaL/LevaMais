@@ -121,7 +121,13 @@ export default function ClientBoot() {
         if (!mounted) return;
 
         if (res?.active && res.ride?._id) {
-          setInitialRideId(res.ride._id);
+          const ride = res.ride;
+          // Só pula direto para o mapa de rastreio se já tiver um motorista aceito e em execução!
+          // Se ainda estiver na fila (requesting), deixa abrir na Home para exibir o banner inteligente!
+          const activeTrackingStatuses = ["accepted", "driver_arriving", "arrived", "in_progress"];
+          if (ride.driverId && activeTrackingStatuses.includes(ride.status)) {
+            setInitialRideId(res.ride._id);
+          }
         }
       } catch {
         // silencioso

@@ -18,39 +18,39 @@ export function MarketplaceHeader({ onBack, offerCount }: MarketplaceHeaderProps
       className="absolute top-0 left-0 right-0 z-50 px-5"
       style={{ paddingTop: insets.top + 12 }}
     >
-      <View className="flex-row items-start justify-between">
+      <View className="flex-row items-center justify-between">
         {/* Back Circle Glass */}
         <TouchableOpacity 
           onPress={onBack}
           className="overflow-hidden rounded-2xl border border-white/10 bg-[#091A2F]/80 shadow-lg h-[52px] w-[52px] items-center justify-center"
           activeOpacity={0.85}
         >
-          <BlurView intensity={30} tint="dark" className="flex-1 w-full h-full items-center justify-center">
+          <BlurView intensity={30} tint="dark" className="w-full h-full items-center justify-center">
             <ChevronLeft color="#FFF" size={24} />
           </BlurView>
         </TouchableOpacity>
 
         {/* Center Title Capsule */}
-        <View className="flex-1 px-4 items-center">
+        <View className="flex-1 px-2 items-center">
           <MotiView
             from={{ opacity: 0, translateY: -10 }}
             animate={{ opacity: 1, translateY: 0 }}
-            className="bg-[#091A2F]/85 border border-white/10 rounded-2xl px-5 py-3 shadow-xl overflow-hidden items-center w-full"
+            className="bg-[#091A2F]/85 border border-white/10 rounded-2xl px-4 py-3 shadow-xl overflow-hidden items-center w-full"
           >
             <BlurView intensity={25} tint="dark" className="absolute inset-0" />
             
-            <Text className="text-white font-extrabold text-lg tracking-tight text-center">
+            <Text className="text-white font-extrabold text-[15px] tracking-tight text-center leading-tight" numberOfLines={1}>
               Mercado ao Vivo
             </Text>
-            <Text className="text-white/60 text-xs font-medium text-center">
+            <Text className="text-white/60 text-[10px] font-medium text-center mt-0.5" numberOfLines={1}>
               Escolha o melhor negócio
             </Text>
           </MotiView>
         </View>
 
         {/* Right Live Counter Pill */}
-        <View className="overflow-hidden rounded-2xl border border-[#02de95]/30 bg-[#091A2F]/80 shadow-lg h-[52px] px-3 items-center justify-center">
-          <BlurView intensity={30} tint="dark" className="flex-1 flex-row items-center justify-center w-full space-x-2">
+        <View className="overflow-hidden rounded-2xl border border-[#02de95]/30 bg-[#091A2F]/80 shadow-lg h-[52px] min-w-[52px] items-center justify-center">
+          <BlurView intensity={30} tint="dark" className="h-full flex-row items-center justify-center px-3.5">
             <ShoppingBag size={16} color="#02de95" />
             <AnimatePresence exitBeforeEnter>
               <MotiView
@@ -60,7 +60,7 @@ export function MarketplaceHeader({ onBack, offerCount }: MarketplaceHeaderProps
                 transition={{ type: "spring" }}
                 className="ml-1.5"
               >
-                <Text className="text-[#02de95] font-black text-lg">
+                <Text className="text-[#02de95] font-black text-lg leading-none">
                   {offerCount}
                 </Text>
               </MotiView>
