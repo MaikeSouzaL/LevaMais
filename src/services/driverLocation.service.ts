@@ -20,6 +20,7 @@ export type UpdateDriverLocationRequest = {
   vehicleType: DriverVehicleType;
   vehicle?: DriverVehicleInfo;
   serviceTypes?: Array<"ride" | "delivery">;
+  searchRadiusKm?: number;
 };
 
 class DriverLocationService {
@@ -38,6 +39,7 @@ class DriverLocationService {
     acceptingRides?: boolean;
     serviceTypes?: Array<"ride" | "delivery">;
     onlineSessionStart?: string;
+    searchRadiusKm?: number;
   }) {
     const res = await api.patch("/driver-location/status", data);
     return res.data;

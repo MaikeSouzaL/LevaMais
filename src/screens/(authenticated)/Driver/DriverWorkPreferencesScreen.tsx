@@ -15,12 +15,24 @@ type DriverWorkPreferences = {
   ride: boolean;
   delivery: boolean;
   autoAccept: boolean;
+  searchRadiusKm: number;
+  vehicleType?: string;
+};
+
+// Limites dinâmicos de raio baseados no tipo de veículo do motorista
+const DYNAMIC_RADIUS_LIMITS: Record<string, { label: string; max: number; step: number; defaultVal: number; desc: string }> = {
+  motorcycle: { label: "Moto", max: 25, step: 1, defaultVal: 8, desc: "Alcance ultra rápido e focado na vizinhança." },
+  car: { label: "Carro", max: 50, step: 1, defaultVal: 15, desc: "Cobre toda a região metropolitana de forma flexível." },
+  van: { label: "Van", max: 150, step: 5, defaultVal: 40, desc: "Excelente cobertura regional, cobrindo cidades próximas." },
+  truck: { label: "Frete / Caminhão", max: 300, step: 5, defaultVal: 100, desc: "Máxima cobertura de longo alcance para viagens interestaduais." },
 };
 
 const INITIAL_STATE: DriverWorkPreferences = {
   ride: true,
   delivery: true,
   autoAccept: false,
+  searchRadiusKm: 15,
+  vehicleType: "motorcycle",
 };
 
 export default function DriverWorkPreferencesScreen() {
@@ -44,6 +56,8 @@ export default function DriverWorkPreferencesScreen() {
 
           const parsed = stored ? JSON.parse(stored) : {};
           const serviceTypes = Array.isArray(me?.serviceTypes) ? me.serviceTypes : [];
+          const vehicleType = me?.vehicleType || "motorcycle";
+          const limitConfig = DYNAMIC_RADIUS_LIMITS[vehicleType] || DYNAMIC_RADIUS_LIMITS.motorcycle;
 
           setPrefs({
             ride:
@@ -58,6 +72,12 @@ export default function DriverWorkPreferencesScreen() {
               typeof parsed.autoAccept === "boolean"
                 ? parsed.autoAccept
                 : INITIAL_STATE.autoAccept,
+            // 💎 O Raio de Busca e o Veículo NUNCA usam local storage! São 100% lidos do Banco de Dados via API (me)!
+            searchRadiusKm: 
+              typeof me?.searchRadiusKm === "number" 
+                ? Math.min(me.searchRadiusKm, limitConfig.max) 
+                : limitConfig.defaultVal,
+            vehicleType,
           });
         } catch {
           if (!mounted) return;
@@ -75,7 +95,7 @@ export default function DriverWorkPreferencesScreen() {
     if (!hasAnyService) {
       Toast.show({
         type: "error",
-        text1: "Ative pelo menos 1 servico",
+        text1: "Ative pelo menos 1 serviço",
         text2: "Corridas ou entregas precisam ficar ativas.",
       });
       return;
@@ -87,17 +107,25 @@ export default function DriverWorkPreferencesScreen() {
       if (prefs.ride) serviceTypes.push("ride");
       if (prefs.delivery) serviceTypes.push("delivery");
 
+      // 💾 Persistência Híbrida Inteligente:
+      // - Toggles visuais no AsyncStorage
+      // - Toggles e o Raio de Coleta mandatoriamente salvos no Banco de Dados do Servidor!
       await Promise.all([
-        AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(prefs)),
+        AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({
+          ride: prefs.ride,
+          delivery: prefs.delivery,
+          autoAccept: prefs.autoAccept,
+        })),
         driverLocationService.setStatus({
           status: "offline",
           serviceTypes,
+          searchRadiusKm: prefs.searchRadiusKm,
         }),
       ]);
 
       Toast.show({
         type: "success",
-        text1: "Preferencias salvas",
+        text1: "Preferências salvas no servidor",
       });
     } catch (e: any) {
       Toast.show({
@@ -110,8 +138,12 @@ export default function DriverWorkPreferencesScreen() {
     }
   };
 
+  const currentVehicle = prefs.vehicleType || "motorcycle";
+  const currentLimitConfig = DYNAMIC_RADIUS_LIMITS[currentVehicle] || DYNAMIC_RADIUS_LIMITS.motorcycle;
+
   return (
-    <DriverScreen title="Preferencias de trabalho" scroll hideHeader={true}>
+    <DriverScreen title="Preferências de trabalho" scroll hideHeader={true}>
+      {/* Card 1: Toggles de Serviços */}
       <SectionCard>
         <SettingRow
           title="Aceitar corridas"
@@ -122,33 +154,140 @@ export default function DriverWorkPreferencesScreen() {
         <View style={{ height: 10 }} />
         <SettingRow
           title="Aceitar entregas"
-          subtitle="Pedidos de comercios e clientes"
+          subtitle="Pedidos de comércios e clientes"
           value={prefs.delivery}
           onChange={(value) => setPrefs((prev) => ({ ...prev, delivery: value }))}
         />
         <View style={{ height: 10 }} />
         <SettingRow
-          title="Aceite automatico"
+          title="Aceite automático"
           subtitle="Receber corridas sem confirmar manualmente (modo beta)"
           value={prefs.autoAccept}
           onChange={(value) => setPrefs((prev) => ({ ...prev, autoAccept: value }))}
         />
       </SectionCard>
 
+      {/* Card 2: Raio de Busca Dinâmico (Mapeado 100% com o Banco de Dados) */}
+      <SectionCard>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <Text style={{ color: "#fff", fontWeight: "900" }}>Raio Máximo de Coleta</Text>
+          <View style={{ backgroundColor: 'rgba(2,222,149,0.18)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(2,222,149,0.25)' }}>
+            <Text style={{ color: '#02de95', fontWeight: '900', fontSize: 13 }}>{prefs.searchRadiusKm} KM</Text>
+          </View>
+        </View>
+
+        <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12, lineHeight: 17, marginBottom: 15 }}>
+          Ajuste a distância em linha reta que você quer percorrer para buscar o cliente. Seu limite máximo é customizado para seu veículo: <Text style={{ color: '#fff', fontWeight: '800' }}>{currentLimitConfig.label}</Text>.
+        </Text>
+
+        {/* Nosso Slider customizado puro, neon e fluido sem dependências externas! */}
+        <CustomRangeSlider 
+          value={prefs.searchRadiusKm}
+          min={1}
+          max={currentLimitConfig.max}
+          step={currentLimitConfig.step}
+          onChange={(val) => setPrefs(prev => ({ ...prev, searchRadiusKm: val }))}
+        />
+
+        <View style={{ backgroundColor: 'rgba(255,255,255,0.04)', padding: 12, borderRadius: 10, marginTop: 15, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' }}>
+          <Text style={{ color: '#02de95', fontSize: 11, fontWeight: '900', textTransform: 'uppercase', marginBottom: 3, letterSpacing: 0.5 }}>Configuração de Cobertura</Text>
+          <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, lineHeight: 17 }}>
+            {currentLimitConfig.desc} Você ficará visível para chamados a até <Text style={{ fontWeight: 'bold', color: '#fff' }}>{prefs.searchRadiusKm}km</Text> de você.
+          </Text>
+        </View>
+      </SectionCard>
+
       <SectionCard>
         <Text style={{ color: "rgba(255,255,255,0.7)", lineHeight: 20 }}>
-          As preferencias de servico sao aplicadas quando voce ficar online.
-          Mantemos ao menos um tipo de servico ativo para continuar recebendo chamadas.
+          As preferências de raio e serviços são atualizadas instantaneamente em nosso servidor e refletidas no mapa dos clientes.
         </Text>
       </SectionCard>
 
       <ActionButton
-        title={loading ? "Salvando..." : "Salvar preferencias"}
+        title={loading ? "Salvando..." : "Salvar preferências"}
         variant="primary"
         onPress={save}
         disabled={loading}
       />
     </DriverScreen>
+  );
+}
+
+// Elemento de Slider Customizado e Responsivo em JavaScript Puro! 🏎️✨
+function CustomRangeSlider(props: {
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  onChange: (val: number) => void;
+}) {
+  const [trackWidth, setTrackWidth] = useState(0);
+  
+  const handleTouch = (evt: any) => {
+    if (trackWidth === 0) return;
+    const x = evt.nativeEvent.locationX;
+    let pct = Math.max(0, Math.min(1, x / trackWidth));
+    const rawVal = props.min + pct * (props.max - props.min);
+    
+    // Arredondamento matemático pelo degrau (step)
+    const steppedVal = Math.round(rawVal / props.step) * props.step;
+    const finalVal = Math.max(props.min, Math.min(props.max, steppedVal));
+    props.onChange(finalVal);
+  };
+
+  const percent = Math.max(0, Math.min(100, ((props.value - props.min) / (props.max - props.min)) * 100));
+
+  return (
+    <View style={{ width: '100%', marginTop: 6, marginBottom: 4 }}>
+      <View
+        onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
+        onStartShouldSetResponder={() => true}
+        onMoveShouldSetResponder={() => true}
+        onResponderGrant={handleTouch}
+        onResponderMove={handleTouch}
+        style={{ height: 38, justifyContent: 'center' }}
+      >
+        {/* Trilho Principal (Track Back) */}
+        <View style={{ height: 6, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 3, position: 'relative' }}>
+          
+          {/* Preenchimento do Progresso (Neon Green Track) */}
+          <View style={{ 
+            height: 6, 
+            width: `${percent}%`, 
+            backgroundColor: '#02de95', 
+            borderRadius: 3, 
+            position: 'absolute', 
+            left: 0, 
+            top: 0 
+          }} />
+          
+          {/* Botão Deslizante (Thumb) com Borda de Vidro e Sombra Brilhante */}
+          <View style={{ 
+            position: 'absolute', 
+            left: `${percent}%`, 
+            top: -8, 
+            marginLeft: -11,
+            width: 22, 
+            height: 22, 
+            borderRadius: 11, 
+            backgroundColor: '#ffffff',
+            borderWidth: 3.5,
+            borderColor: '#02de95',
+            shadowColor: '#02de95',
+            shadowOffset: { width: 0, height: 0 },
+            shadowOpacity: 0.7,
+            shadowRadius: 6,
+            elevation: 6
+          }} />
+        </View>
+      </View>
+      
+      {/* Legendas das Extremidades */}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 }}>
+        <Text style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, fontWeight: '800' }}>{props.min} km</Text>
+        <Text style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, fontWeight: '800' }}>{props.max} km</Text>
+      </View>
+    </View>
   );
 }
 

@@ -73,6 +73,7 @@ class DriverLocationController {
         vehicleType,
         vehicle,
         serviceTypes,
+        searchRadiusKm,
       } = req.body;
 
       const latValue = parseCoordinate(latitude, -90, 90);
@@ -121,6 +122,13 @@ class DriverLocationController {
       if (speedValue !== undefined) updatePayload.speed = speedValue;
       if (vehicle && typeof vehicle === "object") updatePayload.vehicle = vehicle;
       if (normalizedServiceTypes) updatePayload.serviceTypes = normalizedServiceTypes;
+      
+      if (searchRadiusKm !== undefined && searchRadiusKm !== null) {
+        const radiusVal = Number(searchRadiusKm);
+        if (Number.isFinite(radiusVal) && radiusVal >= 1 && radiusVal <= 300) {
+          updatePayload.searchRadiusKm = radiusVal;
+        }
+      }
 
       const driverLocation = await DriverLocation.findOneAndUpdate(
         { driverId },
@@ -364,7 +372,7 @@ class DriverLocationController {
       }
 
       const driverId = req.user.id;
-      const { status, serviceTypes } = req.body;
+      const { status, serviceTypes, searchRadiusKm } = req.body;
 
       const normalizedStatus = normalizeStatus(status);
       if (!normalizedStatus) {
@@ -381,6 +389,12 @@ class DriverLocationController {
       };
       if (normalizedServiceTypes) {
         updatePayload.serviceTypes = normalizedServiceTypes;
+      }
+      if (searchRadiusKm !== undefined && searchRadiusKm !== null) {
+        const radiusVal = Number(searchRadiusKm);
+        if (Number.isFinite(radiusVal) && radiusVal >= 1 && radiusVal <= 300) {
+          updatePayload.searchRadiusKm = radiusVal;
+        }
       }
 
       const driverLocation = await DriverLocation.findOneAndUpdate(

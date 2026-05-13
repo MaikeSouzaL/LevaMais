@@ -73,6 +73,11 @@ const driverLocationSchema = new mongoose.Schema(
       enum: ["ride", "delivery"],
       default: ["ride", "delivery"],
     },
+    // Raio máximo configurado pelo motorista (KM)
+    searchRadiusKm: {
+      type: Number,
+      default: 15,
+    },
   },
   {
     timestamps: true,
@@ -93,25 +98,47 @@ driverLocationSchema.pre("save", function (next) {
 driverLocationSchema.statics.findNearby = async function (
   latitude,
   longitude,
-  maxDistance = 5000, // 5km
+  maxDistance = 5000, 
   vehicleType,
   limit = 10,
   serviceType,
 ) {
-  return this.find({
-    location: {
-      $near: {
-        $geometry: {
+  const pipeline = [
+    {
+      $geoNear: {
+        near: {
           type: "Point",
           coordinates: [longitude, latitude],
         },
-        $maxDistance: maxDistance,
+        distanceField: "calculatedDistance", 
+        maxDistance: Math.max(maxDistance, 300000), 
+        spherical: true,
+        query: {
+          status: "available",
+          ...(vehicleType && { vehicleType }),
+          ...(serviceType && { serviceTypes: serviceType }),
+        },
       },
     },
-    status: "available", // Motorista deve estar online e disponível
-    ...(vehicleType && { vehicleType }),
-    ...(serviceType && { serviceTypes: serviceType }),
-  }).limit(limit);
+    {
+      $addFields: {
+        driverMaxRangeMeters: { 
+          $multiply: [ { $ifNull: ["$searchRadiusKm", 15] }, 1000 ] 
+        }
+      }
+    },
+    {
+      $match: {
+        $expr: {
+          $lte: ["$calculatedDistance", "$driverMaxRangeMeters"]
+        }
+      }
+    },
+    { $limit: limit }
+  ];
+
+  const results = await this.aggregate(pipeline);
+  return results.map(doc => this.hydrate(doc));
 };
 
 // Método para calcular distância até um ponto
