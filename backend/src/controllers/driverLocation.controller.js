@@ -164,8 +164,23 @@ class DriverLocationController {
             };
           }
 
-          // Se mudou o dia no fuso UTC/ISO, reseta o acumulador
+          // Se mudou o dia no fuso UTC/ISO!
           if (user.onlineStats.activeDateStr !== todayStr) {
+            // 💾 SALVAR ARQUIVO HISTÓRICO DO DIA QUE ACABOU!
+            try {
+              const DriverDailyStats = require("../models/DriverDailyStats");
+              await DriverDailyStats.findOneAndUpdate(
+                { driverId, dateStr: user.onlineStats.activeDateStr },
+                {
+                  $set: { totalSeconds: user.onlineStats.totalSecondsToday || 0 },
+                },
+                { upsert: true, new: true }
+              );
+            } catch (archiveErr) {
+              console.error("Falha ao arquivar estatísticas diárias no updateLocation:", archiveErr);
+            }
+
+            // Reseta acumulador para o novo dia
             user.onlineStats.totalSecondsToday = 0;
             user.onlineStats.lastHeartbeatAt = new Date();
             user.onlineStats.activeDateStr = todayStr;
@@ -394,8 +409,23 @@ class DriverLocationController {
             };
           }
 
-          // Se mudou o dia no fuso UTC/ISO, reseta o acumulador
+          // Se mudou o dia no fuso UTC/ISO!
           if (user.onlineStats.activeDateStr !== todayStr) {
+            // 💾 SALVAR ARQUIVO HISTÓRICO DO DIA QUE ACABOU!
+            try {
+              const DriverDailyStats = require("../models/DriverDailyStats");
+              await DriverDailyStats.findOneAndUpdate(
+                { driverId, dateStr: user.onlineStats.activeDateStr },
+                {
+                  $set: { totalSeconds: user.onlineStats.totalSecondsToday || 0 },
+                },
+                { upsert: true, new: true }
+              );
+            } catch (archiveErr) {
+              console.error("Falha ao arquivar estatísticas diárias no updateStatus:", archiveErr);
+            }
+
+            // Reseta acumulador para o novo dia
             user.onlineStats.totalSecondsToday = 0;
             user.onlineStats.lastHeartbeatAt = new Date();
             user.onlineStats.activeDateStr = todayStr;
