@@ -26,7 +26,7 @@ const DEFAULT_VEHICLES: VehicleTypeConfig[] = [
   { id: "motorcycle", label: "Moto", desc: "Entregas rápidas", cap: "Até 20kg", icon: Bike },
   { id: "car", label: "Carro", desc: "Pequenos volumes", cap: "Até 100kg", icon: Car },
   { id: "van", label: "Van", desc: "Cargas médias", cap: "Até 800kg", icon: Truck },
-  { id: "truck", label: "Caminhão", desc: "Grandes fretes", cap: "Até 3 ton", icon: Container },
+  { id: "truck", label: "Frete", desc: "Grandes fretes", cap: "Até 3 ton", icon: Container },
 ];
 
 interface VehicleSelectorProps {
@@ -75,7 +75,7 @@ export const VehicleSelector = ({ selected, onSelect, pickupLocation }: VehicleS
 
           return {
             id: normalizedId,
-            label: v.label || v.name || defaultMatch?.label || "",
+            label: normalizedId === "truck" ? "Frete" : (v.label || v.name || defaultMatch?.label || ""),
             desc: v.description || v.desc || defaultMatch?.desc || "",
             cap: v.capacity || v.cap || defaultMatch?.cap || "",
             icon: ICON_MAP[normalizedId] || defaultMatch?.icon || Car,
@@ -141,11 +141,16 @@ export const VehicleSelector = ({ selected, onSelect, pickupLocation }: VehicleS
           const Icon = vehicle.icon;
           const isAvailable = !hasCheckedOnline ? true : onlineTypes.has(vehicle.id);
 
+          const cleanCap = vehicle.cap.replace(/até\s+/gi, '').trim();
+          const capParts = cleanCap.match(/^(\d+)\s*(.*)$/i);
+          const capVal = capParts ? capParts[1] : cleanCap;
+          const capUnit = capParts ? capParts[2] : "";
+
           return (
             <TouchableOpacity
               key={vehicle.id}
               activeOpacity={0.85}
-              className={`flex-1 ${index !== vehicles.length - 1 ? "mr-2" : ""}`}
+              className={`flex-1 ${index !== vehicles.length - 1 ? "mr-1.5" : ""}`}
               onPress={() => {
                 if (!isAvailable) {
                   setErrorModal({ visible: true, vehicleLabel: vehicle.label });
@@ -194,12 +199,18 @@ export const VehicleSelector = ({ selected, onSelect, pickupLocation }: VehicleS
                   {vehicle.label}
                 </Text>
 
-                <View className={`px-1 py-0.5 rounded-md self-stretch items-center justify-center ${isSelected ? 'bg-primary/20' : !isAvailable ? 'bg-slate-800/50' : 'bg-white/10'}`}>
+                <View className={`px-2 py-1 rounded-lg w-full items-start justify-center ${isSelected ? 'bg-primary/15 border border-primary/20' : !isAvailable ? 'bg-slate-800/40 border border-white/5' : 'bg-white/5 border border-white/[0.03]'}`}>
+                  <Text 
+                    className={`text-[1px] font-black text-left opacity-85 tracking-[0.5px] ${isSelected ? 'text-primary' : !isAvailable ? 'text-slate-500' : 'text-slate-400'}`}
+                  >
+                    Até
+                  </Text>
+                  
                   <Text 
                     numberOfLines={1} 
-                    className={`text-[7.5px] font-black text-center ${isSelected ? 'text-primary' : !isAvailable ? 'text-slate-500' : 'text-slate-400'}`}
+                    className={`text-[11.5px] font-black text-left uppercase tracking-tight ${isSelected ? 'text-primary' : !isAvailable ? 'text-slate-500' : 'text-slate-200'}`}
                   >
-                    {vehicle.cap}
+                    {capVal}{capUnit}
                   </Text>
                 </View>
               </MotiView>
