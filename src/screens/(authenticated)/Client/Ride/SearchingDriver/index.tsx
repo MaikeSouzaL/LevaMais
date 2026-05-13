@@ -304,11 +304,22 @@ export default function SearchingDriverScreen() {
   const handleCancel = async () => {
     if (cancelling) return;
     setCancelling(true);
+    
+    // 🧠 Se o pedido já atingiu um estado terminal no servidor (Timeout, Rejeitado por todos, ou Fila Encerrada),
+    // a corrida já está inativa no banco. Não chamamos a API para evitar erros desnecessários de HTTP 400!
+    const isAlreadyTerminated = timeout || queueCancelled || allDriversRejected;
+
     try {
-      await rideService.cancel(rideId, "Cancelado pelo cliente durante busca");
+      if (!isAlreadyTerminated) {
+        await rideService.cancel(rideId, "Cancelado pelo cliente durante busca");
+      }
+      
       doneRef.current = true;
       cleanup();
-      Toast.show({ type: "info", text1: "Solicitação cancelada com sucesso." });
+      
+      if (!isAlreadyTerminated) {
+        Toast.show({ type: "info", text1: "Solicitação cancelada com sucesso." });
+      }
       navigation.reset({
         index: 1,
         routes: [

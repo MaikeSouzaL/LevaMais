@@ -67,44 +67,43 @@ export function DeliverySearchBottomSheet({
           radius={searchState.radius} 
         />
 
-        {/* 2. Dynamic Live Pulse Banner */}
-        <View className="bg-[#02de95]/10 border border-[#02de95]/20 rounded-2xl p-4 flex-row items-center mb-5">
-          <View className="w-10 h-10 bg-[#02de95]/20 rounded-full items-center justify-center mr-4">
-             <Radar size={20} color="#02de95" />
-          </View>
-          <View className="flex-1">
-            <Text className="text-[#02de95] text-[10px] font-black uppercase tracking-widest mb-1">
-              Status da Rede
-            </Text>
-            <AnimatePresence exitBeforeEnter>
-              <MotiView
-                key={feedMessage}
-                from={{ opacity: 0, translateY: 5 }}
-                animate={{ opacity: 1, translateY: 0 }}
-                exit={{ opacity: 0, translateY: -5 }}
-                transition={{ type: "timing", duration: 300 }}
-              >
-                <Text className="text-white font-semibold text-sm leading-tight" numberOfLines={1}>
-                  {feedMessage}
-                </Text>
-              </MotiView>
-            </AnimatePresence>
-          </View>
-        </View>
-
-        {/* 6. Premium Dynamic Driver List Roster (Vertical Stack) 🏍️ */}
-        {drivers.length > 0 && (
-          <View className="mb-5">
-            <Text className="text-white/40 text-[10px] font-black uppercase tracking-widest mb-3">
+        {/* 2 & 6. CONSOLIDATED ACTIVE NETWORK ROSTER 📡🏍️ */}
+        <View className="mb-5">
+          <View className="flex-row items-center justify-between mb-1.5">
+            <Text className="text-white/40 text-[10px] font-black uppercase tracking-widest">
               {vehicleType === "motorcycle" ? "Entregadores no Perímetro" : "Motoristas no Perímetro"}
             </Text>
-            {drivers.map((driver, index) => (
+            
+            <View className="flex-row items-center bg-[#02de95]/5 border border-[#02de95]/20 px-2 py-0.5 rounded-full">
+              <View className="w-1.5 h-1.5 bg-[#02de95] rounded-full mr-1.5" />
+              <Text className="text-[#02de95] text-[8px] font-black uppercase tracking-wider">Rede Ativa</Text>
+            </View>
+          </View>
+
+          {/* Live Pulse integrated dynamic text feedback */}
+          <AnimatePresence exitBeforeEnter>
+            <MotiView
+              key={feedMessage}
+              from={{ opacity: 0, translateY: 5 }}
+              animate={{ opacity: 1, translateY: 0 }}
+              exit={{ opacity: 0, translateY: -5 }}
+              transition={{ type: "timing", duration: 300 }}
+              className="mb-4"
+            >
+              <Text className="text-white font-bold text-sm opacity-90 leading-tight">
+                {feedMessage}
+              </Text>
+            </MotiView>
+          </AnimatePresence>
+
+          {drivers.length > 0 ? (
+            drivers.map((driver, index) => (
               <MotiView
                 key={driver.id || index}
                 from={{ opacity: 0, translateY: 10 }}
                 animate={{ opacity: 1, translateY: 0 }}
                 transition={{ delay: index * 80, type: "spring", damping: 15 }}
-                className="bg-white/[0.03] border border-white/5 rounded-3xl p-4 w-full flex-row items-center mb-3"
+                className="bg-white/[0.03] border border-white/5 rounded-3xl p-4 w-full flex-row items-center mb-3 shadow-sm"
               >
                 {/* 1. Left side: Beautiful Avatar LED Badge */}
                 <View className="relative mr-4">
@@ -155,9 +154,16 @@ export function DeliverySearchBottomSheet({
                   </View>
                 </View>
               </MotiView>
-            ))}
-          </View>
-        )}
+            ))
+          ) : (
+            <View className="bg-white/[0.015] border border-dashed border-white/10 rounded-3xl p-6 items-center justify-center mb-2">
+              <Radar size={22} color="#02de95" opacity={0.4} />
+              <Text className="text-white/30 text-xs font-semibold mt-3 text-center">
+                Buscando conexões próximas...
+              </Text>
+            </View>
+          )}
+        </View>
 
         {/* 3. Conditional AI Persuasion Engine 🤖💡 */}
         <AnimatePresence>

@@ -28,6 +28,10 @@ const platformConfigSchema = new mongoose.Schema(
     queueRedispatchInterval: {
       type: Number,
       default: 60 // segundos entre reenvios da fila de espera
+    },
+    rideSearchTimeoutSeconds: {
+      type: Number,
+      default: 60 // tempo de busca padrao em segundos
     }
   },
   {

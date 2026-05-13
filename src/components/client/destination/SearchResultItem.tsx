@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
-import { MapPin, History, ArrowRight } from "lucide-react-native";
+import { MapPin, History, ArrowRight, Edit3, Trash2 } from "lucide-react-native";
 
 interface SearchResultItemProps {
   mainText: string;
@@ -8,6 +8,8 @@ interface SearchResultItemProps {
   distance?: string;
   isHistory?: boolean;
   onPress: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
 }
 
 export const SearchResultItem = ({
@@ -16,6 +18,8 @@ export const SearchResultItem = ({
   distance,
   isHistory = true,
   onPress,
+  onEdit,
+  onDelete,
 }: SearchResultItemProps) => {
   return (
     <TouchableOpacity
@@ -41,7 +45,30 @@ export const SearchResultItem = ({
         <Text className="text-slate-400 text-xs mt-0.5" numberOfLines={1}>{secondaryText}</Text>
       </View>
 
-      <ArrowRight size={16} color="rgba(255, 255, 255, 0.15)" />
+      {onEdit || onDelete ? (
+        <View className="flex-row items-center">
+          {onEdit && (
+            <TouchableOpacity 
+              onPress={onEdit} 
+              className="p-2 bg-white/5 rounded-lg mr-1.5 active:bg-white/10 border border-white/5"
+              hitSlop={10}
+            >
+              <Edit3 size={14} color="#38bdf8" />
+            </TouchableOpacity>
+          )}
+          {onDelete && (
+            <TouchableOpacity 
+              onPress={onDelete} 
+              className="p-2 bg-red-500/10 rounded-lg active:bg-red-500/20 border border-red-500/10"
+              hitSlop={10}
+            >
+              <Trash2 size={14} color="#f87171" />
+            </TouchableOpacity>
+          )}
+        </View>
+      ) : (
+        <ArrowRight size={16} color="rgba(255, 255, 255, 0.15)" />
+      )}
     </TouchableOpacity>
   );
 };

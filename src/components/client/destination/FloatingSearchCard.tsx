@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, TextInput, TouchableOpacity, FlatList, ActivityIndicator, Keyboard } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, FlatList, ActivityIndicator, Keyboard, Modal, Alert } from "react-native";
 import { MotiView, AnimatePresence } from "moti";
 import { BlurView } from "expo-blur";
-import { Navigation, MapPin, X, Search, Heart } from "lucide-react-native";
+import { Navigation, MapPin, X, Search, Heart, Trash2, AlertTriangle } from "lucide-react-native";
 import googlePlacesService, { PlaceAutocompleteResult, PlaceDetails } from "@/services/googlePlaces.service";
 import favoriteAddressService, { FavoriteAddress } from "@/services/favoriteAddress.service";
 import { SearchResultItem } from "./SearchResultItem";
@@ -36,9 +36,27 @@ export const FloatingSearchCard = ({
   
   // 🔥 Dynamic Favorites Loading
   const [favorites, setFavorites] = useState<FavoriteAddress[]>([]);
+
+  // ✍️ Edição & Exclusão Suporte Dinâmico
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editingFav, setEditingFav] = useState<FavoriteAddress | null>(null);
+  const [editingName, setEditingName] = useState("");
+  const [editingAddress, setEditingAddress] = useState("");
+  
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [deletingFav, setDeletingFav] = useState<FavoriteAddress | null>(null);
+  
+  const [isActionLoading, setIsActionLoading] = useState(false);
+
+  const refreshFavorites = async () => {
+    try {
+      const data = await favoriteAddressService.list();
+      setFavorites(data || []);
+    } catch (e) {}
+  };
   
   useEffect(() => {
-    favoriteAddressService.list().then(data => setFavorites(data || [])).catch(() => {});
+    refreshFavorites();
     
     // 🔥 AUTO-FOCUS TRIGGER ON MOUNT IF EMPTY
     if (!originText) {
@@ -123,6 +141,57 @@ export const FloatingSearchCard = ({
       latitude: Number(fav.latitude),
       longitude: Number(fav.longitude)
     });
+  };
+
+  const handleDeleteFavorite = (fav: FavoriteAddress) => {
+    setDeletingFav(fav);
+    setDeleteModalVisible(true);
+  };
+
+  const confirmDeleteFavorite = async () => {
+    if (!deletingFav) return;
+    setIsActionLoading(true);
+    try {
+      await favoriteAddressService.delete(deletingFav._id);
+      setDeleteModalVisible(false);
+      setDeletingFav(null);
+      refreshFavorites();
+    } catch (e) {
+      Alert.alert("Erro", "Não foi possível excluir o favorito.");
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  const handleTriggerEdit = (fav: FavoriteAddress) => {
+    setEditingFav(fav);
+    setEditingName(fav.name);
+    setEditingAddress(fav.formattedAddress || fav.address || "");
+    setEditModalVisible(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingFav) return;
+    if (!editingName.trim() || !editingAddress.trim()) {
+      Alert.alert("Atenção", "Insira dados válidos nos dois campos.");
+      return;
+    }
+
+    setIsActionLoading(true);
+    try {
+      await favoriteAddressService.update(editingFav._id, { 
+        name: editingName.trim(),
+        address: editingAddress.trim(),
+        formattedAddress: editingAddress.trim()
+      });
+      setEditModalVisible(false);
+      setEditingFav(null);
+      refreshFavorites();
+    } catch (e) {
+      Alert.alert("Erro", "Não foi possível salvar a alteração.");
+    } finally {
+      setIsActionLoading(false);
+    }
   };
 
   return (
@@ -252,6 +321,8 @@ export const FloatingSearchCard = ({
                         secondaryText={isFav ? (item.formattedAddress || item.address) : item.secondaryText}
                         isHistory={isFav}
                         onPress={() => isFav ? handleSelectFavorite(item) : handleSelect(item)}
+                        onEdit={isFav ? () => handleTriggerEdit(item) : undefined}
+                        onDelete={isFav ? () => handleDeleteFavorite(item) : undefined}
                       />
                     );
                   }}
@@ -261,6 +332,134 @@ export const FloatingSearchCard = ({
           )}
         </AnimatePresence>
       </View>
+
+      {/* ✍️ MODAL DE EDICÃO DE FAVORITOS PREMIUM */}
+      <Modal
+        visible={editModalVisible}
+        animationType="fade"
+        transparent={true}
+        statusBarTranslucent
+        onRequestClose={() => setEditModalVisible(false)}
+      >
+        <View style={{ backgroundColor: 'rgba(0,0,0,0.65)' }} className="flex-1 justify-center items-center px-6">
+          <View className="bg-[#091A2F] border border-white/10 rounded-3xl w-full overflow-hidden shadow-2xl max-w-xs">
+            {/* Neon Bar Accent */}
+            <View className="h-[3px] w-full bg-[#02de95]" />
+            
+            <View className="p-5">
+              <Text className="text-white text-base font-black mb-1">
+                Editar Favorito
+              </Text>
+              <Text className="text-white/50 text-xs mb-4 leading-tight">
+                Modifique as informações deste local.
+              </Text>
+              
+              {/* Apelido Field */}
+              <Text className="text-white/40 text-[9px] font-black uppercase tracking-wider mb-1.5 ml-1">
+                Nome / Apelido
+              </Text>
+              <View className="h-11 bg-white/5 border border-white/10 rounded-xl flex-row items-center px-3 mb-3">
+                <TextInput
+                  value={editingName}
+                  onChangeText={setEditingName}
+                  placeholder="Ex: Minha Casa, Trabalho..."
+                  placeholderTextColor="rgba(255,255,255,0.25)"
+                  className="flex-1 text-white text-sm font-bold h-full p-0"
+                  autoFocus
+                />
+              </View>
+
+              {/* Endereço Field */}
+              <Text className="text-white/40 text-[9px] font-black uppercase tracking-wider mb-1.5 ml-1">
+                Endereço Completo
+              </Text>
+              <View className="h-16 bg-white/5 border border-white/10 rounded-xl px-3 py-2 mb-5">
+                <TextInput
+                  value={editingAddress}
+                  onChangeText={setEditingAddress}
+                  placeholder="Rua, Número, Bairro..."
+                  placeholderTextColor="rgba(255,255,255,0.25)"
+                  className="flex-1 text-white text-xs font-semibold h-full p-0"
+                  multiline
+                  numberOfLines={2}
+                  textAlignVertical="top"
+                />
+              </View>
+              
+              <View className="flex-row items-center gap-2">
+                <TouchableOpacity 
+                  onPress={() => setEditModalVisible(false)}
+                  className="flex-1 h-10 bg-white/5 border border-white/5 rounded-xl items-center justify-center"
+                >
+                  <Text className="text-white/60 font-bold text-xs">Voltar</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  onPress={handleSaveEdit}
+                  disabled={isActionLoading}
+                  className="flex-1 h-10 bg-[#02de95] rounded-xl items-center justify-center shadow-lg shadow-[#02de95]/20"
+                >
+                  {isActionLoading ? (
+                    <ActivityIndicator size="small" color="#091A2F" />
+                  ) : (
+                    <Text className="text-[#091A2F] font-extrabold text-xs">Salvar</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 🔥 MODAL DE EXCLUSÃO DE FAVORITOS PREMIUM */}
+      <Modal
+        visible={deleteModalVisible}
+        animationType="fade"
+        transparent={true}
+        statusBarTranslucent
+        onRequestClose={() => setDeleteModalVisible(false)}
+      >
+        <View style={{ backgroundColor: 'rgba(0,0,0,0.7)' }} className="flex-1 justify-center items-center px-6">
+          <View className="bg-[#091A2F] border border-white/10 rounded-3xl w-full overflow-hidden shadow-2xl max-w-xs">
+            {/* Red Neon Bar Accent */}
+            <View className="h-[3px] w-full bg-[#ef4444]" />
+            
+            <View className="p-5 items-center">
+              <View className="w-12 h-12 bg-[#ef4444]/10 border border-[#ef4444]/20 rounded-full items-center justify-center mb-3">
+                <Trash2 size={20} color="#ef4444" />
+              </View>
+
+              <Text className="text-white text-base font-black mb-1 text-center">
+                Excluir Favorito
+              </Text>
+              <Text className="text-white/60 text-xs mb-5 text-center leading-relaxed px-1">
+                Tem certeza que deseja remover "<Text className="text-white font-extrabold">{deletingFav?.name}</Text>" dos favoritos?
+              </Text>
+              
+              <View className="flex-row items-center gap-2 w-full">
+                <TouchableOpacity 
+                  onPress={() => setDeleteModalVisible(false)}
+                  className="flex-1 h-10 bg-white/5 border border-white/5 rounded-xl items-center justify-center"
+                >
+                  <Text className="text-white/60 font-bold text-xs">Voltar</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  onPress={confirmDeleteFavorite}
+                  disabled={isActionLoading}
+                  className="flex-1 h-10 bg-[#ef4444] rounded-xl items-center justify-center shadow-lg shadow-[#ef4444]/20"
+                >
+                  {isActionLoading ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text className="text-white font-extrabold text-xs">Excluir</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </MotiView>
   );
 };

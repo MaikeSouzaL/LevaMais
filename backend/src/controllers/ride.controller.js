@@ -794,10 +794,11 @@ class RideController {
         pickup,
         dropoff,
         pricing: safePricing,
-        splitDetails, // Novo campo
+        splitDetails,
         distance,
         duration,
         details,
+        searchTimeoutSeconds: config.rideSearchTimeoutSeconds || 60,
         status: isScheduledForFuture(scheduledDate) ? "scheduled" : "requesting",
         requestedAt: new Date(),
         scheduledFor: scheduledDate || undefined,
@@ -808,7 +809,7 @@ class RideController {
           finalAgreedPrice: null,
           offers: [],
         },
-        cityId: cityId, // Importante salvar a cidade
+        cityId: cityId,
         promotion: appliedPromotion
           ? {
               promotionId: appliedPromotion._id,
