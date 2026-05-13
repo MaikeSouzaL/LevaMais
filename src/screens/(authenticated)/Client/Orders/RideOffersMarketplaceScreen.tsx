@@ -96,7 +96,9 @@ export default function RideOffersMarketplaceScreen() {
   const { drivers } = useRealtimeDelivery(
     pickup?.latitude,
     pickup?.longitude,
-    rideDetails?.vehicleType || "motorcycle"
+    rideDetails?.vehicleType || "motorcycle",
+    0,
+    rideDetails?.serviceType || "ride"
   );
 
   const sortedOffers = useMemo(() => {

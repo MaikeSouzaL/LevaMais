@@ -14,12 +14,12 @@ export const DestinationHeader = () => {
       from={{ opacity: 0, translateY: -20 }}
       animate={{ opacity: 1, translateY: 0 }}
       transition={{ type: "timing", duration: 400 }}
-      className="flex-row items-center px-6 z-[100]"
-      style={{ paddingTop: insets.top + 16 }}
+      className="flex-row items-center px-6 pb-5 z-[100] bg-[#091A2F] border-b border-white/10 shadow-xl"
+      style={{ paddingTop: insets.top + 12 }}
     >
       <TouchableOpacity
         onPress={() => navigation.goBack()}
-        className="w-10 h-10 rounded-xl bg-slate-800/70 border border-white/10 items-center justify-center mr-4"
+        className="w-10 h-10 rounded-xl bg-white/10 border border-white/10 items-center justify-center mr-4"
         activeOpacity={0.7}
       >
         <ArrowLeft size={22} color="#fff" />

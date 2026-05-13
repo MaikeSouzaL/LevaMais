@@ -71,9 +71,10 @@ class ConfigService {
       { id: 'large_box', name: 'Caixa Grande', maxWeight: 30, icon: 'package' },
     ],
     deliveryVehicles: [
-      { id: 'bicicleta', name: 'Bicicleta', maxWeight: 2, costPerKm: 0.5, icon: 'bike' },
-      { id: 'moto', name: 'Moto', maxWeight: 5, costPerKm: 1.0, icon: 'scooter' },
-      { id: 'carro', name: 'Carro', maxWeight: 30, costPerKm: 2.0, icon: 'car' },
+      { id: 'motorcycle', name: 'Moto', maxWeight: 5, costPerKm: 1.0, icon: 'scooter' },
+      { id: 'car', name: 'Carro', maxWeight: 30, costPerKm: 2.0, icon: 'car' },
+      { id: 'van', name: 'Van', maxWeight: 800, costPerKm: 3.5, icon: 'van' },
+      { id: 'truck', name: 'Caminhão', maxWeight: 3000, costPerKm: 5.0, icon: 'truck' },
     ],
     cancelReasons: [
       { id: 'not_found', label: 'Endereço não encontrado', category: 'driver' as const },

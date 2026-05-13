@@ -21,7 +21,7 @@ const mapDarkStyle = [
 
 interface RealtimeVehicle {
   id: string;
-  type: "car" | "moto";
+  type: "car" | "motorcycle";
   lat: number;
   lng: number;
   rotation: number;
@@ -32,13 +32,15 @@ interface ClientRealtimeMapProps {
   region: any;
   userRegion: any;
   onRegionChangeComplete: (r: any) => void;
+  useDarkStyle?: boolean;
 }
 
 export const ClientRealtimeMap = memo(({
   mapRef,
   region,
   userRegion,
-  onRegionChangeComplete
+  onRegionChangeComplete,
+  useDarkStyle = true,
 }: ClientRealtimeMapProps) => {
 
   const [vehicles, setVehicles] = useState<RealtimeVehicle[]>([]);
@@ -50,9 +52,9 @@ export const ClientRealtimeMap = memo(({
     // Gerador deterministico inicial baseado na lat do usuario
     const initialVehicles: RealtimeVehicle[] = [
       { id: "v1", type: "car", lat: userRegion.latitude + 0.002, lng: userRegion.longitude + 0.002, rotation: 45 },
-      { id: "v2", type: "moto", lat: userRegion.latitude - 0.0025, lng: userRegion.longitude + 0.001, rotation: 120 },
+      { id: "v2", type: "motorcycle", lat: userRegion.latitude - 0.0025, lng: userRegion.longitude + 0.001, rotation: 120 },
       { id: "v3", type: "car", lat: userRegion.latitude + 0.001, lng: userRegion.longitude - 0.003, rotation: 270 },
-      { id: "v4", type: "moto", lat: userRegion.latitude - 0.0015, lng: userRegion.longitude - 0.002, rotation: 200 },
+      { id: "v4", type: "motorcycle", lat: userRegion.latitude - 0.0015, lng: userRegion.longitude - 0.002, rotation: 200 },
     ];
     setVehicles(initialVehicles);
 
@@ -72,10 +74,11 @@ export const ClientRealtimeMap = memo(({
   return (
     <View style={StyleSheet.absoluteFill}>
       <MapView
+        key={useDarkStyle ? "client-dark" : "client-light"}
         ref={mapRef}
         provider={PROVIDER_GOOGLE}
         style={StyleSheet.absoluteFill}
-        customMapStyle={mapDarkStyle}
+        customMapStyle={useDarkStyle ? mapDarkStyle : []}
         initialRegion={region}
         showsUserLocation={false} // Usamos nosso marker custom para controle visual total
         showsCompass={false}
@@ -112,7 +115,7 @@ export const ClientRealtimeMap = memo(({
                 transition={{ loop: true, duration: 1500, type: "timing" }}
                 style={[
                   styles.vehicleIconContainer,
-                  { backgroundColor: vehicle.type === "moto" ? colors.info : colors.primary[500] }
+                  { backgroundColor: vehicle.type === "motorcycle" ? colors.info : colors.primary[500] }
                 ]}
               >
                 {vehicle.type === "car" ? (

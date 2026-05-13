@@ -1,11 +1,12 @@
 import React, { useMemo } from "react";
-import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, Text, TouchableOpacity, ActivityIndicator, ScrollView, Image } from "react-native";
 import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
-import { XCircle, Radar, MapPin, Package, DollarSign, Clock, Route } from "lucide-react-native";
+import { XCircle, Radar, MapPin, Package, DollarSign, Clock, Route, User, Star } from "lucide-react-native";
 import { MotiView, AnimatePresence } from "moti";
 
 import { SearchStageIndicator } from "./SearchStageIndicator";
 import { AISuggestionCard } from "./AISuggestionCard";
+import { NearbyDriver } from "@/hooks/useRealtimeDelivery";
 
 interface DeliverySearchBottomSheetProps {
   feedMessage: string;
@@ -19,6 +20,7 @@ interface DeliverySearchBottomSheetProps {
   secondsElapsed: number;
   distanceText?: string;
   durationText?: string;
+  drivers?: NearbyDriver[];
 }
 
 export function DeliverySearchBottomSheet({
@@ -32,11 +34,12 @@ export function DeliverySearchBottomSheet({
   searchState,
   secondsElapsed,
   distanceText,
-  durationText
+  durationText,
+  drivers = []
 }: DeliverySearchBottomSheetProps) {
   
   // Expanded height dynamic snap points for scrolling capability 🚀
-  const snapPoints = useMemo(() => ["40%", "75%"], []);
+  const snapPoints = useMemo(() => ["48%", "80%"], []);
 
   const vehicleLabel = useMemo(() => {
     const map: Record<string, string> = {
@@ -89,6 +92,73 @@ export function DeliverySearchBottomSheet({
           </View>
         </View>
 
+        {/* 6. Premium Dynamic Driver List Roster (Vertical Stack) 🏍️ */}
+        {drivers.length > 0 && (
+          <View className="mb-5">
+            <Text className="text-white/40 text-[10px] font-black uppercase tracking-widest mb-3">
+              {vehicleType === "motorcycle" ? "Entregadores no Perímetro" : "Motoristas no Perímetro"}
+            </Text>
+            {drivers.map((driver, index) => (
+              <MotiView
+                key={driver.id || index}
+                from={{ opacity: 0, translateY: 10 }}
+                animate={{ opacity: 1, translateY: 0 }}
+                transition={{ delay: index * 80, type: "spring", damping: 15 }}
+                className="bg-white/[0.03] border border-white/5 rounded-3xl p-4 w-full flex-row items-center mb-3"
+              >
+                {/* 1. Left side: Beautiful Avatar LED Badge */}
+                <View className="relative mr-4">
+                  {driver.profilePhoto ? (
+                    <Image 
+                      source={{ uri: driver.profilePhoto }} 
+                      className="w-14 h-14 rounded-full border border-white/10" 
+                    />
+                  ) : (
+                    <View className="w-14 h-14 bg-white/10 rounded-full items-center justify-center border border-white/5">
+                      <User size={24} color="#FFF" opacity={0.5} />
+                    </View>
+                  )}
+                  {/* Visual status matching map logic */}
+                  <View 
+                    className="absolute bottom-0 right-0 w-4 h-4 rounded-full border-2 border-[#0B1523]"
+                    style={{ backgroundColor: driver.isUnavailable ? "#FBBF24" : "#02de95" }}
+                  />
+                </View>
+
+                {/* 2. Center: Content Info Layer */}
+                <View className="flex-1 justify-center">
+                  <Text className="text-white font-bold text-base mb-1">
+                    {driver.name || "Piloto"}
+                  </Text>
+
+                  <View className="flex-row items-center">
+                    {/* Star pill */}
+                    <View className="flex-row items-center bg-white/5 px-2.5 py-1 rounded-lg border border-white/10 mr-2">
+                      <Star size={11} color="#FBBF24" fill="#FBBF24" className="mr-1.5" />
+                      <Text className="text-white/80 text-[11px] font-black">
+                        {Number(driver.rating || 5.0).toFixed(1)}
+                      </Text>
+                    </View>
+
+                    {/* Text Pill matching standard colors */}
+                    <View 
+                      className="px-2.5 py-1 rounded-lg"
+                      style={{ backgroundColor: driver.isUnavailable ? "rgba(251,191,36,0.1)" : "rgba(2,222,149,0.1)" }}
+                    >
+                      <Text 
+                        className="text-[9px] font-black uppercase tracking-widest"
+                        style={{ color: driver.isUnavailable ? "#FBBF24" : "#02de95" }}
+                      >
+                        {driver.isUnavailable ? "Indisponível" : "Disponível"}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              </MotiView>
+            ))}
+          </View>
+        )}
+
         {/* 3. Conditional AI Persuasion Engine 🤖💡 */}
         <AnimatePresence>
            {showAISuggestion && (
@@ -97,23 +167,23 @@ export function DeliverySearchBottomSheet({
         </AnimatePresence>
 
         {/* 4. Core Information Grid */}
-        <View className="flex-row space-x-4 mb-5 items-stretch h-[82px]">
-          <View className="flex-1 bg-white/[0.03] border border-white/10 rounded-2xl p-4 justify-between mr-3">
-            <Text className="text-white/40 text-[10px] font-bold uppercase">Veículo</Text>
+        <View className="flex-row gap-3 mb-5 items-stretch h-[64px]">
+          <View className="flex-1 bg-white/[0.03] border border-white/10 rounded-2xl p-3 justify-between">
+            <Text className="text-white/40 text-[9px] font-bold uppercase">Veículo</Text>
             <View className="flex-row items-center">
-               <Package size={15} color="#FFF" className="mr-2 opacity-70" />
-               <Text className="text-white font-bold text-base" numberOfLines={1}>{vehicleLabel}</Text>
+               <Package size={13} color="#FFF" className="mr-1.5 opacity-70" />
+               <Text className="text-white font-bold text-sm" numberOfLines={1}>{vehicleLabel}</Text>
             </View>
           </View>
 
-          <View className="flex-1 bg-white/[0.03] border border-white/10 rounded-2xl p-4 justify-between">
-            <Text className="text-white/40 text-[10px] font-bold uppercase">Sua Oferta</Text>
+          <View className="flex-1 bg-white/[0.03] border border-white/10 rounded-2xl p-3 justify-between">
+            <Text className="text-white/40 text-[9px] font-bold uppercase">Sua Oferta</Text>
             <View className="flex-row items-center">
-               <DollarSign size={16} color="#02de95" className="mr-1" />
-               <Text className="text-[#02de95] font-black text-2xl">
+               <DollarSign size={14} color="#02de95" className="mr-0.5" />
+               <Text className="text-[#02de95] font-black text-base">
                  {offerValue.toFixed(0)}
                </Text>
-               <Text className="text-[#02de95]/70 font-bold text-xs ml-0.5 mt-1">,00</Text>
+               <Text className="text-[#02de95]/70 font-bold text-[10px] ml-0.5 mt-0.5">,00</Text>
             </View>
           </View>
         </View>
@@ -152,6 +222,8 @@ export function DeliverySearchBottomSheet({
              </View>
           </View>
         </View>
+
+
       </BottomSheetScrollView>
 
       {/* 🛡️ FIXED ACTION BAR: Always visible button, no scrolling required */}

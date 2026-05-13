@@ -779,6 +779,8 @@ export default function DriverHomeScreen() {
           status: "available",
           serviceTypes: currentServiceTypesFrom(nextServices),
         });
+        // ⚡ Sincronizar chamadas disponíveis imediatamente para capturar pedidos compatíveis da fila!
+        await syncAvailableRequests();
       } catch {}
     }
   };

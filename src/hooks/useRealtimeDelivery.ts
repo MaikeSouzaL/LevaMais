@@ -3,18 +3,23 @@ import rideService from "@/services/ride.service";
 
 export interface NearbyDriver {
   id: string;
+  name?: string;
+  profilePhoto?: string | null;
+  rating?: number;
   latitude: number;
   longitude: number;
   vehicleType: string;
   rotation?: number;
   status?: "scanning" | "analyzing" | "idle";
+  isUnavailable?: boolean; // Flagado se não aceitar o tipo de serviço atual!
 }
 
 export function useRealtimeDelivery(
   centerLat?: number, 
   centerLng?: number, 
   type: string = "motorcycle",
-  secondsElapsed: number = 0
+  secondsElapsed: number = 0,
+  serviceType: string = "ride" // "ride" ou "delivery"
 ) {
   const [drivers, setDrivers] = useState<NearbyDriver[]>([]);
   const [feedMessage, setFeedMessage] = useState("Iniciando mapeamento urbano...");
@@ -47,26 +52,43 @@ export function useRealtimeDelivery(
 
         // Sanitize API response into local render schema 🔒
         if (Array.isArray(response)) {
-          // Optionally filter by requested vehicle type if API doesn't filter already, 
-          // but usually API returns all online within bounds. 
-          const mappedDrivers: NearbyDriver[] = response.map((d: any) => ({
-            id: d._id || d.id,
-            latitude: Number(d.latitude),
-            longitude: Number(d.longitude),
-            vehicleType: d.vehicleType || d.type || type,
-            rotation: d.rotation,
-            status: "scanning" as const
-          }));
+          const mappedDrivers: NearbyDriver[] = response.map((d: any) => {
+            const sTypes = Array.isArray(d.serviceTypes) ? d.serviceTypes : [];
+            // Verifica se o motorista suporta o tipo que o cliente está pedindo
+            const supportsCurrentService = sTypes.length === 0 || sTypes.includes(serviceType);
+            
+            return {
+              id: d._id || d.id,
+              name: d.name,
+              profilePhoto: d.profilePhoto,
+              rating: d.rating,
+              latitude: Number(d.latitude),
+              longitude: Number(d.longitude),
+              vehicleType: d.vehicleType || d.type || type,
+              rotation: d.rotation,
+              status: "scanning" as const,
+              isUnavailable: !supportsCurrentService, // 🛑 Trava lógica!
+            };
+          });
 
           setDrivers(mappedDrivers);
 
-          // Update telemetry feedback realistically
+          // Separar motoristas ativos e inativos para feedback cirúrgico
+          const activeDrivers = mappedDrivers.filter(d => !d.isUnavailable);
+          const unavailableDrivers = mappedDrivers.filter(d => d.isUnavailable);
+
+          // Regra de Telemetria Dinâmica (Pedida pelo Usuário) 📡
           if (mappedDrivers.length === 0) {
-             if (secondsElapsed < 10) setFeedMessage("Escaneando assinaturas de GPS...");
-             else setFeedMessage(`Buscando ${plural} num raio de ${searchState.radius}km`);
+            if (secondsElapsed < 10) setFeedMessage("Escaneando assinaturas de GPS...");
+            else setFeedMessage(`Buscando ${plural} num raio de ${searchState.radius}km`);
+          } else if (activeDrivers.length === 0 && unavailableDrivers.length > 0) {
+            // 🔥 REGRA CRÍTICA: Motoristas online, mas com preferência desativada para este serviço!
+            const count = unavailableDrivers.length;
+            setFeedMessage(`${count} ${count === 1 ? label : plural} online, porém indisponível no momento`);
           } else {
-             const count = mappedDrivers.length;
-             setFeedMessage(`${count} ${count === 1 ? label : plural} operando no perímetro`);
+            // Pelo menos um ativo operando!
+            const count = activeDrivers.length;
+            setFeedMessage(`${count} ${count === 1 ? label : plural} operando no perímetro`);
           }
         }
       } catch (error) {

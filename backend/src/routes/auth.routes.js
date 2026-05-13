@@ -5,7 +5,7 @@ const {
   authenticateToken,
   requireAdmin,
 } = require("../middlewares/auth.middleware");
-const { uploadDriverBundle } = require("../middlewares/upload.middleware");
+const { upload, uploadDriverBundle } = require("../middlewares/upload.middleware");
 
 // Rotas publicas
 router.post("/register", authController.register.bind(authController));
@@ -51,6 +51,12 @@ router.patch(
   "/profile",
   authenticateToken,
   authController.updateProfile.bind(authController),
+);
+router.post(
+  "/profile-photo",
+  authenticateToken,
+  upload.single("photo"),
+  authController.uploadProfilePhoto.bind(authController),
 );
 router.post(
   "/push-token",

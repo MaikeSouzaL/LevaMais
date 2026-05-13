@@ -55,9 +55,8 @@ function resolveVehicleTypeForApi(raw: string): "motorcycle" | "car" | "van" | "
   return "car";
 }
 
-function toSummaryVehicleType(raw: string): "moto" | "car" | "van" | "truck" {
-  const normalized = resolveVehicleTypeForApi(raw);
-  return normalized === "motorcycle" ? "moto" : normalized;
+function toSummaryVehicleType(raw: string): "motorcycle" | "car" | "van" | "truck" {
+  return resolveVehicleTypeForApi(raw);
 }
 
 export default function ServicePurposeScreen() {

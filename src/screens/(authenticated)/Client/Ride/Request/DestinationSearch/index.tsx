@@ -18,6 +18,8 @@ import { FloatingSearchCard } from "@/components/client/destination/FloatingSear
 import { RecentPlaces } from "@/components/client/destination/RecentPlaces";
 import { RouteBottomCard } from "@/components/client/destination/RouteBottomCard";
 
+import { FloatingActions } from "@/components/client/home/FloatingActions";
+
 // Refined Realtime Core Mapping Imports 🚀
 import { PremiumMapMarker } from "@/components/maps/PremiumMapMarker";
 import { PremiumDottedRoute } from "@/components/routes/PremiumDottedRoute";
@@ -28,7 +30,7 @@ const GOOGLE_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || "";
 
 interface RealtimeVehicle {
   id: string;
-  type: "car" | "moto";
+  type: "car" | "motorcycle";
   lat: number;
   lng: number;
   rotation: number;
@@ -39,7 +41,45 @@ export default function DestinationSearchScreen() {
   const route = useRoute();
   const params = (route.params || {}) as any;
 
-  const { userRegion, currentAddress, region, mapRef } = useMapLocation();
+  const { userRegion, currentAddress, region, mapRef, centerOnUser } = useMapLocation();
+
+  // Map Operational Visual States & Handlers 🎨
+  const [useDarkMap, setUseDarkMap] = useState(true);
+  const [isSwitchingStyle, setIsSwitchingStyle] = useState(false);
+  const [isCentering, setIsCentering] = useState(false);
+
+  const handleToggleMapStyle = () => {
+    if (isSwitchingStyle) return;
+    setIsSwitchingStyle(true);
+    setUseDarkMap(prev => !prev);
+    setTimeout(() => setIsSwitchingStyle(false), 350);
+  };
+
+  const handleCenterMyLocation = async () => {
+    if (isCentering) return;
+    setIsCentering(true);
+    try {
+      if (typeof centerOnUser === "function") {
+        await centerOnUser();
+      } else if (userRegion?.latitude && mapRef.current) {
+        mapRef.current.animateToRegion({
+          latitude: userRegion.latitude,
+          longitude: userRegion.longitude,
+          latitudeDelta: 0.008,
+          longitudeDelta: 0.008,
+        }, 800);
+      }
+    } catch {}
+    setTimeout(() => setIsCentering(false), 500);
+  };
+
+  const handleSOS = () => {
+    try {
+      navigation.navigate("ClientSafety" as any);
+    } catch {
+      Alert.alert("SOS", "Ativando modo de emergência do passageiro...");
+    }
+  };
 
   const [destinationTxt, setDestinationTxt] = useState(params.dropoff?.address || "");
   const [destinationDetails, setDestinationDetails] = useState<PlaceDetails | null>(
@@ -145,7 +185,7 @@ export default function DestinationSearchScreen() {
     const baseLng = userRegion?.longitude || origin.longitude;
     const initialVehicles: RealtimeVehicle[] = [
       { id: "r_v1", type: "car", lat: baseLat + 0.0012, lng: baseLng + 0.001, rotation: 40 },
-      { id: "r_v2", type: "moto", lat: baseLat - 0.0018, lng: baseLng + 0.0015, rotation: 130 },
+      { id: "r_v2", type: "motorcycle", lat: baseLat - 0.0018, lng: baseLng + 0.0015, rotation: 130 },
       { id: "r_v3", type: "car", lat: baseLat + 0.0005, lng: baseLng - 0.002, rotation: 280 },
     ];
     setVehicles(initialVehicles);
@@ -231,10 +271,11 @@ export default function DestinationSearchScreen() {
       {/* 🗺️ Maps Implementation using 100% absolute placement utility */}
       <View className="absolute inset-0">
         <MapView
+          key={useDarkMap ? "client-dest-dark" : "client-dest-light"}
           ref={mapRef}
           provider={PROVIDER_GOOGLE}
           style={{ flex: 1, width: '100%', height: '100%' }}
-          customMapStyle={darkMapStyle}
+          customMapStyle={useDarkMap ? darkMapStyle : []}
           showsCompass={false}
           showsPointsOfInterest={false}
           showsBuildings={true}
@@ -260,7 +301,7 @@ export default function DestinationSearchScreen() {
               anchor={{ x: 0.5, y: 0.5 }}
               tracksViewChanges={Platform.OS === "ios"}
             >
-              <View className={`w-5 h-5 rounded-lg items-center justify-center shadow shadow-black elevation-4 ${veh.type === "moto" ? 'bg-blue-400' : 'bg-primary'}`}>
+              <View className={`w-5 h-5 rounded-lg items-center justify-center shadow shadow-black elevation-4 ${veh.type === "motorcycle" ? 'bg-blue-400' : 'bg-primary'}`}>
                 {veh.type === "car" ? <Car size={10} color="#000" /> : <Bike size={10} color="#000" />}
               </View>
             </Marker>
@@ -304,6 +345,17 @@ export default function DestinationSearchScreen() {
       <View className="absolute inset-0 z-[100]" pointerEvents="box-none">
         <DestinationHeader />
 
+        {/* 📡 Absolute Map Controls Right Wing (Placed first to render behind input cards!) */}
+        <FloatingActions 
+          onLocationPress={handleCenterMyLocation}
+          onSosPress={handleSOS}
+          onMapStylePress={handleToggleMapStyle}
+          useDarkMap={useDarkMap}
+          isCentering={isCentering}
+          isSwitchingStyle={isSwitchingStyle}
+          topOffset={Platform.OS === 'ios' ? 360 : 340}
+        />
+
         <FloatingSearchCard
           originText={originTxt}
           destinationText={destinationTxt}
@@ -337,22 +389,22 @@ export default function DestinationSearchScreen() {
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ delay: 600, type: "timing", duration: 400 }}
-            className="mx-6 mt-3 bg-[#FFB900]/10 border border-[#FFB900]/20 px-3 py-2.5 rounded-xl flex-row items-center relative"
+            className="mx-6 mt-3 bg-[#091A2F] border border-[#FFB900]/30 px-3 py-2.5 rounded-xl flex-row items-center relative shadow-lg"
           >
-            <View className="bg-[#FFB900]/20 p-1.5 rounded-full mr-3">
+            <View className="bg-[#FFB900]/10 p-1.5 rounded-full mr-3">
                <Info size={14} color="#FFB900" />
             </View>
             <View className="flex-1 pr-6">
               <Text className="text-[#FFB900] font-bold text-[12px] leading-tight">
                 Confirme o Número da Casa
               </Text>
-              <Text className="text-[#FFB900]/70 text-[11px] mt-0.5">
+              <Text className="text-white/70 text-[11px] mt-0.5">
                 Verifique se o número do local está preenchido corretamente para evitar atrasos.
               </Text>
             </View>
             <TouchableOpacity 
                onPress={() => setShowVerifTip(false)}
-               className="absolute right-2 top-2 bg-[#FFB900]/10 p-1 rounded-full"
+               className="absolute right-2 top-2 bg-white/5 p-1 rounded-full"
                hitSlop={8}
             >
               <X size={12} color="#FFB900" />

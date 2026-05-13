@@ -1281,6 +1281,43 @@ class AuthController {
       return sendError(res, 500, "Erro ao processar verificação", { details: error.message });
     }
   }
+
+  async uploadProfilePhoto(req, res) {
+    try {
+      const userId = req.user.id;
+      const user = await User.findById(userId);
+
+      if (!user) {
+        return sendError(res, 404, "Usuário não encontrado");
+      }
+
+      if (!req.file) {
+        return sendError(res, 400, "Nenhuma imagem foi enviada");
+      }
+
+      const protocol = req.headers["x-forwarded-proto"] || req.protocol;
+      const host = req.get("host");
+      const baseUrl = `${protocol}://${host}/uploads/drivers`;
+      const photoUrl = `${baseUrl}/${req.file.filename}`;
+
+      user.profilePhoto = photoUrl;
+      await user.save();
+
+      return res.json({
+        success: true,
+        message: "Foto de perfil atualizada com sucesso",
+        data: {
+          user: {
+            _id: user._id,
+            profilePhoto: user.profilePhoto,
+          },
+        },
+      });
+    } catch (error) {
+      console.error("Erro ao atualizar foto de perfil:", error);
+      return sendError(res, 500, "Erro ao salvar foto de perfil", { details: error.message });
+    }
+  }
 }
 
 const authController = new AuthController();

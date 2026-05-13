@@ -60,7 +60,8 @@ export default function SearchingDriverScreen() {
     pickupCoords?.latitude,
     pickupCoords?.longitude,
     rideData?.vehicleType || "motorcycle",
-    secondsElapsed
+    secondsElapsed,
+    rideData?.serviceType || "ride"
   );
 
   const cleanup = () => {
@@ -495,6 +496,7 @@ export default function SearchingDriverScreen() {
         secondsElapsed={secondsElapsed}
         distanceText={rideData?.distance?.text}
         durationText={rideData?.duration?.text}
+        drivers={drivers}
       />
       
     </GestureHandlerRootView>

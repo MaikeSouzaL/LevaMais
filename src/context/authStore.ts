@@ -8,9 +8,11 @@ export interface UserData {
   id: string;
   name: string;
   nome: string;
-  cidade: string;
   email: string;
   telefone: string;
+  phone?: string;
+  cidade: string;
+  city?: string;
   fotoPerfil?: string;
   googleId?: string;
   aceitouTermos: boolean;

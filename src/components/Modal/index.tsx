@@ -148,7 +148,7 @@ export function Modal({
                 <TouchableOpacity
                   onPress={onClose}
                   activeOpacity={0.8}
-                  style={[styles.button, { backgroundColor: getColor() }]}
+                  style={[styles.button, { backgroundColor: getColor(), width: "100%" }]}
                 >
                   <Text style={styles.buttonText}>{confirmText || "OK"}</Text>
                 </TouchableOpacity>
@@ -219,18 +219,19 @@ const styles = StyleSheet.create({
   rowButtons: {
     flexDirection: "row",
     gap: 12,
+    width: "100%",
   },
   button: {
     height: 48,
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    flex: 1,
   },
   cancelButton: {
     backgroundColor: "transparent",
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.2)",
+    flex: 1,
   },
   buttonText: {
     color: "#111818",

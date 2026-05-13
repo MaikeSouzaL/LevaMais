@@ -54,6 +54,11 @@ export default function HomeScreen() {
   const [favorites, setFavorites] = useState<any[]>([]);
   const [sheetSnapIndex, setSheetSnapIndex] = useState(0);
   const [activeQueueRideId, setActiveQueueRideId] = useState<string | null>(null);
+  
+  // Map Operational Visual States 🎨
+  const [useDarkMap, setUseDarkMap] = useState(true);
+  const [isSwitchingStyle, setIsSwitchingStyle] = useState(false);
+  const [isCentering, setIsCentering] = useState(false);
 
   // 🛰️ Background monitoring of active ride (Redirect if driver offers or accepts)
   useEffect(() => {
@@ -161,6 +166,32 @@ export default function HomeScreen() {
     Alert.alert("Carteira", `Olá ${user?.name || "Cliente"}! Seu saldo está disponível.`);
   }, [user?.name]);
 
+  const handleToggleMapStyle = useCallback(() => {
+    if (isSwitchingStyle) return;
+    setIsSwitchingStyle(true);
+    setUseDarkMap(prev => !prev);
+    // Graceful throttle matching native animations
+    setTimeout(() => setIsSwitchingStyle(false), 350);
+  }, [isSwitchingStyle]);
+
+  const handleCenterMyLocation = useCallback(async () => {
+    if (isCentering) return;
+    setIsCentering(true);
+    try {
+      await centerOnUser();
+    } catch {}
+    setTimeout(() => setIsCentering(false), 500);
+  }, [centerOnUser, isCentering]);
+
+  const handleSOS = useCallback(() => {
+    try {
+      // Navigates seamlessly to client-specific safety zone! 🛡️
+      navigation.navigate("ClientSafety" as any);
+    } catch {
+      Alert.alert("SOS", "Ativando modo de emergência do passageiro...");
+    }
+  }, [navigation]);
+
   // ⏳ Loading Guard while Map Logic warms up
   if (!region) {
     return <LocationLoadingScreen />;
@@ -178,6 +209,7 @@ export default function HomeScreen() {
         region={region}
         userRegion={userRegion}
         onRegionChangeComplete={handleRegionChangeComplete}
+        useDarkStyle={useDarkMap}
       />
 
       {/* 2. Floating Controls Layer */}
@@ -215,8 +247,12 @@ export default function HomeScreen() {
       )}
 
       <FloatingActions 
-        onLocationPress={centerOnUser}
-        onSosPress={() => Alert.alert("SOS", "Ativando modo de emergência...")}
+        onLocationPress={handleCenterMyLocation}
+        onSosPress={handleSOS}
+        onMapStylePress={handleToggleMapStyle}
+        useDarkMap={useDarkMap}
+        isCentering={isCentering}
+        isSwitchingStyle={isSwitchingStyle}
       />
 
       {/* 3. Bottom User-Action Sheet */}

@@ -2429,13 +2429,25 @@ class RideController {
         parseInt(limit) || 10
       );
 
-      const mapped = drivers.map((d) => ({
-        id: d.driverId,
-        latitude: d.location.coordinates[1],
-        longitude: d.location.coordinates[0],
-        type: d.vehicleType || "car",
-        rotation: 0,
-      }));
+      const populated = await DriverLocation.populate(drivers, {
+        path: "driverId",
+        select: "name profilePhoto rating",
+      });
+
+      const mapped = populated.map((d) => {
+        const driverUser = d.driverId && typeof d.driverId === "object" ? d.driverId : {};
+        return {
+          id: driverUser._id || d.driverId,
+          name: driverUser.name || "Motorista",
+          profilePhoto: driverUser.profilePhoto || null,
+          rating: driverUser.rating || 5.0,
+          latitude: d.location.coordinates[1],
+          longitude: d.location.coordinates[0],
+          type: d.vehicleType || "car",
+          rotation: 0,
+          serviceTypes: d.serviceTypes || [],
+        };
+      });
 
       res.json(mapped);
     } catch (error) {

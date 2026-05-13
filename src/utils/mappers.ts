@@ -1,11 +1,11 @@
-export type UiVehicleType = "moto" | "car" | "van" | "truck";
+export type UiVehicleType = "motorcycle" | "car" | "van" | "truck";
 export type ApiVehicleType = "motorcycle" | "car" | "van" | "truck";
 
 export type UiServiceMode = "delivery" | "ride" | "frete";
 export type ApiServiceType = "delivery" | "ride";
 
 export function mapVehicleTypeToApi(t: UiVehicleType): ApiVehicleType {
-  return t === "moto" ? "motorcycle" : t;
+  return t;
 }
 
 export function mapServiceModeToApi(

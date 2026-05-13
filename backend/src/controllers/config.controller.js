@@ -15,6 +15,7 @@ const DEFAULT_CONFIG = {
     { id: "motorcycle", label: "Moto", icon: "two-wheeler" },
     { id: "car", label: "Carro", icon: "car-front" },
     { id: "van", label: "Van", icon: "van" },
+    { id: "truck", label: "Caminhão", icon: "truck" },
   ],
   cancelReasons: [
     { id: "driver_far", label: "Motorista está muito longe" },
