@@ -21,6 +21,7 @@ import { DriverOfferListItem } from "@/components/client/offers/DriverOfferListI
 import { NearbyDriversLayer } from "@/components/client/searching-delivery/NearbyDriversLayer";
 import { useRealtimeDelivery } from "@/hooks/useRealtimeDelivery";
 import { PremiumMapMarker } from "@/components/maps/PremiumMapMarker";
+import { FloatingActions } from "@/components/client/home/FloatingActions";
 
 const GOOGLE_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || "";
 const { width, height } = Dimensions.get("window");
@@ -48,11 +49,22 @@ export default function RideOffersMarketplaceScreen() {
   const [rideDetails, setRideDetails] = useState<any>(null);
   const [negotiation, setNegotiation] = useState<any>(null);
   const [offers, setOffers] = useState<RideOffer[]>([]);
+  const [isCentering, setIsCentering] = useState(false);
 
   const mapRef = useRef<MapView>(null);
   const bottomSheetRef = useRef<BottomSheet>(null);
   
   const snapPoints = useMemo(() => ["35%", "86%"], []);
+
+  const handleCenterOnRoute = useCallback(() => {
+    if (!mapRef.current || pathCoords.length === 0) return;
+    setIsCentering(true);
+    mapRef.current.fitToCoordinates(pathCoords, {
+      edgePadding: { top: 140, right: 50, bottom: 380, left: 50 },
+      animated: true,
+    });
+    setTimeout(() => setIsCentering(false), 600);
+  }, [pathCoords]);
 
   const openConfirmModal = (val: number) => {
     setPendingIncrement(val > 0 ? String(val) : "");
@@ -333,6 +345,14 @@ export default function RideOffersMarketplaceScreen() {
           </>
         )}
       </MapView>
+
+      {/* 🛸 Floating Camera & Security Control Suite */}
+      <FloatingActions 
+        onLocationPress={handleCenterOnRoute}
+        onSosPress={() => navigation.navigate("ClientSafety")}
+        isCentering={isCentering}
+        topOffset={insets.top + 100}
+      />
 
       {/* 🗂️ Bottom Sliding Ledger (Trading Desk) */}
       <BottomSheet
