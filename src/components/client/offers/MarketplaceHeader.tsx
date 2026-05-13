@@ -48,7 +48,7 @@ export function MarketplaceHeader({ onBack, offerCount, useDarkMap = true }: Mar
             <View className="w-1.5 h-1.5 rounded-full bg-[#02de95] mr-2 shadow-md shadow-[#02de95]" />
             
             <Text 
-              className={`${useDarkMap ? "text-white" : "text-[#091A2F]"} font-black text-[10px] tracking-widest uppercase`} 
+              className={`${useDarkMap ? "text-white" : "text-[#091A2F]"} font-black text-[12.5px] tracking-widest uppercase`} 
               numberOfLines={1}
             >
               Buscando Entregadores
