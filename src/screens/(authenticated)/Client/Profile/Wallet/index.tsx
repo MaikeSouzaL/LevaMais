@@ -117,10 +117,10 @@ export default function WalletScreen() {
         <Text style={styles.sectionTitle}>METODOS DE PAGAMENTO</Text>
         <TouchableOpacity
           style={styles.paymentMethodCard}
-          onPress={() => navigation.navigate("AddPaymentMethod")}
+          onPress={() => navigation.navigate("PaymentsCenter")}
         >
           <MaterialIcons name="add-circle" size={24} color={colors.primary[500]} />
-          <Text style={styles.paymentMethodText}>Adicionar cartao de credito</Text>
+          <Text style={styles.paymentMethodText}>Gerenciar cartões e forma padrão</Text>
           <MaterialIcons name="chevron-right" size={24} color="#555" />
         </TouchableOpacity>
 

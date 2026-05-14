@@ -172,7 +172,7 @@ export default function AddPaymentMethodScreen() {
           <View style={styles.securityNote}>
             <MaterialIcons name="lock" size={16} color={colors.text.tertiary} />
             <Text style={styles.securityNoteText}>
-              Seus dados sao criptografados e armazenados com seguranca.
+              O cartão fica salvo para uso interno da plataforma. A tokenização final no gateway de pagamento ainda será concluída na integração financeira.
             </Text>
           </View>
 

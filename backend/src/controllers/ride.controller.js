@@ -17,6 +17,7 @@ const NON_TERMINAL_STATUSES = [
   "arrived",
   "in_progress",
 ];
+const RIDE_CAPABLE_VEHICLES = new Set(["motorcycle", "car"]);
 
 function normalizePaymentMethod(rawMethod) {
   const value = String(rawMethod || "")
@@ -116,6 +117,14 @@ function applyFinalPriceOnRide(ride, finalPrice, appFeePercentage) {
     ride.splitDetails.representativeShare = representativeShare;
     ride.splitDetails.platformShare = toMoney(platformFee - representativeShare);
   }
+}
+
+function isServiceCompatibleWithVehicle(vehicleType, serviceType) {
+  const normalizedVehicle = String(vehicleType || "").trim().toLowerCase();
+  const normalizedService = String(serviceType || "").trim().toLowerCase();
+  if (normalizedService === "delivery") return true;
+  if (normalizedService === "ride") return RIDE_CAPABLE_VEHICLES.has(normalizedVehicle);
+  return false;
 }
 
 async function resolvePromotionForRide({
@@ -543,12 +552,18 @@ class RideController {
         const waitingQueueCount = 0;
         return res.json({ count: 0, requests: [], waitingQueueCount });
       }
+      const compatibleServiceTypes = serviceTypes.filter((serviceType) =>
+        isServiceCompatibleWithVehicle(driverLocation.vehicleType, serviceType),
+      );
+      if (!compatibleServiceTypes.length) {
+        return res.json({ count: 0, requests: [], waitingQueueCount: 0 });
+      }
 
       const requestedAfter = new Date(Date.now() - 2 * 60 * 1000);
       const rides = await Ride.find({
         status: { $in: ["requesting", "driver_assigned"] },
         vehicleType: driverLocation.vehicleType,
-        serviceType: { $in: serviceTypes },
+        serviceType: { $in: compatibleServiceTypes },
         $and: [
           {
             $or: [
@@ -694,6 +709,9 @@ class RideController {
           rideId: activeRide._id,
           status: activeRide.status,
         });
+      }
+      if (!isServiceCompatibleWithVehicle(vehicleType, serviceType)) {
+        return sendError(res, 400, "Tipo de servico incompativel com o veiculo selecionado");
       }
 
       // Criar a corrida
@@ -902,6 +920,28 @@ class RideController {
         return sendError(res, 400, "Voce ja possui uma corrida ativa", {
           currentRideId: driverLocation.currentRideId,
         });
+      }
+
+      const rideSnapshot = await Ride.findById(rideId).select(
+        "_id serviceType vehicleType status driverId rejectedBy negotiation",
+      );
+      if (!rideSnapshot) {
+        return sendError(res, 404, "Corrida nao encontrada");
+      }
+      if (!driverLocation) {
+        return sendError(res, 400, "Atualize sua localizacao antes de aceitar corridas");
+      }
+      if (!isServiceCompatibleWithVehicle(driverLocation.vehicleType, rideSnapshot.serviceType)) {
+        return sendError(res, 400, "Servico incompativel com o veiculo do motorista");
+      }
+      const driverServiceTypes = Array.isArray(driverLocation.serviceTypes)
+        ? driverLocation.serviceTypes
+        : [];
+      if (!driverServiceTypes.includes(String(rideSnapshot.serviceType || ""))) {
+        return sendError(res, 400, "Este servico nao esta ativo para o motorista");
+      }
+      if (String(driverLocation.vehicleType || "") !== String(rideSnapshot.vehicleType || "")) {
+        return sendError(res, 400, "Tipo de veiculo do motorista nao corresponde a solicitacao");
       }
 
       // 1) Tenta â€œtravarâ€ o motorista (evita ele aceitar duas corridas em paralelo)
@@ -2691,5 +2731,3 @@ function isTimeInRange(current, start, end) {
 ratingProofMixin.attach(RideController, { Ride, DriverLocation });
 
 module.exports = new RideController();
-
-

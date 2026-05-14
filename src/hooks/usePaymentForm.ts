@@ -15,6 +15,42 @@ interface PaymentFormState {
   error: string | null;
 }
 
+function validatePaymentState(state: PaymentFormState): string | null {
+  if (!state.amount || state.amount <= 0) {
+    return 'Valor inválido';
+  }
+
+  switch (state.method) {
+    case 'credit_card':
+      if (!state.cardNumber || state.cardNumber.replace(/\s/g, '').length < 13) {
+        return 'Número de cartão inválido';
+      }
+      if (!state.holderName.trim()) {
+        return 'Nome do titular é obrigatório';
+      }
+      if (!state.expiry || state.expiry.split('/').length !== 2) {
+        return 'Data de vencimento inválida';
+      }
+      if (!state.cvv || state.cvv.length < 3) {
+        return 'CVV inválido';
+      }
+      return null;
+
+    case 'pix':
+      if (!state.pixKey.trim()) {
+        return 'Chave PIX é obrigatória';
+      }
+      return null;
+
+    case 'wallet':
+    case 'cash':
+      return null;
+
+    default:
+      return 'Método de pagamento inválido';
+  }
+}
+
 export function usePaymentForm(initialAmount: number) {
   const [state, setState] = useState<PaymentFormState>({
     method: 'credit_card',
@@ -56,47 +92,15 @@ export function usePaymentForm(initialAmount: number) {
     setState(prev => ({ ...prev, amount }));
   }, []);
 
-  const validateForm = useCallback((): boolean => {
-    if (!state.amount || state.amount <= 0) {
-      setState(prev => ({ ...prev, error: 'Valor inválido' }));
-      return false;
+  const validateForm = useCallback((options?: { silent?: boolean }): boolean => {
+    const nextError = validatePaymentState(state);
+    if (!options?.silent) {
+      setState(prev => ({ ...prev, error: nextError }));
     }
-
-    switch (state.method) {
-      case 'credit_card':
-        if (!state.cardNumber || state.cardNumber.replace(/\s/g, '').length < 13) {
-          setState(prev => ({ ...prev, error: 'Número de cartão inválido' }));
-          return false;
-        }
-        if (!state.holderName.trim()) {
-          setState(prev => ({ ...prev, error: 'Nome do titular é obrigatório' }));
-          return false;
-        }
-        if (!state.expiry || state.expiry.split('/').length !== 2) {
-          setState(prev => ({ ...prev, error: 'Data de vencimento inválida' }));
-          return false;
-        }
-        if (!state.cvv || state.cvv.length < 3) {
-          setState(prev => ({ ...prev, error: 'CVV inválido' }));
-          return false;
-        }
-        return true;
-
-      case 'pix':
-        if (!state.pixKey.trim()) {
-          setState(prev => ({ ...prev, error: 'Chave PIX é obrigatória' }));
-          return false;
-        }
-        return true;
-
-      case 'wallet':
-      case 'cash':
-        return true;
-
-      default:
-        return false;
-    }
+    return !nextError;
   }, [state]);
+
+  const canSubmit = useCallback((): boolean => !validatePaymentState(state), [state]);
 
   const submitPayment = useCallback(async (onSuccess: (response: any) => void) => {
     if (!validateForm()) {
@@ -112,20 +116,22 @@ export function usePaymentForm(initialAmount: number) {
         amount: state.amount,
         method: state.method,
         description: state.description,
+        pixKey: state.pixKey || undefined,
       };
 
       const response = await paymentService.processPayment(request as any);
 
       if (response.success) {
         logger.info('PaymentForm', 'Pagamento bem-sucedido');
-        setState(prev => ({ 
-          ...prev, 
+        setState(prev => ({
+          ...prev,
           loading: false,
           cardNumber: '',
           holderName: '',
           expiry: '',
           cvv: '',
           pixKey: '',
+          error: null,
         }));
         onSuccess(response);
       } else {
@@ -150,6 +156,7 @@ export function usePaymentForm(initialAmount: number) {
     updatePixKey,
     updateAmount,
     validateForm,
+    canSubmit,
     submitPayment,
   };
 }

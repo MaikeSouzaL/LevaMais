@@ -146,8 +146,28 @@ const userSchema = new mongoose.Schema(
           createdAt: { type: Date, default: Date.now },
         },
       ],
-      selectedCategories: [{ type: String }], // Ex: ["ride", "delivery"]
-      selectedVehicles: [{ type: String }], // Ex: ["motorcycle", "car"]
+    },
+    driverPreferences: {
+      serviceTypes: {
+        type: [String],
+        enum: ["ride", "delivery"],
+        default: ["ride", "delivery"],
+      },
+      selectedVehicles: {
+        type: [String],
+        enum: ["motorcycle", "car", "van", "truck"],
+        default: [],
+      },
+      searchRadiusKm: {
+        type: Number,
+        default: 15,
+        min: 1,
+        max: 300,
+      },
+      autoAccept: {
+        type: Boolean,
+        default: false,
+      },
     },
     // Preferências
     preferredPayment: {
@@ -189,6 +209,20 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    acceptedTermsAt: {
+      type: Date,
+    },
+    acceptedPrivacyAt: {
+      type: Date,
+    },
+    consentVersion: {
+      type: String,
+      trim: true,
+      default: "2026-05-14",
+    },
+    consentRevokedAt: {
+      type: Date,
+    },
     // Push Notifications
     pushToken: {
       type: String,
@@ -200,6 +234,21 @@ const userSchema = new mongoose.Schema(
     isActive: {
       type: Boolean,
       default: true,
+    },
+    accountDeletionRequestedAt: {
+      type: Date,
+    },
+    accountDeletionCompletedAt: {
+      type: Date,
+    },
+    accountDeletionReason: {
+      type: String,
+      trim: true,
+    },
+    accountDeletionStatus: {
+      type: String,
+      enum: ["none", "requested", "completed"],
+      default: "none",
     },
     // Status do Fluxo do Motorista
     driverStatus: {

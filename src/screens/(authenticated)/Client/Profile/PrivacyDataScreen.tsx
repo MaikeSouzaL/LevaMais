@@ -1,5 +1,12 @@
 import React from "react";
-import { ScrollView, Share, Text, TouchableOpacity, View } from "react-native";
+import {
+  Alert,
+  ScrollView,
+  Share,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -7,12 +14,30 @@ import Toast from "react-native-toast-message";
 
 import { colors } from "@/theme";
 import { ClientScreenHeader } from "../Shared/components";
-import { exportPrivacyData, PrivacyExportPayload } from "@/services/auth.service";
+import {
+  deleteOwnAccount,
+  exportPrivacyData,
+  PrivacyExportPayload,
+  recordPrivacyConsent,
+  revokePrivacyConsent,
+} from "@/services/auth.service";
+import { useAuthStore } from "@/context/authStore";
 
 export default function PrivacyDataScreen() {
   const navigation = useNavigation<any>();
+  const logout = useAuthStore((state) => state.logout);
   const [loading, setLoading] = React.useState(false);
   const [summary, setSummary] = React.useState<PrivacyExportPayload | null>(null);
+
+  const loadSummary = React.useCallback(async () => {
+    try {
+      const data = await exportPrivacyData();
+      setSummary(data);
+    } catch (error) {
+      console.error("Error exporting privacy data:", error);
+      setSummary(null);
+    }
+  }, []);
 
   React.useEffect(() => {
     let mounted = true;
@@ -52,6 +77,108 @@ export default function PrivacyDataScreen() {
     }
   };
 
+  const handleRefreshConsent = () => {
+    Alert.alert(
+      "Atualizar consentimento",
+      "Deseja registrar novamente o aceite da política e dos termos atuais?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Registrar",
+          onPress: async () => {
+            setLoading(true);
+            try {
+              await recordPrivacyConsent({
+                acceptedTerms: true,
+                acceptedPrivacy: true,
+              });
+              await loadSummary();
+              Toast.show({
+                type: "success",
+                text1: "Consentimento atualizado",
+              });
+            } catch (error: any) {
+              Toast.show({
+                type: "error",
+                text1: "Falha ao atualizar",
+                text2: error?.message || "Tente novamente",
+              });
+            } finally {
+              setLoading(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const handleRevokeConsent = () => {
+    Alert.alert(
+      "Revogar consentimento",
+      "Ao revogar o consentimento, sua conta será desativada e você precisará aceitar novamente os termos para voltar a usar o serviço.",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Revogar",
+          style: "destructive",
+          onPress: async () => {
+            setLoading(true);
+            try {
+              await revokePrivacyConsent();
+              logout();
+              Toast.show({
+                type: "success",
+                text1: "Consentimento revogado",
+                text2: "Sua conta foi desativada com segurança.",
+              });
+            } catch (error: any) {
+              Toast.show({
+                type: "error",
+                text1: "Não foi possível revogar",
+                text2: error?.message || "Tente novamente",
+              });
+            } finally {
+              setLoading(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      "Excluir conta",
+      "Essa ação desativa a conta e anonimiza seus dados pessoais. Ela não pode ser desfeita.",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Excluir",
+          style: "destructive",
+          onPress: async () => {
+            setLoading(true);
+            try {
+              await deleteOwnAccount("Solicitação feita pelo app");
+              logout();
+              Toast.show({
+                type: "success",
+                text1: "Conta excluída",
+              });
+            } catch (error: any) {
+              Toast.show({
+                type: "error",
+                text1: "Não foi possível excluir",
+                text2: error?.message || "Tente novamente",
+              });
+            } finally {
+              setLoading(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   return (
     <SafeAreaView className="flex-1 bg-[#091A2F]">
       <ClientScreenHeader title="Privacidade e dados" subtitle="Controle da sua conta" />
@@ -61,26 +188,61 @@ export default function PrivacyDataScreen() {
           <MaterialIcons name="verified-user" size={28} color={colors.primary[500]} />
           <Text className="text-white font-bold text-base">Seus dados</Text>
           <Text className="text-gray-400 text-sm leading-5">
-            Voce pode exportar seus dados e revisar informacoes principais da conta.
+            Você pode exportar seus dados, revisar seu consentimento e controlar o ciclo de vida da sua conta.
           </Text>
           {summary && (
             <Text className="text-[#02de95] text-xs font-semibold">
-              Corridas registradas: {summary.rides.total} | Cartoes salvos: {summary.paymentMethods.length}
+              Corridas: {summary.rides.total} | Cartões: {summary.paymentMethods.length} | Versão do consentimento: {summary.privacy.consentVersion}
             </Text>
           )}
         </View>
 
+        {summary && (
+          <View className="bg-[#0d2838] border border-gray-700 rounded-lg p-4 gap-2">
+            <Text className="text-white font-bold text-base">Resumo LGPD</Text>
+            <Text className="text-gray-300 text-sm">
+              Termos aceitos: {summary.privacy.acceptedTerms ? "Sim" : "Não"}
+            </Text>
+            <Text className="text-gray-300 text-sm">
+              Último aceite: {summary.privacy.acceptedTermsAt ? new Date(summary.privacy.acceptedTermsAt).toLocaleString("pt-BR") : "Não registrado"}
+            </Text>
+            <Text className="text-gray-300 text-sm">
+              Privacidade aceita em: {summary.privacy.acceptedPrivacyAt ? new Date(summary.privacy.acceptedPrivacyAt).toLocaleString("pt-BR") : "Não registrado"}
+            </Text>
+            <Text className="text-gray-300 text-sm">
+              Revogação: {summary.privacy.consentRevokedAt ? new Date(summary.privacy.consentRevokedAt).toLocaleString("pt-BR") : "Ativa"}
+            </Text>
+            <Text className="text-gray-300 text-sm">
+              Exclusão da conta: {summary.privacy.accountDeletionStatus}
+            </Text>
+          </View>
+        )}
+
         <TouchableOpacity className="flex-row items-center gap-3 bg-[#0d2838] border border-gray-700 rounded-lg p-3" onPress={exportData} disabled={loading}>
           <MaterialIcons name="download" size={20} color={colors.primary[500]} />
-          <Text className="text-white font-semibold text-base">{loading ? "Exportando..." : "Exportar meus dados"}</Text>
+          <Text className="text-white font-semibold text-base">{loading ? "Processando..." : "Exportar meus dados"}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity className="flex-row items-center gap-3 bg-[#0d2838] border border-gray-700 rounded-lg p-3" onPress={() => navigation.navigate("Settings") }>
+        <TouchableOpacity className="flex-row items-center gap-3 bg-[#0d2838] border border-gray-700 rounded-lg p-3" onPress={handleRefreshConsent} disabled={loading}>
+          <MaterialIcons name="task-alt" size={20} color={colors.primary[500]} />
+          <Text className="text-white font-semibold text-base">Atualizar aceite atual</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity className="flex-row items-center gap-3 bg-[#0d2838] border border-amber-600 rounded-lg p-3" onPress={handleRevokeConsent} disabled={loading}>
+          <MaterialIcons name="privacy-tip" size={20} color="#fbbf24" />
+          <Text className="text-white font-semibold text-base">Revogar consentimento</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity className="flex-row items-center gap-3 bg-[#2A1010] border border-red-700 rounded-lg p-3" onPress={handleDeleteAccount} disabled={loading}>
+          <MaterialIcons name="delete-forever" size={20} color="#f87171" />
+          <Text className="text-white font-semibold text-base">Excluir minha conta</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity className="flex-row items-center gap-3 bg-[#0d2838] border border-gray-700 rounded-lg p-3" onPress={() => navigation.navigate("Settings")}>
           <MaterialIcons name="settings" size={20} color={colors.primary[500]} />
-          <Text className="text-white font-semibold text-base">Gerenciar preferencias de privacidade</Text>
+          <Text className="text-white font-semibold text-base">Gerenciar preferências de privacidade</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
 }
-

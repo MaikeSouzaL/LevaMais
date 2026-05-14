@@ -29,6 +29,13 @@ export interface BalanceTransaction {
   createdAt: string;
 }
 
+export interface DriverPreferences {
+  serviceTypes: Array<'ride' | 'delivery'>;
+  selectedVehicles: Array<'motorcycle' | 'car' | 'van' | 'truck'>;
+  searchRadiusKm: number;
+  autoAccept: boolean;
+}
+
 class DriverService {
   // Get current balance
   async getBalance(): Promise<DriverBalance> {
@@ -241,6 +248,11 @@ class DriverService {
       logger.error('DRIVER_SERVICE', 'Failed to request withdrawal', error);
       throw error;
     }
+  }
+
+  async updatePreferences(payload: Partial<DriverPreferences>): Promise<DriverPreferences> {
+    const response = await apiClient.put('/drivers/preferences', payload);
+    return response.data?.data;
   }
 }
 

@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  TextInput,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
@@ -125,20 +126,23 @@ export default function PaymentScreenEnhanced() {
   const handleProcessPayment = useCallback(async () => {
     if (!order) return;
 
+    if (!paymentForm.validateForm()) {
+      return;
+    }
+
     setProcessing(true);
     try {
       logger.info("PaymentScreen", `Processando pagamento via ${paymentForm.method}`);
 
-      // Validar dados
       if (!order.pickupLatLng || !order.dropoffLatLng) {
         throw new Error("Coordenadas de coleta/destino inválidas");
       }
 
-      // Processa pagamento (simulado ou real)
       const paymentResponse = await paymentService.processPayment({
         amount: finalAmount,
         method: paymentForm.method,
         description: `${serviceType} em ${order.pickup?.address || "Local"}`,
+        pixKey: paymentForm.pixKey || undefined,
       });
 
       if (!paymentResponse.success) {
@@ -151,7 +155,6 @@ export default function PaymentScreenEnhanced() {
         paymentResponse
       );
 
-      // Criar corrida/entrega
       const ride = await rideService.create({
         serviceType: mapServiceModeToApi(order.serviceMode),
         vehicleType: mapVehicleTypeToApi(order.vehicleType),
@@ -202,7 +205,6 @@ export default function PaymentScreenEnhanced() {
         text2: "Sua corrida foi criada",
       });
 
-      // Navegar para tela de rastreamento
       navigation.reset({
         index: 0,
         routes: [
@@ -240,7 +242,6 @@ export default function PaymentScreenEnhanced() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Order Summary */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Resumo do Pedido</Text>
             <View style={styles.summaryCard}>
@@ -269,7 +270,6 @@ export default function PaymentScreenEnhanced() {
             </View>
           </View>
 
-          {/* Promo Code Section */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Cupom Promocional</Text>
             {appliedPromo ? (
@@ -293,7 +293,15 @@ export default function PaymentScreenEnhanced() {
                     size={20}
                     color="rgba(255,255,255,0.5)"
                   />
-                  {/* Aqui você colocaria um TextInput real */}
+                  <TextInput
+                    style={styles.inlineInput}
+                    value={promoCode}
+                    onChangeText={setPromoCode}
+                    placeholder="Ex: LEVA10"
+                    placeholderTextColor="rgba(255,255,255,0.35)"
+                    autoCapitalize="characters"
+                    editable={!promoLoading}
+                  />
                 </View>
                 <TouchableOpacity
                   style={styles.promoButton}
@@ -310,7 +318,6 @@ export default function PaymentScreenEnhanced() {
             )}
           </View>
 
-          {/* Payment Method Selection */}
           <View style={styles.section}>
             <PaymentMethodSelector
               selected={paymentForm.method}
@@ -319,7 +326,6 @@ export default function PaymentScreenEnhanced() {
             />
           </View>
 
-          {/* Payment Details Based on Method */}
           {paymentForm.method === "credit_card" && (
             <View style={styles.section}>
               <CreditCardInput
@@ -341,8 +347,16 @@ export default function PaymentScreenEnhanced() {
                 <MaterialIcons name="qr-code" size={48} color="#32BCAD" />
                 <Text style={styles.pixTitle}>Pague via PIX</Text>
                 <Text style={styles.pixDescription}>
-                  Você será redirecionado para completar o pagamento via PIX
+                  Informe a chave PIX para vincular este pagamento antes de solicitar o motorista.
                 </Text>
+                <TextInput
+                  style={styles.pixInput}
+                  value={paymentForm.pixKey}
+                  onChangeText={paymentForm.updatePixKey}
+                  placeholder="CPF, e-mail, telefone ou chave aleatória"
+                  placeholderTextColor="rgba(255,255,255,0.35)"
+                  autoCapitalize="none"
+                />
               </View>
             </View>
           )}
@@ -359,7 +373,6 @@ export default function PaymentScreenEnhanced() {
             </View>
           )}
 
-          {/* Error Display */}
           {paymentForm.error && (
             <View style={styles.errorBox}>
               <MaterialIcons name="error-outline" size={20} color="#ef4444" />
@@ -370,13 +383,12 @@ export default function PaymentScreenEnhanced() {
           <View style={{ height: spacing.lg }} />
         </ScrollView>
 
-        {/* Action Button */}
         <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.md }]}>
           <LoadingButton
             title={`Confirmar Pagamento - ${formatBRL(finalAmount)}`}
             onPress={handleProcessPayment}
             loading={processing}
-            disabled={!paymentForm.validateForm()}
+            disabled={!paymentForm.canSubmit()}
           />
         </View>
       </KeyboardAvoidingView>
@@ -478,6 +490,12 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.md,
     paddingHorizontal: spacing.md,
   },
+  inlineInput: {
+    flex: 1,
+    color: colors.text.primary,
+    paddingVertical: spacing.md,
+    paddingLeft: spacing.sm,
+  },
   promoButton: {
     backgroundColor: "#02de95",
     borderRadius: borderRadius.md,
@@ -506,6 +524,16 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.6)",
     fontSize: fontSize.sm,
     textAlign: "center",
+  },
+  pixInput: {
+    width: "100%",
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    color: colors.text.primary,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
   },
   cashCard: {
     backgroundColor: colors.background.secondary,

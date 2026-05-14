@@ -32,6 +32,24 @@ const platformConfigSchema = new mongoose.Schema(
     rideSearchTimeoutSeconds: {
       type: Number,
       default: 60 // tempo de busca padrao em segundos
+    },
+    supportChannels: {
+      phone: {
+        type: String,
+        default: "0800123456",
+      },
+      email: {
+        type: String,
+        default: "suporte@levamais.app",
+      },
+      whatsapp: {
+        type: String,
+        default: "5500000000000",
+      },
+      helpCenterUrl: {
+        type: String,
+        default: "",
+      },
     }
   },
   {

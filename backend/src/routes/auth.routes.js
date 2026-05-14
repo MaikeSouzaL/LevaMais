@@ -78,6 +78,11 @@ router.post(
   authenticateToken,
   authController.addPaymentMethod.bind(authController),
 );
+router.patch(
+  "/payment-methods/:methodId/default",
+  authenticateToken,
+  authController.setDefaultPaymentMethod.bind(authController),
+);
 router.delete(
   "/payment-methods/:methodId",
   authenticateToken,
@@ -102,6 +107,21 @@ router.get(
   "/privacy-export",
   authenticateToken,
   authController.exportPrivacyData.bind(authController),
+);
+router.post(
+  "/privacy-consent",
+  authenticateToken,
+  authController.recordPrivacyConsent.bind(authController),
+);
+router.post(
+  "/privacy-revoke",
+  authenticateToken,
+  authController.revokePrivacyConsent.bind(authController),
+);
+router.post(
+  "/account-delete",
+  authenticateToken,
+  authController.deleteOwnAccount.bind(authController),
 );
 
 // Rotas admin

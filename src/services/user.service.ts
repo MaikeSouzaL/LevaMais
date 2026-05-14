@@ -25,6 +25,12 @@ export type UserProfile = {
     year?: number;
   };
   gpsQuality?: "low" | "balanced" | "high";
+  driverPreferences?: {
+    serviceTypes?: Array<"ride" | "delivery">;
+    selectedVehicles?: Array<"motorcycle" | "car" | "van" | "truck">;
+    searchRadiusKm?: number;
+    autoAccept?: boolean;
+  };
   driverStatus?: "pending" | "approved" | "rejected";
   driverDocuments?: {
     cnhFront?: string;

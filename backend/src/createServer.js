@@ -21,6 +21,8 @@ const shiftOfferRoutes = require("./routes/shiftOffer.routes");
 const promotionRoutes = require("./routes/promotion.routes");
 const driverRoutes = require("./routes/driver.routes");
 const configRoutes = require("./routes/config.routes");
+const paymentRoutes = require("./routes/payments.routes");
+const withdrawRoutes = require("./routes/withdraw.routes");
 
 function applyMiddlewares(app) {
   app.use(
@@ -55,6 +57,8 @@ function applyRoutes(app) {
   app.use("/api/promotions", promotionRoutes);
   app.use("/api/drivers", driverRoutes);
   app.use("/api/config", configRoutes);
+  app.use("/api/payments", paymentRoutes);
+  app.use("/api/withdraws", withdrawRoutes);
 
   app.get("/api/health", (req, res) => {
     res.json({
@@ -69,6 +73,8 @@ function applyRoutes(app) {
         cities: true,
         pricing: true,
         promotions: true,
+        payments: true,
+        withdraws: true,
       },
     });
   });

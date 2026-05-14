@@ -4,6 +4,7 @@ const User = require("../models/User");
 const DRIVER_STATUSES = new Set(["offline", "available", "busy", "on_ride"]);
 const VEHICLE_TYPES = new Set(["motorcycle", "car", "van", "truck"]);
 const SERVICE_TYPES = new Set(["ride", "delivery"]);
+const RIDE_CAPABLE_VEHICLES = new Set(["motorcycle", "car"]);
 
 function sendError(res, status, message, extras = {}) {
   return res.status(status).json({
@@ -36,6 +37,12 @@ function normalizeServiceTypes(raw) {
 
   if (!normalized.length) return null;
   return normalized;
+}
+
+function filterServiceTypesByVehicle(vehicleType, serviceTypes) {
+  if (!Array.isArray(serviceTypes)) return serviceTypes;
+  if (RIDE_CAPABLE_VEHICLES.has(vehicleType)) return serviceTypes;
+  return serviceTypes.filter((item) => item !== "ride");
 }
 
 function normalizeStatus(value) {
@@ -83,7 +90,20 @@ class DriverLocationController {
         return sendError(res, 400, "Latitude e longitude invalidas");
       }
 
-      const normalizedVehicleType = normalizeVehicleType(vehicleType);
+      const driverUser = await User.findById(driverId).select(
+        "userType vehicleType vehicleInfo driverPreferences",
+      );
+      if (!driverUser || driverUser.userType !== "driver") {
+        return sendError(res, 403, "Apenas motoristas podem atualizar localizacao");
+      }
+
+      const fallbackVehicleType = driverUser.vehicleType;
+      const fallbackServiceTypes = Array.isArray(driverUser.driverPreferences?.serviceTypes)
+        ? driverUser.driverPreferences.serviceTypes
+        : undefined;
+      const fallbackSearchRadiusKm = Number(driverUser.driverPreferences?.searchRadiusKm);
+
+      const normalizedVehicleType = normalizeVehicleType(vehicleType || fallbackVehicleType);
       if (!normalizedVehicleType) {
         return sendError(res, 400, "Tipo de veiculo invalido");
       }
@@ -93,9 +113,16 @@ class DriverLocationController {
         return sendError(res, 400, "Status de motorista invalido");
       }
 
-      const normalizedServiceTypes = normalizeServiceTypes(serviceTypes);
+      const normalizedServiceTypes = normalizeServiceTypes(serviceTypes || fallbackServiceTypes);
       if (normalizedServiceTypes === null) {
         return sendError(res, 400, "Tipos de servico invalidos");
+      }
+      const compatibleServiceTypes = filterServiceTypesByVehicle(
+        normalizedVehicleType,
+        normalizedServiceTypes || ["delivery"],
+      );
+      if (!compatibleServiceTypes.length) {
+        return sendError(res, 400, "Nenhum tipo de servico compativel com este veiculo");
       }
 
       const headingValue = parseOptionalNumber(heading);
@@ -121,13 +148,20 @@ class DriverLocationController {
       if (headingValue !== undefined) updatePayload.heading = headingValue;
       if (speedValue !== undefined) updatePayload.speed = speedValue;
       if (vehicle && typeof vehicle === "object") updatePayload.vehicle = vehicle;
-      if (normalizedServiceTypes) updatePayload.serviceTypes = normalizedServiceTypes;
+      else if (driverUser.vehicleInfo) updatePayload.vehicle = driverUser.vehicleInfo;
+      if (compatibleServiceTypes) updatePayload.serviceTypes = compatibleServiceTypes;
       
       if (searchRadiusKm !== undefined && searchRadiusKm !== null) {
         const radiusVal = Number(searchRadiusKm);
         if (Number.isFinite(radiusVal) && radiusVal >= 1 && radiusVal <= 300) {
           updatePayload.searchRadiusKm = radiusVal;
         }
+      } else if (
+        Number.isFinite(fallbackSearchRadiusKm) &&
+        fallbackSearchRadiusKm >= 1 &&
+        fallbackSearchRadiusKm <= 300
+      ) {
+        updatePayload.searchRadiusKm = fallbackSearchRadiusKm;
       }
 
       const driverLocation = await DriverLocation.findOneAndUpdate(
@@ -374,27 +408,53 @@ class DriverLocationController {
       const driverId = req.user.id;
       const { status, serviceTypes, searchRadiusKm } = req.body;
 
+      const driverUser = await User.findById(driverId).select(
+        "userType vehicleType driverPreferences",
+      );
+      if (!driverUser || driverUser.userType !== "driver") {
+        return sendError(res, 403, "Apenas motoristas podem atualizar status");
+      }
+
       const normalizedStatus = normalizeStatus(status);
       if (!normalizedStatus) {
         return sendError(res, 400, "Status de motorista invalido");
       }
 
-      const normalizedServiceTypes = normalizeServiceTypes(serviceTypes);
+      const fallbackServiceTypes = Array.isArray(driverUser.driverPreferences?.serviceTypes)
+        ? driverUser.driverPreferences.serviceTypes
+        : undefined;
+      const fallbackSearchRadiusKm = Number(driverUser.driverPreferences?.searchRadiusKm);
+      const fallbackVehicleType = normalizeVehicleType(driverUser.vehicleType);
+
+      const normalizedServiceTypes = normalizeServiceTypes(serviceTypes || fallbackServiceTypes);
       if (normalizedServiceTypes === null) {
         return sendError(res, 400, "Tipos de servico invalidos");
+      }
+      const compatibleServiceTypes = filterServiceTypesByVehicle(
+        fallbackVehicleType || "motorcycle",
+        normalizedServiceTypes || ["delivery"],
+      );
+      if (!compatibleServiceTypes.length) {
+        return sendError(res, 400, "Nenhum tipo de servico compativel com este veiculo");
       }
 
       const updatePayload = {
         status: normalizedStatus,
       };
-      if (normalizedServiceTypes) {
-        updatePayload.serviceTypes = normalizedServiceTypes;
+      if (compatibleServiceTypes) {
+        updatePayload.serviceTypes = compatibleServiceTypes;
       }
       if (searchRadiusKm !== undefined && searchRadiusKm !== null) {
         const radiusVal = Number(searchRadiusKm);
         if (Number.isFinite(radiusVal) && radiusVal >= 1 && radiusVal <= 300) {
           updatePayload.searchRadiusKm = radiusVal;
         }
+      } else if (
+        Number.isFinite(fallbackSearchRadiusKm) &&
+        fallbackSearchRadiusKm >= 1 &&
+        fallbackSearchRadiusKm <= 300
+      ) {
+        updatePayload.searchRadiusKm = fallbackSearchRadiusKm;
       }
 
       const driverLocation = await DriverLocation.findOneAndUpdate(

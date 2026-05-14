@@ -47,12 +47,12 @@ export default function DriverProfileScreen() {
         const resolvedName = u?.name || u?.nome || name;
         const resolvedPhone = u?.phone || u?.telefone || phone;
         const resolvedCity = u?.city || u?.cidade || city;
-        const photoUrl = u?.profilePhoto || u?.driverDocuments?.selfie || profilePhoto;
+        const photoUrl = u?.profilePhoto || u?.driverDocuments?.selfie || profilePhoto || undefined;
         
         setName(resolvedName);
         setPhone(resolvedPhone);
         setCity(resolvedCity);
-        setProfilePhoto(photoUrl);
+        setProfilePhoto(photoUrl ?? null);
 
         // Gracefully refresh local store cache for other screens
         updateAuthCache({

@@ -48,6 +48,13 @@ export interface RideSettings {
   minValueMultiplier: number;
 }
 
+export interface SupportChannels {
+  phone: string;
+  email: string;
+  whatsapp: string;
+  helpCenterUrl?: string;
+}
+
 interface CacheEntry<T> {
   data: T;
   timestamp: number;
@@ -96,6 +103,12 @@ class ConfigService {
       queueRedispatchInterval: 60, // 1 minute in seconds
       maxQueueRetries: 3,
       minValueMultiplier: 1.0,
+    },
+    supportChannels: {
+      phone: '0800123456',
+      email: 'suporte@levamais.app',
+      whatsapp: '5500000000000',
+      helpCenterUrl: '',
     },
   };
 
@@ -284,6 +297,31 @@ class ConfigService {
     } catch (error) {
       logger.warn('CONFIG', 'Failed to fetch ride settings, using fallback', error);
       return this.fallbacks.rideSettings;
+    }
+  }
+
+  async getSupportChannels(): Promise<SupportChannels> {
+    const cacheKey = 'support_channels';
+
+    try {
+      const cached = this.getCachedData<SupportChannels>(cacheKey);
+      if (cached) {
+        logger.info('CONFIG', 'Support channels from cache');
+        return cached;
+      }
+
+      const response = await apiClient.get<any>('/config/support-channels', {
+        timeout: 5000,
+      });
+
+      const config: SupportChannels = response.data?.data || this.fallbacks.supportChannels;
+      this.setCachedData(cacheKey, config);
+      logger.info('CONFIG', 'Support channels from backend', config);
+
+      return config;
+    } catch (error) {
+      logger.warn('CONFIG', 'Failed to fetch support channels, using fallback', error);
+      return this.fallbacks.supportChannels;
     }
   }
 

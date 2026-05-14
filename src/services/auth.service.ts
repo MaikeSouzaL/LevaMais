@@ -1,4 +1,4 @@
-import { apiPost, apiGet, apiDelete } from "./api";
+import { apiPost, apiGet, apiDelete, apiPatch } from "./api";
 import type { ApiResponse, AuthResponse, User } from "../types/api";
 import {
   registerUserSchema,
@@ -455,6 +455,16 @@ export type PrivacyExportPayload = {
     balance: number;
     transactionsCount: number;
   };
+  privacy: {
+    consentVersion: string;
+    acceptedTerms: boolean;
+    acceptedTermsAt?: string | null;
+    acceptedPrivacyAt?: string | null;
+    consentRevokedAt?: string | null;
+    accountDeletionStatus: "none" | "requested" | "completed";
+    accountDeletionRequestedAt?: string | null;
+    accountDeletionCompletedAt?: string | null;
+  };
   rides: {
     total: number;
     byStatus: Record<string, number>;
@@ -478,6 +488,11 @@ export async function addPaymentMethod(payload: {
 
 export async function deletePaymentMethod(methodId: string): Promise<void> {
   await apiDelete(`/auth/payment-methods/${methodId}`);
+}
+
+export async function setDefaultPaymentMethod(methodId: string): Promise<PaymentMethod> {
+  const response = await apiPatch(`/auth/payment-methods/${methodId}/default`, {});
+  return response.data?.paymentMethod;
 }
 
 export async function getClientWallet(): Promise<{
@@ -507,6 +522,36 @@ export async function getNotifications(): Promise<AppNotification[]> {
 
 export async function exportPrivacyData(): Promise<PrivacyExportPayload> {
   const response = await apiGet("/auth/privacy-export");
+  return response.data?.data;
+}
+
+export async function recordPrivacyConsent(payload?: {
+  acceptedTerms?: boolean;
+  acceptedPrivacy?: boolean;
+  consentVersion?: string;
+}): Promise<{
+  consentVersion: string;
+  acceptedTermsAt: string;
+  acceptedPrivacyAt: string;
+}> {
+  const response = await apiPost("/auth/privacy-consent", payload || {});
+  return response.data?.data;
+}
+
+export async function revokePrivacyConsent(): Promise<{
+  consentRevokedAt: string;
+}> {
+  const response = await apiPost("/auth/privacy-revoke", {});
+  return response.data?.data;
+}
+
+export async function deleteOwnAccount(reason?: string): Promise<{
+  accountDeletionCompletedAt: string;
+  accountDeletionStatus: "completed";
+}> {
+  const response = await apiPost("/auth/account-delete", {
+    reason,
+  });
   return response.data?.data;
 }
 

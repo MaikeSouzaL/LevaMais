@@ -1,16 +1,11 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
 import { ClientScreenHeader } from "../../Shared/components";
-
-const HELP_ITEMS = [
-  { icon: "phone", label: "Ligar para suporte", action: () => Linking.openURL("tel:0800123456") },
-  { icon: "email", label: "Enviar e-mail", action: () => Linking.openURL("mailto:suporte@levamais.com") },
-  { icon: "chat", label: "Abrir WhatsApp", action: () => Linking.openURL("https://wa.me/5500000000000") },
-];
+import configService, { SupportChannels } from "@/services/config.service";
 
 const FAQ = [
   {
@@ -29,6 +24,41 @@ const FAQ = [
 
 export default function HelpScreen() {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const [supportChannels, setSupportChannels] = useState<SupportChannels | null>(null);
+
+  useEffect(() => {
+    configService.getSupportChannels().then(setSupportChannels).catch(() => setSupportChannels(null));
+  }, []);
+
+  const helpItems = useMemo(() => {
+    const channels = supportChannels || {
+      phone: "0800123456",
+      email: "suporte@levamais.app",
+      whatsapp: "5500000000000",
+      helpCenterUrl: "",
+    };
+
+    return [
+      {
+        icon: "phone",
+        label: "Ligar para suporte",
+        subtitle: channels.phone,
+        action: () => Linking.openURL(`tel:${channels.phone}`),
+      },
+      {
+        icon: "email",
+        label: "Enviar e-mail",
+        subtitle: channels.email,
+        action: () => Linking.openURL(`mailto:${channels.email}`),
+      },
+      {
+        icon: "chat",
+        label: "Abrir WhatsApp",
+        subtitle: channels.whatsapp,
+        action: () => Linking.openURL(`https://wa.me/${channels.whatsapp}`),
+      },
+    ];
+  }, [supportChannels]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -38,14 +68,17 @@ export default function HelpScreen() {
         <View style={styles.headerCard}>
           <MaterialIcons name="support-agent" size={48} color={colors.primary[500]} />
           <Text style={styles.title}>Como podemos ajudar?</Text>
-          <Text style={styles.subtitle}>Escolha um canal de atendimento ou consulte o FAQ.</Text>
+          <Text style={styles.subtitle}>Escolha um canal configurado pela plataforma ou consulte o FAQ.</Text>
         </View>
 
         <View style={styles.menu}>
-          {HELP_ITEMS.map((item) => (
+          {helpItems.map((item) => (
             <TouchableOpacity key={item.label} style={styles.menuItem} onPress={item.action}>
               <MaterialIcons name={item.icon as any} size={22} color={colors.text.primary} />
-              <Text style={styles.menuLabel}>{item.label}</Text>
+              <View style={styles.menuText}>
+                <Text style={styles.menuLabel}>{item.label}</Text>
+                <Text style={styles.menuMeta}>{item.subtitle}</Text>
+              </View>
               <MaterialIcons name="chevron-right" size={22} color={colors.text.tertiary} />
             </TouchableOpacity>
           ))}
@@ -104,7 +137,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border.light,
   },
-  menuLabel: { flex: 1, color: colors.text.primary, fontSize: fontSize.base, marginLeft: spacing.md },
+  menuText: {
+    flex: 1,
+    marginLeft: spacing.md,
+  },
+  menuLabel: { color: colors.text.primary, fontSize: fontSize.base },
+  menuMeta: {
+    color: colors.text.tertiary,
+    fontSize: fontSize.xs,
+    marginTop: spacing.xs,
+  },
   sectionTitle: {
     color: colors.text.tertiary,
     fontSize: fontSize.xs,
@@ -142,4 +184,3 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.md,
   },
 });
-

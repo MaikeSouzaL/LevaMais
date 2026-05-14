@@ -25,7 +25,11 @@ const withdrawalSchema = new mongoose.Schema(
       enum: ["pending", "processing", "paid", "rejected"],
       default: "pending",
     },
+    transactionId: String,
+    scheduledFor: Date,
+    notes: String,
     processedAt: Date,
+    cancelledAt: Date,
     rejectionReason: String,
   },
   {

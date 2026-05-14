@@ -1,5 +1,25 @@
 const User = require("../models/User");
 
+function normalizeServiceTypes(raw) {
+  if (raw === undefined || raw === null) return undefined;
+  if (!Array.isArray(raw)) return null;
+
+  const normalized = [...new Set(raw.map((item) => String(item || "").trim().toLowerCase()))]
+    .filter((item) => ["ride", "delivery"].includes(item));
+
+  return normalized.length ? normalized : null;
+}
+
+function normalizeSelectedVehicles(raw) {
+  if (raw === undefined || raw === null) return undefined;
+  if (!Array.isArray(raw)) return null;
+
+  const normalized = [...new Set(raw.map((item) => String(item || "").trim().toLowerCase()))]
+    .filter((item) => ["motorcycle", "car", "van", "truck"].includes(item));
+
+  return normalized.length ? normalized : null;
+}
+
 const driverController = {
   // Get driver balance
   getBalance: async (req, res) => {
@@ -326,6 +346,77 @@ const driverController = {
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
+    }
+  },
+
+  updateDriverPreferences: async (req, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Usuário não autenticado" });
+      }
+
+      const { serviceTypes, selectedVehicles, searchRadiusKm, autoAccept } = req.body || {};
+
+      const user = await User.findById(userId);
+      if (!user || user.userType !== "driver") {
+        return res.status(403).json({ error: "Usuário não é um motorista" });
+      }
+
+      if (!user.driverPreferences) {
+        user.driverPreferences = {
+          serviceTypes: ["ride", "delivery"],
+          selectedVehicles: user.vehicleType ? [user.vehicleType] : [],
+          searchRadiusKm: 15,
+          autoAccept: false,
+        };
+      }
+
+      const normalizedServiceTypes = normalizeServiceTypes(serviceTypes);
+      if (normalizedServiceTypes === null) {
+        return res.status(400).json({ error: "Tipos de serviço inválidos" });
+      }
+
+      const normalizedSelectedVehicles = normalizeSelectedVehicles(selectedVehicles);
+      if (normalizedSelectedVehicles === null) {
+        return res.status(400).json({ error: "Veículos selecionados inválidos" });
+      }
+
+      if (normalizedServiceTypes) {
+        user.driverPreferences.serviceTypes = normalizedServiceTypes;
+      }
+
+      if (normalizedSelectedVehicles) {
+        user.driverPreferences.selectedVehicles = normalizedSelectedVehicles;
+      } else if (
+        normalizedSelectedVehicles === undefined &&
+        (!user.driverPreferences.selectedVehicles || !user.driverPreferences.selectedVehicles.length) &&
+        user.vehicleType
+      ) {
+        user.driverPreferences.selectedVehicles = [user.vehicleType];
+      }
+
+      if (searchRadiusKm !== undefined && searchRadiusKm !== null) {
+        const radius = Number(searchRadiusKm);
+        if (!Number.isFinite(radius) || radius < 1 || radius > 300) {
+          return res.status(400).json({ error: "Raio de busca inválido" });
+        }
+        user.driverPreferences.searchRadiusKm = radius;
+      }
+
+      if (autoAccept !== undefined) {
+        user.driverPreferences.autoAccept = Boolean(autoAccept);
+      }
+
+      await user.save();
+
+      return res.json({
+        success: true,
+        message: "Preferências atualizadas com sucesso",
+        data: user.driverPreferences,
+      });
+    } catch (error) {
+      return res.status(500).json({ error: error.message });
     }
   },
 

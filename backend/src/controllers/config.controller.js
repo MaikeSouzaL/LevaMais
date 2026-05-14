@@ -38,6 +38,12 @@ const DEFAULT_CONFIG = {
     minRideValue: 10,
     maxRideDistance: 100,
   },
+  supportChannels: {
+    phone: "0800123456",
+    email: "suporte@levamais.app",
+    whatsapp: "5500000000000",
+    helpCenterUrl: "",
+  },
 };
 
 const configController = {
@@ -171,6 +177,23 @@ const configController = {
     }
   },
 
+  getSupportChannels: async (req, res) => {
+    try {
+      const config = await PlatformConfig.findOne();
+      const supportChannels = config?.supportChannels || DEFAULT_CONFIG.supportChannels;
+
+      res.json({
+        success: true,
+        data: supportChannels,
+      });
+    } catch (error) {
+      res.json({
+        success: true,
+        data: DEFAULT_CONFIG.supportChannels,
+      });
+    }
+  },
+
   // Get all config
   getAllConfig: async (req, res) => {
     try {
@@ -182,6 +205,7 @@ const configController = {
         cancelReasons: config?.cancelReasons || DEFAULT_CONFIG.cancelReasons,
         depositConfig: config?.depositConfig || DEFAULT_CONFIG.depositConfig,
         rideSettings: config?.rideSettings || DEFAULT_CONFIG.rideSettings,
+        supportChannels: config?.supportChannels || DEFAULT_CONFIG.supportChannels,
       };
 
       res.json({

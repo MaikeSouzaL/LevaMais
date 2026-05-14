@@ -10,6 +10,7 @@ router.get("/cancel-reasons", configController.getCancelReasons);
 router.get("/deposit-config", configController.getDepositConfig);
 router.get("/ride-settings", configController.getRideSettings);
 router.get("/deduction-percentage", configController.getDeductionPercentage);
+router.get("/support-channels", configController.getSupportChannels);
 router.get("/all", configController.getAllConfig);
 
 // Admin endpoints (should add auth check)

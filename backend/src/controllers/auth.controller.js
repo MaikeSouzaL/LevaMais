@@ -6,6 +6,16 @@ const jwt = require("jsonwebtoken");
 const emailService = require("../services/email.service");
 const crypto = require("crypto");
 const mongoose = require("mongoose");
+const ACTIVE_RIDE_STATUSES = [
+  "requesting",
+  "driver_assigned",
+  "accepted",
+  "driver_arriving",
+  "arrived",
+  "in_progress",
+];
+const CURRENT_CONSENT_VERSION = "2026-05-14";
+const RIDE_CAPABLE_VEHICLES = new Set(["motorcycle", "car"]);
 
 function normalizePhone(phone) {
   if (!phone) return "";
@@ -56,6 +66,24 @@ function parseExpiry(expiry) {
 
 function toMoney(value) {
   return Number(Number(value || 0).toFixed(2));
+}
+
+function toNullableString(value) {
+  if (value === undefined || value === null) return null;
+  const trimmed = String(value).trim();
+  return trimmed ? trimmed : null;
+}
+
+function buildDeletedEmail(userId) {
+  return `deleted_${String(userId)}@leva.local`;
+}
+
+function getCompatibleServiceTypes(vehicleType, serviceTypes) {
+  const normalized = Array.isArray(serviceTypes) ? serviceTypes : ["ride", "delivery"];
+  if (RIDE_CAPABLE_VEHICLES.has(String(vehicleType || "").toLowerCase())) {
+    return normalized;
+  }
+  return normalized.filter((item) => item !== "ride");
 }
 
 class AuthController {
@@ -114,6 +142,8 @@ class AuthController {
         ? String(userType)
         : "client";
       const normalizedPreferredPayment = normalizePreferredPayment(preferredPayment);
+      const consentAccepted = Boolean(acceptedTerms);
+      const consentTimestamp = consentAccepted ? new Date() : undefined;
 
       // Validar campos obrigatórios
       if (!name || !email || !password) {
@@ -143,8 +173,14 @@ class AuthController {
         email: normalizedEmail,
         password,
         userType: resolvedUserType,
-        acceptedTerms: acceptedTerms || false,
+        acceptedTerms: consentAccepted,
+        consentVersion: CURRENT_CONSENT_VERSION,
       };
+
+      if (consentTimestamp) {
+        userData.acceptedTermsAt = consentTimestamp;
+        userData.acceptedPrivacyAt = consentTimestamp;
+      }
 
       // Google
       if (googleId) userData.googleId = googleId;
@@ -200,6 +236,13 @@ class AuthController {
         }
         if (vehicleType) userData.vehicleType = vehicleType;
         if (vehicleInfo) userData.vehicleInfo = vehicleInfo;
+        const defaultServiceTypes = getCompatibleServiceTypes(vehicleType, ["ride", "delivery"]);
+        userData.driverPreferences = {
+          serviceTypes: defaultServiceTypes,
+          selectedVehicles: vehicleType ? [vehicleType] : [],
+          searchRadiusKm: 15,
+          autoAccept: false,
+        };
       }
 
       // Criar novo usuário
@@ -331,6 +374,9 @@ class AuthController {
           profilePhoto,
           userType: "client",
           acceptedTerms: true,
+          acceptedTermsAt: new Date(),
+          acceptedPrivacyAt: new Date(),
+          consentVersion: CURRENT_CONSENT_VERSION,
         });
       }
 
@@ -423,7 +469,20 @@ class AuthController {
       }
 
       if (user.userType === "driver") {
-        if (vehicleType !== undefined) user.vehicleType = vehicleType;
+        if (vehicleType !== undefined) {
+          user.vehicleType = vehicleType;
+          user.driverPreferences = user.driverPreferences || {
+            serviceTypes: ["ride", "delivery"],
+            selectedVehicles: [],
+            searchRadiusKm: 15,
+            autoAccept: false,
+          };
+          user.driverPreferences.serviceTypes = getCompatibleServiceTypes(
+            vehicleType,
+            user.driverPreferences.serviceTypes,
+          );
+          user.driverPreferences.selectedVehicles = [vehicleType];
+        }
         if (vehicleInfo !== undefined) user.vehicleInfo = vehicleInfo;
         if (gpsQuality !== undefined && ["low", "balanced", "high"].includes(gpsQuality)) {
           user.gpsQuality = gpsQuality;
@@ -574,6 +633,49 @@ class AuthController {
     } catch (error) {
       console.error("Erro ao remover cartao:", error);
       return sendError(res, 500, "Erro ao remover cartao", { details: error.message });
+    }
+  }
+
+  async setDefaultPaymentMethod(req, res) {
+    try {
+      const userId = req.user.id;
+      const { methodId } = req.params;
+
+      if (!mongoose.Types.ObjectId.isValid(methodId)) {
+        return sendError(res, 400, "Cartao invalido");
+      }
+
+      const user = await User.findById(userId);
+      if (!user) return sendError(res, 404, "Usuario nao encontrado");
+
+      const methods = user.paymentMethods || [];
+      const target = methods.find((method) => String(method._id) === String(methodId));
+      if (!target) return sendError(res, 404, "Cartao nao encontrado");
+
+      methods.forEach((method) => {
+        method.isDefault = String(method._id) === String(methodId);
+      });
+
+      user.paymentMethods = methods;
+      await user.save();
+
+      return res.json({
+        success: true,
+        message: "Cartao padrao atualizado com sucesso",
+        paymentMethod: {
+          _id: target._id,
+          brand: target.brand || "card",
+          last4: target.last4 || "",
+          holderName: target.holderName || "",
+          expiryMonth: target.expiryMonth,
+          expiryYear: target.expiryYear,
+          isDefault: true,
+          createdAt: target.createdAt,
+        },
+      });
+    } catch (error) {
+      console.error("Erro ao definir cartao padrao:", error);
+      return sendError(res, 500, "Erro ao definir cartao padrao", { details: error.message });
     }
   }
 
@@ -758,6 +860,16 @@ class AuthController {
             ? user.wallet.transactions.length
             : 0,
         },
+        privacy: {
+          consentVersion: user.consentVersion || CURRENT_CONSENT_VERSION,
+          acceptedTerms: Boolean(user.acceptedTerms),
+          acceptedTermsAt: user.acceptedTermsAt || null,
+          acceptedPrivacyAt: user.acceptedPrivacyAt || null,
+          consentRevokedAt: user.consentRevokedAt || null,
+          accountDeletionStatus: user.accountDeletionStatus || "none",
+          accountDeletionRequestedAt: user.accountDeletionRequestedAt || null,
+          accountDeletionCompletedAt: user.accountDeletionCompletedAt || null,
+        },
         rides: {
           total: totalRides,
           byStatus: ridesSummary.reduce((acc, item) => {
@@ -774,6 +886,166 @@ class AuthController {
     } catch (error) {
       console.error("Erro ao exportar dados de privacidade:", error);
       return sendError(res, 500, "Erro ao exportar dados", {
+        details: error.message,
+      });
+    }
+  }
+
+  async recordPrivacyConsent(req, res) {
+    try {
+      const user = await User.findById(req.user.id);
+      if (!user) return sendError(res, 404, "Usuario nao encontrado");
+
+      const acceptedTerms = req.body?.acceptedTerms !== false;
+      const acceptedPrivacy = req.body?.acceptedPrivacy !== false;
+      const consentVersion =
+        toNullableString(req.body?.consentVersion) || CURRENT_CONSENT_VERSION;
+
+      if (!acceptedTerms || !acceptedPrivacy) {
+        return sendError(res, 400, "Aceite de termos e privacidade obrigatorio");
+      }
+
+      const now = new Date();
+      user.acceptedTerms = true;
+      user.acceptedTermsAt = now;
+      user.acceptedPrivacyAt = now;
+      user.consentVersion = consentVersion;
+      user.consentRevokedAt = undefined;
+      user.isActive = true;
+
+      await user.save();
+
+      return res.json({
+        success: true,
+        message: "Consentimento registrado com sucesso",
+        data: {
+          consentVersion: user.consentVersion,
+          acceptedTermsAt: user.acceptedTermsAt,
+          acceptedPrivacyAt: user.acceptedPrivacyAt,
+        },
+      });
+    } catch (error) {
+      console.error("Erro ao registrar consentimento:", error);
+      return sendError(res, 500, "Erro ao registrar consentimento", {
+        details: error.message,
+      });
+    }
+  }
+
+  async revokePrivacyConsent(req, res) {
+    try {
+      const user = await User.findById(req.user.id);
+      if (!user) return sendError(res, 404, "Usuario nao encontrado");
+
+      const activeRide = await Ride.findOne({
+        $or: [{ clientId: user._id }, { driverId: user._id }],
+        status: { $in: ACTIVE_RIDE_STATUSES },
+      })
+        .select("_id status")
+        .lean();
+
+      if (activeRide) {
+        return sendError(
+          res,
+          409,
+          "Finalize a corrida ativa antes de revogar o consentimento",
+          { activeRideId: String(activeRide._id) },
+        );
+      }
+
+      const now = new Date();
+      user.acceptedTerms = false;
+      user.consentRevokedAt = now;
+      user.notificationsEnabled = false;
+      user.pushToken = undefined;
+      user.pushTokenUpdatedAt = now;
+      user.isActive = false;
+
+      await user.save();
+
+      return res.json({
+        success: true,
+        message: "Consentimento revogado e conta desativada",
+        data: {
+          consentRevokedAt: user.consentRevokedAt,
+        },
+      });
+    } catch (error) {
+      console.error("Erro ao revogar consentimento:", error);
+      return sendError(res, 500, "Erro ao revogar consentimento", {
+        details: error.message,
+      });
+    }
+  }
+
+  async deleteOwnAccount(req, res) {
+    try {
+      const user = await User.findById(req.user.id);
+      if (!user) return sendError(res, 404, "Usuario nao encontrado");
+
+      const activeRide = await Ride.findOne({
+        $or: [{ clientId: user._id }, { driverId: user._id }],
+        status: { $in: ACTIVE_RIDE_STATUSES },
+      })
+        .select("_id status")
+        .lean();
+
+      if (activeRide) {
+        return sendError(
+          res,
+          409,
+          "Finalize a corrida ativa antes de excluir a conta",
+          { activeRideId: String(activeRide._id) },
+        );
+      }
+
+      const now = new Date();
+      const deletionReason = toNullableString(req.body?.reason);
+
+      user.accountDeletionRequestedAt = now;
+      user.accountDeletionCompletedAt = now;
+      user.accountDeletionReason = deletionReason;
+      user.accountDeletionStatus = "completed";
+      user.isActive = false;
+      user.acceptedTerms = false;
+      user.consentRevokedAt = now;
+      user.pushToken = undefined;
+      user.pushTokenUpdatedAt = now;
+      user.notificationsEnabled = false;
+
+      user.name = "Conta excluida";
+      user.email = buildDeletedEmail(user._id);
+      user.phone = undefined;
+      user.city = undefined;
+      user.cpf = undefined;
+      user.cnpj = undefined;
+      user.companyName = undefined;
+      user.companyEmail = undefined;
+      user.companyPhone = undefined;
+      user.address = undefined;
+      user.favoriteAddresses = [];
+      user.paymentMethods = [];
+      user.profilePhoto = undefined;
+      user.googleId = undefined;
+      user.driverDocuments = undefined;
+      user.wallet = {
+        balance: 0,
+        transactions: [],
+      };
+
+      await user.save();
+
+      return res.json({
+        success: true,
+        message: "Conta excluida com anonimização dos dados pessoais",
+        data: {
+          accountDeletionCompletedAt: user.accountDeletionCompletedAt,
+          accountDeletionStatus: user.accountDeletionStatus,
+        },
+      });
+    } catch (error) {
+      console.error("Erro ao excluir conta:", error);
+      return sendError(res, 500, "Erro ao excluir conta", {
         details: error.message,
       });
     }
