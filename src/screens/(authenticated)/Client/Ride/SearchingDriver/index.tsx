@@ -18,6 +18,7 @@ import { NearbyDriversLayer } from "@/components/client/searching-delivery/Nearb
 import { DeliverySearchBottomSheet } from "@/components/client/searching-delivery/DeliverySearchBottomSheet";
 import { useRealtimeDelivery } from "@/hooks/useRealtimeDelivery";
 import {Modal} from "@/components/Modal";
+import { SearchTimeoutView } from "@/components/client/searching-delivery/timeout/SearchTimeoutView";
 
 const SEARCH_TIME = 60; // Tempo de busca padrão caso o banco de dados venha vazio (60 segundos)
 const TERMINAL_CANCEL_STATUSES = [
@@ -33,6 +34,7 @@ export default function SearchingDriverScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const rideId = route.params?.rideId || "";
+  const initialServiceType = route.params?.serviceType;
 
   const [secondsLeft, setSecondsLeft] = useState(SEARCH_TIME);
   const [secondsElapsed, setSecondsElapsed] = useState(0);
@@ -49,6 +51,8 @@ export default function SearchingDriverScreen() {
 
   // Ride Context Persistence
   const [rideData, setRideData] = useState<any>(null);
+  const effectiveServiceType =
+    rideData?.serviceType || initialServiceType || "ride";
 
   const mapRef = useRef<MapView>(null);
   const intervalRef = useRef<any>(null);
@@ -61,7 +65,7 @@ export default function SearchingDriverScreen() {
     pickupCoords?.longitude,
     rideData?.vehicleType || "motorcycle",
     secondsElapsed,
-    rideData?.serviceType || "ride"
+    effectiveServiceType
   );
 
   const cleanup = () => {
@@ -158,14 +162,16 @@ export default function SearchingDriverScreen() {
         setQueueCancelled(true);
         return;
       }
+      const isDeliveryFlow =
+        effectiveServiceType === "delivery" || effectiveServiceType === "frete";
       Toast.show({
         type: "info",
-        text1: "Corrida cancelada",
+        text1: isDeliveryFlow ? "Entrega cancelada" : "Corrida cancelada",
         text2: data?.reason || "Nenhum motorista disponivel",
       });
       navigation.goBack();
     },
-    [navigation, waitingInQueue],
+    [navigation, waitingInQueue, effectiveServiceType],
   );
 
   const connectAndSearch = useCallback(async () => {
@@ -237,7 +243,11 @@ export default function SearchingDriverScreen() {
             }
             return;
           }
-          rideCancelledCallback({ reason: "Corrida encerrada", status: ride.status });
+          const closedReason =
+            ride?.serviceType === "delivery" || ride?.serviceType === "frete"
+              ? "Entrega encerrada"
+              : "Corrida encerrada";
+          rideCancelledCallback({ reason: closedReason, status: ride.status });
         }
       } catch {
         pollFailures += 1;
@@ -357,58 +367,48 @@ export default function SearchingDriverScreen() {
     await connectAndSearch();
   };
 
+  const handleIncreaseOffer = useCallback(async (incrementAmount: number) => {
+    if (!rideId || adjusting) return;
+    try {
+      setAdjusting(true);
+      const res = await rideService.increaseOffer(rideId, incrementAmount);
+      
+      // Hydrate local context with latest payload from backend directly
+      if (res?.ride) {
+        setRideData(res.ride);
+      } else {
+        const fresh = await rideService.getById(rideId);
+        setRideData(fresh);
+      }
+      
+      Toast.show({
+        type: "success",
+        text1: "Oferta Impulsionada! 🚀",
+        text2: `Sua entrega agora oferece +R$ ${incrementAmount},00.`,
+      });
+    } catch (err: any) {
+      Toast.show({
+        type: "error",
+        text1: "Erro ao impulsionar",
+        text2: err?.message || "Não foi possível alterar a oferta.",
+      });
+    } finally {
+      setAdjusting(false);
+    }
+  }, [rideId, adjusting]);
+
+
   // ⏱️ TIMEOUT FALLBACK VIEW: Handles search ending with zero active results
   if (timeout) {
     return (
-      <View className="flex-1 bg-[#091A2F] items-center justify-center p-6">
-        <StatusBar barStyle="light-content" />
-        <MotiView
-          from={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="w-full bg-white/[0.02] border border-white/10 rounded-3xl p-6 items-center"
-        >
-           <View className={`w-20 h-20 rounded-full items-center justify-center mb-6 ${allDriversRejected ? 'bg-red-500/10 border border-red-500/30' : 'bg-amber-500/10 border border-amber-500/30'}`}>
-              {allDriversRejected ? <AlertTriangle size={36} color="#EF4444" /> : <Clock size={36} color="#FBBF24" />}
-           </View>
-           <Text className="text-white font-extrabold text-2xl text-center mb-3">
-             {allDriversRejected ? "Oferta Recusada" : "Tempo Esgotado"}
-           </Text>
-           <Text className="text-white/60 text-center mb-8 text-base px-4">
-             {allDriversRejected 
-               ? "Todos os motoristas ativos no momento recusaram sua oferta. Sugerimos aumentar o valor proposto para atrair aceites!" 
-               : "Ainda não encontramos motoristas próximos. Deseja tentar novamente ou entrar na fila prioritária?"}
-           </Text>
-
-           {/* Extended Retry Button */}
-           <TouchableOpacity 
-             onPress={handleRetry}
-             className="w-full h-14 bg-[#02de95] rounded-2xl flex-row items-center justify-center mb-3 shadow-2xl shadow-[#02de95]/20"
-           >
-             <RefreshCcw size={18} color="#091A2F" className="mr-2" />
-             <Text className="text-[#091A2F] font-black text-base">Tentar Novamente</Text>
-           </TouchableOpacity>
-
-           {/* Active Queue Integration */}
-           <TouchableOpacity 
-             onPress={handleEnterQueue}
-             disabled={enteringQueue}
-             className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl flex-row items-center justify-center mb-6"
-           >
-             {enteringQueue ? (
-               <ActivityIndicator color="#FFF" />
-             ) : (
-               <>
-                 <Settings size={18} color="#FFF" className="mr-2" />
-                 <Text className="text-white font-bold text-base">Entrar na Fila Pública</Text>
-               </>
-             )}
-           </TouchableOpacity>
-
-           <TouchableOpacity onPress={handleCancel} className="mt-2">
-             <Text className="text-red-500 font-black text-sm uppercase tracking-widest">Cancelar Solicitação</Text>
-           </TouchableOpacity>
-        </MotiView>
-      </View>
+      <SearchTimeoutView
+        allDriversRejected={allDriversRejected}
+        enteringQueue={enteringQueue}
+        onRetry={handleRetry}
+        onEnterQueue={handleEnterQueue}
+        onCancel={handleCancel}
+        pickupCoords={pickupCoords}
+      />
     );
   }
 
@@ -535,6 +535,7 @@ export default function SearchingDriverScreen() {
         distanceText={rideData?.distance?.text}
         durationText={rideData?.duration?.text}
         drivers={drivers}
+        onBoost={handleIncreaseOffer}
       />
       
     </GestureHandlerRootView>

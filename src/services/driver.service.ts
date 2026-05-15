@@ -27,6 +27,7 @@ export interface BalanceTransaction {
   reason?: string;
   rideId?: string;
   createdAt: string;
+  status?: string;
 }
 
 export interface DriverPreferences {
@@ -130,12 +131,25 @@ class DriverService {
   // Get balance history/transactions
   async getBalanceHistory(limit: number = 50): Promise<BalanceTransaction[]> {
     try {
-      // Get balance and parse transactions from it
-      const balance = await this.getBalance();
-      
-      // Return empty array for now - would need backend support
-      logger.info('DRIVER_SERVICE', 'Balance history fetched from balance object');
-      return [];
+      const response = await apiClient.get<any>('/drivers/balance/history', {
+        params: { limit },
+      });
+      const items = Array.isArray(response.data?.data) ? response.data.data : [];
+
+      const normalized: BalanceTransaction[] = items.map((item: any) => ({
+        id: String(item?.id || ''),
+        type: item?.type,
+        amount: Number(item?.amount || 0),
+        reason: item?.reason || '',
+        rideId: item?.rideId ? String(item.rideId) : undefined,
+        createdAt: item?.createdAt || new Date().toISOString(),
+        status: item?.status,
+      }));
+
+      logger.info('DRIVER_SERVICE', 'Balance history fetched', {
+        count: normalized.length,
+      });
+      return normalized;
     } catch (error) {
       logger.error('DRIVER_SERVICE', 'Failed to fetch balance history', error);
       return [];
@@ -222,9 +236,28 @@ class DriverService {
   // Get deposit history
   async getDepositHistory(limit: number = 20): Promise<DriverDeposit[]> {
     try {
-      // Would need backend endpoint for this
-      logger.info('DRIVER_SERVICE', 'Deposit history - returning empty array');
-      return [];
+      const history = await this.getBalanceHistory(Math.max(limit, 1) * 3);
+      const deposits = history
+        .filter((item) => item.type === 'deposit')
+        .slice(0, limit)
+        .map((item) => ({
+          // map wallet-ledger status to DriverDeposit contract
+          status: (item.status === 'failed'
+            ? 'failed'
+            : item.status === 'pending'
+            ? 'pending'
+            : 'confirmed') as DriverDeposit['status'],
+          id: item.id,
+          driverId: '',
+          amount: Number(item.amount || 0),
+          method: 'pix' as const,
+          createdAt: item.createdAt,
+        }));
+
+      logger.info('DRIVER_SERVICE', 'Deposit history fetched', {
+        count: deposits.length,
+      });
+      return deposits;
     } catch (error) {
       logger.error('DRIVER_SERVICE', 'Failed to fetch deposit history', error);
       return [];

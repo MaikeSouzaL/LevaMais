@@ -1,13 +1,47 @@
-import React, { useMemo, useRef, useEffect } from "react";
-import { View, Text, TouchableOpacity, Image, ScrollView } from "react-native";
+import React, { useState, useMemo, useRef, useEffect } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  ActivityIndicator,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  Dimensions,
+} from "react-native";
 import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
-import { MotiView } from "moti";
-import { 
-  MapPin, Check, X, DollarSign, Route, Timer, CreditCard, 
-  QrCode, Banknote, User, Star, ShieldCheck, TrendingUp, Zap, Package 
+import { MotiView, AnimatePresence } from "moti";
+import { Easing } from "react-native-reanimated";
+import {
+  Check,
+  MessageSquare,
+  Sparkles,
+  Route,
+  Clock,
+  Shield,
+  Star,
+  Package,
+  AlertTriangle,
+  Activity,
+  ChevronRight,
+  DollarSign,
+  Zap,
+  CreditCard,
+  Wallet,
+  Briefcase,
+  Users,
+  FileText,
+  X,
 } from "lucide-react-native";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { formatBRL } from "@/utils/mappers";
+
+// Safe local stub for Haptics
+const Haptics = {
+  ImpactFeedbackStyle: { Light: 0, Medium: 1 },
+  NotificationFeedbackType: { Success: 2 },
+  impactAsync: async (style: any) => {},
+  notificationAsync: async (type: any) => {},
+};
 
 interface IncomingRideCardProps {
   isVisible: boolean;
@@ -15,7 +49,32 @@ interface IncomingRideCardProps {
   countdown: number | null;
   onAccept: () => void;
   onReject: () => void;
-  onNegotiate?: () => void;
+  onCounterOffer: (amount: number, message: string) => Promise<void>;
+}
+
+// ========================================================
+// INTERNAL HELPER MAPS FOR PAYMENT & SERVICES 💎
+// ========================================================
+
+function getPaymentInfo(method: string) {
+  const key = String(method || "cash").toLowerCase();
+  if (key.includes("pix")) {
+    return { name: "PIX Instantâneo", icon: Zap, color: "#32BCAD" };
+  }
+  if (key.includes("card") || key.includes("credit") || key.includes("debit")) {
+    return { name: "Cartão no App", icon: CreditCard, color: "#6366F1" };
+  }
+  if (key.includes("wallet")) {
+    return { name: "Carteira Digital", icon: Wallet, color: "#F59E0B" };
+  }
+  return { name: "Dinheiro / Físico", icon: DollarSign, color: "#10B981" };
+}
+
+function getServiceModeName(mode: string, category?: string) {
+  const m = String(mode || category || "delivery").toLowerCase();
+  if (m === "ride" || m === "transport") return "Transporte Executivo";
+  if (m === "frete" || m === "moving") return "Frete e Mudança";
+  return "Entrega Expressa Premium";
 }
 
 export function IncomingRideCard({
@@ -23,39 +82,124 @@ export function IncomingRideCard({
   request,
   onAccept,
   onReject,
-  onNegotiate,
+  onCounterOffer,
 }: IncomingRideCardProps) {
-  
   const sheetRef = useRef<BottomSheet>(null);
-  const snapPoints = useMemo(() => ["60%", "90%"], []);
+  
+
+  const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+
+  // Calculate absolute precise pixel dimensions for ultimate lock reliability 📏
+  const snapPoints = useMemo(() => ["50%", "86%"], []);
+
+  const offer = request;
+
+  const baseValue = offer?.offeredValue || offer?.pricing?.total || 0;
+
+  // Internal state for direct negotiation within bottom sheet 💰
+  const [counterValue, setCounterValue] = useState(baseValue);
+  const [message, setMessage] = useState("");
+  const [loadingState, setLoadingState] = useState<"idle" | "sending" | "waiting">("idle");
 
   useEffect(() => {
     if (isVisible) {
-      sheetRef.current?.snapToIndex(0);
+      // Reset local state whenever visible changes
+      setCounterValue(baseValue);
+      setMessage("");
+      setLoadingState("idle");
+
+      // 🛡️ Safety frame-tick for Android layout engine to securely lock index 0 (55%) upon mount!
+      setTimeout(() => {
+        sheetRef.current?.snapToIndex(0);
+      }, 150);
     }
-  }, [isVisible]);
+  }, [isVisible, baseValue]);
+
+  // Re-sync counterValue when offer base changes if it was at base
+  useEffect(() => {
+    if (baseValue > 0) {
+      setCounterValue(baseValue);
+    }
+  }, [baseValue]);
 
   if (!isVisible || !request) return null;
 
-  const isNegotiation = !!request?.negotiation?.enabled;
+  const hasProposedNewValue = counterValue > baseValue;
+  const distanceKm = offer.distanceKm || offer.distance?.text || "-- km";
+  const durationText = offer.estimatedDuration || offer.duration?.text || "-- min";
+  const clientName = offer.client?.name || "Cliente Leva Mais";
+  const clientRating = offer.client?.rating || "5.0";
+  const clientRidesCount = offer.client?.ridesCount || 0;
+  const cargoType = offer.cargoType || (offer.details?.itemType 
+    ? { food: "Entrega de Delivery", doc: "Documentos", market: "Mercado", box: "Caixa/Pacote", material: "Materiais", furniture: "Móveis", moving: "Mudança", other: "Outros" }[offer.details.itemType as string] 
+    : "Pequeno Porte");
   
-  const displayValue = isNegotiation && request.negotiation.clientOffer != null
-    ? Number(request.negotiation.clientOffer)
-    : request?.pricing?.total != null
-    ? Number(request.pricing.total)
-    : 0;
+  const helperRequired = offer.helperRequired || offer.details?.helperRequired || false;
+  const obs = offer.observations || offer.details?.specialInstructions || "";
 
-  const getSmartInsight = () => {
-    const distValue = request.distance?.value || 0;
-    const price = displayValue || 1;
-    const pricePerKm = price / (distValue / 1000 || 1);
-    
-    if (pricePerKm > 2.5) return { text: "Lucro/km acima da média", icon: <TrendingUp size={12} color="#02de95" /> };
-    if (request.details?.priority === 2) return { text: "Prioridade máxima / Taxa extra", icon: <Zap size={12} color="#F59E0B" /> };
-    return { text: "Rota de alta demanda", icon: <TrendingUp size={12} color="#02de95" /> };
+  const paymentMethodName = offer.paymentMethod || offer.payment?.method?.type || offer.payment?.method || "cash";
+  const payInfo = getPaymentInfo(paymentMethodName);
+  const PayIcon = payInfo.icon;
+  
+  const serviceMode = offer.serviceMode || offer.serviceType || "delivery";
+  const serviceName = getServiceModeName(serviceMode, offer.type);
+
+  // Distance Parse for calculations
+  const distanceNum = parseFloat(String(distanceKm).replace(/,/g, ".").replace(/[^0-9.]/g, ""));
+  const safeDist = isNaN(distanceNum) ? 1 : distanceNum;
+
+  const isOfferTooHigh = counterValue >= baseValue * 1.7;
+
+  // Simulated smart stats 🤖
+  const acceptanceChance = (() => {
+    const diff = counterValue - baseValue;
+    if (diff <= 0) return 100;
+    if (diff <= 2) return 94;
+    if (diff <= 5) return 81;
+    if (diff <= 10) return 63;
+    return 35;
+  })();
+
+  // Quick suggestion
+  const suggestionVal = baseValue + 3;
+
+  const increase = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setCounterValue((prev: number) => prev + 1);
   };
 
-  const insight = getSmartInsight();
+  const decrease = () => {
+    if (counterValue > baseValue) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      setCounterValue((prev: number) => prev - 1);
+    }
+  };
+
+  const handleMainAction = async () => {
+    if (!hasProposedNewValue) {
+      // Direct Acceptance
+      onAccept();
+    } else {
+      // Propose new counter-offer
+      try {
+        setLoadingState("sending");
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        
+        // Visual delay for fintech feel
+        setTimeout(async () => {
+          try {
+            setLoadingState("waiting");
+            await onCounterOffer(counterValue, message);
+          } catch (e) {
+            setLoadingState("idle");
+          }
+        }, 1000);
+
+      } catch (error) {
+        setLoadingState("idle");
+      }
+    }
+  };
 
   return (
     <BottomSheet
@@ -63,359 +207,358 @@ export function IncomingRideCard({
       index={0}
       snapPoints={snapPoints}
       enablePanDownToClose={false}
-      backgroundStyle={{ backgroundColor: "#091A2F", borderRadius: 40 }}
+      enableOverDrag={false}
+      style={{ zIndex: 9999, elevation: 9999 }}
+      backgroundStyle={{ backgroundColor: "#0B1523", borderRadius: 40 }}
       handleIndicatorStyle={{ backgroundColor: "rgba(255,255,255,0.15)", width: 36 }}
       animateOnMount={true}
     >
-      <BottomSheetScrollView 
-        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 40 }}
-        showsVerticalScrollIndicator={false}
-      >
-        
-        {/* 🎬 1. TOP OPERATIONAL HEADER */}
-        <View className="flex-row items-center justify-between mb-6">
-          {isNegotiation ? (
-            <MotiView 
-              from={{ opacity: 0.6 }}
-              animate={{ opacity: 1 }}
-              transition={{ loop: true, type: "timing", duration: 1500, repeatReverse: true }}
-              className="bg-[#02de95]/10 border border-[#02de95]/20 px-3 py-1.5 rounded-full flex-row items-center"
+      <View className="flex-1">
+        {/* 🔴 CLOSE / REJECT FLOAT ACTION */}
+        <TouchableOpacity 
+          onPress={onReject}
+          activeOpacity={0.7}
+          className="absolute top-2 right-5 w-9 h-9 rounded-full bg-white/10 items-center justify-center z-50 border border-white/5"
+        >
+           <X size={18} color="rgba(255,255,255,0.7)" />
+        </TouchableOpacity>
+
+        {/* ==========================================
+            FINTECH LOADING STATE OVERLAY (Embedded)
+           ========================================== */}
+        {loadingState !== "idle" ? (
+          <View className="flex-1 items-center justify-center px-8 pb-10">
+            <MotiView
+              from={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="items-center w-full"
             >
-               <DollarSign size={11} color="#02de95" className="mr-1.5" />
-               <Text className="text-[#02de95] text-[9px] font-black uppercase tracking-wider">Oferta Negociável</Text>
+              <View className="w-24 h-24 rounded-full bg-[#02de95]/10 border border-[#02de95]/30 items-center justify-center mb-8 relative">
+                <MotiView
+                  from={{ scale: 1, opacity: 0.6 }}
+                  animate={{ scale: 1.6, opacity: 0 }}
+                  transition={{ loop: true, duration: 2000, type: "timing" }}
+                  className="absolute inset-0 rounded-full bg-[#02de95]/10 border border-[#02de95]/40"
+                />
+                <MotiView
+                  from={{ rotate: "0deg" }}
+                  animate={{ rotate: "360deg" }}
+                  transition={{ loop: true, duration: 4000, easing: Easing.linear, type: "timing" }}
+                >
+                  <Sparkles size={38} color="#02de95" fill="#02de95" />
+                </MotiView>
+              </View>
+
+              <Text className="text-white font-black text-2xl tracking-tight text-center mb-2">
+                {loadingState === "sending" ? "Transmitindo Proposta..." : "Aguardando o Cliente..."}
+              </Text>
+
+              <Text className="text-white/50 text-center text-sm leading-6 mb-8 max-w-[280px]">
+                {loadingState === "sending"
+                  ? "Alinhando sua oferta com nossa central logística inteligente."
+                  : `Sua proposta de R$ ${counterValue.toFixed(2).replace(".", ",")} está no celular do cliente.`}
+              </Text>
+
+              <View className="w-full bg-white/[0.03] border border-white/10 rounded-3xl p-5 flex-row items-center justify-between">
+                <View>
+                  <Text className="text-white/40 text-[10px] font-black uppercase tracking-widest mb-0.5">PROPOSTA ENVIADA</Text>
+                  <Text className="text-white font-black text-2xl">R$ {counterValue.toFixed(2).replace(".", ",")}</Text>
+                </View>
+                <ActivityIndicator color="#02de95" size="small" />
+              </View>
             </MotiView>
-          ) : (
-            <View className="bg-blue-500/10 border border-blue-500/20 px-3 py-1.5 rounded-full flex-row items-center">
-               <Route size={11} color="#3b82f6" className="mr-1.5" />
-               <Text className="text-blue-400 text-[9px] font-black uppercase tracking-wider">Nova Solicitação</Text>
-            </View>
-          )}
-          
-          <View className="bg-white/[0.05] border border-white/[0.1] rounded-full px-3 py-1.5 flex-row items-center">
-            {insight.icon}
-            <Text className="text-white/70 text-[9px] font-bold uppercase ml-1.5 tracking-wider">{insight.text}</Text>
           </View>
-        </View>
-
-        {/* 🏦 2. FINANCIAL HERO SECTION */}
-        <View className="items-center mb-8 relative">
-          {/* REMOVED BREAKING MOTIVIEW BG BLUR */}
-          <Text className="text-white/40 text-[10px] font-black tracking-[3px] uppercase mb-2 text-center">Valor Proposto</Text>
-          <Text className="text-white font-black text-5xl tracking-tighter text-center">
-            {formatBRL(displayValue)}
-          </Text>
-        </View>
-
-        {/* 🤵 3. CLIENT PROFILE */}
-        {!!request.client?.name && (
-          <View 
-            className="bg-white/[0.03] rounded-[24px] px-4 py-3.5 flex-row items-center mb-6"
+        ) : (
+          /* ==========================================
+              MAIN UNIFIED INTERFACE SCROLLVIEW
+             ========================================== */
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            className="flex-1"
           >
-             <View className="relative">
-               {request.client.profilePhoto ? (
-                  <Image 
-                    source={{ uri: request.client.profilePhoto }} 
-                    className="w-12 h-12 rounded-xl bg-[#0A121C] border border-white/[0.1]" 
-                  />
-               ) : (
-                  <View className="w-12 h-12 rounded-xl bg-white/5 items-center justify-center border border-white/10">
-                     <User size={22} color="rgba(255,255,255,0.3)" />
-                  </View>
-               )}
-               <View className="absolute -bottom-1 -right-1 bg-[#070D15] rounded-full">
-                 <ShieldCheck size={16} color="#02de95" fill="#091A2F" />
-               </View>
-             </View>
-
-             <View className="ml-3 flex-1">
-                <Text className="text-white font-bold text-base" numberOfLines={1}>{request.client.name}</Text>
-                <Text className="text-white/40 text-[10px] font-medium uppercase tracking-wider mt-0.5">Verificado</Text>
-             </View>
-
-             <View className="bg-amber-500/20 border border-amber-500/30 rounded-xl px-3 py-1.5 flex-row items-center ml-2">
-                <Star size={14} color="#f59e0b" fill="#f59e0b" className="mr-1.5" />
-                <Text className="text-amber-400 font-black text-[15px] tracking-tight">
-                  {Number(request.client.rating || 5.0).toFixed(1)}
+            <BottomSheetScrollView
+              contentContainerStyle={{ paddingHorizontal: 24}}
+              showsVerticalScrollIndicator={false}
+            >
+              {/* 👤 CLIENT ACTIVITY BADGE */}
+              <View className="self-start bg-white/[0.04] border border-white/10 px-3.5 py-1.5 rounded-full flex-row items-center mb-4 mt-1">
+                <Package size={11} color="rgba(255,255,255,0.6)" className="mr-1.5" />
+                <Text className="text-white/60 text-[10px] font-black uppercase tracking-wider">
+                  {clientRidesCount} {clientRidesCount === 1 ? "ENTREGA REALIZADA" : "ENTREGAS REALIZADAS"}
                 </Text>
-             </View>
-          </View>
-        )}
+              </View>
 
-        {/* 🏷️ 4. QUAD-DASHBOARD METRICS (Uniform Squares spanning full width) */}
-        {request?.serviceType === "delivery" && (
-          <View style={{ flexDirection: 'row', width: '100%', marginBottom: 24 }}>
-            
-            {/* Metrica 1: Veiculo */}
-            <View style={{ flex: 1, marginRight: 6, height: 64, backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1, borderRadius: 16, alignItems: 'center', justifyContent: 'center' }}>
-               <MaterialCommunityIcons 
-                 name={request.vehicleType === "motorcycle" ? "motorbike" : request.vehicleType === "car" ? "car" : "truck-delivery"} 
-                 size={20} 
-                 color="white" 
-                 style={{ marginBottom: 4 }} 
-               />
-               <Text numberOfLines={1} style={{ color: 'white', fontSize: 9, fontWeight: '900', letterSpacing: 0.5 }}>
-                 {request.vehicleType === "motorcycle" ? "MOTO" : request.vehicleType === "car" ? "CARRO" : "VAN"}
-               </Text>
+              {/* 👤 CLIENT SUMMARY PROFILE */}
+              <View className="flex-row items-center justify-between pb-4 border-b border-white/5 mb-5">
+                <View className="flex-row items-center">
+                  <View className="w-12 h-12 bg-white/5 rounded-2xl items-center justify-center mr-3 border border-white/10">
+                    <Text className="text-white font-black text-lg">{clientName.charAt(0).toUpperCase()}</Text>
+                  </View>
+                  <View>
+                    <View className="flex-row items-center mb-0.5">
+                      <Text className="text-white font-bold text-base mr-2">{clientName}</Text>
+                      <View className="bg-[#02de95]/10 border border-[#02de95]/30 px-2 py-0.5 rounded-full flex-row items-center">
+                        <Shield size={10} color="#02de95" className="mr-1" />
+                        <Text className="text-[#02de95] text-[9px] font-black uppercase tracking-wider">Verificado</Text>
+                      </View>
+                    </View>
+                    <View className="flex-row items-center">
+                      <Star size={12} color="#fbbf24" fill="#fbbf24" className="mr-1" />
+                      <Text className="text-[#fbbf24] font-bold text-xs">{clientRating}</Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+
+              {/* 🤑 FINANCIAL & NEGOTIATION WIDGET */}
+              <View className="mb-6 items-center">
+                <Text className="text-white/40 text-[10px] font-black uppercase tracking-widest mb-1">
+                  {hasProposedNewValue ? "Sua Proposta" : "Você Recebe"}
+                </Text>
+                <View className="flex-row items-baseline">
+                  <Text className="text-white font-black text-5xl tracking-tight">
+                    R$ {counterValue.toFixed(2).replace(".", ",")}
+                  </Text>
+                </View>
+                {hasProposedNewValue && (
+                  <Text className="text-[#02de95]/60 text-[10px] font-medium tracking-wide mt-1">
+                    Valor Original: {formatBRL(baseValue)} (+{formatBRL(counterValue - baseValue)})
+                  </Text>
+                )}
+              </View>
+
+              {/* ⚙️ PROPOSAL INPUT (+/-) */}
+              <View className="items-center mb-6">
+                <View className="bg-white/[0.02] border-2 border-[#02de95]/20 rounded-[32px] p-1.5 w-full flex-row items-center justify-between">
+                  <TouchableOpacity
+                    onPress={decrease}
+                    disabled={counterValue <= baseValue}
+                    className={`w-14 h-14 rounded-[24px] items-center justify-center ${
+                      counterValue <= baseValue ? "bg-white/5 opacity-30" : "bg-white/5 border border-white/10 active:bg-white/10"
+                    }`}
+                  >
+                    <Text className="text-white font-black text-2xl">-</Text>
+                  </TouchableOpacity>
+
+                  <View className="flex-1 items-center justify-center">
+                    <Text className="text-[#02de95] text-[10px] font-black uppercase tracking-widest">Ajustar Valor</Text>
+                  </View>
+
+                  <TouchableOpacity
+                    onPress={increase}
+                    className="w-14 h-14 rounded-[24px] bg-[#02de95] items-center justify-center shadow-lg shadow-[#02de95]/20 active:opacity-80"
+                  >
+                    <Text className="text-[#091A2F] font-black text-2xl">+</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* ⚡ QUICK INCREASE PILLS */}
+              <View className="flex-row justify-between gap-2 mb-6">
+                {[1, 2, 5, 10].map((val) => (
+                  <TouchableOpacity
+                    key={val}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setCounterValue(baseValue + val);
+                    }}
+                    className="flex-1 py-3 bg-white/[0.03] border border-white/10 rounded-xl items-center active:scale-95"
+                  >
+                    <Text className="text-white font-black text-xs">+ R$ {val}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* 🤖 AI SMART SUGGESTION */}
+              {hasProposedNewValue && (
+                <MotiView
+                  from={{ opacity: 0, translateY: 10 }}
+                  animate={{ opacity: 1, translateY: 0 }}
+                  className="mb-6 bg-[#02de95]/5 border border-[#02de95]/15 rounded-2xl p-4 flex-row items-start"
+                >
+                  <Sparkles size={18} color="#02de95" fill="#02de95" className="mr-3 mt-0.5" />
+                  <View className="flex-1">
+                    <View className="flex-row justify-between mb-1">
+                      <Text className="text-white font-extrabold text-[13px]">Sugestão Inteligente IA</Text>
+                      <Text className="text-[#02de95] font-black text-[11px]">{acceptanceChance}% Chance</Text>
+                    </View>
+                    <Text className="text-white/60 text-[11px] leading-4 mb-2">
+                      Suas chances de aceitação imediata pelo cliente são estimadas em <Text className="text-[#02de95] font-bold">{acceptanceChance}%</Text> para esse valor.
+                    </Text>
+                    {counterValue !== suggestionVal && (
+                      <TouchableOpacity
+                        onPress={() => setCounterValue(suggestionVal)}
+                        className="flex-row items-center"
+                      >
+                        <Text className="text-[#02de95] font-black text-[10px] uppercase tracking-wider">Aplicar R$ {suggestionVal.toFixed(2)} (+81%)</Text>
+                        <ChevronRight size={12} color="#02de95" strokeWidth={3} className="ml-0.5" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </MotiView>
+              )}
+
+              {/* 💎 DYNAMIC LOGISTIC BADGES 💎 */}
+              <View className="mb-6 flex-row gap-3">
+                {/* Service Type Card */}
+                <View className="bg-white/[0.03] border border-white/5 rounded-2xl p-4 flex-1">
+                  <View className="flex-row items-center mb-2">
+                    <Briefcase size={14} color="#A78BFA" className="mr-1.5" />
+                    <Text className="text-white/40 text-[9px] font-black uppercase tracking-widest">Serviço</Text>
+                  </View>
+                  <Text className="text-white font-black text-sm leading-tight" numberOfLines={2}>{serviceName}</Text>
+                </View>
+
+                {/* Payment Method Card */}
+                <View className="bg-white/[0.03] border border-white/5 rounded-2xl p-4 flex-1">
+                  <View className="flex-row items-center mb-2">
+                    <PayIcon size={14} color={payInfo.color} className="mr-1.5" />
+                    <Text className="text-white/40 text-[9px] font-black uppercase tracking-widest">Pagamento</Text>
+                  </View>
+                  <Text className="text-white font-black text-sm leading-tight" numberOfLines={1}>{payInfo.name}</Text>
+                </View>
+              </View>
+
+              {/* 📍 TRAJETO VISUAL (ROUTE TIMELINE) */}
+              <View className="bg-white/[0.02] rounded-3xl border border-white/5 p-4 mb-6">
+                <View className="flex-row items-start">
+                  <View className="items-center mr-3.5 pt-1">
+                    <View className="w-2.5 h-2.5 rounded-full bg-[#02de95]" />
+                    <View className="w-[1.5px] h-12 bg-white/10 my-1" />
+                    <View className="w-2.5 h-2.5 rounded-full bg-[#EF4444]" />
+                  </View>
+                  <View className="flex-1">
+                    <View className="mb-4">
+                      <Text className="text-white/30 text-[9px] font-black uppercase mb-0.5">Coleta</Text>
+                      <Text className="text-white/90 font-bold text-[13px]" numberOfLines={1}>{offer.pickup?.address || "Coleta"}</Text>
+                    </View>
+                    <View>
+                      <Text className="text-white/30 text-[9px] font-black uppercase mb-0.5">Entrega</Text>
+                      <Text className="text-white/90 font-bold text-[13px]" numberOfLines={1}>{offer.destination?.address || offer.dropoff?.address || "Entrega"}</Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+
+              {/* 📊 LOGISTICAL SUMMARY (DIST, TIME, CARGO) */}
+              <View className="flex-row justify-between mb-6 bg-white/[0.02] border border-white/5 rounded-2xl p-3">
+                <View className="items-center flex-1">
+                  <Route size={15} color="rgba(255,255,255,0.4)" className="mb-1.5" />
+                  <Text className="text-white font-black text-[11px]">{distanceKm}</Text>
+                  <Text className="text-white/25 text-[8px] font-bold uppercase tracking-wider">KM Total</Text>
+                </View>
+                <View className="w-[1px] bg-white/5" />
+                <View className="items-center flex-1">
+                  <Clock size={15} color="rgba(255,255,255,0.4)" className="mb-1.5" />
+                  <Text className="text-white font-black text-[11px]">{durationText}</Text>
+                  <Text className="text-white/25 text-[8px] font-bold uppercase tracking-wider">Tempo</Text>
+                </View>
+                <View className="w-[1px] bg-white/5" />
+                <View className="items-center flex-1">
+                  <Package size={15} color="rgba(255,255,255,0.4)" className="mb-1.5" />
+                  <Text className="text-white font-black text-[11px] truncate px-1" numberOfLines={1}>{cargoType}</Text>
+                  <Text className="text-white/25 text-[8px] font-bold uppercase tracking-wider">Carga</Text>
+                </View>
+              </View>
+
+              {/* 👥 OBSERVAÇÃO DO CLIENTE (CONDITIONAL) */}
+              {!!obs && (
+                <View className="mb-6 w-full">
+                  <View className="bg-white/[0.02] border border-white/5 rounded-xl p-3 flex-row items-center">
+                    <FileText size={16} color="#02de95" className="mr-2" />
+                    <View className="flex-1">
+                      <Text className="text-white/30 text-[8px] font-black uppercase tracking-wider">Obs. Cliente</Text>
+                      <Text className="text-white/60 text-xs font-extrabold">{obs}</Text>
+                    </View>
+                  </View>
+                </View>
+              )}
+
+              {/* 📈 PROFIT CARD (DYNAMIC) */}
+              <View className="flex-row gap-2.5 mb-6">
+                <View className="flex-1 bg-white/[0.01] border border-white/5 rounded-xl p-3">
+                  <Text className="text-white/20 text-[8px] font-black uppercase mb-0.5">Ganho / KM</Text>
+                  <Text className="text-white font-bold text-sm">
+                    R$ {(counterValue / Math.max(1, safeDist)).toFixed(2).replace(".", ",")}/km
+                  </Text>
+                </View>
+                <View className="flex-1 bg-white/[0.01] border border-white/5 rounded-xl p-3">
+                  <Text className="text-white/20 text-[8px] font-black uppercase mb-0.5">Demanda Local</Text>
+                  <View className="flex-row items-center">
+                    <Activity size={12} color="#02de95" className="mr-1" />
+                    <Text className="text-[#02de95] font-black text-[10px] uppercase">ALTA</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* 🚨 TOO HIGH ALERT */}
+              <AnimatePresence>
+                {isOfferTooHigh && (
+                  <MotiView
+                    from={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mb-6 overflow-hidden"
+                  >
+                    <View className="bg-red-500/10 border border-red-500/20 rounded-2xl p-3.5 flex-row items-center">
+                      <AlertTriangle size={16} color="#ef4444" className="mr-3" />
+                      <View className="flex-1">
+                        <Text className="text-red-400 font-extrabold text-xs mb-0.5">Proposta Muito Alta</Text>
+                        <Text className="text-white/50 text-[10px] leading-4">
+                          Valores acima de 70% do preço original reduzem drasticamente sua taxa de aceitação.
+                        </Text>
+                      </View>
+                    </View>
+                  </MotiView>
+                )}
+              </AnimatePresence>
+
+              {/* 💬 MESSAGE TO CLIENT INPUT */}
+              {hasProposedNewValue && (
+                <View className="mb-8 bg-white/[0.02] border border-white/5 rounded-2xl p-3.5">
+                  <View className="flex-row items-center mb-1.5">
+                    <MessageSquare size={13} color="rgba(255,255,255,0.3)" className="mr-2" />
+                    <Text className="text-white/30 text-[9px] font-black uppercase tracking-widest">Nota Opcional</Text>
+                  </View>
+                  <TextInput
+                    placeholder="Ex: Alta demanda / Trânsito intenso"
+                    placeholderTextColor="rgba(255,255,255,0.15)"
+                    className="text-white font-medium text-xs p-0 py-0.5"
+                    value={message}
+                    onChangeText={setMessage}
+                    maxLength={50}
+                  />
+                </View>
+              )}
+
+            </BottomSheetScrollView>
+
+            {/* 🚀 FIXED PRIMARY ACTION FOOTER (Pinned statically outside ScrollView, exactly like Client!) */}
+            <View className="px-6 pt-3 pb-6 border-t border-white/[0.05] bg-[#0B1523]">
+              <TouchableOpacity
+                onPress={handleMainAction}
+                activeOpacity={0.9}
+                className="w-full h-16 rounded-2xl items-center justify-center flex-row relative overflow-hidden shadow-2xl bg-[#02de95] shadow-[#02de95]/20"
+              >
+                {hasProposedNewValue && (
+                  <MotiView
+                    from={{ opacity: 0.4, scale: 0.9 }}
+                    animate={{ opacity: 0.9, scale: 1.05 }}
+                    transition={{ loop: true, duration: 1500, type: "timing" }}
+                    className="absolute inset-0 bg-emerald-400/20 rounded-2xl"
+                  />
+                )}
+                <Check size={20} color="#091A2F" className="mr-2 relative z-10" strokeWidth={3} />
+                <Text className="text-[#091A2F] font-black text-base uppercase tracking-widest relative z-10">
+                  {hasProposedNewValue
+                    ? `Enviar Proposta de R$ ${counterValue.toFixed(2).replace(".", ",")}`
+                    : `Aceitar por R$ ${baseValue.toFixed(2).replace(".", ",")}`}
+                </Text>
+              </TouchableOpacity>
             </View>
-            
-            {/* Metrica 2: Tipo Carga */}
-            {request.details?.itemType && (
-              <View style={{ flex: 1, marginRight: 6, height: 64, backgroundColor: 'rgba(2,222,149,0.1)', borderColor: 'rgba(2,222,149,0.3)', borderWidth: 1, borderRadius: 16, alignItems: 'center', justifyContent: 'center' }}>
-                 <Package size={18} color="#02de95" style={{ marginBottom: 4 }} />
-                 <Text numberOfLines={1} style={{ color: '#02de95', fontSize: 9, fontWeight: '900', letterSpacing: 0.5 }}>
-                    {
-                      {
-                        food: "ENTREGA", doc: "DOCS", market: "MERCADO", box: "CAIXA",
-                        material: "MAT.", furniture: "MÓVEIS", moving: "MUDANÇA", other: "OUTROS"
-                      }[request.details.itemType as string] || "CARGA"
-                    }
-                 </Text>
-              </View>
-            )}
-
-            {/* Metrica 3: Prioridade */}
-            <View style={{ 
-              flex: 1, marginRight: 6, height: 64, 
-              backgroundColor: request.details?.priority === 2 ? 'rgba(239,68,68,0.15)' : 'rgba(6,182,212,0.15)', 
-              borderColor: request.details?.priority === 2 ? 'rgba(239,68,68,0.3)' : 'rgba(6,182,212,0.3)', 
-              borderWidth: 1, borderRadius: 16, alignItems: 'center', justifyContent: 'center' 
-            }}>
-               <MaterialCommunityIcons 
-                 name={request.details?.priority === 2 ? "lightning-bolt" : "leaf"} 
-                 size={18} 
-                 color={request.details?.priority === 2 ? '#EF4444' : '#06B6D4'} 
-                 style={{ marginBottom: 4 }} 
-               />
-               <Text numberOfLines={1} style={{ 
-                 color: request.details?.priority === 2 ? '#EF4444' : '#06B6D4', 
-                 fontSize: 9, fontWeight: '900', letterSpacing: 0.5 
-               }}>
-                 {request.details?.priority === 2 ? "URGENTE" : "ECONÔM."}
-               </Text>
-            </View>
-
-            {/* Metrica 4: Pagamento */}
-            <View style={{ flex: 1, height: 64, backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1, borderRadius: 16, alignItems: 'center', justifyContent: 'center' }}>
-               {(() => {
-                 const type = request.payment?.method?.type || request.payment?.method || "cash";
-                 if (type === "pix") return (
-                   <>
-                     <QrCode size={18} color="#32BCAD" style={{ marginBottom: 4 }} />
-                     <Text style={{ color: "#32BCAD", fontSize: 9, fontWeight: "900" }}>PIX</Text>
-                   </>
-                 );
-                 if (["card", "credit_card", "debit_card"].includes(type)) return (
-                   <>
-                     <CreditCard size={18} color="#3b82f6" style={{ marginBottom: 4 }} />
-                     <Text style={{ color: "#3b82f6", fontSize: 9, fontWeight: "900" }}>CARTÃO</Text>
-                   </>
-                 );
-                 return (
-                   <>
-                     <Banknote size={18} color="#02de95" style={{ marginBottom: 4 }} />
-                     <Text style={{ color: "#02de95", fontSize: 9, fontWeight: "900" }}>MONEY</Text>
-                   </>
-                 );
-               })()}
-            </View>
-          </View>
+          </KeyboardAvoidingView>
         )}
-
-        {/* 📦 5. CARGO DETAILS (Premium Tactical Alert Aesthetic) */}
-        {request.details?.specialInstructions && (
-           <View style={{ 
-             backgroundColor: 'rgba(245,158,11,0.05)', 
-             borderWidth: 1,
-             borderColor: 'rgba(245,158,11,0.25)',
-             paddingHorizontal: 16, 
-             paddingVertical: 14, 
-             borderRadius: 16, 
-             marginBottom: 24, 
-             flexDirection: 'row', 
-             alignItems: 'center' 
-           }}>
-             <View style={{ backgroundColor: 'rgba(245,158,11,0.2)', padding: 8, borderRadius: 10, marginRight: 12 }}>
-               <MaterialCommunityIcons name="package-variant" size={20} color="#F59E0B" />
-             </View>
-             <View style={{ flex: 1 }}>
-               <Text style={{ color: 'rgba(245,158,11,0.8)', fontSize: 9, fontWeight: '900', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 2 }}>
-                 DETALHES DA CARGA
-               </Text>
-                {(() => {
-                   const raw = request.details.specialInstructions || "";
-                   const match = raw.match(/\[Tamanho:\s*(.*?)\]/i);
-                   const sizeKey = match ? match[1].toLowerCase() : "";
-                   const description = raw.replace(/\[Tamanho:.*?\]/i, "").trim();
-                   
-                   let sizeLabel = "";
-                   if (sizeKey === "small") sizeLabel = "PEQUENO";
-                   else if (sizeKey === "medium") sizeLabel = "MÉDIO";
-                   else if (sizeKey === "large") sizeLabel = "GRANDE";
-                   else if (sizeKey) sizeLabel = sizeKey.toUpperCase();
-
-                   return (
-                     <View>
-                       {!!sizeLabel && (
-                         <Text style={{ color: '#FFF', fontSize: 13, fontWeight: '800', letterSpacing: 0.5, marginBottom: description ? 4 : 0 }}>
-                           TAMANHO: {sizeLabel}
-                         </Text>
-                       )}
-                       {!!description && (
-                         <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12, fontWeight: '600', lineHeight: 16 }}>
-                           {description.toUpperCase()}
-                         </Text>
-                       )}
-                     </View>
-                   );
-                })()}
-             </View>
-           </View>
-        )}
-
-        {/* 📍 6. ROUTE BOX (High-Fidelity Dynamic Path) */}
-        <View className="bg-white/[0.02] rounded-[24px] border border-white/20 p-5 mb-6">
-           <View className="flex-row items-start mb-6">
-              <View className="items-center mr-4 pt-1">
-                 <View className="w-6 h-6 rounded-full border-2 border-[#02de95] items-center justify-center bg-[#02de95]/10 shadow-sm z-10">
-                   <View className="w-2 h-2 rounded-full bg-[#02de95]" />
-                 </View>
-                 {/* Physical Intelligent Trace - Absolute connection bridging the gap */}
-                 <View style={{ 
-                    position: 'absolute', 
-                    top: 28, 
-                    bottom: -24, 
-                    width: 24, 
-                    alignItems: 'center', 
-                    justifyContent: 'center',
-                    zIndex: 0
-                 }}>
-                   <View style={{ flex: 1, width: 2, backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 1 }} />
-                   <MaterialCommunityIcons name="chevron-double-down" size={14} color="rgba(255,255,255,0.4)" style={{ marginVertical: 2 }} />
-                   <View style={{ flex: 1, width: 2, backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 1 }} />
-                 </View>
-              </View>
-              <View className="flex-1 pt-0.5">
-                 <Text className="text-[#02de95] text-[10px] font-black uppercase tracking-[2px] mb-1">COLETA OFICIAL</Text>
-                 <Text className="text-white font-black text-[16px] leading-tight" numberOfLines={2}>
-                   {request?.pickup?.address?.split("-")[0]?.trim() || "Ponto de Coleta"}
-                 </Text>
-              </View>
-           </View>
-
-           <View className="flex-row items-start">
-              <View className="items-center mr-4 pt-1">
-                 <View className="w-6 h-6 rounded-full border-2 border-red-500 items-center justify-center bg-red-500/10 shadow-sm z-10">
-                   <View className="w-2 h-2 rounded-full bg-red-500" />
-                 </View>
-              </View>
-              <View className="flex-1 pt-0.5">
-                 <Text className="text-red-400 text-[10px] font-black uppercase tracking-[2px] mb-1">ENTREGA FINAL</Text>
-                 <Text className="text-white font-black text-[16px] leading-tight" numberOfLines={2}>
-                   {request?.dropoff?.address?.split("-")[0]?.trim() || "Ponto de Entrega"}
-                 </Text>
-              </View>
-           </View>
-
-           {/* Metrics Subbox */}
-           {(request?.distance?.text || request?.duration?.text) && (
-              <View className="mt-5 pt-4 border-t border-white/20 flex-row items-center justify-between px-2">
-                 {request?.distance?.text && (
-                   <View className="flex-row items-center">
-                      <Route size={12} color="rgba(255,255,255,0.4)" className="mr-1.5" />
-                      <Text className="text-white font-black text-lg">{request.distance.text}</Text>
-                   </View>
-                 )}
-                 {request?.duration?.text && (
-                   <View className="flex-row items-center">
-                      <Timer size={12} color="rgba(255,255,255,0.4)" className="mr-1.5" />
-                      <Text className="text-white font-black text-lg">{request.duration.text}</Text>
-                   </View>
-                 )}
-              </View>
-           )}
-        </View>
-
-        {/* 🎮 7. EMERGENCY FIXED ACTION BUTTONS ROW */}
-        <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 16, width: "100%" }}>
-          
-          {/* 🔴 Ignorar Button */}
-          <TouchableOpacity
-            onPress={onReject}
-            activeOpacity={0.7}
-            style={{
-              flex: 1,
-              height: 56,
-              backgroundColor: "rgba(255,255,255,0.05)",
-              borderColor: "rgba(255,255,255,0.1)",
-              borderWidth: 1,
-              borderRadius: 16,
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "center",
-              marginRight: 12 // Replaces broken gap-3 property!
-            }}
-          >
-            <X size={18} color="rgba(255,255,255,0.5)" style={{ marginRight: 6 }} />
-            <Text style={{ color: "rgba(255,255,255,0.6)", fontWeight: "800", fontSize: 13, letterSpacing: 1 }}>IGNORAR</Text>
-          </TouchableOpacity>
-
-          {/* 🟢 Accept Button (Hardened Flex Rendering) */}
-          <TouchableOpacity
-            onPress={onAccept}
-            activeOpacity={0.85}
-            style={{
-              flex: 1.5, // Clean defined flex relationship
-              height: 56,
-              backgroundColor: "#02de95",
-              borderRadius: 16,
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "center",
-              shadowColor: "#02de95",
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.3,
-              shadowRadius: 8,
-              elevation: 6 // Essential Android shadow fix
-            }}
-          >
-             <Check size={20} color="#070D15" strokeWidth={3.5} style={{ marginRight: 6 }} />
-             <Text style={{ color: "#070D15", fontWeight: "900", fontSize: 15, letterSpacing: 0.5 }}>
-               ACEITAR
-             </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* 💬 8. HIGHLIGHTED NEGOTIATION CORE */}
-        {isNegotiation && onNegotiate && (
-           <TouchableOpacity
-             onPress={onNegotiate}
-             activeOpacity={0.8}
-             style={{ width: '100%' }}
-           >
-             <MotiView
-               from={{ borderColor: "rgba(2, 222, 149, 0.2)" }}
-               animate={{ borderColor: "rgba(2, 222, 149, 0.5)" }}
-               transition={{ loop: true, duration: 2000, repeatReverse: true }}
-               style={{
-                 width: '100%',
-                 height: 52,
-                 borderWidth: 1,
-                 backgroundColor: "rgba(2, 222, 149, 0.05)",
-                 borderRadius: 16,
-                 flexDirection: "row",
-                 alignItems: "center",
-                 justifyContent: "center"
-               }}
-             >
-               <DollarSign size={16} color="#02de95" style={{ marginRight: 8 }} />
-               <Text style={{ color: "#02de95", fontWeight: "800", fontSize: 13, letterSpacing: 1.5 }}>
-                  PROPOR NOVO VALOR
-               </Text>
-             </MotiView>
-           </TouchableOpacity>
-        )}
-
-      </BottomSheetScrollView>
+      </View>
     </BottomSheet>
   );
 }

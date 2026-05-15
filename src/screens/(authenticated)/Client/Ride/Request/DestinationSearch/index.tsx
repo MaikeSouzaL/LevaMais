@@ -238,6 +238,7 @@ export default function DestinationSearchScreen() {
     if (!destinationDetails) return;
     navigation.navigate("DeliverySetup", {
       vehicleType: params.initialVehicle || "motorcycle",
+      preferScheduled: Boolean(params.preferScheduled),
       pickup: {
         address: origin.address,
         latitude: Number(origin.latitude),

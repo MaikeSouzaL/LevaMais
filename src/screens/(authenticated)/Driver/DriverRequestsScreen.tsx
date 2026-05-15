@@ -5,7 +5,6 @@ import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/nativ
 import webSocketService from "../../../services/websocket.service";
 import driverAlertService from "../../../services/driverAlert.service";
 import rideService from "../../../services/ride.service";
-import walletService from "../../../services/wallet.service";
 import driverLocationService from "../../../services/driverLocation.service";
 import driverService from "../../../services/driver.service";
 import Toast from "react-native-toast-message";
@@ -42,22 +41,39 @@ export default function DriverRequestsScreen() {
   const navigation = useNavigation();
   const route = useRoute<any>();
   const [requests, setRequests] = useState<RideRequestItem[]>([]);
+  const [driverFilterInfo, setDriverFilterInfo] = useState<{
+    status?: string;
+    vehicleType?: string;
+    serviceTypes: string[];
+  }>({ serviceTypes: [] });
   
   const requestedInitialTab = route.params?.initialTab || "queue";
   const [activeTab, setActiveTab] = useState<"queue" | "realtime" | "scheduled">(
     requestedInitialTab as any
   );
   const [scheduledRides, setScheduledRides] = useState<any[]>([]);
+  const [scheduledFilterInfo, setScheduledFilterInfo] = useState<{
+    vehicleType?: string;
+    serviceTypes: string[];
+  }>({ serviceTypes: [] });
   const [loadingScheduled, setLoadingScheduled] = useState(false);
   const [showNoBalanceModal, setShowNoBalanceModal] = useState(false);
 
   const loadScheduledRides = async () => {
     try {
       setLoadingScheduled(true);
-      const res = await rideService.getAvailableScheduledRides();
+      const [res, me] = await Promise.all([
+        rideService.getAvailableScheduledRides(),
+        driverLocationService.getMe().catch(() => null),
+      ]);
       setScheduledRides(res?.rides || []);
+      setScheduledFilterInfo({
+        vehicleType: me?.vehicleType,
+        serviceTypes: Array.isArray(me?.serviceTypes) ? me.serviceTypes : [],
+      });
     } catch (e) {
       setScheduledRides([]);
+      setScheduledFilterInfo({ serviceTypes: [] });
     } finally {
       setLoadingScheduled(false);
     }
@@ -78,6 +94,11 @@ export default function DriverRequestsScreen() {
 
           const me = await driverLocationService.getMe();
           if (!active) return;
+          setDriverFilterInfo({
+            status: me?.status,
+            vehicleType: me?.vehicleType,
+            serviceTypes: Array.isArray(me?.serviceTypes) ? me.serviceTypes : [],
+          });
           const isOnline = me?.status === "available";
           const hasAnyService =
             Array.isArray(me?.serviceTypes) && me.serviceTypes.length > 0;
@@ -105,6 +126,14 @@ export default function DriverRequestsScreen() {
     const syncAvailableRequests = async () => {
       try {
         const available = await rideService.getAvailableRequests();
+        const me = await driverLocationService.getMe().catch(() => null);
+        if (me) {
+          setDriverFilterInfo({
+            status: me?.status,
+            vehicleType: me?.vehicleType,
+            serviceTypes: Array.isArray(me?.serviceTypes) ? me.serviceTypes : [],
+          });
+        }
         if (!mounted) return;
         setRequests(
           (available?.requests || []).map((item: any) => ({
@@ -265,8 +294,10 @@ export default function DriverRequestsScreen() {
   const accept = async (rideId: string) => {
     const request = requests.find((item) => item.rideId === rideId);
     if (request?.negotiation?.enabled) {
+      let sent = false;
       try {
         await rideService.respondToOffer(rideId, { action: "accept" });
+        sent = true;
         Toast.show({
           type: "success",
           text1: "Oferta aceita",
@@ -279,8 +310,10 @@ export default function DriverRequestsScreen() {
           text2: e?.response?.data?.error || e?.message || "Tente novamente",
         });
       } finally {
-        setRequests((prev) => prev.filter((r) => r.rideId !== rideId));
-        driverAlertService.stop().catch(() => {});
+        if (sent) {
+          setRequests((prev) => prev.filter((r) => r.rideId !== rideId));
+          driverAlertService.stop().catch(() => {});
+        }
       }
       return;
     }
@@ -307,10 +340,21 @@ export default function DriverRequestsScreen() {
         try {
           (navigation as any).navigate("DriverRide", { rideId: currentRideId });
         } catch {}
+        setRequests((prev) => prev.filter((r) => r.rideId !== rideId));
+        driverAlertService.stop().catch(() => {});
+        return;
       }
 
-      setRequests((prev) => prev.filter((r) => r.rideId !== rideId));
-      driverAlertService.stop().catch(() => {});
+      const normalizedMsg = String(msg || "").toLowerCase();
+      const shouldRemoveRequest =
+        normalizedMsg.includes("nao esta mais disponivel") ||
+        normalizedMsg.includes("não está mais disponível") ||
+        normalizedMsg.includes("corrida nao encontrada") ||
+        normalizedMsg.includes("corrida não encontrada");
+      if (shouldRemoveRequest) {
+        setRequests((prev) => prev.filter((r) => r.rideId !== rideId));
+        driverAlertService.stop().catch(() => {});
+      }
     }
   };
 
@@ -365,9 +409,10 @@ export default function DriverRequestsScreen() {
           style: "default",
           onPress: async () => {
             try {
-              // Check driver balance before accepting
-              const balance = await walletService.getBalance();
-              if (balance.available <= 0) {
+              const ride = scheduledRides.find((r) => String(r._id) === String(rideId));
+              const rideValue = Number(ride?.pricing?.total || 0);
+              const canAccept = await driverService.canAcceptRide(rideValue);
+              if (!canAccept) {
                 Toast.show({
                   type: "error",
                   text1: "Saldo insuficiente",
@@ -507,6 +552,29 @@ export default function DriverRequestsScreen() {
           </Text>
         </TouchableOpacity>
       </View>
+      <View
+        style={{
+          backgroundColor: "rgba(255,255,255,0.04)",
+          borderWidth: 1,
+          borderColor: "rgba(255,255,255,0.08)",
+          borderRadius: 12,
+          paddingHorizontal: 12,
+          paddingVertical: 10,
+          marginHorizontal: 16,
+          marginBottom: 8,
+        }}
+      >
+        <Text style={{ color: "rgba(255,255,255,0.65)", fontSize: 11, fontWeight: "700" }}>
+          FILTROS ATIVOS DE SOLICITACOES
+        </Text>
+        <Text style={{ color: "#fff", fontSize: 12, marginTop: 4 }}>
+          Status: {driverFilterInfo.status || "offline"} | Veiculo:{" "}
+          {driverFilterInfo.vehicleType || "nao definido"} | Servicos:{" "}
+          {driverFilterInfo.serviceTypes.length
+            ? driverFilterInfo.serviceTypes.join(", ")
+            : "nenhum"}
+        </Text>
+      </View>
 
       {activeTab === "queue" ? (
         queueRequests.length === 0 ? (
@@ -538,6 +606,27 @@ export default function DriverRequestsScreen() {
         )
       ) : (
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}>
+          <View
+            style={{
+              backgroundColor: "rgba(255,255,255,0.04)",
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.08)",
+              borderRadius: 12,
+              paddingHorizontal: 12,
+              paddingVertical: 10,
+              marginBottom: 12,
+            }}
+          >
+            <Text style={{ color: "rgba(255,255,255,0.65)", fontSize: 11, fontWeight: "700" }}>
+              FILTROS ATIVOS DE AGENDADOS
+            </Text>
+            <Text style={{ color: "#fff", fontSize: 12, marginTop: 4 }}>
+              Veiculo: {scheduledFilterInfo.vehicleType || "nao definido"} | Servicos:{" "}
+              {scheduledFilterInfo.serviceTypes.length
+                ? scheduledFilterInfo.serviceTypes.join(", ")
+                : "nenhum"}
+            </Text>
+          </View>
           {loadingScheduled ? (
             <View style={{ padding: 40, alignItems: "center" }}>
               <ActivityIndicator size="large" color="#02de95" />

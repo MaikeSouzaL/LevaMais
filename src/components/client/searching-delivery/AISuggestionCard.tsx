@@ -4,7 +4,7 @@ import { MotiView } from "moti";
 import { Sparkles, ArrowRight, DollarSign } from "lucide-react-native";
 
 interface AISuggestionCardProps {
-  onBoost: () => void;
+  onBoost: (amount: number) => void;
 }
 
 export function AISuggestionCard({ onBoost }: AISuggestionCardProps) {
@@ -28,20 +28,22 @@ export function AISuggestionCard({ onBoost }: AISuggestionCardProps) {
         Deseja atrair entregadores mais rápido?
       </Text>
       
-      <Text className="text-white/60 text-xs leading-relaxed mb-5">
-        Aumentar a oferta em R$ 5,00 prioriza sua entrega no radar de 80% dos motoristas na região.
+      <Text className="text-white/60 text-xs leading-relaxed mb-4">
+        Adicione um incentivo extra para priorizar sua entrega instantaneamente no radar dos entregadores da região.
       </Text>
 
-      <TouchableOpacity 
-        onPress={onBoost}
-        className="bg-[#02de95] flex-row items-center justify-between h-12 rounded-xl px-5 active:scale-[0.98]"
-      >
-        <View className="flex-row items-center">
-           <DollarSign size={16} color="#091A2F" className="mr-1" strokeWidth={3} />
-           <Text className="text-[#091A2F] font-black text-sm">Aumentar R$ 5,00</Text>
-        </View>
-        <ArrowRight size={16} color="#091A2F" strokeWidth={3} />
-      </TouchableOpacity>
+      {/* ⚡ QUICK ACTION BOOST PILLS Matrix (Identical to Driver console!) */}
+      <View className="flex-row justify-between gap-2 mt-1">
+        {[1, 2, 5, 10].map((val) => (
+          <TouchableOpacity
+            key={val}
+            onPress={() => onBoost(val)}
+            className="bg-white/[0.04] border border-white/10 rounded-xl py-3 flex-1 items-center justify-center active:scale-95 active:bg-[#02de95]/10 active:border-[#02de95]/30"
+          >
+            <Text className="text-white font-black text-xs tracking-wider">+ R$ {val}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
     </MotiView>
   );
 }

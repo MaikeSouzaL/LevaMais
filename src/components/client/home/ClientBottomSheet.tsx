@@ -6,10 +6,18 @@ import { Car, Package, Star, Clock, Home, Briefcase, ChevronRight } from "lucide
 import { colors, spacing, borderRadius, fontSize } from "@/theme";
 
 interface ClientBottomSheetProps {
-  onSelectService: (service: "ride" | "delivery") => void;
+  onSelectService: (
+    service: "ride" | "delivery",
+    options?: { preferScheduled?: boolean },
+  ) => void;
   favorites: any[];
   onSelectFavorite: (fav: any) => void;
   onChangeSnap: (index: number) => void;
+  availability?: {
+    rideDrivers: number;
+    deliveryDrivers: number;
+    totalNearby: number;
+  };
 }
 
 export const ClientBottomSheet = ({
@@ -17,6 +25,7 @@ export const ClientBottomSheet = ({
   favorites = [],
   onSelectFavorite,
   onChangeSnap,
+  availability,
 }: ClientBottomSheetProps) => {
   const bottomSheetRef = useRef<BottomSheet>(null);
   
@@ -53,6 +62,11 @@ export const ClientBottomSheet = ({
             </View>
             <Text style={styles.serviceTitle}>Corrida</Text>
             <Text style={styles.serviceDesc}>Viagens seguras e rapidas</Text>
+            {!!availability && (
+              <Text style={styles.availabilityText}>
+                {availability.rideDrivers} motoristas proximos
+              </Text>
+            )}
           </TouchableOpacity>
 
           <TouchableOpacity 
@@ -65,8 +79,51 @@ export const ClientBottomSheet = ({
             </View>
             <Text style={styles.serviceTitle}>Entrega</Text>
             <Text style={styles.serviceDesc}>Envie pacotes agora</Text>
+            {!!availability && (
+              <Text style={styles.availabilityText}>
+                {availability.deliveryDrivers} entregadores proximos
+              </Text>
+            )}
           </TouchableOpacity>
         </View>
+
+        {!!availability && (
+          <View style={styles.availabilityBanner}>
+            <Text style={styles.availabilityBannerText}>
+              Disponibilidade local agora: {availability.totalNearby} motoristas online
+            </Text>
+            {availability.rideDrivers === 0 && (
+              <View style={styles.warningRow}>
+                <Text style={styles.warningText}>
+                  Corrida com baixa oferta no momento.
+                </Text>
+                <TouchableOpacity
+                  style={styles.warningCta}
+                  activeOpacity={0.85}
+                  onPress={() => onSelectService("ride")}
+                >
+                  <Text style={styles.warningCtaText}>Tentar</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {availability.deliveryDrivers === 0 && (
+              <View style={styles.warningRow}>
+                <Text style={styles.warningText}>
+                  Entrega com baixa oferta no momento.
+                </Text>
+                <TouchableOpacity
+                  style={styles.warningCta}
+                  activeOpacity={0.85}
+                  onPress={() =>
+                    onSelectService("delivery", { preferScheduled: true })
+                  }
+                >
+                  <Text style={styles.warningCtaText}>Agendar</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        )}
 
         <View style={styles.divider} />
 
@@ -177,6 +234,59 @@ const styles = StyleSheet.create({
     color: colors.text.tertiary,
     fontSize: 12,
     fontWeight: "500",
+  },
+  availabilityText: {
+    color: "rgba(255,255,255,0.72)",
+    fontSize: 11,
+    fontWeight: "600",
+    marginTop: 4,
+  },
+  availabilityBanner: {
+    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "rgba(255,255,255,0.04)",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  availabilityBannerText: {
+    color: "rgba(255,255,255,0.75)",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  warningRow: {
+    marginTop: spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+    backgroundColor: "rgba(251,191,36,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(251,191,36,0.28)",
+    borderRadius: 10,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 8,
+  },
+  warningText: {
+    flex: 1,
+    color: "#fbbf24",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  warningCta: {
+    backgroundColor: "rgba(2,222,149,0.2)",
+    borderWidth: 1,
+    borderColor: "rgba(2,222,149,0.45)",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  warningCtaText: {
+    color: "#02de95",
+    fontSize: 11,
+    fontWeight: "800",
   },
   divider: {
     height: 1,

@@ -82,6 +82,7 @@ export default function DriverRideScreen() {
   const statusLabel = useMemo(() => {
     if (!status) return "-";
     if (status === "driver_arriving") return "A caminho da coleta";
+    if (status === "driver_assigned") return "Entrega reservada";
     if (status === "accepted") return "Aceita";
     if (status === "arrived") return "Cheguei";
     if (status === "in_progress") return "Em andamento";
@@ -90,11 +91,15 @@ export default function DriverRideScreen() {
     return status;
   }, [status]);
 
-  const canArrive = status === "accepted" || status === "driver_arriving";
+  const canArrive =
+    status === "accepted" ||
+    status === "driver_assigned" ||
+    status === "driver_arriving";
   const canStart = status === "arrived";
   const canComplete = status === "in_progress";
   const canCancel =
     status === "accepted" ||
+    status === "driver_assigned" ||
     status === "driver_arriving" ||
     status === "arrived" ||
     status === "in_progress";
@@ -128,7 +133,7 @@ export default function DriverRideScreen() {
 
   useEffect(() => {
     if (!rideId) return;
-    if (status !== "accepted") return;
+    if (!["accepted", "driver_assigned"].includes(status)) return;
     if (autoArrivingRequestedRef.current) return;
 
     autoArrivingRequestedRef.current = true;
@@ -237,7 +242,7 @@ export default function DriverRideScreen() {
       }
       Toast.show({
         type: "info",
-        text1: "Corrida cancelada",
+        text1: isDelivery ? "Entrega cancelada" : "Corrida cancelada",
         text2: message,
       });
       (navigation as any).reset({
@@ -255,7 +260,11 @@ export default function DriverRideScreen() {
         setStatus(current?.status || "accepted");
 
         if (String(current?.status || "").startsWith("cancelled")) {
-          handleCancelledOnce("O cliente encerrou a corrida.");
+          handleCancelledOnce(
+            isDelivery
+              ? "O cliente encerrou a entrega."
+              : "O cliente encerrou a corrida.",
+          );
         }
       } catch {
         // segue silencioso para evitar loop de erro em polling
@@ -279,7 +288,7 @@ export default function DriverRideScreen() {
       cancelHandledRef.current = true;
       Toast.show({
         type: "info",
-        text1: "Corrida cancelada",
+        text1: isDelivery ? "Entrega cancelada" : "Corrida cancelada",
         text2: message,
       });
       (navigation as any).reset({
@@ -297,7 +306,11 @@ export default function DriverRideScreen() {
     const onRideCancelled = (payload: any) => {
       if (!mounted) return;
       if (payload?.rideId !== rideId) return;
-      handleCancelledOnce("O cliente encerrou a corrida.");
+      handleCancelledOnce(
+        isDelivery
+          ? "O cliente encerrou a entrega."
+          : "O cliente encerrou a corrida.",
+      );
     };
 
     const onNewMsg = (data: any) => {
@@ -462,7 +475,10 @@ export default function DriverRideScreen() {
     if (!rideId) return;
 
     // validacoes do fluxo (estilo Uber/99)
-    if (nextStatus === "driver_arriving" && status !== "accepted") return;
+    if (
+      nextStatus === "driver_arriving" &&
+      !["accepted", "driver_assigned"].includes(status)
+    ) return;
     if (nextStatus === "arrived" && !canArrive) return;
     if (nextStatus === "in_progress" && !canStart) return;
     if (nextStatus === "completed" && !canComplete) return;
@@ -658,7 +674,7 @@ export default function DriverRideScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#091A2F" }}>
       <DriverHeader
-        title="Corrida ativa"
+        title={isDelivery ? "Entrega ativa" : "Corrida ativa"}
         right={
           <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
             <TouchableOpacity

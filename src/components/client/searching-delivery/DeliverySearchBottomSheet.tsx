@@ -21,6 +21,7 @@ interface DeliverySearchBottomSheetProps {
   distanceText?: string;
   durationText?: string;
   drivers?: NearbyDriver[];
+  onBoost: (amount: number) => void;
 }
 
 export function DeliverySearchBottomSheet({
@@ -35,7 +36,8 @@ export function DeliverySearchBottomSheet({
   secondsElapsed,
   distanceText,
   durationText,
-  drivers = []
+  drivers = [],
+  onBoost
 }: DeliverySearchBottomSheetProps) {
   
   // Expanded height dynamic snap points for scrolling capability 🚀
@@ -163,7 +165,7 @@ export function DeliverySearchBottomSheet({
         {/* 3. Conditional AI Persuasion Engine 🤖💡 */}
         <AnimatePresence>
            {showAISuggestion && (
-             <AISuggestionCard onBoost={() => {}} />
+             <AISuggestionCard onBoost={onBoost} />
            )}
         </AnimatePresence>
 

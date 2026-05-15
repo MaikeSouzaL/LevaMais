@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, RefreshControl, Alert, TextInput } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, RefreshControl, TextInput } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -59,35 +59,6 @@ export default function ActiveOrdersScreen() {
       setRefreshing(false);
     }
   }, [load]);
-
-  const handleCancel = async (rideId: string) => {
-    setTimeout(() => {
-      Alert.alert(
-        "Cancelar Agendamento",
-        "Deseja realmente cancelar esta entrega agendada?",
-        [
-          { text: "Não", style: "cancel" },
-          {
-            text: "Sim, Cancelar",
-            style: "destructive",
-            onPress: async () => {
-              try {
-                await rideService.cancel(rideId);
-                Toast.show({ type: "success", text1: "Agendamento cancelado com sucesso" });
-                await load();
-              } catch (err: any) {
-                Toast.show({
-                  type: "error",
-                  text1: "Não foi possível cancelar",
-                  text2: err?.message || "Tente novamente",
-                });
-              }
-            },
-          },
-        ]
-      );
-    }, 100);
-  };
 
   const openConfirmModal = (ride: any, val: number) => {
     setAdjustingRide(ride);
@@ -288,12 +259,52 @@ export default function ActiveOrdersScreen() {
               <View style={styles.cardActions}>
                 {ride.negotiation?.enabled &&
                 ["requesting", "driver_assigned"].includes(String(ride.status || "")) ? (
-                  <TouchableOpacity
-                    style={styles.trackBtn}
-                    onPress={() => navigation.navigate("RideOffersMarketplace", { rideId: ride._id })}
-                  >
-                    <Text style={styles.trackBtnText}>Ver ofertas</Text>
-                  </TouchableOpacity>
+                  cancellingRideId === ride._id ? (
+                    <View style={{ width: "100%", gap: 6 }}>
+                      <Text style={{ color: colors.text.secondary, fontSize: 12, fontWeight: "700", marginBottom: 2 }}>
+                        Deseja realmente cancelar esta {rideTitle(ride).toLowerCase()}?
+                      </Text>
+                      <View style={{ flexDirection: "row", gap: 8 }}>
+                        <TouchableOpacity
+                          style={[styles.trackBtn, { flex: 1, backgroundColor: "rgba(239, 68, 68, 0.16)", borderColor: "rgba(239, 68, 68, 0.4)" }]}
+                          onPress={async () => {
+                            try {
+                              await rideService.cancel(ride._id, "Cancelado pelo cliente");
+                              setCancellingRideId(null);
+                              Toast.show({ type: "success", text1: "Pedido cancelado com sucesso" });
+                              await load();
+                            } catch (err: any) {
+                              Toast.show({ type: "error", text1: "Não foi possível cancelar", text2: err?.message });
+                            }
+                          }}
+                        >
+                          <Text style={[styles.trackBtnText, { color: "#ef4444", fontWeight: "900" }]}>Confirmar</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.trackBtn, { flex: 1, backgroundColor: "rgba(255, 255, 255, 0.08)", borderColor: "rgba(255, 255, 255, 0.15)" }]}
+                          onPress={() => setCancellingRideId(null)}
+                        >
+                          <Text style={styles.trackBtnText}>Voltar</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ) : (
+                    <View style={{ flexDirection: "row", gap: 8 }}>
+                      <TouchableOpacity
+                        style={[styles.trackBtn, { flex: 1.4 }]}
+                        onPress={() => navigation.navigate("RideOffersMarketplace", { rideId: ride._id })}
+                      >
+                        <Text style={styles.trackBtnText}>Ver ofertas</Text>
+                      </TouchableOpacity>
+                      
+                      <TouchableOpacity
+                        style={[styles.trackBtn, { flex: 1, backgroundColor: "rgba(239, 68, 68, 0.12)", borderColor: "rgba(239, 68, 68, 0.4)" }]}
+                        onPress={() => setCancellingRideId(ride._id)}
+                      >
+                        <Text style={[styles.trackBtnText, { color: "#ef4444" }]}>Cancelar</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )
                 ) : String(ride.status || "") === "scheduled" ? (
                   editingRideId === ride._id ? (
                     <View style={{ width: "100%", gap: 6 }}>
@@ -331,7 +342,7 @@ export default function ActiveOrdersScreen() {
                   ) : cancellingRideId === ride._id ? (
                     <View style={{ width: "100%", gap: 6 }}>
                       <Text style={{ color: colors.text.secondary, fontSize: 12, fontWeight: "700", marginBottom: 2 }}>
-                        Deseja realmente cancelar esta entrega agendada?
+                        Deseja realmente cancelar esta {rideTitle(ride).toLowerCase()} agendada?
                       </Text>
                       <View style={{ flexDirection: "row", gap: 8 }}>
                         <TouchableOpacity
@@ -569,3 +580,5 @@ const styles = StyleSheet.create({
   },
   secondaryBtnText: { color: colors.primary[500], fontSize: fontSize.sm, fontWeight: fontWeight.bold },
 });
+
+

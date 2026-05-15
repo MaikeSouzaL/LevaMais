@@ -106,10 +106,16 @@ export type ClientStackParamList = {
     pickupAddress?: string;
     dropoffAddress?: string;
     driverName?: string;
+    serviceType?: string;
   };
-  ClientRateDriver: { rideId: string; driverName?: string };
-  ClientCancelRide: { rideId: string; total?: number };
-  CancelFee: { rideId: string; fee: number };
+  ClientRateDriver: { rideId: string; driverName?: string; serviceType?: string };
+  ClientCancelRide: {
+    rideId: string;
+    total?: number;
+    status?: string;
+    estimatedFee?: number;
+  };
+  CancelFee: { rideId: string; fee: number; total?: number; serviceType?: string };
   History: undefined;
   OrderDetails: { rideId?: string; order?: any };
   Profile: undefined;
@@ -129,7 +135,7 @@ export type ClientStackParamList = {
   SafetyCenter: undefined;
   TipDriver: { rideId: string; driverName?: string };
   NotificationsCenter: undefined;
-  SearchingDriver: { rideId: string };
+  SearchingDriver: { rideId: string; serviceType?: string };
   ActiveOrders: undefined;
   ShiftOffersClient: undefined;
   RideOffersMarketplace: { rideId: string };

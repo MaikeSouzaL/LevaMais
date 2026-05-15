@@ -7,7 +7,8 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { DeliveryOfferMap } from "@/components/driver/delivery-offer/DeliveryOfferMap";
 import { DeliveryOfferHeader } from "@/components/driver/delivery-offer/DeliveryOfferHeader";
 import { DeliveryOfferCard } from "@/components/driver/delivery-offer/DeliveryOfferCard";
-import { NegotiationModal } from "@/components/driver/negotiation/NegotiationModal";
+// Removed local legacy modal import in favor of standalone DriverNegotiationScreen
+
 
 // Services
 import rideService from "@/services/ride.service";
@@ -23,8 +24,7 @@ export default function DeliveryOfferScreen() {
   const [timeLeft, setTimeLeft] = useState<number | null>(30); 
   
   // 💼 Negotiation Logic Hooks
-  const [isNegotiationOpen, setIsNegotiationOpen] = useState(false);
-  const [sendingCounter, setSendingCounter] = useState(false);
+  // Counter offer hooks migrated to standalone DriverNegotiationScreen
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -79,30 +79,31 @@ export default function DeliveryOfferScreen() {
     }
   };
 
-  // 🚀 Negotiation Pipeline Operations
-  const handleNegotiate = () => {
-    setIsNegotiationOpen(true);
-  };
-
-  const handleSendCounterOffer = async (newValue: number, message?: string) => {
+  // 🚀 Unified In-Place Negotiation Execution
+  const handleCounterOffer = async (counterValue: number, message: string) => {
     try {
       if (!offer?._id) return;
-      setSendingCounter(true);
-
+      
       await rideService.respondToOffer(offer._id, {
         action: "counter",
-        amount: newValue,
-        message: message
+        amount: counterValue,
+        message: message || "Negociação justa",
       });
 
-      Toast.show({ type: "success", text1: "Proposta Enviada", text2: "Cliente já foi notificado!" });
-      setIsNegotiationOpen(false);
       if (timerRef.current) clearInterval(timerRef.current);
-      navigation.goBack(); // Return to operational feed awaiting responses
+
+      // Pop to Top to return to feed, with active status
+      setTimeout(() => {
+        Toast.show({ 
+          type: "success", 
+          text1: "Proposta Enviada! 🚀", 
+          text2: `Sua oferta de R$ ${counterValue.toFixed(2).replace(".", ",")} foi enviada ao cliente.` 
+        });
+        navigation.popToTop();
+      }, 3000);
     } catch (err: any) {
-      Toast.show({ type: "error", text1: "Falha na Proposta", text2: "Ocorreu um erro." });
-    } finally {
-      setSendingCounter(false);
+      Toast.show({ type: "error", text1: "Falha ao Propor", text2: err.message || "Tente novamente." });
+      throw err; // Re-throw so card can revert its internal loading state
     }
   };
 
@@ -116,7 +117,6 @@ export default function DeliveryOfferScreen() {
 
   const pickup = offer?.pickup || { latitude: 0, longitude: 0, address: "Carregando..." };
   const destination = offer?.dropoff || offer?.destination || { latitude: 0, longitude: 0, address: "Carregando..." };
-  const baseValue = offer?.offeredValue || offer?.pricing?.total || 0;
 
   return (
     <GestureHandlerRootView className="flex-1 bg-[#091A2F]">
@@ -131,17 +131,10 @@ export default function DeliveryOfferScreen() {
       <DeliveryOfferCard 
         offer={offer} 
         onAccept={handleAccept}
-        onNegotiate={handleNegotiate}
+        onCounterOffer={handleCounterOffer}
       />
 
-      {/* 🏦 FUTURISTIC NEGOTIATION LAYER (Absolute Modal) */}
-      <NegotiationModal
-        isVisible={isNegotiationOpen}
-        onClose={() => setIsNegotiationOpen(false)}
-        currentValue={baseValue}
-        loading={sendingCounter}
-        onSendCounterOffer={handleSendCounterOffer}
-      />
+      {/* Standing Negotiation Screen has replaced legacy modal layer */}
 
     </GestureHandlerRootView>
   );

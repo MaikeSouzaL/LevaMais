@@ -21,6 +21,50 @@ function normalizeSelectedVehicles(raw) {
 }
 
 const driverController = {
+  getBalanceHistory: async (req, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Usuário não autenticado" });
+      }
+
+      const limitRaw = Number(req.query?.limit);
+      const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(Math.floor(limitRaw), 1), 200) : 50;
+
+      const user = await User.findById(userId).select("userType driverBalance");
+      if (!user || user.userType !== "driver") {
+        return res.status(403).json({ error: "Usuário não é um motorista" });
+      }
+
+      const transactions = Array.isArray(user.driverBalance?.transactions)
+        ? user.driverBalance.transactions
+        : [];
+
+      const sorted = [...transactions].sort((a, b) => {
+        const aTime = new Date(a?.createdAt || 0).getTime();
+        const bTime = new Date(b?.createdAt || 0).getTime();
+        return bTime - aTime;
+      });
+
+      const items = sorted.slice(0, limit).map((t) => ({
+        id: String(t?._id || ""),
+        type: t?.type || "deduction",
+        amount: Number(t?.amount || 0),
+        reason: t?.description || "",
+        rideId: t?.rideId ? String(t.rideId) : undefined,
+        createdAt: t?.createdAt || null,
+        status: t?.status || "completed",
+      }));
+
+      return res.json({
+        success: true,
+        data: items,
+      });
+    } catch (error) {
+      return res.status(500).json({ error: error.message });
+    }
+  },
+
   // Get driver balance
   getBalance: async (req, res) => {
     try {
@@ -76,8 +120,6 @@ const driverController = {
           totalDeposits: 0,
           totalDeductions: 0,
           transactions: [],
-          selectedCategories: [],
-          selectedVehicles: [],
         };
       }
 
@@ -140,8 +182,6 @@ const driverController = {
           totalDeposits: 0,
           totalDeductions: 0,
           transactions: [],
-          selectedCategories: [],
-          selectedVehicles: [],
         };
       }
 
@@ -256,8 +296,6 @@ const driverController = {
           totalDeposits: 0,
           totalDeductions: 0,
           transactions: [],
-          selectedCategories: [],
-          selectedVehicles: [],
         };
       }
 
@@ -295,53 +333,6 @@ const driverController = {
       res.json({
         success: true,
         message: "Solicitação de saque criada. Será processada em até 2 dias úteis.",
-        data: user.driverBalance,
-      });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  },
-
-  // Update driver selected categories and vehicles
-  updateDriverPreferences: async (req, res) => {
-    try {
-      const userId = req.user?.id;
-      if (!userId) {
-        return res.status(401).json({ error: "Usuário não autenticado" });
-      }
-
-      const { selectedCategories, selectedVehicles } = req.body;
-
-      const user = await User.findById(userId);
-      if (!user || user.userType !== "driver") {
-        return res.status(403).json({ error: "Usuário não é um motorista" });
-      }
-
-      // Initialize driverBalance if not exists
-      if (!user.driverBalance) {
-        user.driverBalance = {
-          balance: 0,
-          totalDeposits: 0,
-          totalDeductions: 0,
-          transactions: [],
-          selectedCategories: [],
-          selectedVehicles: [],
-        };
-      }
-
-      if (selectedCategories && Array.isArray(selectedCategories)) {
-        user.driverBalance.selectedCategories = selectedCategories;
-      }
-
-      if (selectedVehicles && Array.isArray(selectedVehicles)) {
-        user.driverBalance.selectedVehicles = selectedVehicles;
-      }
-
-      await user.save();
-
-      res.json({
-        success: true,
-        message: "Preferências atualizadas com sucesso",
         data: user.driverBalance,
       });
     } catch (error) {

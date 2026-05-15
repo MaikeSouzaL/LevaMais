@@ -10,6 +10,7 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import theme from "../../../theme";
+import configService, { PolicyVersions } from "@/services/config.service";
 
 type TabType = "terms" | "privacy";
 
@@ -21,6 +22,29 @@ export default function TermsScreen() {
   const [activeTab, setActiveTab] = useState<TabType>("terms");
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
+  const [policyVersions, setPolicyVersions] = useState<PolicyVersions | null>(null);
+
+  React.useEffect(() => {
+    let mounted = true;
+
+    (async () => {
+      try {
+        const versions = await configService.getPolicyVersions();
+        if (!mounted) return;
+        setPolicyVersions(versions);
+      } catch (error) {
+        if (!mounted) return;
+        setPolicyVersions(null);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const termsUpdatedAt = policyVersions?.termsVersion || "2026-05-14";
+  const privacyUpdatedAt = policyVersions?.privacyPolicyVersion || "2026-05-14";
 
   function handleAccept() {
     if (acceptedTerms && acceptedPrivacy) {
@@ -101,7 +125,7 @@ export default function TermsScreen() {
                 Termos de Uso - Leva+
               </Text>
               <Text className="text-gray-300 text-sm mb-4 leading-6">
-                Última atualização: {new Date().toLocaleDateString("pt-BR")}
+                Última atualização: {termsUpdatedAt}
               </Text>
 
               <View className="mb-6">
@@ -192,7 +216,7 @@ export default function TermsScreen() {
                 Política de Privacidade - Leva+
               </Text>
               <Text className="text-gray-300 text-sm mb-4 leading-6">
-                Última atualização: {new Date().toLocaleDateString("pt-BR")}
+                Última atualização: {privacyUpdatedAt}
               </Text>
 
               <View className="mb-6">
@@ -379,4 +403,3 @@ export default function TermsScreen() {
     </SafeAreaView>
   );
 }
-

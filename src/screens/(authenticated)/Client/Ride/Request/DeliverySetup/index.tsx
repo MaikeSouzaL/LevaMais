@@ -1,12 +1,8 @@
-import React, { useState, useEffect, useRef } from "react";
-import { View, Dimensions, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, Text, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform, TouchableOpacity } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import MapView, { Marker, PROVIDER_GOOGLE, Polyline } from "react-native-maps";
-import MapViewDirections from "react-native-maps-directions";
-import { BlurView } from "expo-blur";
 import Toast from "react-native-toast-message";
 
-import { darkMapStyle } from "@/utils/mapStyle";
 import rideService, { CreateRideRequest } from "@/services/ride.service";
 import { useClientCityStore } from "@/context/clientCityStore";
 
@@ -15,6 +11,7 @@ import { DeliverySetupHeader } from "@/components/client/delivery-setup/Delivery
 import { DeliverySummaryCard } from "@/components/client/delivery-setup/DeliverySummaryCard";
 import { VehicleSelector, LogisticsVehicleType } from "@/components/client/delivery-setup/VehicleSelector";
 import { DeliveryTypeSelector, DeliveryType } from "@/components/client/delivery-setup/DeliveryTypeSelector";
+import { CargoSizeSelector } from "@/components/client/delivery-setup/CargoSizeSelector";
 import { CargoDescriptionInput } from "@/components/client/delivery-setup/CargoDescriptionInput";
 import { DeliveryOfferCard } from "@/components/client/delivery-setup/DeliveryOfferCard";
 import { DeliveryPrioritySelector, DeliveryPriority } from "@/components/client/delivery-setup/DeliveryPrioritySelector";
@@ -22,13 +19,11 @@ import { SearchDeliveryButton } from "@/components/client/delivery-setup/SearchD
 import { PaymentMethodSelector, PaymentMethodType } from "@/components/client/delivery-setup/PaymentMethodSelector";
 
 // Visual Foundations 🗺️
-import { PremiumMapMarker } from "@/components/maps/PremiumMapMarker";
 import { CargoSize } from "@/components/client/delivery-setup/CargoSizeSelector";
-
-const GOOGLE_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || "";
 
 interface DeliverySetupParams {
   vehicleType?: LogisticsVehicleType;
+  preferScheduled?: boolean;
   pickup: { address: string; latitude: number; longitude: number };
   dropoff: { address: string; latitude: number; longitude: number };
   initialDistanceKm?: number;
@@ -39,7 +34,6 @@ export default function DeliverySetupScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute();
   const params = (route.params as DeliverySetupParams) || {};
-  const mapRef = useRef<MapView>(null);
   const detectedCity = useClientCityStore((state) => state.city);
 
   // Logic States
@@ -52,12 +46,13 @@ export default function DeliverySetupScreen() {
   const [deliveryType, setDeliveryType] = useState<DeliveryType>("food");
   const [cargoDescription, setCargoDescription] = useState("");
   const [cargoSize, setCargoSize] = useState<CargoSize>("medium");
-  const [needsHelper, setNeedsHelper] = useState(false);
+  const needsHelper = false;
   const [offerValue, setOfferValue] = useState<number>(20.00);
   const [priority, setPriority] = useState<DeliveryPriority>(0);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType>("cash");
+  const [scheduledOffsetMin, setScheduledOffsetMin] = useState<number>(60);
+  const [helperAutoSuggested, setHelperAutoSuggested] = useState(false);
 
-  const [path, setPath] = useState<any[]>([]);
 
   // Fetch automated server dynamic pricing guidance upon configuration shifts
   useEffect(() => {
@@ -92,25 +87,31 @@ export default function DeliverySetupScreen() {
     };
     refreshPricing();
   }, [
-    vehicleType, 
-    priority, 
-    params.pickup?.latitude, 
-    params.dropoff?.latitude
+    vehicleType,
+    deliveryType,
+    cargoSize,
+    needsHelper,
+    priority,
+    params.pickup?.latitude,
+    params.dropoff?.latitude,
+    params.initialDistanceKm,
+    params.initialDurationMin,
+    detectedCity,
   ]);
-
-  const handlePathReady = (res: any) => {
-    setPath(res.coordinates);
-    mapRef.current?.fitToCoordinates(res.coordinates, {
-      edgePadding: { top: 100, right: 60, bottom: 360, left: 60 },
-      animated: true,
-    });
-  };
 
   // Transmits to the finalized backend CreateRideRequest shape perfectly aligned with service.ts
   const handleLaunchSearch = async () => {
     if (!priceData) return;
     try {
       setCreatingDelivery(true);
+      if (!Number.isFinite(offerValue) || offerValue <= 0) {
+        Toast.show({
+          type: "error",
+          text1: "Valor de oferta invalido",
+          text2: "Defina uma oferta maior que zero.",
+        });
+        return;
+      }
       
       // Detailed synthesis mapped directly to the backend schema RideDetails & CreateRideRequest
       const backendPayload: CreateRideRequest = {
@@ -140,13 +141,29 @@ export default function DeliverySetupScreen() {
             // Match the backend typing from service.ts
             type: paymentMethod === "card" ? "credit_card" : paymentMethod
           }
-        }
+        },
+        scheduledFor: params.preferScheduled
+          ? new Date(Date.now() + scheduledOffsetMin * 60 * 1000).toISOString()
+          : undefined,
       };
 
       const created = await rideService.create(backendPayload);
-      
+
+      if (created?.status === "scheduled") {
+        Toast.show({
+          type: "success",
+          text1: "Entrega agendada",
+          text2: "Seu pedido foi agendado e aparecera em pedidos ativos.",
+        });
+        navigation.replace("ActiveOrders");
+        return;
+      }
+
       // Hand off directly into standard Searching lifecycle screen
-      navigation.replace("SearchingDriver", { rideId: created._id });
+      navigation.replace("SearchingDriver", {
+        rideId: created._id,
+        serviceType: "delivery",
+      });
     } catch (e: any) {
       Toast.show({
         type: "error",
@@ -184,6 +201,34 @@ export default function DeliverySetupScreen() {
           distance={priceData?.distance?.text || (params.initialDistanceKm ? `${params.initialDistanceKm.toFixed(1)} km` : "...")}
           duration={priceData?.duration?.text || (params.initialDurationMin ? `${Math.ceil(params.initialDurationMin)} min` : "...")}
         />
+        {params.preferScheduled && (
+          <View className="mx-4 mb-2 rounded-xl border border-[#fbbf24]/35 bg-[#fbbf24]/10 px-3 py-2">
+            <Text className="text-[#fbbf24] text-[12px] font-bold">
+              Baixa oferta detectada: recomendamos agendar para aumentar chance de aceite.
+            </Text>
+            <View className="mt-2 flex-row gap-2">
+              {[30, 60, 120].map((minutes) => (
+                <TouchableOpacity
+                  key={minutes}
+                  onPress={() => setScheduledOffsetMin(minutes)}
+                  className={`rounded-full px-3 py-1 ${
+                    scheduledOffsetMin === minutes
+                      ? "bg-[#fbbf24]"
+                      : "bg-[#fbbf24]/15 border border-[#fbbf24]/40"
+                  }`}
+                >
+                  <Text
+                    className={`text-[11px] font-semibold ${
+                      scheduledOffsetMin === minutes ? "text-[#091A2F]" : "text-[#fbbf24]"
+                    }`}
+                  >
+                    {minutes} min
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
         
         <View className="h-[1px] bg-white/[0.03] w-full my-2" />
 
@@ -200,6 +245,18 @@ export default function DeliverySetupScreen() {
           onSelect={setDeliveryType} 
           vehicleType={vehicleType} 
         />
+
+        {(vehicleType === "van" || vehicleType === "truck") && (
+          <View className="mx-6 mb-4 rounded-xl border border-[#38bdf8]/30 bg-[#38bdf8]/10 px-3 py-2">
+            <Text className="text-[#7dd3fc] text-[12px] font-semibold">
+              Frete {vehicleType === "truck" ? "de caminhao" : "de van"}: detalhe acesso no local e o peso da carga para melhorar o aceite.
+            </Text>
+          </View>
+        )}
+
+        <CargoSizeSelector value={cargoSize} onChange={setCargoSize} />
+
+
 
         <CargoDescriptionInput value={cargoDescription} onChange={setCargoDescription} />
 

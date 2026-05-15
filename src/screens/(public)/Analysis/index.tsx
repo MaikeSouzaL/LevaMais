@@ -6,6 +6,7 @@ import { colors } from "@/theme";
 import { fonts } from "@/theme";
 import { spacing } from "@/theme";
 import { useNavigation } from "@react-navigation/native";
+import { useAuthStore } from "@/context/authStore";
 
 // Visual foundation
 import { BackgroundMap } from "../../../components/visuals/BackgroundMap";
@@ -19,9 +20,10 @@ import { AnalysisFooter } from "../../../components/driver/analysis/AnalysisFoot
 
 export default function DriverAnalysisScreen() {
   const navigation = useNavigation<any>();
+  const logout = useAuthStore((state) => state.logout);
 
   const handleFinish = () => {
-    navigation.navigate("SignIn");
+    logout();
   };
 
   return (

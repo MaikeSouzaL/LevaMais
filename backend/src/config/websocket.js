@@ -5,6 +5,22 @@ const DriverLocation = require("../models/DriverLocation");
 
 let io;
 
+function parseAllowedOrigins() {
+  const fromEnv = String(
+    process.env.WS_CORS_ORIGINS ||
+      process.env.CORS_ORIGINS ||
+      process.env.CORS_ORIGIN ||
+      "",
+  )
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  if (fromEnv.length > 0) return fromEnv;
+  if (process.env.NODE_ENV === "production") return [];
+  return ["*"];
+}
+
 function normalizeUserType(userType) {
   const value = String(userType || "")
     .trim()
@@ -41,9 +57,12 @@ async function resolveRideForSocket(rideId, socket) {
 }
 
 function initializeWebSocket(server) {
+  const allowedOrigins = parseAllowedOrigins();
+  const socketCorsOrigin = allowedOrigins.includes("*") ? "*" : allowedOrigins;
+
   io = socketIo(server, {
     cors: {
-      origin: "*", // TODO: Configurar origins permitidas
+      origin: socketCorsOrigin,
       methods: ["GET", "POST"],
     },
     // Reduz falsos ping timeout em redes moveis/wi-fi instaveis

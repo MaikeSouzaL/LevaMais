@@ -16,6 +16,7 @@ type Params = {
     pickupAddress?: string;
     dropoffAddress?: string;
     driverName?: string;
+    serviceType?: string;
   };
 };
 
@@ -27,6 +28,9 @@ export default function RideCompletedScreen() {
   const pickupAddress = route.params?.pickupAddress;
   const dropoffAddress = route.params?.dropoffAddress;
   const driverName = route.params?.driverName;
+  const serviceType = route.params?.serviceType;
+  const isDelivery =
+    serviceType === "delivery" || serviceType === "frete";
 
   const [selectedTip, setSelectedTip] = useState<number | null>(null);
   const [sendingTip, setSendingTip] = useState(false);
@@ -55,7 +59,10 @@ export default function RideCompletedScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ClientScreenHeader title="Corrida finalizada" subtitle="Pedido concluido com sucesso" />
+      <ClientScreenHeader
+        title={isDelivery ? "Entrega finalizada" : "Corrida finalizada"}
+        subtitle="Pedido concluido com sucesso"
+      />
 
       <View style={styles.content}>
         <View style={styles.iconWrap}>
@@ -161,6 +168,7 @@ export default function RideCompletedScreen() {
               ? (navigation as any).navigate("ClientRateDriver", {
                   rideId,
                   driverName,
+                  serviceType,
                 })
               : (navigation as any).navigate("Home")
           }

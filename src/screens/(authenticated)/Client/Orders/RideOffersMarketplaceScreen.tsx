@@ -209,6 +209,8 @@ export default function RideOffersMarketplaceScreen() {
     // Sort by cheapest first
     return [...offers].sort((a, b) => Number(a.amount || 0) - Number(b.amount || 0));
   }, [offers]);
+  const isDeliveryFlow =
+    rideDetails?.serviceType === "delivery" || rideDetails?.serviceType === "frete";
 
   const handleSelectOffer = async (offer: RideOffer) => {
     const driverId = typeof offer.driverId === "string" ? offer.driverId : offer.driverId?._id;
@@ -266,8 +268,10 @@ export default function RideOffersMarketplaceScreen() {
       setShowCancelModal(false);
       Toast.show({
         type: "success",
-        text1: "Corrida Cancelada",
-        text2: "O chamado foi encerrado com sucesso.",
+        text1: isDeliveryFlow ? "Entrega cancelada" : "Corrida cancelada",
+        text2: isDeliveryFlow
+          ? "A solicitacao de entrega foi encerrada com sucesso."
+          : "O chamado foi encerrado com sucesso.",
       });
       navigation.navigate("Home");
     } catch (e: any) {

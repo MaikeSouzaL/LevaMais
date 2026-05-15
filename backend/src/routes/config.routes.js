@@ -11,6 +11,7 @@ router.get("/deposit-config", configController.getDepositConfig);
 router.get("/ride-settings", configController.getRideSettings);
 router.get("/deduction-percentage", configController.getDeductionPercentage);
 router.get("/support-channels", configController.getSupportChannels);
+router.get("/policy-versions", configController.getPolicyVersions);
 router.get("/all", configController.getAllConfig);
 
 // Admin endpoints (should add auth check)

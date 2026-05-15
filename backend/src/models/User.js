@@ -220,6 +220,16 @@ const userSchema = new mongoose.Schema(
       trim: true,
       default: "2026-05-14",
     },
+    termsVersion: {
+      type: String,
+      trim: true,
+      default: "2026-05-14",
+    },
+    privacyPolicyVersion: {
+      type: String,
+      trim: true,
+      default: "2026-05-14",
+    },
     consentRevokedAt: {
       type: Date,
     },

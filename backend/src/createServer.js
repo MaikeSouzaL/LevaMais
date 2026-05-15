@@ -24,13 +24,35 @@ const configRoutes = require("./routes/config.routes");
 const paymentRoutes = require("./routes/payments.routes");
 const withdrawRoutes = require("./routes/withdraw.routes");
 
+function parseAllowedOrigins() {
+  const fromEnv = String(
+    process.env.CORS_ORIGINS || process.env.CORS_ORIGIN || "",
+  )
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  if (fromEnv.length > 0) return fromEnv;
+  if (process.env.NODE_ENV === "production") return [];
+  return ["*"];
+}
+
 function applyMiddlewares(app) {
+  const allowedOrigins = parseAllowedOrigins();
+  const corsOrigin = allowedOrigins.includes("*") ? "*" : allowedOrigins;
+
   app.use(
     cors({
-      origin: "*",
+      origin: corsOrigin,
       methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-      allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
-      credentials: true,
+      allowedHeaders: [
+        "Content-Type",
+        "Authorization",
+        "X-Requested-With",
+        "X-Admin-Key",
+        "X-Webhook-Secret",
+      ],
+      credentials: corsOrigin === "*" ? false : true,
     }),
   );
   app.use(express.json({ limit: "50mb" }));

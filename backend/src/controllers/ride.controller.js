@@ -18,6 +18,7 @@ const NON_TERMINAL_STATUSES = [
   "in_progress",
 ];
 const RIDE_CAPABLE_VEHICLES = new Set(["motorcycle", "car"]);
+const DEFAULT_APP_TIMEZONE = process.env.APP_TIMEZONE || "America/Sao_Paulo";
 
 function normalizePaymentMethod(rawMethod) {
   const value = String(rawMethod || "")
@@ -127,6 +128,24 @@ function isServiceCompatibleWithVehicle(vehicleType, serviceType) {
   return false;
 }
 
+function getDateKeyInTimezone(date = new Date(), timeZone = DEFAULT_APP_TIMEZONE) {
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(date);
+    const year = parts.find((p) => p.type === "year")?.value;
+    const month = parts.find((p) => p.type === "month")?.value;
+    const day = parts.find((p) => p.type === "day")?.value;
+    if (!year || !month || !day) return date.toISOString().split("T")[0];
+    return `${year}-${month}-${day}`;
+  } catch {
+    return date.toISOString().split("T")[0];
+  }
+}
+
 async function resolvePromotionForRide({
   code,
   clientId,
@@ -234,6 +253,8 @@ class RideController {
         console.error("Erro ao buscar motoristas proximos:", findDriversErr);
       }
 
+      const clientRidesCount = await Ride.countDocuments({ clientId: ride.clientId?._id, status: "completed" }).catch(() => 0);
+
       nearbyDrivers.forEach((driver) => {
         try {
           if (!driver || !driver.driverId) return;
@@ -259,6 +280,7 @@ class RideController {
               "new-ride-request",
               buildRideRequestPayload(ride, {
                 distanceToPickup,
+                clientRidesCount,
               }),
             );
           }
@@ -609,6 +631,13 @@ class RideController {
         cities.map((city) => [city._id.toString(), city.searchRadius || 15000]),
       );
 
+      const clientIds = [...new Set(rides.map((r) => r.clientId?._id?.toString()).filter(Boolean))];
+      const ridesCounts = await Ride.aggregate([
+        { $match: { clientId: { $in: clientIds.map(id => new mongoose.Types.ObjectId(id)) }, status: "completed" } },
+        { $group: { _id: "$clientId", count: { $sum: 1 } } },
+      ]);
+      const countByClientId = new Map(ridesCounts.map((item) => [item._id.toString(), item.count]));
+
       const requests = rides
         .map((ride) => {
           const pickup = ride.pickup;
@@ -622,7 +651,9 @@ class RideController {
           );
 
           if (distanceToPickup > maxDistance) return null;
-          return buildRideRequestPayload(ride, { distanceToPickup });
+          const cId = ride.clientId?._id?.toString();
+          const clientRidesCount = countByClientId.get(cId) || 0;
+          return buildRideRequestPayload(ride, { distanceToPickup, clientRidesCount });
         })
         .filter(Boolean)
         .slice(0, 10);
@@ -1002,7 +1033,7 @@ class RideController {
       }
 
       // Popular dados
-      await ride.populate("driverId", "name phone profilePhoto");
+      await ride.populate("driverId", "name phone profilePhoto rating");
       await ride.populate("clientId", "name phone profilePhoto");
 
       // Notificar cliente via WebSocket
@@ -1018,7 +1049,7 @@ class RideController {
             name: ride.driverId.name,
             phone: ride.driverId.phone,
             profilePhoto: ride.driverId.profilePhoto,
-            rating: 4.8, // TODO: calcular rating real
+            rating: Number(ride.driverId.rating || 5),
             vehicle: driverLocation?.vehicle || {},
           },
           eta: ride.duration,
@@ -1107,9 +1138,10 @@ class RideController {
           // Hydrate client data before re-casting to next driver
           await ride.populate("clientId");
 
+          const clientRidesCount = await Ride.countDocuments({ clientId: ride.clientId?._id, status: "completed" }).catch(() => 0);
           io.to(`driver-${next.driverId}`).emit(
             "new-ride-request",
-            buildRideRequestPayload(ride, { distanceToPickup: 0 })
+            buildRideRequestPayload(ride, { distanceToPickup: 0, clientRidesCount })
           );
         } else {
           // 🚨 CRITICAL UPGRADE: If ALL nearby drivers rejected the offer, trigger terminal state instantly!
@@ -1193,13 +1225,60 @@ class RideController {
     try {
       const { rideId } = req.params;
       const driverId = String(req.user.id);
+      const now = new Date();
 
       if (req.user.userType !== "driver") {
         return sendError(res, 403, "Apenas motoristas podem responder ofertas");
       }
 
+      const activeShift = await ShiftOffer.findOne({
+        acceptedBy: driverId,
+        status: "accepted",
+        startAt: { $lte: now },
+        endAt: { $gt: now },
+      }).select("title startAt endAt");
+      if (activeShift?._id) {
+        return sendError(
+          res,
+          400,
+          "Voce esta em plantao ativo e nao pode responder negociacoes agora",
+          {
+            shift: {
+              id: activeShift._id,
+              title: activeShift.title,
+              startAt: activeShift.startAt,
+              endAt: activeShift.endAt,
+            },
+          },
+        );
+      }
+
+      const driverLocation = await DriverLocation.findOne({ driverId }).select(
+        "vehicleType serviceTypes currentRideId",
+      );
+      if (!driverLocation) {
+        return sendError(res, 400, "Atualize sua localizacao antes de responder negociacoes");
+      }
+      if (driverLocation.currentRideId) {
+        return sendError(res, 400, "Voce ja possui uma corrida ativa", {
+          currentRideId: driverLocation.currentRideId,
+        });
+      }
+
       const ride = await Ride.findById(rideId).populate("clientId", "name");
       if (!ride) return sendError(res, 404, "Corrida nao encontrada");
+      if (!isServiceCompatibleWithVehicle(driverLocation.vehicleType, ride.serviceType)) {
+        return sendError(res, 400, "Servico incompativel com o veiculo do motorista");
+      }
+      const driverServiceTypes = Array.isArray(driverLocation.serviceTypes)
+        ? driverLocation.serviceTypes
+        : [];
+      if (!driverServiceTypes.includes(String(ride.serviceType || ""))) {
+        return sendError(res, 400, "Este servico nao esta ativo para o motorista");
+      }
+      if (String(driverLocation.vehicleType || "") !== String(ride.vehicleType || "")) {
+        return sendError(res, 400, "Tipo de veiculo do motorista nao corresponde a solicitacao");
+      }
 
       if (!["requesting", "driver_assigned"].includes(String(ride.status || ""))) {
         return sendError(res, 400, "Corrida nao esta aberta para negociacao");
@@ -1211,7 +1290,6 @@ class RideController {
 
       const action = String(req.body?.action || "").toLowerCase();
       const message = String(req.body?.message || "").slice(0, 300);
-      const now = new Date();
       const clientOffer = Number(ride.negotiation.clientOffer || ride.pricing.total || 0);
       const providedAmount = Number(req.body?.amount);
 
@@ -1340,10 +1418,12 @@ class RideController {
 
       const io = req.app.get("io");
       if (io) {
+        const clientRidesCount = await Ride.countDocuments({ clientId: ride.clientId?._id || ride.clientId, status: "completed" }).catch(() => 0);
         io.to(`driver-${selectedDriverId}`).emit(
           "new-ride-request",
           buildRideRequestPayload(ride, {
             negotiationSelected: true,
+            clientRidesCount,
           }),
         );
         io.to(`client-${ride.clientId._id || ride.clientId}`).emit("ride-offer-selected", {
@@ -1414,6 +1494,10 @@ class RideController {
 
       if (!ride) {
         return sendError(res, 404, "Corrida nao encontrada");
+      }
+
+      if (["cancelled", "cancelled_by_client", "cancelled_by_driver", "cancelled_no_driver"].includes(ride.status)) {
+        return res.json({ success: true, message: "Corrida ja cancelada" });
       }
 
       if (!ride.canBeCancelled()) {
@@ -1679,6 +1763,7 @@ class RideController {
 
       const allowedTransitions = {
         accepted: ["driver_arriving", "arrived"],
+        driver_assigned: ["driver_arriving", "arrived"],
         driver_arriving: ["arrived"],
         arrived: ["in_progress"],
         in_progress: ["completed"],
@@ -1733,8 +1818,6 @@ class RideController {
                   totalDeposits: 0,
                   totalDeductions: 0,
                   transactions: [],
-                  selectedCategories: [],
-                  selectedVehicles: [],
                 };
               }
 
@@ -1878,6 +1961,7 @@ class RideController {
       const todayStart = startOfDay(now);
       const todayEnd = endOfDay(now);
 
+      const timeZone = process.env.APP_TIMEZONE || DEFAULT_APP_TIMEZONE;
       const stats = await Ride.aggregate([
         {
           $match: {
@@ -1907,11 +1991,12 @@ class RideController {
 
       const result = stats[0] || { totalEarnings: 0, ridesCount: 0 };
 
-      // Meta diÃ¡ria hardcoded por enquanto (gamification MVP)
-      const dailyGoal = 10;
-
-      // Simular um bÃ´nus de R$ 20 se atingir a meta
-      const bonusAmount = result.ridesCount >= dailyGoal ? 20 : 0;
+      // Meta e bonus diario configuraveis via PlatformConfig (com fallback)
+      const PlatformConfig = require("../models/PlatformConfig");
+      const platformConfig = await PlatformConfig.findOne().sort({ createdAt: -1 });
+      const dailyGoal = Number(platformConfig?.driverGoals?.dailyGoalRides || 10);
+      const configuredBonus = Number(platformConfig?.driverGoals?.dailyBonusAmount || 20);
+      const bonusAmount = result.ridesCount >= dailyGoal ? configuredBonus : 0;
 
       // Valor final ja representa o liquido do motorista:
       // prioriza pricing.driverValue e usa fallback legado (80% de pricing.total).
@@ -1957,7 +2042,7 @@ class RideController {
         // 3. Obter Tempo Online Acumulado Real do Banco (com Interpolação em Tempo Real ao Segundo)
         const user = await User.findById(driverId).select("onlineStats");
         if (user && user.onlineStats) {
-          const todayStr = new Date().toISOString().split("T")[0];
+          const todayStr = getDateKeyInTimezone(new Date());
           if (user.onlineStats.activeDateStr === todayStr) {
             let baseTime = user.onlineStats.totalSecondsToday || 0;
 
@@ -2026,6 +2111,7 @@ class RideController {
         groupByFormat = "%Y-%m-%d"; // Group by Day
       }
 
+      const timeZone = process.env.APP_TIMEZONE || DEFAULT_APP_TIMEZONE;
       const stats = await Ride.aggregate([
         {
           $match: {
@@ -2036,8 +2122,8 @@ class RideController {
         },
         {
           $project: {
-            // Adjust timzone MVP Fix: UTC-3 hardcoded
-            localDate: { $subtract: ["$completedAt", 1000 * 60 * 60 * 3] },
+            // Agrupamento por timezone configuravel (APP_TIMEZONE)
+            
             // Use valor salvo ou calcula 80% fallback para legados
             val: {
               $ifNull: [
@@ -2050,7 +2136,7 @@ class RideController {
         {
           $group: {
             _id: {
-              $dateToString: { format: groupByFormat, date: "$localDate" },
+              $dateToString: { format: groupByFormat, date: "$completedAt", timezone: timeZone },
             },
             total: { $sum: "$val" },
             count: { $sum: 1 },
@@ -2536,8 +2622,28 @@ class RideController {
 
   async getAvailableScheduledRides(req, res) {
     try {
+      const driverId = req.user?.id;
+      const driverLocation = await DriverLocation.findOne({ driverId }).select(
+        "vehicleType serviceTypes",
+      );
+      if (!driverLocation) {
+        return res.json({ count: 0, rides: [] });
+      }
+
+      const driverServiceTypes = Array.isArray(driverLocation.serviceTypes)
+        ? driverLocation.serviceTypes
+        : [];
+      const compatibleServiceTypes = driverServiceTypes.filter((serviceType) =>
+        isServiceCompatibleWithVehicle(driverLocation.vehicleType, serviceType),
+      );
+      if (!compatibleServiceTypes.length) {
+        return res.json({ count: 0, rides: [] });
+      }
+
       const rides = await Ride.find({
         status: "scheduled",
+        vehicleType: String(driverLocation.vehicleType || ""),
+        serviceType: { $in: compatibleServiceTypes },
         $or: [{ driverId: { $exists: false } }, { driverId: null }],
       })
         .populate("clientId", "name phone profilePhoto rating")
@@ -2554,6 +2660,61 @@ class RideController {
     try {
       const { rideId } = req.params;
       const driverId = req.user.id;
+      const now = new Date();
+
+      const activeShift = await ShiftOffer.findOne({
+        acceptedBy: driverId,
+        status: "accepted",
+        startAt: { $lte: now },
+        endAt: { $gt: now },
+      }).select("title startAt endAt");
+      if (activeShift?._id) {
+        return sendError(
+          res,
+          400,
+          "Voce esta em plantao ativo e nao pode aceitar outras corridas agora",
+          {
+            shift: {
+              id: activeShift._id,
+              title: activeShift.title,
+              startAt: activeShift.startAt,
+              endAt: activeShift.endAt,
+            },
+          },
+        );
+      }
+
+      const driverLocation = await DriverLocation.findOne({ driverId });
+      if (!driverLocation) {
+        return sendError(res, 400, "Atualize sua localizacao antes de aceitar corridas");
+      }
+      if (driverLocation.currentRideId) {
+        return sendError(res, 400, "Voce ja possui uma corrida ativa", {
+          currentRideId: driverLocation.currentRideId,
+        });
+      }
+
+      const rideSnapshot = await Ride.findById(rideId).select(
+        "_id serviceType vehicleType status driverId",
+      );
+      if (!rideSnapshot) {
+        return sendError(res, 404, "Corrida nao encontrada");
+      }
+      if (String(rideSnapshot.status || "") !== "scheduled") {
+        return sendError(res, 400, "Corrida agendada nao esta mais disponivel");
+      }
+      if (!isServiceCompatibleWithVehicle(driverLocation.vehicleType, rideSnapshot.serviceType)) {
+        return sendError(res, 400, "Servico incompativel com o veiculo do motorista");
+      }
+      const driverServiceTypes = Array.isArray(driverLocation.serviceTypes)
+        ? driverLocation.serviceTypes
+        : [];
+      if (!driverServiceTypes.includes(String(rideSnapshot.serviceType || ""))) {
+        return sendError(res, 400, "Este servico nao esta ativo para o motorista");
+      }
+      if (String(driverLocation.vehicleType || "") !== String(rideSnapshot.vehicleType || "")) {
+        return sendError(res, 400, "Tipo de veiculo do motorista nao corresponde a solicitacao");
+      }
 
       const ride = await Ride.findOneAndUpdate(
         {
@@ -2585,7 +2746,7 @@ class RideController {
       const { rideId } = req.params;
       const { incrementAmount } = req.body;
       
-      const io = req.app.get("socketio");
+      const io = req.app.get("io");
 
       const ride = await Ride.findById(rideId).populate("clientId");
       if (!ride) {
@@ -2676,6 +2837,7 @@ function buildRideRequestPayload(ride, extras = {}) {
       phone: client.phone,
       profilePhoto: client.profilePhoto,
       rating: client.rating || 5.0,
+      ridesCount: extras.clientRidesCount || 0,
     },
   };
 }
@@ -2731,3 +2893,4 @@ function isTimeInRange(current, start, end) {
 ratingProofMixin.attach(RideController, { Ride, DriverLocation });
 
 module.exports = new RideController();
+

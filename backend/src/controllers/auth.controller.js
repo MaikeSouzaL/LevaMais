@@ -175,6 +175,8 @@ class AuthController {
         userType: resolvedUserType,
         acceptedTerms: consentAccepted,
         consentVersion: CURRENT_CONSENT_VERSION,
+        termsVersion: CURRENT_CONSENT_VERSION,
+        privacyPolicyVersion: CURRENT_CONSENT_VERSION,
       };
 
       if (consentTimestamp) {
@@ -377,6 +379,8 @@ class AuthController {
           acceptedTermsAt: new Date(),
           acceptedPrivacyAt: new Date(),
           consentVersion: CURRENT_CONSENT_VERSION,
+          termsVersion: CURRENT_CONSENT_VERSION,
+          privacyPolicyVersion: CURRENT_CONSENT_VERSION,
         });
       }
 
@@ -862,6 +866,10 @@ class AuthController {
         },
         privacy: {
           consentVersion: user.consentVersion || CURRENT_CONSENT_VERSION,
+          termsVersion:
+            user.termsVersion || user.consentVersion || CURRENT_CONSENT_VERSION,
+          privacyPolicyVersion:
+            user.privacyPolicyVersion || user.consentVersion || CURRENT_CONSENT_VERSION,
           acceptedTerms: Boolean(user.acceptedTerms),
           acceptedTermsAt: user.acceptedTermsAt || null,
           acceptedPrivacyAt: user.acceptedPrivacyAt || null,
@@ -898,8 +906,12 @@ class AuthController {
 
       const acceptedTerms = req.body?.acceptedTerms !== false;
       const acceptedPrivacy = req.body?.acceptedPrivacy !== false;
-      const consentVersion =
+      const fallbackVersion =
         toNullableString(req.body?.consentVersion) || CURRENT_CONSENT_VERSION;
+      const termsVersion =
+        toNullableString(req.body?.termsVersion) || fallbackVersion;
+      const privacyPolicyVersion =
+        toNullableString(req.body?.privacyPolicyVersion) || fallbackVersion;
 
       if (!acceptedTerms || !acceptedPrivacy) {
         return sendError(res, 400, "Aceite de termos e privacidade obrigatorio");
@@ -909,7 +921,9 @@ class AuthController {
       user.acceptedTerms = true;
       user.acceptedTermsAt = now;
       user.acceptedPrivacyAt = now;
-      user.consentVersion = consentVersion;
+      user.consentVersion = fallbackVersion;
+      user.termsVersion = termsVersion;
+      user.privacyPolicyVersion = privacyPolicyVersion;
       user.consentRevokedAt = undefined;
       user.isActive = true;
 
@@ -920,6 +934,8 @@ class AuthController {
         message: "Consentimento registrado com sucesso",
         data: {
           consentVersion: user.consentVersion,
+          termsVersion: user.termsVersion || user.consentVersion,
+          privacyPolicyVersion: user.privacyPolicyVersion || user.consentVersion,
           acceptedTermsAt: user.acceptedTermsAt,
           acceptedPrivacyAt: user.acceptedPrivacyAt,
         },

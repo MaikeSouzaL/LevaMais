@@ -128,8 +128,6 @@ class WithdrawController {
         totalDeposits: 0,
         totalDeductions: 0,
         transactions: [],
-        selectedCategories: [],
-        selectedVehicles: [],
       };
 
       if (toMoney(user.driverBalance.balance || 0) < amountValue) {
@@ -201,8 +199,6 @@ class WithdrawController {
         totalDeposits: 0,
         totalDeductions: 0,
         transactions: [],
-        selectedCategories: [],
-        selectedVehicles: [],
       };
 
       if (toMoney(user.driverBalance.balance || 0) < amountValue) {
@@ -302,8 +298,6 @@ class WithdrawController {
         totalDeposits: 0,
         totalDeductions: 0,
         transactions: [],
-        selectedCategories: [],
-        selectedVehicles: [],
       };
 
       const ledgerItem = (user.driverBalance.transactions || []).find(

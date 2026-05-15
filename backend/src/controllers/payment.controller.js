@@ -1,5 +1,6 @@
 const crypto = require("crypto");
 const User = require("../models/User");
+const PaymentWebhookEvent = require("../models/PaymentWebhookEvent");
 
 function sendError(res, status, message, extras = {}) {
   return res.status(status).json({
@@ -64,6 +65,357 @@ function isValidPixKey(pixKey) {
 }
 
 class PaymentController {
+  async getWebhookEventsSummary(req, res) {
+    try {
+      const dateFrom = String(req.query?.dateFrom || "").trim();
+      const dateTo = String(req.query?.dateTo || "").trim();
+
+      const filter = {};
+      if (dateFrom || dateTo) {
+        const createdAt = {};
+        if (dateFrom) {
+          const from = new Date(dateFrom);
+          if (!Number.isNaN(from.getTime())) createdAt.$gte = from;
+        }
+        if (dateTo) {
+          const to = new Date(dateTo);
+          if (!Number.isNaN(to.getTime())) createdAt.$lte = to;
+        }
+        if (Object.keys(createdAt).length) filter.createdAt = createdAt;
+      }
+
+      const summary = await PaymentWebhookEvent.aggregate([
+        { $match: filter },
+        {
+          $group: {
+            _id: { event: "$event", status: "$status" },
+            count: { $sum: 1 },
+          },
+        },
+        { $sort: { "_id.event": 1, "_id.status": 1 } },
+      ]);
+
+      const totals = {
+        totalEvents: summary.reduce((acc, item) => acc + Number(item.count || 0), 0),
+      };
+
+      return res.json({
+        success: true,
+        period: {
+          dateFrom: dateFrom || null,
+          dateTo: dateTo || null,
+        },
+        totals,
+        items: summary.map((item) => ({
+          event: item?._id?.event || "unknown",
+          status: item?._id?.status || "unknown",
+          count: Number(item.count || 0),
+        })),
+      });
+    } catch (error) {
+      console.error("Erro ao resumir eventos de webhook:", error);
+      return sendError(res, 500, "Erro ao resumir eventos de webhook");
+    }
+  }
+
+  async replayWebhookEvent(req, res) {
+    try {
+      const eventId = String(req.params?.eventId || "").trim();
+      const replayReason = String(req.body?.reason || "").trim();
+      if (!eventId) {
+        return sendError(res, 400, "Evento invalido");
+      }
+      if (!replayReason) {
+        return sendError(res, 400, "Motivo do replay obrigatorio");
+      }
+
+      const item = await PaymentWebhookEvent.findById(eventId);
+      if (!item) {
+        return sendError(res, 404, "Evento de webhook nao encontrado");
+      }
+
+      if (String(item.event || "") !== "payment.confirmed") {
+        return sendError(res, 400, "Replay permitido apenas para payment.confirmed");
+      }
+
+      const transactionId = String(item.transactionId || "").trim();
+      const userId = String(item.userId || item.rawPayload?.userId || "").trim();
+      const amountValue = toMoney(item.amount || item.rawPayload?.amount);
+
+      if (!transactionId || !userId || !Number.isFinite(amountValue) || amountValue <= 0) {
+        return sendError(res, 400, "Evento sem dados suficientes para replay");
+      }
+
+      const user = await User.findById(userId).select("wallet");
+      if (!user) {
+        return sendError(res, 404, "Usuario nao encontrado");
+      }
+
+      user.wallet = user.wallet || { balance: 0, transactions: [] };
+      user.wallet.transactions = user.wallet.transactions || [];
+
+      const alreadySettled = user.wallet.transactions.some(
+        (transaction) => String(transaction.referenceId || "") === transactionId,
+      );
+
+      if (alreadySettled) {
+        item.status = "already_settled";
+        item.processedAt = new Date();
+        item.replayedAt = new Date();
+        item.replayReason = replayReason;
+        item.replayedBy = {
+          adminId: String(req.user?.id || ""),
+          adminEmail: String(req.user?.email || ""),
+        };
+        await item.save();
+        return res.json({
+          success: true,
+          status: "already_settled",
+          transactionId,
+          eventId: String(item._id),
+        });
+      }
+
+      user.wallet.balance = toMoney((user.wallet.balance || 0) + amountValue);
+      user.wallet.transactions.push({
+        type: "topup",
+        amount: amountValue,
+        description: "Credito aplicado por replay administrativo",
+        referenceId: transactionId,
+        createdAt: new Date(),
+      });
+
+      await user.save();
+
+      item.status = "processed";
+      item.processedAt = new Date();
+      item.replayedAt = new Date();
+      item.replayReason = replayReason;
+      item.replayedBy = {
+        adminId: String(req.user?.id || ""),
+        adminEmail: String(req.user?.email || ""),
+      };
+      await item.save();
+
+      return res.json({
+        success: true,
+        status: "processed",
+        transactionId,
+        eventId: String(item._id),
+        balance: toMoney(user.wallet.balance || 0),
+      });
+    } catch (error) {
+      console.error("Erro ao reprocessar evento de webhook:", error);
+      return sendError(res, 500, "Erro ao reprocessar evento de webhook");
+    }
+  }
+
+  async getWebhookEventById(req, res) {
+    try {
+      const eventId = String(req.params?.eventId || "").trim();
+      if (!eventId) {
+        return sendError(res, 400, "Evento invalido");
+      }
+
+      const item = await PaymentWebhookEvent.findById(eventId);
+      if (!item) {
+        return sendError(res, 404, "Evento de webhook nao encontrado");
+      }
+
+      return res.json({
+        success: true,
+        event: {
+          id: String(item._id),
+          transactionId: item.transactionId,
+          event: item.event,
+          userId: item.userId ? String(item.userId) : null,
+          amount: toMoney(item.amount),
+          status: item.status,
+          rawPayload: item.rawPayload || {},
+          processedAt: item.processedAt || item.createdAt,
+          createdAt: item.createdAt,
+          updatedAt: item.updatedAt,
+        },
+      });
+    } catch (error) {
+      console.error("Erro ao buscar evento de webhook:", error);
+      return sendError(res, 500, "Erro ao buscar evento de webhook");
+    }
+  }
+
+  async listWebhookEvents(req, res) {
+    try {
+      const transactionId = String(req.query?.transactionId || "").trim();
+      const event = String(req.query?.event || "").trim().toLowerCase();
+      const dateFrom = String(req.query?.dateFrom || "").trim();
+      const dateTo = String(req.query?.dateTo || "").trim();
+      const limitValue = Number(req.query?.limit || 100);
+      const limit = Number.isFinite(limitValue)
+        ? Math.min(Math.max(Math.trunc(limitValue), 1), 500)
+        : 100;
+
+      const filter = {};
+      if (transactionId) filter.transactionId = transactionId;
+      if (event) filter.event = event;
+      if (dateFrom || dateTo) {
+        const createdAt = {};
+        if (dateFrom) {
+          const from = new Date(dateFrom);
+          if (!Number.isNaN(from.getTime())) createdAt.$gte = from;
+        }
+        if (dateTo) {
+          const to = new Date(dateTo);
+          if (!Number.isNaN(to.getTime())) createdAt.$lte = to;
+        }
+        if (Object.keys(createdAt).length) filter.createdAt = createdAt;
+      }
+
+      const events = await PaymentWebhookEvent.find(filter)
+        .sort({ createdAt: -1 })
+        .limit(limit);
+
+      return res.json({
+        success: true,
+        count: events.length,
+        events: events.map((item) => ({
+          id: String(item._id),
+          transactionId: item.transactionId,
+          event: item.event,
+          userId: item.userId ? String(item.userId) : null,
+          amount: toMoney(item.amount),
+          status: item.status,
+          processedAt: item.processedAt || item.createdAt,
+          replayedAt: item.replayedAt || null,
+          replayReason: item.replayReason || null,
+          replayedBy: item.replayedBy || null,
+          createdAt: item.createdAt,
+        })),
+      });
+    } catch (error) {
+      console.error("Erro ao listar eventos de webhook:", error);
+      return sendError(res, 500, "Erro ao listar eventos de webhook");
+    }
+  }
+
+  async webhook(req, res) {
+    try {
+      const expectedSecret = String(process.env.PAYMENTS_WEBHOOK_SECRET || "").trim();
+      if (process.env.NODE_ENV === "production" && !expectedSecret) {
+        return sendError(res, 500, "Webhook desabilitado por configuracao");
+      }
+      const receivedSecret = String(req.headers["x-webhook-secret"] || "").trim();
+      if (expectedSecret && receivedSecret !== expectedSecret) {
+        return sendError(res, 401, "Webhook nao autorizado");
+      }
+
+      const event = String(req.body?.event || "").trim().toLowerCase();
+      const transactionId = String(req.body?.transactionId || req.body?.id || "").trim();
+      const userId = String(req.body?.userId || "").trim();
+      const amountValue = toMoney(req.body?.amount);
+
+      if (!event || !transactionId) {
+        return sendError(res, 400, "Evento de webhook invalido");
+      }
+
+      if (!["payment.confirmed", "payment.cancelled", "payment.failed"].includes(event)) {
+        return sendError(res, 400, "Evento nao suportado");
+      }
+
+      const existingEvent = await PaymentWebhookEvent.findOne({ transactionId, event }).select(
+        "_id",
+      );
+      if (existingEvent?._id) {
+        return res.json({
+          success: true,
+          status: "already_processed",
+          transactionId,
+          event,
+        });
+      }
+
+      if (event === "payment.confirmed") {
+        if (!userId || !Number.isFinite(amountValue) || amountValue <= 0) {
+          return sendError(res, 400, "Dados de conciliacao invalidos");
+        }
+
+        const user = await User.findById(userId).select("wallet");
+        if (!user) {
+          return sendError(res, 404, "Usuario nao encontrado");
+        }
+
+        user.wallet = user.wallet || { balance: 0, transactions: [] };
+        user.wallet.transactions = user.wallet.transactions || [];
+
+        const alreadySettled = user.wallet.transactions.some(
+          (transaction) => String(transaction.referenceId || "") === transactionId,
+        );
+        if (alreadySettled) {
+          await PaymentWebhookEvent.create({
+            transactionId,
+            event,
+            userId: user._id,
+            amount: amountValue,
+            status: "already_settled",
+            rawPayload: req.body || {},
+            processedAt: new Date(),
+          });
+          return res.json({
+            success: true,
+            status: "already_settled",
+            transactionId,
+            event,
+          });
+        }
+
+        user.wallet.balance = toMoney((user.wallet.balance || 0) + amountValue);
+        user.wallet.transactions.push({
+          type: "topup",
+          amount: amountValue,
+          description: "Credito confirmado por webhook",
+          referenceId: transactionId,
+          createdAt: new Date(),
+        });
+
+        await user.save();
+        await PaymentWebhookEvent.create({
+          transactionId,
+          event,
+          userId: user._id,
+          amount: amountValue,
+          status: "processed",
+          rawPayload: req.body || {},
+          processedAt: new Date(),
+        });
+
+        return res.json({
+          success: true,
+          status: "processed",
+          transactionId,
+          event,
+          balance: toMoney(user.wallet.balance || 0),
+        });
+      }
+
+      await PaymentWebhookEvent.create({
+        transactionId,
+        event,
+        status: "acknowledged",
+        rawPayload: req.body || {},
+        processedAt: new Date(),
+      });
+
+      return res.json({
+        success: true,
+        status: "acknowledged",
+        transactionId,
+        event,
+      });
+    } catch (error) {
+      console.error("Erro ao processar webhook de pagamento:", error);
+      return sendError(res, 500, "Erro ao processar webhook de pagamento");
+    }
+  }
+
   async listCards(req, res) {
     try {
       const user = await User.findById(req.user.id).select("paymentMethods");

@@ -33,6 +33,18 @@ const platformConfigSchema = new mongoose.Schema(
       type: Number,
       default: 60 // tempo de busca padrao em segundos
     },
+    driverGoals: {
+      dailyGoalRides: {
+        type: Number,
+        default: 10,
+        min: 1,
+      },
+      dailyBonusAmount: {
+        type: Number,
+        default: 20,
+        min: 0,
+      },
+    },
     supportChannels: {
       phone: {
         type: String,
@@ -50,7 +62,21 @@ const platformConfigSchema = new mongoose.Schema(
         type: String,
         default: "",
       },
-    }
+    },
+    policyVersions: {
+      termsVersion: {
+        type: String,
+        default: "2026-05-14",
+      },
+      privacyPolicyVersion: {
+        type: String,
+        default: "2026-05-14",
+      },
+      consentVersion: {
+        type: String,
+        default: "2026-05-14",
+      },
+    },
   },
   {
     timestamps: true,

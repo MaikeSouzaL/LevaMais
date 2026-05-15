@@ -54,6 +54,15 @@ export default function HomeScreen() {
   const [favorites, setFavorites] = useState<any[]>([]);
   const [sheetSnapIndex, setSheetSnapIndex] = useState(0);
   const [waitingQueueCount, setWaitingQueueCount] = useState<number>(0);
+  const [availability, setAvailability] = useState<{
+    rideDrivers: number;
+    deliveryDrivers: number;
+    totalNearby: number;
+  }>({
+    rideDrivers: 0,
+    deliveryDrivers: 0,
+    totalNearby: 0,
+  });
   
   // Map Operational Visual States 🎨
   const [useDarkMap, setUseDarkMap] = useState(true);
@@ -142,6 +151,47 @@ export default function HomeScreen() {
     }, [])
   );
 
+  useEffect(() => {
+    let mounted = true;
+
+    const loadNearbyAvailability = async () => {
+      try {
+        const lat = userRegion?.latitude || region?.latitude;
+        const lng = userRegion?.longitude || region?.longitude;
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+        const safeLat = lat as number;
+        const safeLng = lng as number;
+
+        const drivers = await rideService.getNearbyDrivers(safeLat, safeLng, 7000);
+        if (!mounted) return;
+
+        const rideDrivers = drivers.filter((d) =>
+          Array.isArray(d.serviceTypes) && d.serviceTypes.includes("ride"),
+        ).length;
+        const deliveryDrivers = drivers.filter((d) =>
+          Array.isArray(d.serviceTypes) && d.serviceTypes.includes("delivery"),
+        ).length;
+
+        setAvailability({
+          rideDrivers,
+          deliveryDrivers,
+          totalNearby: drivers.length,
+        });
+      } catch {
+        if (!mounted) return;
+        setAvailability((prev) => prev);
+      }
+    };
+
+    loadNearbyAvailability();
+    const interval = setInterval(loadNearbyAvailability, 15000);
+
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, [region?.latitude, region?.longitude, userRegion?.latitude, userRegion?.longitude]);
+
   // Drawer Open
   const handleMenuPress = useCallback(() => {
     const parent = navigation.getParent();
@@ -155,11 +205,16 @@ export default function HomeScreen() {
   }, [navigation]);
 
   // Routing Bridge: Navigates exactly into user's new Premium Search Flow
-  const handleServiceSelect = useCallback((type: "ride" | "delivery") => {
+  const handleServiceSelect = useCallback(
+    (
+      type: "ride" | "delivery",
+      options?: { preferScheduled?: boolean },
+    ) => {
     const defaultVehicle = type === "ride" ? "car" : "motorcycle";
     
     navigation.navigate("DestinationSearch", {
       initialVehicle: defaultVehicle,
+      preferScheduled: Boolean(options?.preferScheduled),
       // REMOVED pre-filled pickup to force user verification
     } as never);
   }, [navigation, currentAddress, userRegion, region]);
@@ -272,6 +327,7 @@ export default function HomeScreen() {
       <ClientBottomSheet 
         onSelectService={handleServiceSelect}
         favorites={favorites}
+        availability={availability}
         onSelectFavorite={(fav) => {
           // Emulates handling of legacy favorite flow triggers
           navigation.navigate("DestinationSearch", {

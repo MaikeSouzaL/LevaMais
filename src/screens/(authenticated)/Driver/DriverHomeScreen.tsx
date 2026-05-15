@@ -969,6 +969,35 @@ export default function DriverHomeScreen() {
           }
   };
 
+  const counterOfferIncoming = async (amount: number, message: string) => {
+    if (!incomingRequest?.rideId) {
+      await clearIncoming();
+      return;
+    }
+
+    try {
+      await rideService.respondToOffer(incomingRequest.rideId, {
+        action: "counter",
+        amount,
+        message: message || "Negociação justa",
+      });
+
+      Toast.show({
+        type: "success",
+        text1: "Proposta Enviada! 🚀",
+        text2: `Sua oferta de R$ ${amount.toFixed(2).replace(".", ",")} foi enviada ao cliente.`,
+      });
+      await clearIncoming();
+    } catch (err: any) {
+      Toast.show({
+        type: "error",
+        text1: "Falha ao Propor",
+        text2: err?.response?.data?.error || err?.message || "Tente novamente",
+      });
+      throw err; // Bubbles up to reset card loading state
+    }
+  };
+
   const loadRealRoute = async (pickup: LatLng, dropoff: LatLng) => {
     try {
       const key = getGoogleMapsApiKey();
@@ -1234,16 +1263,7 @@ export default function DriverHomeScreen() {
           countdown={countdown}
           onAccept={acceptIncoming}
           onReject={rejectIncoming}
-          onNegotiate={async () => {
-             // 🛸 Transfer operational theatre to complete Details Screen!
-             const targetId = incomingRequest.rideId || incomingRequest._id;
-             const currentOffer = incomingRequest;
-             await clearIncoming(); 
-             (navigation as any).navigate("DeliveryOfferScreen", { 
-                offerId: targetId, 
-                initialOffer: currentOffer 
-             });
-          }}
+          onCounterOffer={counterOfferIncoming}
         />
 
         {/* 📊 INTELLIGENT OPERATIONAL BASE CAMP (Hidden during active dispatch to prevent visual collision) */}

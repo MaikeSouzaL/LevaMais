@@ -1,7 +1,29 @@
 const express = require("express");
 const router = express.Router();
 const paymentController = require("../controllers/payment.controller");
-const { authenticateToken } = require("../middlewares/auth.middleware");
+const { authenticateToken, requireAdmin } = require("../middlewares/auth.middleware");
+
+router.post("/webhook", paymentController.webhook.bind(paymentController));
+router.get(
+  "/webhook-events",
+  requireAdmin,
+  paymentController.listWebhookEvents.bind(paymentController),
+);
+router.get(
+  "/webhook-events/summary",
+  requireAdmin,
+  paymentController.getWebhookEventsSummary.bind(paymentController),
+);
+router.get(
+  "/webhook-events/:eventId",
+  requireAdmin,
+  paymentController.getWebhookEventById.bind(paymentController),
+);
+router.post(
+  "/webhook-events/:eventId/replay",
+  requireAdmin,
+  paymentController.replayWebhookEvent.bind(paymentController),
+);
 
 router.use(authenticateToken);
 

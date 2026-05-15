@@ -8,6 +8,7 @@ router.use(authenticateToken);
 
 // Balance routes
 router.get("/balance", driverController.getBalance);
+router.get("/balance/history", driverController.getBalanceHistory);
 router.post("/balance/deposit", driverController.addDeposit);
 router.post("/balance/deduct", driverController.deductBalance);
 router.post("/balance/withdrawal-request", driverController.requestWithdrawal);

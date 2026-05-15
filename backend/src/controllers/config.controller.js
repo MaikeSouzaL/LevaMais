@@ -44,6 +44,11 @@ const DEFAULT_CONFIG = {
     whatsapp: "5500000000000",
     helpCenterUrl: "",
   },
+  policyVersions: {
+    termsVersion: "2026-05-14",
+    privacyPolicyVersion: "2026-05-14",
+    consentVersion: "2026-05-14",
+  },
 };
 
 const configController = {
@@ -194,6 +199,23 @@ const configController = {
     }
   },
 
+  getPolicyVersions: async (req, res) => {
+    try {
+      const config = await PlatformConfig.findOne();
+      const policyVersions = config?.policyVersions || DEFAULT_CONFIG.policyVersions;
+
+      res.json({
+        success: true,
+        data: policyVersions,
+      });
+    } catch (error) {
+      res.json({
+        success: true,
+        data: DEFAULT_CONFIG.policyVersions,
+      });
+    }
+  },
+
   // Get all config
   getAllConfig: async (req, res) => {
     try {
@@ -206,6 +228,7 @@ const configController = {
         depositConfig: config?.depositConfig || DEFAULT_CONFIG.depositConfig,
         rideSettings: config?.rideSettings || DEFAULT_CONFIG.rideSettings,
         supportChannels: config?.supportChannels || DEFAULT_CONFIG.supportChannels,
+        policyVersions: config?.policyVersions || DEFAULT_CONFIG.policyVersions,
       };
 
       res.json({

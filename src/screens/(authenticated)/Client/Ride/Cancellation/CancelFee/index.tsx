@@ -12,6 +12,8 @@ export default function CancelFeeScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const fee = route.params?.fee || 5;
+  const serviceType = route.params?.serviceType;
+  const isDelivery = serviceType === "delivery" || serviceType === "frete";
 
   return (
     <SafeAreaView style={styles.container}>
@@ -27,9 +29,9 @@ export default function CancelFeeScreen() {
         <Text style={styles.subtitle}>Sera cobrada uma taxa de {formatBRL(fee)} neste cancelamento.</Text>
 
         <View style={styles.bullets}>
-          <Text style={styles.bullet}>• O motorista ja foi acionado para essa corrida.</Text>
+          <Text style={styles.bullet}>• O motorista ja foi acionado para esse {isDelivery ? "pedido" : "corrida"}.</Text>
           <Text style={styles.bullet}>• A taxa cobre deslocamento e tempo de espera.</Text>
-          <Text style={styles.bullet}>• Se preferir, voce ainda pode continuar a corrida.</Text>
+          <Text style={styles.bullet}>• Se preferir, voce ainda pode continuar a {isDelivery ? "entrega" : "corrida"}.</Text>
         </View>
       </View>
 
@@ -76,4 +78,6 @@ const styles = StyleSheet.create({
   },
   footer: { padding: spacing.lg },
 });
+
+
 

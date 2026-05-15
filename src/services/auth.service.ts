@@ -457,6 +457,8 @@ export type PrivacyExportPayload = {
   };
   privacy: {
     consentVersion: string;
+    termsVersion?: string;
+    privacyPolicyVersion?: string;
     acceptedTerms: boolean;
     acceptedTermsAt?: string | null;
     acceptedPrivacyAt?: string | null;
@@ -529,8 +531,12 @@ export async function recordPrivacyConsent(payload?: {
   acceptedTerms?: boolean;
   acceptedPrivacy?: boolean;
   consentVersion?: string;
+  termsVersion?: string;
+  privacyPolicyVersion?: string;
 }): Promise<{
   consentVersion: string;
+  termsVersion: string;
+  privacyPolicyVersion: string;
   acceptedTermsAt: string;
   acceptedPrivacyAt: string;
 }> {

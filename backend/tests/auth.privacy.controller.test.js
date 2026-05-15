@@ -43,6 +43,8 @@ describe("auth privacy flows", () => {
         acceptedTerms: true,
         acceptedPrivacy: true,
         consentVersion: "2026-05-14",
+        termsVersion: "terms-2026-05-14",
+        privacyPolicyVersion: "privacy-2026-05-14",
       },
     };
     const res = createRes();
@@ -51,6 +53,8 @@ describe("auth privacy flows", () => {
 
     expect(user.acceptedTerms).toBe(true);
     expect(user.consentVersion).toBe("2026-05-14");
+    expect(user.termsVersion).toBe("terms-2026-05-14");
+    expect(user.privacyPolicyVersion).toBe("privacy-2026-05-14");
     expect(user.acceptedTermsAt).toBeInstanceOf(Date);
     expect(user.acceptedPrivacyAt).toBeInstanceOf(Date);
     expect(save).toHaveBeenCalled();

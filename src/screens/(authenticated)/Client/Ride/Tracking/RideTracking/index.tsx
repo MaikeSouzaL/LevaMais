@@ -141,6 +141,8 @@ export default function RideTrackingScreen() {
   const [routeCoords, setRouteCoords] = useState<LatLng[]>([]);
   const [routeEtaText, setRouteEtaText] = useState("");
   const [routeDistanceText, setRouteDistanceText] = useState("");
+  const isDeliveryFlow =
+    ride?.serviceType === "delivery" || ride?.serviceType === "frete";
 
   const loadRide = useCallback(async () => {
     if (!rideId) return;
@@ -157,19 +159,24 @@ export default function RideTrackingScreen() {
             pickupAddress: data?.pickup?.address,
             dropoffAddress: data?.dropoff?.address,
             driverName: (data?.driverId as any)?.name,
+            serviceType: data?.serviceType,
           });
         } else {
           navigation.reset({ index: 0, routes: [{ name: "Home" }] });
         }
       }
     } catch (error: any) {
-      const msg = error?.message || "Nao foi possivel carregar a corrida";
+      const msg =
+        error?.message ||
+        `Nao foi possivel carregar ${
+          isDeliveryFlow ? "a entrega" : "a corrida"
+        }`;
       Toast.show({ type: "error", text1: "Erro", text2: msg });
       navigation.reset({ index: 0, routes: [{ name: "Home" }] });
     } finally {
       setLoading(false);
     }
-  }, [navigation, rideId]);
+  }, [navigation, rideId, isDeliveryFlow]);
 
   useEffect(() => {
     if (!rideId) {
@@ -185,6 +192,8 @@ export default function RideTrackingScreen() {
   useEffect(() => {
     if (!rideId) return;
     let mounted = true;
+    const isCurrentDelivery =
+      ride?.serviceType === "delivery" || ride?.serviceType === "frete";
 
     const onSocketConnected = () => {
       if (!mounted) return;
@@ -203,7 +212,7 @@ export default function RideTrackingScreen() {
 
       Toast.show({
         type: "error",
-        text1: "Corrida cancelada",
+        text1: isCurrentDelivery ? "Entrega cancelada" : "Corrida cancelada",
         text2: payload?.reason ? String(payload.reason) : undefined,
       });
       navigation.reset({ index: 0, routes: [{ name: "Home" }] });
@@ -234,7 +243,10 @@ export default function RideTrackingScreen() {
     const onStarted = (payload: any) => {
       if (!mounted) return;
       if (payload?.rideId && payload.rideId !== rideId) return;
-      Toast.show({ type: "info", text1: "Corrida iniciada" });
+      Toast.show({
+        type: "info",
+        text1: isCurrentDelivery ? "Entrega iniciada" : "Corrida iniciada",
+      });
       loadRide();
     };
 
@@ -285,7 +297,7 @@ export default function RideTrackingScreen() {
       webSocketService.off("new-message", onNewMsg);
       webSocketService.off("connect", onSocketConnected);
     };
-  }, [rideId, loadRide, navigation, currentUserId]);
+  }, [rideId, loadRide, navigation, currentUserId, ride?.serviceType]);
 
   useEffect(() => {
     let mounted = true;
@@ -469,8 +481,12 @@ export default function RideTrackingScreen() {
 
   const handleShareRide = () => {
     const driverName = (ride?.driverId as any)?.name || "motorista";
+    const serviceLabel =
+      ride?.serviceType === "delivery" || ride?.serviceType === "frete"
+        ? "entrega"
+        : "corrida";
     Share.share({
-      message: `Estou em corrida no Leva Mais com ${driverName}. Pedido ${ride?._id || ""}.`,
+      message: `Estou em ${serviceLabel} no Leva Mais com ${driverName}. Pedido ${ride?._id || ""}.`,
     }).catch(() => {});
   };
 

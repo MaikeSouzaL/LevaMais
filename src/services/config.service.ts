@@ -55,6 +55,12 @@ export interface SupportChannels {
   helpCenterUrl?: string;
 }
 
+export interface PolicyVersions {
+  consentVersion: string;
+  termsVersion: string;
+  privacyPolicyVersion: string;
+}
+
 interface CacheEntry<T> {
   data: T;
   timestamp: number;
@@ -109,6 +115,11 @@ class ConfigService {
       email: 'suporte@levamais.app',
       whatsapp: '5500000000000',
       helpCenterUrl: '',
+    },
+    policyVersions: {
+      consentVersion: '2026-05-14',
+      termsVersion: '2026-05-14',
+      privacyPolicyVersion: '2026-05-14',
     },
   };
 
@@ -322,6 +333,31 @@ class ConfigService {
     } catch (error) {
       logger.warn('CONFIG', 'Failed to fetch support channels, using fallback', error);
       return this.fallbacks.supportChannels;
+    }
+  }
+
+  async getPolicyVersions(): Promise<PolicyVersions> {
+    const cacheKey = 'policy_versions';
+
+    try {
+      const cached = this.getCachedData<PolicyVersions>(cacheKey);
+      if (cached) {
+        logger.info('CONFIG', 'Policy versions from cache');
+        return cached;
+      }
+
+      const response = await apiClient.get<any>('/config/policy-versions', {
+        timeout: 5000,
+      });
+
+      const config: PolicyVersions = response.data?.data || this.fallbacks.policyVersions;
+      this.setCachedData(cacheKey, config);
+      logger.info('CONFIG', 'Policy versions from backend', config);
+
+      return config;
+    } catch (error) {
+      logger.warn('CONFIG', 'Failed to fetch policy versions, using fallback', error);
+      return this.fallbacks.policyVersions;
     }
   }
 

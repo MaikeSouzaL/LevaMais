@@ -45,6 +45,7 @@ export default function CancelRideScreen() {
   const [rideTotal, setRideTotal] = useState(
     typeof total === "number" ? total : undefined,
   );
+  const [serviceType, setServiceType] = useState<string>("");
 
   const canSubmit = useMemo(() => Boolean(rideId && selectedReason), [rideId, selectedReason]);
 
@@ -57,6 +58,7 @@ export default function CancelRideScreen() {
       .then((ride) => {
         if (!mounted) return;
         setRideStatus(String(ride?.status || ""));
+        setServiceType(String(ride?.serviceType || ""));
         if (ride?.pricing?.total != null) {
           setRideTotal(Number(ride.pricing.total));
         }
@@ -80,6 +82,8 @@ export default function CancelRideScreen() {
       : feeStatusApplies && typeof rideTotal === "number"
         ? rideTotal * 0.3
         : 0;
+  const isDelivery =
+    serviceType === "delivery" || serviceType === "frete";
 
   const handleCancel = async () => {
     if (!canSubmit || !rideId) return;
@@ -89,11 +93,15 @@ export default function CancelRideScreen() {
       const response: any = await rideService.cancel(rideId, selectedReason);
       const chargedFee =
         Number(response?.cancellationFee ?? response?.data?.cancellationFee ?? estimatedFee) || 0;
-      Toast.show({ type: "success", text1: "Corrida cancelada" });
+      Toast.show({
+        type: "success",
+        text1: isDelivery ? "Entrega cancelada" : "Corrida cancelada",
+      });
       if (chargedFee > 0) {
         (navigation as any).replace("CancelFee", {
           fee: chargedFee,
           total: rideTotal,
+          serviceType,
         });
       } else {
         (navigation as any).reset({ index: 0, routes: [{ name: "Home" }] });
@@ -112,7 +120,7 @@ export default function CancelRideScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <ClientScreenHeader
-        title="Cancelar corrida"
+        title={isDelivery ? "Cancelar entrega" : "Cancelar corrida"}
         subtitle="Selecione o motivo para seguir com o cancelamento"
         showBack
       />
@@ -128,7 +136,9 @@ export default function CancelRideScreen() {
               : "O cancelamento pode impactar seu tempo de espera em futuras solicitacoes."}
           </Text>
           {typeof rideTotal === "number" && (
-            <Text style={styles.warningText}>Valor da corrida atual: {formatBRL(rideTotal)}</Text>
+            <Text style={styles.warningText}>
+              Valor do {isDelivery ? "pedido" : "corrida"} atual: {formatBRL(rideTotal)}
+            </Text>
           )}
           {estimatedFee > 0 && (
             <View style={styles.feeBox}>

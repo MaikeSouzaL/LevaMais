@@ -21,6 +21,7 @@ import {
   recordPrivacyConsent,
   revokePrivacyConsent,
 } from "@/services/auth.service";
+import configService from "@/services/config.service";
 import { useAuthStore } from "@/context/authStore";
 
 export default function PrivacyDataScreen() {
@@ -28,6 +29,11 @@ export default function PrivacyDataScreen() {
   const logout = useAuthStore((state) => state.logout);
   const [loading, setLoading] = React.useState(false);
   const [summary, setSummary] = React.useState<PrivacyExportPayload | null>(null);
+  const [policyVersions, setPolicyVersions] = React.useState<{
+    consentVersion: string;
+    termsVersion: string;
+    privacyPolicyVersion: string;
+  } | null>(null);
 
   const loadSummary = React.useCallback(async () => {
     try {
@@ -44,9 +50,13 @@ export default function PrivacyDataScreen() {
 
     (async () => {
       try {
-        const data = await exportPrivacyData();
+        const [data, versions] = await Promise.all([
+          exportPrivacyData(),
+          configService.getPolicyVersions().catch(() => null),
+        ]);
         if (!mounted) return;
         setSummary(data);
+        setPolicyVersions(versions);
       } catch (error) {
         console.error("Error exporting privacy data:", error);
         if (!mounted) return;
@@ -91,6 +101,15 @@ export default function PrivacyDataScreen() {
               await recordPrivacyConsent({
                 acceptedTerms: true,
                 acceptedPrivacy: true,
+                consentVersion:
+                  policyVersions?.consentVersion ||
+                  (consentVersion !== "-" ? consentVersion : undefined),
+                termsVersion:
+                  policyVersions?.termsVersion ||
+                  (termsVersion !== "-" ? termsVersion : undefined),
+                privacyPolicyVersion:
+                  policyVersions?.privacyPolicyVersion ||
+                  (privacyPolicyVersion !== "-" ? privacyPolicyVersion : undefined),
               });
               await loadSummary();
               Toast.show({
@@ -146,6 +165,14 @@ export default function PrivacyDataScreen() {
     );
   };
 
+  const consentVersion = summary?.privacy?.consentVersion || "-";
+  const termsVersion =
+    summary?.privacy?.termsVersion || summary?.privacy?.consentVersion || "-";
+  const privacyPolicyVersion =
+    summary?.privacy?.privacyPolicyVersion ||
+    summary?.privacy?.consentVersion ||
+    "-";
+
   const handleDeleteAccount = () => {
     Alert.alert(
       "Excluir conta",
@@ -192,7 +219,7 @@ export default function PrivacyDataScreen() {
           </Text>
           {summary && (
             <Text className="text-[#02de95] text-xs font-semibold">
-              Corridas: {summary.rides.total} | Cartões: {summary.paymentMethods.length} | Versão do consentimento: {summary.privacy.consentVersion}
+              Corridas: {summary.rides.total} | Cartões: {summary.paymentMethods.length} | Versão do consentimento: {consentVersion}
             </Text>
           )}
         </View>
@@ -200,6 +227,12 @@ export default function PrivacyDataScreen() {
         {summary && (
           <View className="bg-[#0d2838] border border-gray-700 rounded-lg p-4 gap-2">
             <Text className="text-white font-bold text-base">Resumo LGPD</Text>
+            <Text className="text-gray-300 text-sm">
+              Versao dos Termos: {termsVersion}
+            </Text>
+            <Text className="text-gray-300 text-sm">
+              Versao da Politica de Privacidade: {privacyPolicyVersion}
+            </Text>
             <Text className="text-gray-300 text-sm">
               Termos aceitos: {summary.privacy.acceptedTerms ? "Sim" : "Não"}
             </Text>

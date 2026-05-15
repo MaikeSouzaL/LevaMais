@@ -20,6 +20,7 @@ type Params = {
   ClientRateDriver: {
     rideId: string;
     driverName?: string;
+    serviceType?: string;
   };
 };
 
@@ -37,6 +38,8 @@ export default function RateDriverScreen() {
   const route = useRoute<RouteProp<Params, "ClientRateDriver">>();
   const rideId = route.params?.rideId;
   const driverName = route.params?.driverName || "Motorista";
+  const serviceType = route.params?.serviceType;
+  const isDelivery = serviceType === "delivery" || serviceType === "frete";
 
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState("");
@@ -100,7 +103,7 @@ export default function RateDriverScreen() {
     <SafeAreaView style={styles.container}>
       <ClientScreenHeader
         title="Avaliar motorista"
-        subtitle={`Como foi a corrida com ${driverName}?`}
+        subtitle={`Como foi a ${isDelivery ? "entrega" : "corrida"} com ${driverName}?`}
         showBack
       />
 
