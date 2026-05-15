@@ -204,25 +204,6 @@ function ProposalStatusCard({ counterValue, baseValue, distanceKm, durationText,
             <Text className="text-white font-black text-xs">{durationText}</Text>
           </View>
         </View>
-
-        <View>
-          <View className="flex-row justify-between items-center mb-1.5">
-            <View className="flex-row items-center">
-              <Sparkles size={9} color="#02de95" fill="#02de95" className="mr-1" />
-              <Text className="text-white/60 font-extrabold text-[9px] uppercase tracking-wider">CHANCE DE ACEITE POR IA</Text>
-            </View>
-            <Text className="text-[#02de95] font-black text-[10px]">{acceptanceChance}%</Text>
-          </View>
-          
-          <View className="w-full h-2 bg-white/[0.05] border border-white/10 rounded-full overflow-hidden">
-             <MotiView
-                from={{ width: "0%" }}
-                animate={{ width: `${acceptanceChance}%` }}
-                transition={{ duration: 1000, type: "timing" }}
-                className="h-full bg-[#02de95] rounded-full"
-             />
-          </View>
-        </View>
       </BlurView>
     </MotiView>
   );
@@ -585,9 +566,6 @@ export function IncomingRideCard({
                   <View className="w-2 h-2 bg-[#02de95] rounded-full mr-2 animate-pulse" />
                   <Text className="text-white font-black text-[9px] tracking-widest uppercase">Radar Ativo</Text>
                 </MotiView>
-                <Text className="text-white/50 font-extrabold text-[11px]">
-                  Expira em: <Text className="text-[#ef4444] font-black text-sm">{negotiationTimeLeft}s</Text>
-                </Text>
               </View>
 
               {/* Central Stage Hologram */}
@@ -731,34 +709,7 @@ export function IncomingRideCard({
                 ))}
               </View>
 
-              {/* 🤖 AI SMART SUGGESTION */}
-              {hasProposedNewValue && (
-                <MotiView
-                  from={{ opacity: 0, translateY: 10 }}
-                  animate={{ opacity: 1, translateY: 0 }}
-                  className="mb-6 bg-[#02de95]/5 border border-[#02de95]/15 rounded-2xl p-4 flex-row items-start"
-                >
-                  <Sparkles size={18} color="#02de95" fill="#02de95" className="mr-3 mt-0.5" />
-                  <View className="flex-1">
-                    <View className="flex-row justify-between mb-1">
-                      <Text className="text-white font-extrabold text-[13px]">Sugestão Inteligente IA</Text>
-                      <Text className="text-[#02de95] font-black text-[11px]">{acceptanceChance}% Chance</Text>
-                    </View>
-                    <Text className="text-white/60 text-[11px] leading-4 mb-2">
-                      Suas chances de aceitação imediata pelo cliente são estimadas em <Text className="text-[#02de95] font-bold">{acceptanceChance}%</Text> para esse valor.
-                    </Text>
-                    {counterValue !== suggestionVal && (
-                      <TouchableOpacity
-                        onPress={() => setCounterValue(suggestionVal)}
-                        className="flex-row items-center"
-                      >
-                        <Text className="text-[#02de95] font-black text-[10px] uppercase tracking-wider">Aplicar R$ {suggestionVal.toFixed(2)} (+81%)</Text>
-                        <ChevronRight size={12} color="#02de95" strokeWidth={3} className="ml-0.5" />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                </MotiView>
-              )}
+              {/* AI SUGGESTION REMOVED */}
 
               {/* 💎 DYNAMIC LOGISTIC BADGES 💎 */}
               <View className="mb-6 flex-row gap-3">
