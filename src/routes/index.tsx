@@ -129,10 +129,6 @@ export default function Routes() {
   }
 
   if (userType === "driver") {
-    // 🛡️ Security Gate: Block unapproved drivers from accessing full dashboard
-    if (userData?.driverStatus !== "approved") {
-      return <DriverPendingRoutes />;
-    }
     return <DriverBoot />;
   }
 

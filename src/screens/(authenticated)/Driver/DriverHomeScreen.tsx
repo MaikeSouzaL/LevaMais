@@ -29,6 +29,7 @@ import walletService from "../../../services/wallet.service";
 import driverService from "../../../services/driver.service";
 import userService from "../../../services/user.service";
 import { DriverBottomSheet } from "./components/DriverBottomSheet";
+import DriverOnboardingDashboard from "@/components/driver/home/DriverOnboardingDashboard";
 import { getCurrentLocationAndAddress } from "../../../utils/location";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import { decodePolyline, LatLng } from "../../../utils/polyline";
@@ -76,6 +77,7 @@ export default function DriverHomeScreen() {
   const isFocused = useIsFocused();
   const colorScheme = useColorScheme();
   const userData = useAuthStore((s) => s.userData);
+  const isApproved = userData?.driverStatus === "approved";
 
   const [online, setOnline] = useState(false);
   const [services, setServices] = useState({
@@ -1166,7 +1168,7 @@ export default function DriverHomeScreen() {
         )}
 
         {/* 🌌 Dynamic UI Overlay Layer */}
-        {!!region && (
+        {!!region && isApproved && (
           <>
              {/* 🎛️ TOP FLOATING DASHBOARD HUD */}
              <View className="absolute top-12 left-4 right-4 z-50 flex-row items-center gap-3">
@@ -1194,7 +1196,7 @@ export default function DriverHomeScreen() {
              </View>
 
              {/* 📡 OPERATIONAL RIGHT WING CONTROLS */}
-             {!incomingRequest?.rideId && (
+             {isApproved && !incomingRequest?.rideId && (
                <View className="absolute right-4 top-[30%] z-40 flex-col gap-3">
                   {/* Queue Tag Yellow (Floating) */}
                   {waitingQueueCount > 0 && (
@@ -1337,6 +1339,7 @@ export default function DriverHomeScreen() {
         )}
 
         {/* 🎁 MASTER DISPATCH INTERCEPTION NODE */}
+        {isApproved && (
         <IncomingRideCard 
           isVisible={!!incomingRequest?.rideId}
           request={incomingRequest}
@@ -1346,6 +1349,8 @@ export default function DriverHomeScreen() {
           onClose={clearIncoming}
           onCounterOffer={counterOfferIncoming}
         />
+
+        )}
 
         {/* 📊 INTELLIGENT OPERATIONAL BASE CAMP (Hidden during active dispatch to prevent visual collision) */}
         {!incomingRequest?.rideId && (
@@ -1394,6 +1399,9 @@ export default function DriverHomeScreen() {
           }}
         />
 
+        {!isApproved && (
+          <DriverOnboardingDashboard />
+        )}
       </View>
     </GestureHandlerRootView>
     </ErrorBoundary>
