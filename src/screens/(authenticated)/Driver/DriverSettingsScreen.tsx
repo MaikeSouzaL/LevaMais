@@ -6,10 +6,12 @@ import SectionCard from "../../../components/ui/SectionCard";
 import ActionButton from "../../../components/ui/ActionButton";
 import userService from "../../../services/user.service";
 import { DriverScreen } from "./components/DriverScreen";
+import { useAuthStore } from "@/context/authStore";
 
 export default function DriverSettingsScreen() {
   const [loading, setLoading] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [enableMapAnimation, setEnableMapAnimation] = useState(true);
   const [gpsQuality, setGpsQuality] = useState<"low" | "balanced" | "high">("high");
 
   useEffect(() => {
@@ -20,6 +22,7 @@ export default function DriverSettingsScreen() {
         const u = await userService.getProfile();
         if (!mounted) return;
         setNotificationsEnabled(u.notificationsEnabled !== false);
+        setEnableMapAnimation(u.enableMapAnimation !== false);
         setGpsQuality(u.gpsQuality || "high");
       } catch (error) {
         console.error("Error loading profile settings:", error);
@@ -38,8 +41,10 @@ export default function DriverSettingsScreen() {
     try {
       await userService.updateProfile({ 
         notificationsEnabled,
+        enableMapAnimation,
         gpsQuality
       });
+      useAuthStore.getState().updateUserData({ enableMapAnimation });
       Toast.show({ type: "success", text1: "Configurações salvas" });
     } catch (e: any) {
       Toast.show({
@@ -81,6 +86,30 @@ export default function DriverSettingsScreen() {
             onValueChange={setNotificationsEnabled}
             trackColor={{ false: "#1f2b27", true: "rgba(2,222,149,0.35)" }}
             thumbColor={notificationsEnabled ? "#02de95" : "#9ca5a3"}
+          />
+        </View>
+      </SectionCard>
+      <SectionCard>
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <View style={{ flex: 1, paddingRight: 12 }}>
+            <Text style={{ color: "#fff", fontWeight: "900" }}>
+              Animação no Mapa
+            </Text>
+            <Text style={{ color: "rgba(255,255,255,0.65)", marginTop: 4 }}>
+              Habilitar exibição dinâmica e animação da rota no mapa.
+            </Text>
+          </View>
+          <Switch
+            value={enableMapAnimation}
+            onValueChange={setEnableMapAnimation}
+            trackColor={{ false: "#1f2b27", true: "rgba(2,222,149,0.35)" }}
+            thumbColor={enableMapAnimation ? "#02de95" : "#9ca5a3"}
           />
         </View>
       </SectionCard>

@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, TouchableOpacity, StatusBar, StyleSheet } from "react-native";
 import { X } from "lucide-react-native";
 import { MotiView } from "moti";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // Nested high-end components
 import { PremiumMapBackground } from "./PremiumMapBackground";
@@ -28,6 +29,8 @@ export function SearchTimeoutView({
   onCancel,
   pickupCoords,
 }: SearchTimeoutViewProps) {
+  const insets = useSafeAreaInsets();
+
   return (
     <View style={StyleSheet.absoluteFillObject} className="bg-[#091A2F] flex-1 items-center justify-center px-6 py-8">
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
@@ -39,14 +42,33 @@ export function SearchTimeoutView({
       <MotiView 
         from={{ opacity: 0, translateY: -20 }}
         animate={{ opacity: 1, translateY: 0 }}
-        className="absolute top-14 right-6 z-30"
+        style={{
+          position: "absolute",
+          top: Math.max(insets.top, 16) + 8,
+          right: 24,
+          zIndex: 50,
+        }}
       >
         <TouchableOpacity
           onPress={onCancel}
           activeOpacity={0.7}
-          className="w-10 h-10 rounded-full bg-white/5 border border-white/10 items-center justify-center"
+          style={{
+            width: 42,
+            height: 42,
+            borderRadius: 21,
+            backgroundColor: "rgba(255, 255, 255, 0.12)",
+            borderWidth: 1.5,
+            borderColor: "rgba(255, 255, 255, 0.2)",
+            alignItems: "center",
+            justifyContent: "center",
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.3,
+            shadowRadius: 4,
+            elevation: 4,
+          }}
         >
-          <X size={18} color="rgba(255,255,255,0.7)" />
+          <X size={20} color="#FFFFFF" />
         </TouchableOpacity>
       </MotiView>
 
@@ -82,9 +104,24 @@ export function SearchTimeoutView({
         <TouchableOpacity 
           onPress={onCancel}
           activeOpacity={0.6}
-          className="h-10 items-center justify-center px-6 border border-red-500/10 bg-red-500/5 rounded-xl"
+          style={{
+            height: 48,
+            width: "100%",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "rgba(255, 82, 82, 0.1)",
+            borderWidth: 1,
+            borderColor: "rgba(255, 82, 82, 0.25)",
+            borderRadius: 14,
+          }}
         >
-          <Text className="text-red-400/80 font-bold text-xs uppercase tracking-widest">
+          <Text style={{
+            color: "#FF5252",
+            fontWeight: "900",
+            fontSize: 11,
+            textTransform: "uppercase",
+            letterSpacing: 1.5,
+          }}>
             Cancelar Solicitação
           </Text>
         </TouchableOpacity>

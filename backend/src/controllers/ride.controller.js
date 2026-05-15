@@ -344,11 +344,18 @@ class RideController {
       const activeTimeout = setTimeout(async () => {
         try {
           const updatedRide = await Ride.findById(ride._id);
+          
+          // 🛡️ NEGOTIATION SHIELD: If any drivers sent proposals, BLOCK timeout cancellation!
+          const activeOffers = Array.isArray(updatedRide?.negotiation?.offers)
+            ? updatedRide.negotiation.offers.filter(o => o.status !== "rejected")
+            : [];
+
           if (
             updatedRide &&
             String(updatedRide.status) === "requesting" &&
             !updatedRide.driverId &&
-            !updatedRide.isWaitingInQueue
+            !updatedRide.isWaitingInQueue &&
+            activeOffers.length === 0 // 🛡️ Only cancel if no negotiations are currently active!
           ) {
             updatedRide.status = "cancelled_no_driver";
             updatedRide.cancelledAt = new Date();
@@ -696,6 +703,82 @@ class RideController {
     } catch (error) {
       console.error("Erro ao buscar solicitacoes disponiveis:", error);
       return sendError(res, 500, "Erro ao buscar solicitacoes disponiveis", {
+        details: error.message,
+      });
+    }
+  }
+
+  // Lista negociacoes pendentes para o motorista (ja respondeu e aguarda cliente)
+  async getPendingNegotiations(req, res) {
+    try {
+      if (req.user.userType !== "driver") {
+        return sendError(res, 403, "Apenas motoristas podem consultar negociacoes pendentes");
+      }
+
+      const driverId = String(req.user.id);
+
+      const rides = await Ride.find({
+        status: { $in: ["requesting", "driver_assigned"] },
+        "negotiation.enabled": true,
+        "negotiation.finalAgreedPrice": null,
+        "negotiation.offers": {
+          $elemMatch: {
+            driverId: new mongoose.Types.ObjectId(driverId),
+            status: { $in: ["accepted", "countered"] },
+          },
+        },
+      })
+        .populate("clientId", "name phone profilePhoto rating")
+        .sort({ updatedAt: -1 });
+
+      const pending = rides.map((ride) => {
+        const offers = Array.isArray(ride.negotiation?.offers) ? ride.negotiation.offers : [];
+        const myOffer = offers.find(
+          (offer) => String(offer.driverId?._id || offer.driverId) === driverId,
+        );
+
+        return {
+          rideId: String(ride._id),
+          status: ride.status,
+          serviceType: ride.serviceType,
+          vehicleType: ride.vehicleType,
+          pickup: ride.pickup,
+          dropoff: ride.dropoff,
+          distance: ride.distance,
+          duration: ride.duration,
+          pricing: ride.pricing,
+          details: ride.details,
+          requestedAt: ride.requestedAt,
+          negotiation: {
+            enabled: Boolean(ride.negotiation?.enabled),
+            clientOffer: ride.negotiation?.clientOffer ?? null,
+            suggestedMinPrice: ride.negotiation?.suggestedMinPrice ?? null,
+            myOffer: myOffer
+              ? {
+                  amount: myOffer.amount,
+                  status: myOffer.status,
+                  message: myOffer.message || "",
+                  createdAt: myOffer.createdAt,
+                  updatedAt: myOffer.updatedAt,
+                }
+              : null,
+          },
+          client: ride.clientId
+            ? {
+                id: ride.clientId._id,
+                name: ride.clientId.name,
+                phone: ride.clientId.phone,
+                profilePhoto: ride.clientId.profilePhoto,
+                rating: ride.clientId.rating,
+              }
+            : null,
+        };
+      });
+
+      return res.json({ success: true, count: pending.length, requests: pending });
+    } catch (error) {
+      console.error("Erro ao buscar negociacoes pendentes:", error);
+      return sendError(res, 500, "Erro ao buscar negociacoes pendentes", {
         details: error.message,
       });
     }

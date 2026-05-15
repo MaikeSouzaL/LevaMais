@@ -126,6 +126,7 @@ class AuthController {
         // Preferências
         preferredPayment,
         notificationsEnabled,
+        enableMapAnimation,
         // Driver
         vehicleType,
         vehicleInfo,
@@ -230,6 +231,8 @@ class AuthController {
       if (normalizedPreferredPayment) userData.preferredPayment = normalizedPreferredPayment;
       userData.notificationsEnabled =
         notificationsEnabled !== undefined ? notificationsEnabled : true;
+      userData.enableMapAnimation =
+        req.body.enableMapAnimation !== undefined ? req.body.enableMapAnimation : true;
 
       // Dados do motorista
       if (resolvedUserType === "driver") {
@@ -440,6 +443,7 @@ class AuthController {
         profilePhoto,
         preferredPayment,
         notificationsEnabled,
+        enableMapAnimation,
         queueRedispatchInterval,
         // driver
         vehicleType,
@@ -467,6 +471,9 @@ class AuthController {
       }
       if (notificationsEnabled !== undefined) {
         user.notificationsEnabled = !!notificationsEnabled;
+      }
+      if (enableMapAnimation !== undefined) {
+        user.enableMapAnimation = !!enableMapAnimation;
       }
       if (queueRedispatchInterval !== undefined) {
         user.queueRedispatchInterval = queueRedispatchInterval === null ? null : Number(queueRedispatchInterval);

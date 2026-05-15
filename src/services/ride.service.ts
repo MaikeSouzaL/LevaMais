@@ -186,6 +186,20 @@ export interface AvailableRideRequestsResponse {
   waitingQueueCount?: number;
 }
 
+export interface PendingNegotiationRequest extends AvailableRideRequest {
+  status?: string;
+  client?: AvailableRideRequest["client"] & { id?: string };
+  negotiation?: AvailableRideRequest["negotiation"] & {
+    myOffer?: {
+      amount: number;
+      status: "accepted" | "countered" | "rejected";
+      message?: string;
+      createdAt?: string;
+      updatedAt?: string;
+    } | null;
+  };
+}
+
 export type RatePayload = {
   stars: number;
   comment?: string;
@@ -273,6 +287,17 @@ class RideService {
   async getAvailableRequests(): Promise<AvailableRideRequestsResponse> {
     const response = await api.get("/rides/available-requests");
     return response.data;
+  }
+
+  async getPendingNegotiations(): Promise<{
+    count: number;
+    requests: PendingNegotiationRequest[];
+  }> {
+    const response = await api.get("/rides/negotiations/pending");
+    return {
+      count: Number(response.data?.count || 0),
+      requests: Array.isArray(response.data?.requests) ? response.data.requests : [],
+    };
   }
 
 

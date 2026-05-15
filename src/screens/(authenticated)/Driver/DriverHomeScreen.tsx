@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+﻿import React, { useEffect, useRef, useState } from "react";
 import { AppState, View, Text, TouchableOpacity, useColorScheme, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -981,6 +981,7 @@ export default function DriverHomeScreen() {
         amount,
         message: message || "Negociação justa",
       });
+      await driverAlertService.stop().catch(() => {});
 
       Toast.show({
         type: "success",

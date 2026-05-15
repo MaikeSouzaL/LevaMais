@@ -10,6 +10,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { RoutePulseIndicator } from "./RoutePulseIndicator";
 import { View } from "react-native";
+import { useAuthStore } from "@/context/authStore";
 
 // Enables Native Reanimated drive directly into Native Map Prop 'coordinate'
 const AnimatedMarker = Animated.createAnimatedComponent(Marker);
@@ -19,9 +20,14 @@ interface AnimatedRoutePathProps {
 }
 
 export const AnimatedRoutePath = ({ coordinates }: AnimatedRoutePathProps) => {
+  const enableMapAnimation = useAuthStore((s) => s.userData?.enableMapAnimation);
+
   // Mirror coordinates array to the UI thread robustly to prevent stale closure displacement
   const sharedCoords = useSharedValue(coordinates);
   const progress = useSharedValue(0);
+
+  // Short-circuit instantly if animation disabled by database preference flag!
+  if (enableMapAnimation === false) return null;
 
   useEffect(() => {
     if (coordinates && coordinates.length >= 2) {

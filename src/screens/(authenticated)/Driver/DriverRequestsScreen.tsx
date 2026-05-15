@@ -48,9 +48,10 @@ export default function DriverRequestsScreen() {
   }>({ serviceTypes: [] });
   
   const requestedInitialTab = route.params?.initialTab || "queue";
-  const [activeTab, setActiveTab] = useState<"queue" | "realtime" | "scheduled">(
+  const [activeTab, setActiveTab] = useState<"queue" | "realtime" | "negotiation" | "scheduled">(
     requestedInitialTab as any
   );
+  const [pendingNegotiations, setPendingNegotiations] = useState<RideRequestItem[]>([]);
   const [scheduledRides, setScheduledRides] = useState<any[]>([]);
   const [scheduledFilterInfo, setScheduledFilterInfo] = useState<{
     vehicleType?: string;
@@ -58,6 +59,32 @@ export default function DriverRequestsScreen() {
   }>({ serviceTypes: [] });
   const [loadingScheduled, setLoadingScheduled] = useState(false);
   const [showNoBalanceModal, setShowNoBalanceModal] = useState(false);
+
+  const loadPendingNegotiations = async () => {
+    try {
+      const res = await rideService.getPendingNegotiations();
+      setPendingNegotiations(
+        (res?.requests || []).map((item: any) => ({
+          rideId: item.rideId,
+          pickup: item.pickup,
+          dropoff: item.dropoff,
+          pricing: item.pricing,
+          distance: item.distance,
+          duration: item.duration,
+          serviceType: item.serviceType,
+          vehicleType: item.vehicleType,
+          details: item.details,
+          negotiation: {
+            enabled: item?.negotiation?.enabled,
+            clientOffer: item?.negotiation?.clientOffer,
+            suggestedMinPrice: item?.negotiation?.suggestedMinPrice,
+          },
+        })),
+      );
+    } catch {
+      setPendingNegotiations([]);
+    }
+  };
 
   const loadScheduledRides = async () => {
     try {
@@ -114,6 +141,7 @@ export default function DriverRequestsScreen() {
 
       // Sempre recarrega os agendamentos quando focar a tela
       loadScheduledRides();
+      loadPendingNegotiations();
 
       return () => {
         active = false;
@@ -150,6 +178,7 @@ export default function DriverRequestsScreen() {
             negotiation: item.negotiation,
           })),
         );
+        await loadPendingNegotiations();
       } catch {
         // ignora para manter a tela responsiva em reconexao
       }
@@ -462,6 +491,8 @@ export default function DriverRequestsScreen() {
             ? queueRequests.length
             : activeTab === "realtime"
             ? realtimeRequests.length
+            : activeTab === "negotiation"
+            ? pendingNegotiations.length
             : scheduledRides.length}
         </Text>
       }
@@ -523,6 +554,32 @@ export default function DriverRequestsScreen() {
             numberOfLines={1}
           >
             Direto ({realtimeRequests.length})
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => {
+            setActiveTab("negotiation");
+            loadPendingNegotiations();
+          }}
+          style={{
+            flex: 1,
+            paddingVertical: 10,
+            alignItems: "center",
+            borderRadius: 12,
+            backgroundColor: activeTab === "negotiation" ? "#02de95" : "transparent",
+          }}
+          activeOpacity={0.8}
+        >
+          <Text
+            style={{
+              color: activeTab === "negotiation" ? "#091A2F" : "#9ca5a3",
+              fontWeight: "900",
+              fontSize: 11,
+            }}
+            numberOfLines={1}
+          >
+            Negociacoes ({pendingNegotiations.length})
           </Text>
         </TouchableOpacity>
 
@@ -595,6 +652,20 @@ export default function DriverRequestsScreen() {
           <DriverEmptyState title="Nenhuma solicitação direta no momento." />
         ) : (
           realtimeRequests.map((r) => (
+            <DriverRequestCard
+              key={r.rideId}
+              item={r}
+              onAccept={accept}
+              onReject={reject}
+              onCounterOffer={counterOffer}
+            />
+          ))
+        )
+      ) : activeTab === "negotiation" ? (
+        pendingNegotiations.length === 0 ? (
+          <DriverEmptyState title="Nenhuma negociacao pendente aguardando cliente." />
+        ) : (
+          pendingNegotiations.map((r) => (
             <DriverRequestCard
               key={r.rideId}
               item={r}

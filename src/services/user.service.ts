@@ -16,6 +16,7 @@ export type UserProfile = {
   profilePhoto?: string;
   preferredPayment?: "pix" | "cash" | "card";
   notificationsEnabled?: boolean;
+  enableMapAnimation?: boolean;
   queueRedispatchInterval?: number | null;
   vehicleType?: "motorcycle" | "car" | "van" | "truck";
   vehicleInfo?: {
@@ -54,6 +55,7 @@ export type UpdateProfilePayload = Partial<
     | "profilePhoto"
     | "preferredPayment"
     | "notificationsEnabled"
+    | "enableMapAnimation"
     | "gpsQuality"
     | "queueRedispatchInterval"
     | "vehicleType"

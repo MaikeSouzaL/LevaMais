@@ -178,6 +178,10 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    enableMapAnimation: {
+      type: Boolean,
+      default: true,
+    },
     queueRedispatchInterval: {
       type: Number,
       default: null // null significa usar o padrão do sistema (PlatformConfig)

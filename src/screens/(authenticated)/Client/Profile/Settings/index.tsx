@@ -18,6 +18,7 @@ import { ClientScreenHeader } from "../../Shared/components";
 import { useClientCityStore } from "@/context/clientCityStore";
 import { useNavigation } from "@react-navigation/native";
 import userService from "@/services/user.service";
+import { useAuthStore } from "@/context/authStore";
 
 const SETTINGS_STORAGE_KEY = "client-settings-v1";
 
@@ -25,12 +26,14 @@ type LocalSettings = {
   notifications: boolean;
   darkMode: boolean;
   shareLocationInBackground: boolean;
+  enableMapAnimation: boolean;
 };
 
 const initialState: LocalSettings = {
   notifications: true,
   darkMode: true,
   shareLocationInBackground: true,
+  enableMapAnimation: true,
 };
 
 const INTERVAL_OPTIONS = [
@@ -68,6 +71,10 @@ export default function SettingsScreen() {
               typeof profile.notificationsEnabled === "boolean"
                 ? profile.notificationsEnabled
                 : prev.notifications,
+            enableMapAnimation:
+              typeof profile.enableMapAnimation === "boolean"
+                ? profile.enableMapAnimation
+                : prev.enableMapAnimation,
           }));
         }
       } catch (err) {
@@ -131,6 +138,21 @@ export default function SettingsScreen() {
     }
   };
 
+  const handleMapAnimationToggle = async (value: boolean) => {
+    await patchSettings({ enableMapAnimation: value });
+    try {
+      await userService.updateProfile({ enableMapAnimation: value });
+      useAuthStore.getState().updateUserData({ enableMapAnimation: value });
+    } catch (err: any) {
+      await patchSettings({ enableMapAnimation: !value });
+      Toast.show({
+        type: "error",
+        text1: "Erro ao salvar preferencia",
+        text2: err?.message || "Tente novamente",
+      });
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <ClientScreenHeader title="Configuracoes" subtitle="Preferencias do app e privacidade" />
@@ -143,6 +165,13 @@ export default function SettingsScreen() {
           subtitle="Alertas sobre busca, motorista e corrida"
           value={settings.notifications}
           onToggle={handleNotificationsToggle}
+        />
+
+        <SettingRow
+          label="Animacao da Motinha no Mapa"
+          subtitle="Habilitar animacao cinemática ao longo do trajeto"
+          value={settings.enableMapAnimation}
+          onToggle={handleMapAnimationToggle}
         />
 
         <SettingRow

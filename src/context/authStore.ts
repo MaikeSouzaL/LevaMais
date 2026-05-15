@@ -20,6 +20,7 @@ export interface UserData {
   vehicleType?: unknown;
   vehicleInfo?: unknown;
   driverStatus?: "none" | "pending" | "approved" | "rejected";
+  enableMapAnimation?: boolean;
 }
 
 export interface AuthState {
