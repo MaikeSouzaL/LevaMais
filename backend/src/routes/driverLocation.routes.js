@@ -1,4 +1,4 @@
-﻿const express = require("express");
+const express = require("express");
 const router = express.Router();
 const driverLocationController = require("../controllers/driverLocation.controller");
 const { authenticateToken } = require("../middlewares/auth.middleware");
@@ -10,6 +10,7 @@ router.patch("/status", driverLocationController.updateStatus);
 router.get("/all", driverLocationController.getAllLocations);
 router.get("/me", driverLocationController.getMe);
 router.get("/nearby/search", driverLocationController.getNearby);
+router.get("/nearby/availability", driverLocationController.getNearbyVehicleAvailability);
 router.get("/:driverId", driverLocationController.getLocation);
 
 module.exports = router;

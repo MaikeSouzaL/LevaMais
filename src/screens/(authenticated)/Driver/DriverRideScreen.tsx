@@ -21,6 +21,8 @@ import { useChatStore } from "../../../context/chatStore";
 import MapMarker, { getClientMarkerType } from "../../../components/MapMarker";
 import { decodePolyline, LatLng } from "../../../utils/polyline";
 import { VehicleMarker } from "@/components/maps/VehicleMarker";
+import { MapActionButtons } from "@/components/MapActionButtons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 type Params = {
   DriverRide: {
@@ -57,6 +59,44 @@ export default function DriverRideScreen() {
   const statusRef = useRef<string>("accepted");
   const lastAppStateRef = useRef(AppState.currentState);
   const autoArrivingRequestedRef = useRef(false);
+
+  const [useDarkMap, setUseDarkMap] = useState(true);
+  const [isSwitchingMapStyle, setIsSwitchingMapStyle] = useState(false);
+  const [isCentering, setIsCentering] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem("mapStylePref").then((pref) => {
+      if (pref) setUseDarkMap(pref === "dark");
+    }).catch(() => {});
+  }, []);
+
+  const handleToggleMapStyle = () => {
+    if (isSwitchingMapStyle) return;
+    setIsSwitchingMapStyle(true);
+    setUseDarkMap((prev) => {
+      const next = !prev;
+      AsyncStorage.setItem("mapStylePref", next ? "dark" : "light").catch(() => {});
+      return next;
+    });
+    setTimeout(() => setIsSwitchingMapStyle(false), 300);
+  };
+
+  const handleCenterMyLocation = () => {
+    if (!driverCoords) return;
+    setIsCentering(true);
+    mapRef.current?.animateToRegion({
+      ...driverCoords,
+      latitudeDelta: 0.008,
+      longitudeDelta: 0.008,
+    }, 600);
+    setTimeout(() => setIsCentering(false), 700);
+  };
+
+  const handleSOS = () => {
+    try {
+      (navigation as any).navigate("DriverSafety");
+    } catch {}
+  };
 
   const [actionLoading, setActionLoading] = useState<
     null | "cancel" | "driver_arriving" | "arrived" | "in_progress" | "completed"
@@ -699,6 +739,7 @@ export default function DriverRideScreen() {
         <GlobalMap
           initialRegion={initialRegion as any}
           showsUserLocation={false}
+          useDarkStyle={useDarkMap}
           onMapRef={(ref) => {
             mapRef.current = ref;
           }}
@@ -810,6 +851,16 @@ export default function DriverRideScreen() {
             </View>
           ))}
         </View>
+
+        <MapActionButtons
+          onSosPress={handleSOS}
+          onLocationPress={handleCenterMyLocation}
+          onMapStylePress={handleToggleMapStyle}
+          useDarkMap={useDarkMap}
+          isCentering={isCentering}
+          isSwitchingStyle={isSwitchingMapStyle}
+          topOffset={300}
+        />
 
         <View style={{ position: "absolute", left: 16, right: 16, bottom: 16 }}>
           <DriverStatusCard

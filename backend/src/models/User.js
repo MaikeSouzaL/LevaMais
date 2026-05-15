@@ -1,6 +1,40 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 
+const vehicleSchema = new mongoose.Schema(
+  {
+    type: {
+      type: String,
+      enum: ["motorcycle", "car", "van", "truck"],
+      required: [true, "Tipo de veículo é obrigatório"],
+    },
+    plate: { type: String, required: [true, "Placa é obrigatória"], uppercase: true, trim: true },
+    model: { type: String, required: [true, "Modelo é obrigatório"], trim: true },
+    color: { type: String, trim: true },
+    year: { type: Number },
+    
+    // Documentação específica por veículo
+    documents: {
+      crlvFront: { type: String },
+      crlvBack: { type: String },
+      vehiclePhoto: { type: String },
+      submittedAt: { type: Date, default: Date.now },
+    },
+
+    // Status de aprovação deste veículo específico
+    status: {
+      type: String,
+      enum: ["pending", "approved", "rejected"],
+      default: "pending",
+    },
+    rejectionReason: { type: String, trim: true },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+
 const userSchema = new mongoose.Schema(
   {
     name: {
@@ -191,7 +225,7 @@ const userSchema = new mongoose.Schema(
       enum: ["client", "driver", "admin"],
       default: "client",
     },
-    // Dados especÃ­ficos do motorista
+    // Dados específicos do motorista
     vehicleType: {
       type: String,
       enum: ["motorcycle", "car", "van", "truck"],
@@ -202,9 +236,13 @@ const userSchema = new mongoose.Schema(
       color: String,
       year: Number,
     },
+    activeVehicleId: {
+      type: mongoose.Schema.Types.ObjectId,
+    },
+    vehicles: [vehicleSchema],
     googleId: {
       type: String,
-      sparse: true, // Permite mÃºltiplos documentos sem esse campo
+      sparse: true,
     },
     profilePhoto: {
       type: String,

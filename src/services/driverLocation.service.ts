@@ -44,6 +44,16 @@ class DriverLocationService {
     const res = await api.patch("/driver-location/status", data);
     return res.data;
   }
+
+  async getNearbyAvailability(coords: { latitude: number; longitude: number }): Promise<{ motorcycle: boolean; car: boolean; van: boolean; truck: boolean }> {
+    const res = await api.get("/driver-location/nearby/availability", {
+      params: {
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+      }
+    });
+    return res.data?.availability || { motorcycle: false, car: false, van: false, truck: false };
+  }
 }
 
 export default new DriverLocationService();

@@ -14,6 +14,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { BalanceWidget } from "@/components/BalanceWidget";
 import { DriverDepositModal } from "@/components/DriverDepositModal";
 import { QueueTagYellowFloating } from "@/components/QueueTagYellow";
+import { MapActionButtons } from "@/components/MapActionButtons";
 
 import GlobalMap from "../../../components/GlobalMap";
 import { useAuthStore } from "../../../context/authStore";
@@ -1203,32 +1204,15 @@ export default function DriverHomeScreen() {
                     />
                   )}
 
-                  {/* SOS Panic */}
-                 <TouchableOpacity 
-                   onPress={handleSOS}
-                   className="w-12 h-12 bg-red-500/10 border border-red-500/30 rounded-xl items-center justify-center shadow-2xl"
-                 >
-                   <ShieldAlert size={22} color="#EF4444" />
-                 </TouchableOpacity>
-
-                 {/* Center Map */}
-                 <TouchableOpacity 
-                   onPress={handleCenterMyLocation}
-                   disabled={isCentering}
-                   className="w-12 h-12 bg-[#091A2F]/80 border border-white/10 rounded-xl items-center justify-center shadow-2xl"
-                 >
-                   <MaterialIcons name="my-location" size={24} color={isCentering ? "#02de9550" : "#02de95"} />
-                 </TouchableOpacity>
-
-                 {/* Map Style Layers */}
-                 <TouchableOpacity 
-                   onPress={handleToggleMapStyle}
-                   className={`w-12 h-12 border rounded-xl items-center justify-center shadow-2xl ${
-                      isSwitchingMapStyle ? 'bg-[#02de95] border-[#02de95]' : 'bg-[#091A2F]/80 border-white/10'
-                   }`}
-                 >
-                   <Layers size={22} color={isSwitchingMapStyle ? "#091A2F" : "#FFF"} />
-                  </TouchableOpacity>
+                  <MapActionButtons
+                    onSosPress={handleSOS}
+                    onLocationPress={handleCenterMyLocation}
+                    onMapStylePress={handleToggleMapStyle}
+                    useDarkMap={useDarkMap}
+                    isCentering={isCentering}
+                    isSwitchingStyle={isSwitchingMapStyle}
+                    containerStyle={{ position: "relative", right: 0 }}
+                  />
 
                </View>
             )}

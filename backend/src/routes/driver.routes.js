@@ -21,4 +21,9 @@ router.post("/go-offline", driverController.goOffline);
 // Preferences
 router.put("/preferences", driverController.updateDriverPreferences);
 
+// Vehicle Fleet Management
+router.get("/vehicles", driverController.listVehicles);
+router.post("/vehicles", driverController.addVehicle);
+router.patch("/vehicles/:id/activate", driverController.activateVehicle);
+
 module.exports = router;

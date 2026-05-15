@@ -546,6 +546,64 @@ class DriverLocationController {
       return sendError(res, 500, "Erro ao atualizar status");
     }
   }
+
+  async getNearbyVehicleAvailability(req, res) {
+    try {
+      const { latitude, longitude, maxDistance = 50000 } = req.query;
+      
+      const latValue = parseCoordinate(latitude, -90, 90);
+      const lngValue = parseCoordinate(longitude, -180, 180);
+      if (latValue === null || lngValue === null) {
+        return sendError(res, 400, "Coordenadas de latitude e longitude invalidas");
+      }
+      
+      const distValue = Number(maxDistance);
+      if (!Number.isFinite(distValue) || distValue <= 0) {
+        return sendError(res, 400, "Distancia de busca invalida");
+      }
+
+      const pipeline = [
+        {
+          $geoNear: {
+            near: { type: "Point", coordinates: [lngValue, latValue] },
+            distanceField: "calculatedDistance",
+            maxDistance: Math.min(distValue, 100000),
+            spherical: true,
+            query: { status: "available" }
+          }
+        },
+        {
+          $group: {
+            _id: "$vehicleType",
+            count: { $sum: 1 }
+          }
+        }
+      ];
+
+      const results = await DriverLocation.aggregate(pipeline);
+      
+      const availabilityMap = {
+        motorcycle: false,
+        car: false,
+        van: false,
+        truck: false
+      };
+
+      results.forEach(row => {
+        if (row._id && typeof availabilityMap[row._id] !== "undefined") {
+          availabilityMap[row._id] = true;
+        }
+      });
+
+      return res.json({
+        success: true,
+        availability: availabilityMap
+      });
+    } catch (error) {
+      console.error("Erro ao mapear disponibilidade de veiculos:", error);
+      return sendError(res, 500, "Erro ao computar disponibilidade de frota online");
+    }
+  }
 }
 
 module.exports = new DriverLocationController();

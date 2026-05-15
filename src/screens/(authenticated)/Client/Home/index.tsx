@@ -21,7 +21,7 @@ import { ClientRealtimeMap } from "@/components/client/home/ClientRealtimeMap";
 import {Modal} from "@/components/Modal";
 import { ClientFloatingHeader } from "@/components/client/home/ClientFloatingHeader";
 import { ClientBottomSheet } from "@/components/client/home/ClientBottomSheet";
-import { FloatingActions } from "@/components/client/home/FloatingActions";
+import { MapActionButtons } from "@/components/MapActionButtons";
 import { colors } from "@/theme";
 import { ClientStackParamList } from "../types/navigation";
 
@@ -352,7 +352,7 @@ export default function HomeScreen() {
         </MotiView>
       )}
 
-      <FloatingActions 
+      <MapActionButtons 
         onLocationPress={handleCenterMyLocation}
         onSosPress={handleSOS}
         onMapStylePress={handleToggleMapStyle}

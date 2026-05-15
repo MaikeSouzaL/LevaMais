@@ -16,6 +16,8 @@ import AddressAutocomplete from '../../../../../../components/AddressAutocomplet
 // Hooks, Services e Utils
 import { useMapLocation } from '../../../Shared/hooks';
 import { darkMapStyle } from '@/utils/mapStyle';
+import { MapActionButtons } from "@/components/MapActionButtons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import googlePlacesService from '@/services/googlePlaces.service';
 import favoriteAddressService from '@/services/favoriteAddress.service';
 import { ClientStackParamList } from '../../../types/navigation';
@@ -31,6 +33,41 @@ export default function AddressPickerScreen() {
   const reverseGeocodeSeqRef = useRef(0);
   const lastReversePointRef = useRef<{ latitude: number; longitude: number } | null>(null);
   
+  const [useDarkMap, setUseDarkMap] = useState(true);
+  const [isSwitchingMapStyle, setIsSwitchingMapStyle] = useState(false);
+  const [isCentering, setIsCentering] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem("mapStylePref").then((pref) => {
+      if (pref) setUseDarkMap(pref === "dark");
+    }).catch(() => {});
+  }, []);
+
+  const handleToggleMapStyle = () => {
+    if (isSwitchingMapStyle) return;
+    setIsSwitchingMapStyle(true);
+    setUseDarkMap((prev) => {
+      const next = !prev;
+      AsyncStorage.setItem("mapStylePref", next ? "dark" : "light").catch(() => {});
+      return next;
+    });
+    setTimeout(() => setIsSwitchingMapStyle(false), 300);
+  };
+
+  const handleCenterMyLocation = async () => {
+    setIsCentering(true);
+    try {
+      await mapLocation.centerOnUser();
+    } catch {}
+    setTimeout(() => setIsCentering(false), 700);
+  };
+
+  const handleSOS = () => {
+    try {
+      (navigation as any).navigate("ClientSafety");
+    } catch {}
+  };
+
   // O endereço texto exibido no input
   const [selectedAddress, setSelectedAddress] = useState(favoriteData?.address || initialLocation?.formattedAddress || '');
   
@@ -381,7 +418,7 @@ export default function AddressPickerScreen() {
         <MapView
             ref={mapLocation.mapRef}
             style={styles.map}
-            customMapStyle={darkMapStyle}
+            customMapStyle={useDarkMap ? darkMapStyle : undefined}
             initialRegion={initialRegion}
             onRegionChange={mapLocation.handleRegionChange}
             onRegionChangeComplete={onRegionChangeComplete}
@@ -417,6 +454,16 @@ export default function AddressPickerScreen() {
             />
         </View>
 
+
+        <MapActionButtons
+          onSosPress={handleSOS}
+          onLocationPress={handleCenterMyLocation}
+          onMapStylePress={handleToggleMapStyle}
+          useDarkMap={useDarkMap}
+          isCentering={isCentering}
+          isSwitchingStyle={isSwitchingMapStyle}
+          bottomOffset={230}
+        />
         <View style={styles.bottomPanel}>
             <View style={styles.dragHandle} />
             

@@ -18,6 +18,8 @@ import { useChatStore } from "@/context/chatStore";
 import { darkMapStyle } from "@/utils/mapStyle";
 import { decodePolyline, LatLng } from "@/utils/polyline";
 import MapMarker from "@/components/MapMarker";
+import { MapActionButtons } from "@/components/MapActionButtons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ClientStackParamList } from "../../../types/navigation";
 
 const TERMINAL_STATUSES = [
@@ -137,6 +139,57 @@ export default function RideTrackingScreen() {
   const mapRef = useRef<MapView>(null);
   const watchRef = useRef<any>(null);
   const driverAnimatedLocation = useRef<any>(null);
+
+  const [useDarkMap, setUseDarkMap] = useState(true);
+  const [isSwitchingMapStyle, setIsSwitchingMapStyle] = useState(false);
+  const [isCentering, setIsCentering] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem("mapStylePref").then((pref) => {
+      if (pref) setUseDarkMap(pref === "dark");
+    }).catch(() => {});
+  }, []);
+
+  const handleToggleMapStyle = () => {
+    if (isSwitchingMapStyle) return;
+    setIsSwitchingMapStyle(true);
+    setUseDarkMap((prev) => {
+      const next = !prev;
+      AsyncStorage.setItem("mapStylePref", next ? "dark" : "light").catch(() => {});
+      return next;
+    });
+    setTimeout(() => setIsSwitchingMapStyle(false), 300);
+  };
+
+  const handleCenterMyLocation = async () => {
+    setIsCentering(true);
+    try {
+      const pos = await Location.getLastKnownPositionAsync();
+      if (pos?.coords) {
+        mapRef.current?.animateToRegion({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        }, 500);
+      } else {
+        const fresh = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        mapRef.current?.animateToRegion({
+          latitude: fresh.coords.latitude,
+          longitude: fresh.coords.longitude,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        }, 500);
+      }
+    } catch {}
+    setTimeout(() => setIsCentering(false), 600);
+  };
+
+  const handleSOS = () => {
+    try {
+      (navigation as any).navigate("ClientSafety");
+    } catch {}
+  };
 
   const [ride, setRide] = useState<Ride | null>(null);
   const [loading, setLoading] = useState(true);
@@ -541,7 +594,7 @@ export default function RideTrackingScreen() {
           latitudeDelta: 0.04,
           longitudeDelta: 0.04,
         }}
-        customMapStyle={darkMapStyle}
+        customMapStyle={useDarkMap ? darkMapStyle : undefined}
         showsUserLocation
       >
         {routeCoords.length >= 2 ? (
@@ -614,6 +667,16 @@ export default function RideTrackingScreen() {
         )}
       </View>
 
+
+      <MapActionButtons
+        onSosPress={handleSOS}
+        onLocationPress={handleCenterMyLocation}
+        onMapStylePress={handleToggleMapStyle}
+        useDarkMap={useDarkMap}
+        isCentering={isCentering}
+        isSwitchingStyle={isSwitchingMapStyle}
+        bottomOffset={320}
+      />
       <View style={[styles.bottomCard, { bottom: Math.max(insets.bottom + 10, spacing.lg) }]}>
         <Text style={styles.bottomTitle}>
           {status === "in_progress" ? `${rideLabel} em andamento` : "Resumo do pedido"}

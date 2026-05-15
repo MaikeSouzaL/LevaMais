@@ -18,7 +18,7 @@ import { FloatingSearchCard } from "@/components/client/destination/FloatingSear
 import { RecentPlaces } from "@/components/client/destination/RecentPlaces";
 import { RouteBottomCard } from "@/components/client/destination/RouteBottomCard";
 
-import { FloatingActions } from "@/components/client/home/FloatingActions";
+import { MapActionButtons } from "@/components/MapActionButtons";
 
 // Refined Realtime Core Mapping Imports 🚀
 import { PremiumMapMarker } from "@/components/maps/PremiumMapMarker";
@@ -363,7 +363,7 @@ export default function DestinationSearchScreen() {
         <DestinationHeader />
 
         {/* 📡 Absolute Map Controls Right Wing (Placed first to render behind input cards!) */}
-        <FloatingActions 
+        <MapActionButtons 
           onLocationPress={handleCenterMyLocation}
           onSosPress={handleSOS}
           onMapStylePress={handleToggleMapStyle}

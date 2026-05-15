@@ -13,6 +13,9 @@ import MapView, { Marker } from "react-native-maps";
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
 import { LoadingButton } from "../../../Shared/components";
 import { darkMapStyle } from "@/utils/mapStyle";
+import { MapActionButtons } from "@/components/MapActionButtons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Location from "expo-location";
 import { ClientStackParamList } from "../../../types/navigation";
 
 export default function ConfirmPickupScreen() {
@@ -37,6 +40,58 @@ export default function ConfirmPickupScreen() {
     latitude: initialLat || -23.5505,
     longitude: initialLng || -46.6333,
   });
+
+  const [useDarkMap, setUseDarkMap] = useState(true);
+  const [isSwitchingMapStyle, setIsSwitchingMapStyle] = useState(false);
+  const [isCentering, setIsCentering] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem("mapStylePref").then((pref) => {
+      if (pref) setUseDarkMap(pref === "dark");
+    }).catch(() => {});
+  }, []);
+
+  const handleToggleMapStyle = () => {
+    if (isSwitchingMapStyle) return;
+    setIsSwitchingMapStyle(true);
+    setUseDarkMap((prev) => {
+      const next = !prev;
+      AsyncStorage.setItem("mapStylePref", next ? "dark" : "light").catch(() => {});
+      return next;
+    });
+    setTimeout(() => setIsSwitchingMapStyle(false), 300);
+  };
+
+  const handleCenterMyLocation = async () => {
+    setIsCentering(true);
+    try {
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      if (pos?.coords) {
+        const target = {
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+        };
+        setPinCoord(target);
+        setRegion((r) => ({
+          ...r,
+          latitude: target.latitude,
+          longitude: target.longitude,
+        }));
+        mapRef.current?.animateToRegion({
+          ...target,
+          latitudeDelta: 0.005,
+          longitudeDelta: 0.005,
+        }, 600);
+      }
+    } catch {}
+    setTimeout(() => setIsCentering(false), 700);
+  };
+
+  const handleSOS = () => {
+    try {
+      (navigation as any).navigate("ClientSafety");
+    } catch {}
+  };
 
   const [address, setAddress] = useState(initialAddress);
 
@@ -64,7 +119,7 @@ export default function ConfirmPickupScreen() {
         style={styles.map}
         region={region}
         onRegionChangeComplete={setRegion}
-        customMapStyle={darkMapStyle}
+        customMapStyle={useDarkMap ? darkMapStyle : undefined}
         showsUserLocation
         showsMyLocationButton={false}
       >
@@ -92,6 +147,16 @@ export default function ConfirmPickupScreen() {
         <Text style={styles.pinHintText}>Arraste o pin para o local exato de coleta</Text>
       </View>
 
+
+      <MapActionButtons
+        onSosPress={handleSOS}
+        onLocationPress={handleCenterMyLocation}
+        onMapStylePress={handleToggleMapStyle}
+        useDarkMap={useDarkMap}
+        isCentering={isCentering}
+        isSwitchingStyle={isSwitchingMapStyle}
+        bottomOffset={220}
+      />
       <View style={styles.bottomSheet}>
         <View style={styles.addressRow}>
           <View style={styles.dot} />

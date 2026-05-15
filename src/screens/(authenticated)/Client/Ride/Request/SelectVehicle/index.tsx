@@ -1,4 +1,4 @@
-﻿import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   StyleSheet,
@@ -15,6 +15,7 @@ import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
 import { FlowStepHeader, VehicleCard, LoadingButton } from "../../../Shared/components";
 import type { VehicleType } from "../../../types";
 import { ClientStackParamList } from "../../../types/navigation";
+import driverLocationService from "@/services/driverLocation.service";
 
 type RouteParams = {
   pickup?: {
@@ -76,6 +77,43 @@ export default function SelectVehicleScreen() {
   const params = (route.params as RouteParams) || {};
 
   const [selectedType, setSelectedType] = useState<VehicleType | null>(null);
+  const [availability, setAvailability] = useState<Record<VehicleType, boolean>>({
+    motorcycle: true,
+    car: true,
+    van: true,
+    truck: true,
+  });
+  const [checking, setChecking] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    const runCheck = async () => {
+      const lat = params?.pickup?.latitude;
+      const lng = params?.pickup?.longitude;
+      if (lat && lng) {
+        setChecking(true);
+        try {
+          const activeMap = await driverLocationService.getNearbyAvailability({
+            latitude: lat,
+            longitude: lng,
+          });
+          if (isMounted) {
+            setAvailability(activeMap);
+            // If current selection becomes unavailable, clear it
+            if (selectedType && !activeMap[selectedType]) {
+              setSelectedType(null);
+            }
+          }
+        } catch (e) {
+          console.error("Erro ao checar disponibilidade de veiculos:", e);
+        } finally {
+          if (isMounted) setChecking(false);
+        }
+      }
+    };
+    runCheck();
+    return () => { isMounted = false; };
+  }, [params?.pickup?.latitude, params?.pickup?.longitude]);
 
   const canContinue = Boolean(selectedType);
 
@@ -172,20 +210,24 @@ export default function SelectVehicleScreen() {
 
         <Text style={styles.sectionLabel}>Categorias disponiveis</Text>
 
-        {VEHICLES.map((vehicle) => (
-          <VehicleCard
-            key={vehicle.type}
-            type={vehicle.type}
-            title={vehicle.title}
-            description={vehicle.description}
-            icon={vehicle.icon}
-            badge={vehicle.badge}
-            badgeColor={vehicle.badgeColor}
-            selected={selectedType === vehicle.type}
-            onPress={() => setSelectedType(vehicle.type)}
-            style={styles.vehicleCard}
-          />
-        ))}
+        {VEHICLES.map((vehicle) => {
+          const isAvailable = availability[vehicle.type];
+          return (
+            <VehicleCard
+              key={vehicle.type}
+              type={vehicle.type}
+              title={vehicle.title}
+              description={isAvailable ? vehicle.description : "Sem motoristas ativos nesta categoria por perto"}
+              icon={vehicle.icon}
+              badge={!isAvailable ? "Sem motoristas" : vehicle.badge}
+              badgeColor={!isAvailable ? "#EF4444" : vehicle.badgeColor}
+              selected={selectedType === vehicle.type}
+              onPress={() => isAvailable && setSelectedType(vehicle.type)}
+              disabled={!isAvailable}
+              style={styles.vehicleCard}
+            />
+          );
+        })}
       </ScrollView>
 
       <View

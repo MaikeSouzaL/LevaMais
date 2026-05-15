@@ -10,6 +10,8 @@ import { AlertTriangle, RefreshCcw, Home, Settings, Info, Clock } from "lucide-r
 import rideService from "@/services/ride.service";
 import webSocketService from "@/services/websocket.service";
 import { darkMapStyle } from "@/utils/mapStyle";
+import { MapActionButtons } from "@/components/MapActionButtons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // New High-End Components 🛰️
 import { RadarScanner } from "@/components/client/searching-delivery/RadarScanner";
@@ -57,6 +59,48 @@ export default function SearchingDriverScreen() {
 
   const mapRef = useRef<MapView>(null);
   const intervalRef = useRef<any>(null);
+  const [useDarkMap, setUseDarkMap] = useState(true);
+  const [isSwitchingMapStyle, setIsSwitchingMapStyle] = useState(false);
+  const [isCentering, setIsCentering] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem("mapStylePref").then((pref) => {
+      if (pref) setUseDarkMap(pref === "dark");
+    }).catch(() => {});
+  }, []);
+
+  const handleToggleMapStyle = () => {
+    if (isSwitchingMapStyle) return;
+    setIsSwitchingMapStyle(true);
+    setUseDarkMap((prev) => {
+      const next = !prev;
+      AsyncStorage.setItem("mapStylePref", next ? "dark" : "light").catch(() => {});
+      return next;
+    });
+    setTimeout(() => setIsSwitchingMapStyle(false), 300);
+  };
+
+  const handleCenterMyLocation = () => {
+    if (!pickupCoords) return;
+    setIsCentering(true);
+    mapRef.current?.animateCamera({
+      center: {
+        latitude: pickupCoords.latitude,
+        longitude: pickupCoords.longitude,
+      },
+      zoom: 14,
+      pitch: 35,
+      heading: 0,
+    }, { duration: 800 });
+    setTimeout(() => setIsCentering(false), 900);
+  };
+
+  const handleSOS = () => {
+    try {
+      navigation.navigate("ClientSafety");
+    } catch {}
+  };
+
   const doneRef = useRef(false);
 
   // Custom Dynamic Simulation Hook ⚡ - upgraded with continuous tracking
@@ -480,7 +524,7 @@ export default function SearchingDriverScreen() {
         ref={mapRef}
         style={{ flex: 1 }}
         provider={PROVIDER_GOOGLE}
-        customMapStyle={darkMapStyle}
+        customMapStyle={useDarkMap ? darkMapStyle : undefined}
         pitchEnabled={false}
         rotateEnabled={false}
         mapPadding={{ top: 110, right: 0, bottom: 390, left: 0 }}
@@ -535,6 +579,17 @@ export default function SearchingDriverScreen() {
           <Text className="text-white font-bold flex-1 text-sm">{error}</Text>
         </MotiView>
       )}
+
+
+      <MapActionButtons
+        onSosPress={handleSOS}
+        onLocationPress={handleCenterMyLocation}
+        onMapStylePress={handleToggleMapStyle}
+        useDarkMap={useDarkMap}
+        isCentering={isCentering}
+        isSwitchingStyle={isSwitchingMapStyle}
+        bottomOffset={390}
+      />
 
       {/* Integrated Logistics Control Panel */}
       <DeliverySearchBottomSheet

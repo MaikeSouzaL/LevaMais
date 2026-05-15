@@ -465,6 +465,153 @@ const driverController = {
       res.status(500).json({ error: error.message });
     }
   },
+
+  // 🚗 Múltiplos Veículos: Listar frota do motorista
+  listVehicles: async (req, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Usuário não autenticado" });
+      }
+
+      const user = await User.findById(userId).select("userType vehicles activeVehicleId");
+      if (!user || user.userType !== "driver") {
+        return res.status(403).json({ error: "Usuário não é um motorista" });
+      }
+
+      res.json({
+        success: true,
+        vehicles: user.vehicles || [],
+        activeVehicleId: user.activeVehicleId || null
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+
+  // 📝 Múltiplos Veículos: Cadastrar novo veículo pendente de análise
+  addVehicle: async (req, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Usuário não autenticado" });
+      }
+
+      const { type, plate, model, color, year, documents } = req.body;
+
+      if (!type || !plate || !model) {
+        return res.status(400).json({ error: "Campos obrigatórios faltando: tipo, placa e modelo" });
+      }
+
+      const user = await User.findById(userId);
+      if (!user || user.userType !== "driver") {
+        return res.status(403).json({ error: "Usuário não é um motorista" });
+      }
+
+      const exists = user.vehicles && user.vehicles.some(
+        (v) => String(v.plate).toUpperCase() === String(plate).trim().toUpperCase()
+      );
+
+      if (exists) {
+        return res.status(400).json({ error: "Você já possui um veículo cadastrado com esta placa" });
+      }
+
+      const newVehicle = {
+        type,
+        plate: String(plate).trim().toUpperCase(),
+        model: String(model).trim(),
+        color: color ? String(color).trim() : undefined,
+        year: year ? Number(year) : undefined,
+        documents: documents || {},
+        status: "pending"
+      };
+
+      user.vehicles = user.vehicles || [];
+      user.vehicles.push(newVehicle);
+      
+      await user.save();
+
+      res.status(201).json({
+        success: true,
+        message: "Veículo cadastrado com sucesso. Aguarde a aprovação administrativa.",
+        vehicle: user.vehicles[user.vehicles.length - 1]
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+
+  // ⚡️ Múltiplos Veículos: Ativar um veículo APROVADO como ferramenta de trabalho
+  activateVehicle: async (req, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Usuário não autenticado" });
+      }
+
+      const { id } = req.params;
+
+      const user = await User.findById(userId);
+      if (!user || user.userType !== "driver") {
+        return res.status(403).json({ error: "Usuário não é um motorista" });
+      }
+
+      const vehicle = user.vehicles && user.vehicles.id(id);
+      if (!vehicle) {
+        return res.status(404).json({ error: "Veículo não encontrado na sua frota" });
+      }
+
+      if (vehicle.status !== "approved") {
+        return res.status(400).json({ 
+          error: "Este veículo ainda não foi aprovado pela administração", 
+          status: vehicle.status 
+        });
+      }
+
+      // Set as active
+      user.activeVehicleId = vehicle._id;
+      user.vehicleType = vehicle.type;
+      user.vehicleInfo = {
+        plate: vehicle.plate,
+        model: vehicle.model,
+        color: vehicle.color,
+        year: vehicle.year
+      };
+
+      await user.save();
+
+      // Atualiza instantaneamente a localização do motorista online com o novo veículo
+      try {
+        const DriverLocation = require("../models/DriverLocation");
+        await DriverLocation.findOneAndUpdate(
+          { driverId: userId },
+          { 
+            vehicleType: vehicle.type,
+            vehicle: {
+              plate: vehicle.plate,
+              model: vehicle.model,
+              color: vehicle.color,
+              year: vehicle.year
+            }
+          }
+        );
+      } catch (locErr) {
+        console.error("Falha ao sincronizar veículo no DriverLocation:", locErr);
+      }
+
+      res.json({
+        success: true,
+        message: `O veículo ${vehicle.model} está ativado e pronto para receber chamadas!`,
+        activeVehicle: {
+          type: user.vehicleType,
+          info: user.vehicleInfo,
+          id: user.activeVehicleId
+        }
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  },
 };
 
 module.exports = driverController;

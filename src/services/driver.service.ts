@@ -37,6 +37,25 @@ export interface DriverPreferences {
   autoAccept: boolean;
 }
 
+export interface DriverVehicle {
+  _id: string;
+  type: 'motorcycle' | 'car' | 'van' | 'truck';
+  plate: string;
+  model: string;
+  color?: string;
+  year?: number;
+  documents?: {
+    crlvFront?: string;
+    crlvBack?: string;
+    vehiclePhoto?: string;
+    submittedAt?: string;
+  };
+  status: 'pending' | 'approved' | 'rejected';
+  rejectionReason?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 class DriverService {
   // Get current balance
   async getBalance(): Promise<DriverBalance> {
@@ -286,6 +305,49 @@ class DriverService {
   async updatePreferences(payload: Partial<DriverPreferences>): Promise<DriverPreferences> {
     const response = await apiClient.put('/drivers/preferences', payload);
     return response.data?.data;
+  }
+
+  // 🚗 Listar toda a frota de veículos cadastrada pelo motorista
+  async listVehicles(): Promise<{ vehicles: DriverVehicle[]; activeVehicleId?: string }> {
+    try {
+      const response = await apiClient.get<any>('/drivers/vehicles');
+      return {
+        vehicles: response.data?.vehicles || [],
+        activeVehicleId: response.data?.activeVehicleId,
+      };
+    } catch (error) {
+      logger.error('DRIVER_SERVICE', 'Failed to list vehicles', error);
+      throw error;
+    }
+  }
+
+  // 📝 Adicionar novo veículo para a análise da administração
+  async addVehicle(payload: {
+    type: 'motorcycle' | 'car' | 'van' | 'truck';
+    plate: string;
+    model: string;
+    color?: string;
+    year?: number;
+    documents?: any;
+  }): Promise<DriverVehicle> {
+    try {
+      const response = await apiClient.post<any>('/drivers/vehicles', payload);
+      return response.data?.vehicle;
+    } catch (error) {
+      logger.error('DRIVER_SERVICE', 'Failed to add vehicle', error);
+      throw error;
+    }
+  }
+
+  // ⚡️ Definir veículo aprovado como o veículo ativo no momento
+  async activateVehicle(id: string): Promise<any> {
+    try {
+      const response = await apiClient.patch<any>(`/drivers/vehicles/${id}/activate`);
+      return response.data;
+    } catch (error) {
+      logger.error('DRIVER_SERVICE', 'Failed to activate vehicle', error);
+      throw error;
+    }
   }
 }
 
