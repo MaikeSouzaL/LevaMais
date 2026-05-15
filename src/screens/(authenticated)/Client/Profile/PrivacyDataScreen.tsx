@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Toast from "react-native-toast-message";
 
 import { colors } from "@/theme";
@@ -23,9 +24,12 @@ import {
 } from "@/services/auth.service";
 import configService from "@/services/config.service";
 import { useAuthStore } from "@/context/authStore";
+import { ClientStackParamList } from "../types/navigation";
 
 export default function PrivacyDataScreen() {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<
+    NativeStackNavigationProp<ClientStackParamList, "PrivacyData">
+  >();
   const logout = useAuthStore((state) => state.logout);
   const [loading, setLoading] = React.useState(false);
   const [summary, setSummary] = React.useState<PrivacyExportPayload | null>(null);

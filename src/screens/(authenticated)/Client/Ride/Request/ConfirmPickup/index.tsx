@@ -5,17 +5,21 @@ import {
   TouchableOpacity,
   StyleSheet,
 } from "react-native";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { MaterialIcons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
 import MapView, { Marker } from "react-native-maps";
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
 import { LoadingButton } from "../../../Shared/components";
 import { darkMapStyle } from "@/utils/mapStyle";
+import { ClientStackParamList } from "../../../types/navigation";
 
 export default function ConfirmPickupScreen() {
-  const navigation = useNavigation<any>();
-  const route = useRoute<any>();
+  const navigation = useNavigation<
+    NativeStackNavigationProp<ClientStackParamList, "ConfirmPickup">
+  >();
+  const route = useRoute<RouteProp<ClientStackParamList, "ConfirmPickup">>();
   const mapRef = useRef<MapView>(null);
 
   const initialAddress = route.params?.formattedAddress || route.params?.address || "Sua localizacao";

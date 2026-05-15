@@ -1,21 +1,25 @@
 ﻿import React, { useMemo, useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { MaterialIcons } from "@expo/vector-icons";
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
 import { LoadingButton, ClientScreenHeader } from "../../../Shared/components";
 import { formatBRL } from "@/utils/mappers";
 import Toast from "react-native-toast-message";
 import rideService from "@/services/ride.service";
+import { ClientStackParamList } from "../../../types/navigation";
 
 const TIP_OPTIONS = [2, 5, 8, 12, 20];
 const CUSTOM_PRESETS = [5, 10, 15, 20, 25, 30, 50];
 
 export default function TipDriverScreen() {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation<any>();
-  const route = useRoute<any>();
+  const navigation = useNavigation<
+    NativeStackNavigationProp<ClientStackParamList, "TipDriver">
+  >();
+  const route = useRoute<RouteProp<ClientStackParamList, "TipDriver">>();
   const rideId = route.params?.rideId;
   const driverName = route.params?.driverName || "Motorista";
 

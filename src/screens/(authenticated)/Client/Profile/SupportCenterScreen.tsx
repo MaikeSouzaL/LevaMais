@@ -3,10 +3,15 @@ import { Linking, ScrollView, Text, TouchableOpacity, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { colors } from "@/theme";
 import { ClientScreenHeader } from "../Shared/components";
 import configService, { SupportChannels } from "@/services/config.service";
+import { ClientStackParamList } from "../types/navigation";
+
+type MaterialIconName = React.ComponentProps<typeof MaterialIcons>["name"];
+type SupportRoute = "History" | "PaymentsCenter" | "SafetyCenter";
 
 const ITEMS = [
   { title: "Problemas com corrida", subtitle: "Reportar atraso, cancelamento ou valor", target: "History", icon: "directions-car" },
@@ -15,7 +20,9 @@ const ITEMS = [
 ];
 
 export default function SupportCenterScreen() {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<
+    NativeStackNavigationProp<ClientStackParamList, "SupportCenter">
+  >();
   const [supportChannels, setSupportChannels] = useState<SupportChannels | null>(null);
 
   useEffect(() => {
@@ -30,8 +37,8 @@ export default function SupportCenterScreen() {
 
       <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, gap: 8 }}>
         {ITEMS.map((item) => (
-          <TouchableOpacity key={item.title} className="flex-row items-center gap-3 bg-[#0d2838] border border-gray-700 rounded-lg p-4" onPress={() => navigation.navigate(item.target)}>
-            <MaterialIcons name={item.icon as any} size={22} color={colors.primary[500]} />
+          <TouchableOpacity key={item.title} className="flex-row items-center gap-3 bg-[#0d2838] border border-gray-700 rounded-lg p-4" onPress={() => navigation.navigate(item.target as SupportRoute)}>
+            <MaterialIcons name={item.icon as MaterialIconName} size={22} color={colors.primary[500]} />
             <View className="flex-1">
               <Text className="text-white font-semibold text-base">{item.title}</Text>
               <Text className="text-gray-400 text-sm mt-0.5">{item.subtitle}</Text>

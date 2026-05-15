@@ -1275,6 +1275,7 @@ export default function DriverHomeScreen() {
           countdown={countdown}
           onAccept={acceptIncoming}
           onReject={rejectIncoming}
+          onClose={clearIncoming}
           onCounterOffer={counterOfferIncoming}
         />
 

@@ -1,8 +1,9 @@
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { NavigationProp, useNavigation } from "@react-navigation/native";
 import { colors, spacing, fontSize, fontWeight } from "@/theme";
+import { ClientStackParamList } from "../../types/navigation";
 
 type Props = {
   title: string;
@@ -15,7 +16,7 @@ export default function ClientScreenHeader({
   subtitle,
   showBack = false,
 }: Props) {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<NavigationProp<ClientStackParamList>>();
 
   return (
     <View style={styles.container}>
@@ -27,7 +28,11 @@ export default function ClientScreenHeader({
         ) : (
           <TouchableOpacity style={styles.backButton} onPress={() => {
             try {
-              navigation.openDrawer();
+              if ("openDrawer" in navigation && typeof navigation.openDrawer === "function") {
+                navigation.openDrawer();
+                return;
+              }
+              navigation.navigate("Home");
             } catch {
               navigation.navigate("Home");
             }
@@ -81,4 +86,3 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
 });
-

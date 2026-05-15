@@ -8,7 +8,8 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Toast from "react-native-toast-message";
 
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
@@ -30,6 +31,7 @@ import {
   buildModeCounts,
   inferPurposeServiceMode,
 } from "../../../Shared/utils";
+import { ClientStackParamList } from "../../../types/navigation";
 
 type RouteParams = {
   vehicleType?: VehicleType;
@@ -61,8 +63,10 @@ function toSummaryVehicleType(raw: string): "motorcycle" | "car" | "van" | "truc
 
 export default function ServicePurposeScreen() {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation<any>();
-  const route = useRoute();
+  const navigation = useNavigation<
+    NativeStackNavigationProp<ClientStackParamList, "ServicePurpose">
+  >();
+  const route = useRoute<RouteProp<ClientStackParamList, "ServicePurpose">>();
   const { vehicleType, pickup, dropoff, initialPurposeId } =
     (route.params as RouteParams) || {};
   const detectedCity = useClientCityStore((state) => state.city);
@@ -164,11 +168,7 @@ export default function ServicePurposeScreen() {
           longitude: Number(safeDropoff.longitude),
         },
         vehicleType: resolveVehicleTypeForApi(vehicleType),
-        cityId:
-          (detectedCity as any)?._id ||
-          (detectedCity as any)?.id ||
-          detectedCity?.cityId ||
-          undefined,
+        cityId: detectedCity?.cityId || undefined,
         purposeId: selectedPurposeId,
       };
 
@@ -290,7 +290,7 @@ export default function ServicePurposeScreen() {
                   id={item.id}
                   title={item.title}
                   subtitle={item.subtitle}
-                  icon={mapIconName(item.icon) as any}
+                  icon={mapIconName(item.icon)}
                   onPress={() => setSelectedPurposeId(item.id)}
                 />
               </TouchableOpacity>

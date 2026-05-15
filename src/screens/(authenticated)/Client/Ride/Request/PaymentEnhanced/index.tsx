@@ -27,6 +27,7 @@ import paymentService from "@/services/payment.service";
 import promotionService from "@/services/promotion.service";
 import { useClientCityStore } from "@/context/clientCityStore";
 import { mapServiceModeToApi, mapVehicleTypeToApi, formatBRL } from "@/utils/mappers";
+import type { CreateRideRequest, RideDetails } from "@/services/ride.service";
 
 type Params = {
   Payment: {
@@ -64,10 +65,7 @@ export default function PaymentScreenEnhanced() {
   }, [order, navigation]);
 
   const cityId = useMemo(
-    () =>
-      (detectedCity as any)?._id ||
-      (detectedCity as any)?.id ||
-      detectedCity?.cityId,
+    () => detectedCity?.cityId,
     [detectedCity]
   );
 
@@ -78,6 +76,21 @@ export default function PaymentScreenEnhanced() {
 
   const totalDiscount = Number(appliedPromo?.discountAmount || 0);
   const finalAmount = Math.max(0, amount - totalDiscount);
+  const paymentMethodForRide = useMemo<CreateRideRequest["payment"]>(() => {
+    const method =
+      paymentForm.method === "credit_card" ||
+      paymentForm.method === "pix" ||
+      paymentForm.method === "cash"
+        ? paymentForm.method
+        : "cash";
+    return { method: { type: method } };
+  }, [paymentForm.method]);
+
+  const insuranceLevel = useMemo<RideDetails["insurance"]>(() => {
+    const raw = String(order?.insuranceLevel || "none").toLowerCase();
+    if (raw === "basic" || raw === "standard" || raw === "premium") return raw;
+    return "none";
+  }, [order?.insuranceLevel]);
 
   const handleApplyPromo = useCallback(async () => {
     const code = promoCode.trim().toUpperCase();
@@ -185,14 +198,10 @@ export default function PaymentScreenEnhanced() {
           value: (order.etaMinutes || 0) * 60,
           text: order.etaText || `${order.etaMinutes || 0} min`,
         },
-        payment: {
-          method: {
-            type: paymentForm.method as any,
-          },
-        },
+        payment: paymentMethodForRide,
         promotionCode: appliedPromo?.code,
         details: {
-          insurance: order.insuranceLevel as any,
+          insurance: insuranceLevel,
           specialInstructions: order.notes,
         },
       });
@@ -223,7 +232,7 @@ export default function PaymentScreenEnhanced() {
     } finally {
       setProcessing(false);
     }
-  }, [order, paymentForm, finalAmount, appliedPromo, cityId, serviceType, handleError, navigation]);
+  }, [order, paymentForm, finalAmount, appliedPromo, cityId, serviceType, handleError, navigation, paymentMethodForRide, insuranceLevel]);
 
   if (!order) {
     return null;

@@ -8,10 +8,12 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { MaterialIcons } from "@expo/vector-icons";
 import { colors } from "@/theme";
 import { ClientScreenHeader, EmptyState } from "../Shared/components";
 import { getNotifications } from "@/services/auth.service";
+import { ClientStackParamList } from "../types/navigation";
 
 type NotificationItem = {
   id: string;
@@ -22,7 +24,9 @@ type NotificationItem = {
   read: boolean;
 };
 
-const NOTIF_ICONS: Record<string, string> = {
+type MaterialIconName = React.ComponentProps<typeof MaterialIcons>["name"];
+
+const NOTIF_ICONS: Record<NotificationItem["type"], MaterialIconName> = {
   ride: "local-shipping",
   promo: "local-offer",
   system: "notifications",
@@ -30,7 +34,9 @@ const NOTIF_ICONS: Record<string, string> = {
 };
 
 export default function NotificationsCenterScreen() {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<
+    NativeStackNavigationProp<ClientStackParamList, "NotificationsCenter">
+  >();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -94,7 +100,7 @@ export default function NotificationsCenterScreen() {
                 !item.read ? "bg-[rgba(2,222,149,0.1)]" : "bg-white/5"
               }`}>
                 <MaterialIcons
-                  name={NOTIF_ICONS[item.type] as any}
+                  name={NOTIF_ICONS[item.type]}
                   size={22}
                   color={!item.read ? colors.primary[500] : "#666"}
                 />
@@ -120,4 +126,3 @@ export default function NotificationsCenterScreen() {
     </SafeAreaView>
   );
 }
-

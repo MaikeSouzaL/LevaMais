@@ -77,7 +77,7 @@ export default function DeliverySetupScreen() {
           priority: priority,
           needsHelper: needsHelper,
           serviceType: "delivery",
-          cityId: (detectedCity as any)?._id || undefined,
+          cityId: detectedCity?.cityId || undefined,
           // Convert KM -> Meters and Min -> Seconds
           distance: params.initialDistanceKm ? Math.round(params.initialDistanceKm * 1000) : undefined,
           duration: params.initialDurationMin ? Math.round(params.initialDurationMin * 60) : undefined,
@@ -145,7 +145,7 @@ export default function DeliverySetupScreen() {
         vehicleType: vehicleType,
         pickup: params.pickup,
         dropoff: params.dropoff,
-        cityId: (detectedCity as any)?._id || undefined,
+        cityId: detectedCity?.cityId || undefined,
         pricing: {
           ...priceData.pricing,
           total: offerValue // injecting client negotiated value

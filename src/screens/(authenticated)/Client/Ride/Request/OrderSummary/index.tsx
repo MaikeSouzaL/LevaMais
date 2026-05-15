@@ -2,11 +2,13 @@ import React, { useMemo } from "react";
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { RouteProp, useRoute, useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
 import { LoadingButton, EmptyState } from "../../../Shared/components";
 import { formatBRL } from "@/utils/mappers";
+import { ClientStackParamList } from "../../../types/navigation";
 
 type FinalOrderSummaryData = {
   vehicleType: string;
@@ -32,9 +34,16 @@ type FinalOrderSummaryData = {
 
 type Params = { FinalOrderSummary: { data: FinalOrderSummaryData } };
 
+type MaterialIconName = React.ComponentProps<typeof MaterialIcons>["name"];
+type MaterialCommunityIconName = React.ComponentProps<typeof MaterialCommunityIcons>["name"];
+
 const VEHICLE_META: Record<
   string,
-  { icon: string; label: string; iconLib: "MaterialCommunityIcons" | "MaterialIcons" }
+  {
+    icon: MaterialIconName | MaterialCommunityIconName;
+    label: string;
+    iconLib: "MaterialCommunityIcons" | "MaterialIcons";
+  }
 > = {
   moto: { icon: "motorbike", label: "Moto", iconLib: "MaterialCommunityIcons" },
   motorcycle: { icon: "motorbike", label: "Moto", iconLib: "MaterialCommunityIcons" },
@@ -52,7 +61,9 @@ const SERVICE_MODE_LABEL: Record<string, string> = {
 export default function OrderSummaryScreen() {
   const insets = useSafeAreaInsets();
   const route = useRoute<RouteProp<Params, "FinalOrderSummary">>();
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<
+    NativeStackNavigationProp<ClientStackParamList, "FinalOrderSummary">
+  >();
   const data = route.params?.data;
 
   const vehicle = useMemo(
@@ -119,11 +130,19 @@ export default function OrderSummaryScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Servico selecionado</Text>
           <View style={styles.serviceCard}>
-            <View style={styles.vehicleIconBg}>
+              <View style={styles.vehicleIconBg}>
               {vehicle.iconLib === "MaterialCommunityIcons" ? (
-                <MaterialCommunityIcons name={vehicle.icon as any} size={30} color={colors.primary[500]} />
+                <MaterialCommunityIcons
+                  name={vehicle.icon as MaterialCommunityIconName}
+                  size={30}
+                  color={colors.primary[500]}
+                />
               ) : (
-                <MaterialIcons name={vehicle.icon as any} size={30} color={colors.primary[500]} />
+                <MaterialIcons
+                  name={vehicle.icon as MaterialIconName}
+                  size={30}
+                  color={colors.primary[500]}
+                />
               )}
             </View>
             <View style={{ flex: 1, marginLeft: spacing.lg }}>

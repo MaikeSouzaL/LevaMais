@@ -8,11 +8,13 @@ import {
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
 import { FlowStepHeader, VehicleCard, LoadingButton } from "../../../Shared/components";
 import type { VehicleType } from "../../../types";
+import { ClientStackParamList } from "../../../types/navigation";
 
 type RouteParams = {
   pickup?: {
@@ -67,9 +69,11 @@ const VEHICLES: Array<{
 
 export default function SelectVehicleScreen() {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation<any>();
-  const route = useRoute();
-  const params = route.params as RouteParams;
+  const navigation = useNavigation<
+    NativeStackNavigationProp<ClientStackParamList, "SelectVehicle">
+  >();
+  const route = useRoute<RouteProp<ClientStackParamList, "SelectVehicle">>();
+  const params = (route.params as RouteParams) || {};
 
   const [selectedType, setSelectedType] = useState<VehicleType | null>(null);
 

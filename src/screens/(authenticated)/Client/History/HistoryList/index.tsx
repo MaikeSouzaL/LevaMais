@@ -10,12 +10,15 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { MaterialIcons } from "@expo/vector-icons";
 
 import rideService, { Ride } from "@/services/ride.service";
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
 import { ClientScreenHeader, EmptyState, StatusBadge } from "../../Shared/components";
 import { formatBRL } from "@/utils/mappers";
+import { ClientStackParamList } from "../../types/navigation";
+import type { RideStatus } from "../../types";
 
 function formatRideDate(ride: Ride): string {
   const value = ride.completedAt || ride.cancelledAt || ride.createdAt;
@@ -42,8 +45,34 @@ const FILTERS: { id: Filter; label: string }[] = [
   { id: "active", label: "Ativas" },
 ];
 
+const VALID_RIDE_STATUSES: RideStatus[] = [
+  "requesting",
+  "driver_assigned",
+  "accepted",
+  "driver_arriving",
+  "arrived",
+  "in_progress",
+  "completed",
+  "cancelled",
+  "cancelled_by_client",
+  "cancelled_by_driver",
+  "cancelled_no_driver",
+  "expired",
+  "timeout",
+  "pending",
+  "arriving",
+];
+
+function normalizeRideStatus(status?: string): RideStatus {
+  return VALID_RIDE_STATUSES.includes(status as RideStatus)
+    ? (status as RideStatus)
+    : "pending";
+}
+
 export default function HistoryScreen() {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<
+    NativeStackNavigationProp<ClientStackParamList, "History">
+  >();
   const [history, setHistory] = useState<Ride[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -174,7 +203,7 @@ export default function HistoryScreen() {
           >
             <View style={styles.cardHeader}>
               <Text style={styles.cardDate}>{formatRideDate(item)}</Text>
-              <StatusBadge status={item.status as any} />
+              <StatusBadge status={normalizeRideStatus(String(item.status || ""))} />
             </View>
 
             <View style={styles.addressGroup}>

@@ -3,12 +3,14 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-nati
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Toast from "react-native-toast-message";
 
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
 import { formatBRL } from "@/utils/mappers";
 import { ClientScreenHeader, LoadingButton } from "../../Shared/components";
 import { getClientWallet, topupClientWallet, WalletTransaction } from "@/services/auth.service";
+import { ClientStackParamList } from "../../types/navigation";
 
 function transactionLabel(type: WalletTransaction["type"]) {
   const map = {
@@ -22,7 +24,9 @@ function transactionLabel(type: WalletTransaction["type"]) {
 }
 
 export default function WalletScreen() {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<
+    NativeStackNavigationProp<ClientStackParamList, "Wallet">
+  >();
   const [balance, setBalance] = useState(0);
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [loading, setLoading] = useState(false);

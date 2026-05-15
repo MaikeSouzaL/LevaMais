@@ -7,6 +7,8 @@ import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
 import { ClientScreenHeader } from "../../Shared/components";
 import configService, { SupportChannels } from "@/services/config.service";
 
+type MaterialIconName = React.ComponentProps<typeof MaterialIcons>["name"];
+
 const FAQ = [
   {
     q: "Como alterar origem ou destino antes de pedir?",
@@ -74,7 +76,7 @@ export default function HelpScreen() {
         <View style={styles.menu}>
           {helpItems.map((item) => (
             <TouchableOpacity key={item.label} style={styles.menuItem} onPress={item.action}>
-              <MaterialIcons name={item.icon as any} size={22} color={colors.text.primary} />
+              <MaterialIcons name={item.icon as MaterialIconName} size={22} color={colors.text.primary} />
               <View style={styles.menuText}>
                 <Text style={styles.menuLabel}>{item.label}</Text>
                 <Text style={styles.menuMeta}>{item.subtitle}</Text>

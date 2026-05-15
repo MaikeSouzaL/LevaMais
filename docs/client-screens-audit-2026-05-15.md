@@ -94,7 +94,11 @@ Revisar telas do lado do cliente e identificar:
 - Concluído: item 1 (correção crítica da rota SOS).
 - Concluído parcialmente: item 6 (acentuação dos rótulos do drawer).
 - Concluído parcialmente: item 2 (tipagem de navegação aplicada em Home e DestinationSearch).
-- Concluído parcialmente: item 2 (tipagem de navegação aplicada em Home, DestinationSearch, ActiveOrders, RideTracking, Chat, CancelRide, RideCompleted e AddressPicker).
+- Concluído parcialmente: item 2 (tipagem de navegação aplicada em Home, DestinationSearch, ActiveOrders, RideTracking, Chat, CancelRide, RideCompleted, AddressPicker, History/OrderDetails, Profile/Settings, NotificationsCenter, FavoritesList, Ride/Request/Payment, Ride/Request/ServicePurpose, Ride/Request/RideSetup, Ride/Request/DeliverySetup e Ride/Request/PaymentEnhanced).
+- Concluído parcialmente: item 2 (tipagem de navegação também aplicada em SafetyCenter, Profile/Help, Profile/SupportCenter, Profile/ProfileView, Profile/Wallet, Profile/PaymentsCenter, Profile/Receipts e Profile/PrivacyData).
+- Concluído parcialmente: item 2 (tipagem/normalização também aplicada em History/HistoryList e Ride/Request/OrderSummary).
+- Concluído parcialmente: item 2 (tipagem de navegação aplicada também em Ride/Completion/TipDriver, Ride/Cancellation/CancelFee, Ride/Completion/RateDriver e Ride/Request/ConfirmPickup).
+- Concluído parcialmente: item 2 (tipagem aplicada também em Profile/AddPaymentMethod, Ride/Request/SelectVehicle e Ride/Request/RideSetup).
 - Concluído parcialmente: item 4 (drawer cliente migrado para tokens de cor do tema).
 - Concluído parcialmente: remoção de casts de navegação no Home (`as never` e `as any`), mantendo tipagem estrita.
 - Arquivos alterados:

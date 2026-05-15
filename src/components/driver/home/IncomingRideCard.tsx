@@ -55,6 +55,7 @@ interface IncomingRideCardProps {
   onAccept: () => void;
   onReject: () => void;
   onCounterOffer: (amount: number, message: string) => Promise<void>;
+  onClose?: () => void;
 }
 
 // ========================================================
@@ -215,6 +216,7 @@ export function IncomingRideCard({
   onAccept,
   onReject,
   onCounterOffer,
+  onClose,
 }: IncomingRideCardProps) {
   const sheetRef = useRef<BottomSheet>(null);
   
@@ -509,9 +511,9 @@ export function IncomingRideCard({
       animateOnMount={true}
     >
       <View className="flex-1">
-        {/* 🔴 CLOSE / REJECT FLOAT ACTION */}
+        {/* 🔴 CLOSE FLOAT ACTION */}
         <TouchableOpacity 
-          onPress={onReject}
+          onPress={onClose || onReject}
           activeOpacity={0.7}
           className="absolute top-2 right-5 w-9 h-9 rounded-full bg-white/10 items-center justify-center z-50 border border-white/5"
         >
@@ -607,7 +609,7 @@ export function IncomingRideCard({
                 />
                 
                 <TouchableOpacity
-                  onPress={onReject}
+                  onPress={onClose || onReject}
                   activeOpacity={0.7}
                   className="w-full py-3 bg-white/[0.03] border border-white/10 rounded-xl items-center"
                 >

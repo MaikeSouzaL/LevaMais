@@ -1,16 +1,20 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { MaterialIcons } from "@expo/vector-icons";
 
 import { colors, spacing, fontSize } from "@/theme";
 import { ClientScreenHeader, LoadingButton } from "../../../Shared/components";
 import { formatBRL } from "@/utils/mappers";
+import { ClientStackParamList } from "../../../types/navigation";
 
 export default function CancelFeeScreen() {
-  const navigation = useNavigation<any>();
-  const route = useRoute<any>();
+  const navigation = useNavigation<
+    NativeStackNavigationProp<ClientStackParamList, "CancelFee">
+  >();
+  const route = useRoute<RouteProp<ClientStackParamList, "CancelFee">>();
   const fee = route.params?.fee || 5;
   const serviceType = route.params?.serviceType;
   const isDelivery = serviceType === "delivery" || serviceType === "frete";

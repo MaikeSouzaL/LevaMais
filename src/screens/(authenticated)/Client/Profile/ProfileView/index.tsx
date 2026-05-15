@@ -2,11 +2,13 @@
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { MaterialIcons } from '@expo/vector-icons';
 
 import { colors, spacing, fontSize, fontWeight, borderRadius } from '@/theme';
 import { useAuthStore } from '@/context/authStore';
 import { ClientScreenHeader } from '../../Shared/components';
+import { ClientStackParamList } from '../../types/navigation';
 
 const MENU_ITEMS = [
   { icon: 'history', label: 'Historico', screen: 'History' },
@@ -25,8 +27,13 @@ const MENU_ITEMS = [
   { icon: 'help', label: 'Ajuda rapida', screen: 'Help' },
 ] as const;
 
+type MaterialIconName = React.ComponentProps<typeof MaterialIcons>['name'];
+type ProfileRoute = (typeof MENU_ITEMS)[number]['screen'];
+
 export default function ProfileScreen() {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<
+    NativeStackNavigationProp<ClientStackParamList, 'Profile'>
+  >();
   const user = useAuthStore((state) => state.userData);
   const logout = useAuthStore((state) => state.logout);
 
@@ -53,9 +60,9 @@ export default function ProfileScreen() {
             <TouchableOpacity
               key={item.screen}
               style={styles.menuItem}
-              onPress={() => navigation.navigate(item.screen)}
+              onPress={() => navigation.navigate(item.screen as ProfileRoute)}
             >
-              <MaterialIcons name={item.icon as any} size={24} color={colors.text.primary} />
+              <MaterialIcons name={item.icon as MaterialIconName} size={24} color={colors.text.primary} />
               <Text style={styles.menuLabel}>{item.label}</Text>
               <MaterialIcons name="chevron-right" size={24} color={colors.text.tertiary} />
             </TouchableOpacity>

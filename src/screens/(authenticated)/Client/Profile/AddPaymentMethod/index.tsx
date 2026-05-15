@@ -11,14 +11,26 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
 import { ClientScreenHeader, LoadingButton } from "../../Shared/components";
 import { addPaymentMethod } from "@/services/auth.service";
+import { ClientStackParamList } from "../../types/navigation";
+
+type CardBrand = "visa" | "mastercard" | "amex";
+type FontAwesomeIconName = React.ComponentProps<typeof FontAwesome5>["name"];
+const BRAND_ICON_MAP: Record<CardBrand, FontAwesomeIconName> = {
+  visa: "cc-visa",
+  mastercard: "cc-mastercard",
+  amex: "cc-amex",
+};
 
 export default function AddPaymentMethodScreen() {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<
+    NativeStackNavigationProp<ClientStackParamList, "AddPaymentMethod">
+  >();
 
   const [cardNumber, setCardNumber] = useState("");
   const [holderName, setHolderName] = useState("");
@@ -39,9 +51,9 @@ export default function AddPaymentMethodScreen() {
 
   const brand = (() => {
     const first = cardNumber.replace(/\s/g, "");
-    if (/^4/.test(first)) return "visa";
-    if (/^5[1-5]/.test(first)) return "mastercard";
-    if (/^3[47]/.test(first)) return "amex";
+    if (/^4/.test(first)) return "visa" as const;
+    if (/^5[1-5]/.test(first)) return "mastercard" as const;
+    if (/^3[47]/.test(first)) return "amex" as const;
     return null;
   })();
 
@@ -95,10 +107,10 @@ export default function AddPaymentMethodScreen() {
       >
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <View style={styles.cardPreview}>
-            <View style={styles.cardPreviewHeader}>
-              <Text style={styles.cardPreviewLabel}>Cartao</Text>
-              {brand && <FontAwesome5 name={`cc-${brand}` as any} size={28} color="#fff" />}
-            </View>
+          <View style={styles.cardPreviewHeader}>
+            <Text style={styles.cardPreviewLabel}>Cartao</Text>
+            {brand && <FontAwesome5 name={BRAND_ICON_MAP[brand]} size={28} color="#fff" />}
+          </View>
             <Text style={styles.cardPreviewNumber}>
               {cardNumber || "•••• •••• •••• ••••"}
             </Text>

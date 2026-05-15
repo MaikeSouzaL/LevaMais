@@ -10,9 +10,13 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { colors } from "@/theme";
 import { ClientScreenHeader } from "../Shared/components";
+import { ClientStackParamList } from "../types/navigation";
+
+type MaterialIconName = React.ComponentProps<typeof MaterialIcons>["name"];
 
 const EMERGENCY_CONTACTS = [
   { id: "police", label: "Policia", number: "190", icon: "local-police", color: "#3b82f6" },
@@ -42,7 +46,9 @@ const SAFETY_FEATURES = [
 ];
 
 export default function SafetyCenterScreen() {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<
+    NativeStackNavigationProp<ClientStackParamList, "SafetyCenter">
+  >();
 
   const handleCallEmergency = (number: string) => {
     Linking.openURL(`tel:${number}`);
@@ -74,7 +80,7 @@ export default function SafetyCenterScreen() {
                 activeOpacity={0.7}
               >
                 <View className="w-13 h-13 rounded-full items-center justify-center mb-2" style={{ backgroundColor: item.color + "20" }}>
-                  <MaterialIcons name={item.icon as any} size={28} color={item.color} />
+                  <MaterialIcons name={item.icon as MaterialIconName} size={28} color={item.color} />
                 </View>
                 <Text className="text-white text-sm font-bold">{item.label}</Text>
                 <Text className="text-gray-500 text-xs mt-0.5">{item.number}</Text>
@@ -92,7 +98,7 @@ export default function SafetyCenterScreen() {
             activeOpacity={0.7}
           >
             <View className="w-12 h-12 rounded-lg bg-[rgba(2,222,149,0.08)] items-center justify-center mr-3">
-              <MaterialIcons name={feature.icon as any} size={24} color={colors.primary[500]} />
+              <MaterialIcons name={feature.icon as MaterialIconName} size={24} color={colors.primary[500]} />
             </View>
             <View className="flex-1">
               <Text className="text-white text-base font-semibold">{feature.label}</Text>
@@ -112,4 +118,3 @@ export default function SafetyCenterScreen() {
     </SafeAreaView>
   );
 }
-

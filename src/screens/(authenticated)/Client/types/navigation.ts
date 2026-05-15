@@ -15,6 +15,7 @@ export type ClientStackParamList = {
           eta?: string;
           rideId?: string;
         };
+        rideId?: string;
         searchRoute?: {
           pickup?: {
             address?: string;
@@ -105,6 +106,13 @@ export type ClientStackParamList = {
   Favorites: undefined;
   SelectVehicle:
     | {
+        pickup?: { address: string; latitude: number; longitude: number };
+        dropoff?: { address: string; latitude: number; longitude: number };
+      }
+    | undefined;
+  RideSetup:
+    | {
+        vehicleType?: "car" | "motorcycle" | "van" | "truck";
         pickup?: { address: string; latitude: number; longitude: number };
         dropoff?: { address: string; latitude: number; longitude: number };
       }

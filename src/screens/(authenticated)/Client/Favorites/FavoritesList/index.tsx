@@ -11,15 +11,30 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import favoriteAddressService, {
   FavoriteAddress,
 } from '@/services/favoriteAddress.service';
 import { colors, spacing, fontSize, fontWeight, borderRadius } from '@/theme';
 import { ClientScreenHeader, EmptyState } from '../../Shared/components';
+import { ClientStackParamList } from '../../types/navigation';
+
+type MaterialIconName = React.ComponentProps<typeof MaterialIcons>["name"];
+
+function toMaterialIconName(value?: string): MaterialIconName {
+  const fallback: MaterialIconName = "place";
+  if (!value) return fallback;
+  const allowed: MaterialIconName[] = ["place", "home", "work", "location-on", "star", "favorite"];
+  return allowed.includes(value as MaterialIconName)
+    ? (value as MaterialIconName)
+    : fallback;
+}
 
 export default function FavoritesScreen() {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<
+    NativeStackNavigationProp<ClientStackParamList, "Favorites">
+  >();
   const [favorites, setFavorites] = useState<FavoriteAddress[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -147,7 +162,7 @@ export default function FavoritesScreen() {
             <View style={styles.cardHeader}>
               <View style={styles.iconWrap}>
                 <MaterialIcons
-                  name={(item.icon as any) || 'place'}
+                  name={toMaterialIconName(item.icon)}
                   size={20}
                   color={colors.primary[500]}
                 />

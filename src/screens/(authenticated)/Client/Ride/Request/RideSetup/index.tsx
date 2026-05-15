@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { View, Dimensions, ScrollView, ActivityIndicator } from "react-native";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import MapView, { Marker, PROVIDER_GOOGLE, Polyline } from "react-native-maps";
 import MapViewDirections from "react-native-maps-directions";
 import { BlurView } from "expo-blur";
@@ -8,7 +9,9 @@ import Toast from "react-native-toast-message";
 
 import { darkMapStyle } from "@/utils/mapStyle";
 import rideService from "@/services/ride.service";
+import type { CalculatePriceRequest } from "@/services/ride.service";
 import { useClientCityStore } from "@/context/clientCityStore";
+import { ClientStackParamList } from "../../../types/navigation";
 
 // Core UI Atoms ⚛️
 import { RideSetupHeader } from "@/components/client/ride-setup/RideSetupHeader";
@@ -32,8 +35,10 @@ interface RideSetupRouteParams {
 }
 
 export default function RideSetupScreen() {
-  const navigation = useNavigation<any>();
-  const route = useRoute();
+  const navigation = useNavigation<
+    NativeStackNavigationProp<ClientStackParamList, "RideSetup">
+  >();
+  const route = useRoute<RouteProp<ClientStackParamList, "RideSetup">>();
   const params = (route.params as RideSetupRouteParams) || {};
   
   const detectedCity = useClientCityStore((state) => state.city);
@@ -57,11 +62,11 @@ export default function RideSetupScreen() {
     const calculate = async () => {
       try {
         setLoadingPricing(true);
-        const payload = {
+        const payload: CalculatePriceRequest = {
           pickup: params.pickup,
           dropoff: params.dropoff,
-          vehicleType: selectedCat === "motorcycle" ? "motorcycle" : "car" as any,
-          cityId: (detectedCity as any)?.cityId || (detectedCity as any)?._id || undefined,
+          vehicleType: selectedCat === "motorcycle" ? "motorcycle" : "car",
+          cityId: detectedCity?.cityId || undefined,
         };
 
         const resp = await rideService.calculatePrice(payload);
@@ -107,7 +112,7 @@ export default function RideSetupScreen() {
         },
         distance: priceData.distance,
         duration: priceData.duration,
-        cityId: (detectedCity as any)?._id || undefined,
+        cityId: detectedCity?.cityId || undefined,
         negotiation: {
           enabled: true,
           clientOffer: offerPrice

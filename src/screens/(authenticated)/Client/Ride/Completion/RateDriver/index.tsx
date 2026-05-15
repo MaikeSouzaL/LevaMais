@@ -9,20 +9,14 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { MaterialIcons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
 
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
 import { ClientScreenHeader, LoadingButton } from "../../../Shared/components";
 import rideService from "@/services/ride.service";
-
-type Params = {
-  ClientRateDriver: {
-    rideId: string;
-    driverName?: string;
-    serviceType?: string;
-  };
-};
+import { ClientStackParamList } from "../../../types/navigation";
 
 const QUICK_TAGS = [
   "Educado",
@@ -34,8 +28,10 @@ const QUICK_TAGS = [
 
 export default function RateDriverScreen() {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation<any>();
-  const route = useRoute<RouteProp<Params, "ClientRateDriver">>();
+  const navigation = useNavigation<
+    NativeStackNavigationProp<ClientStackParamList, "ClientRateDriver">
+  >();
+  const route = useRoute<RouteProp<ClientStackParamList, "ClientRateDriver">>();
   const rideId = route.params?.rideId;
   const driverName = route.params?.driverName || "Motorista";
   const serviceType = route.params?.serviceType;

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { MaterialIcons, FontAwesome5, MaterialCommunityIcons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
 
@@ -11,6 +12,8 @@ import rideService from "@/services/ride.service";
 import { useClientCityStore } from "@/context/clientCityStore";
 import { mapServiceModeToApi, mapVehicleTypeToApi, formatBRL } from "@/utils/mappers";
 import promotionService, { ValidatedPromotion } from "@/services/promotion.service";
+import { ClientStackParamList } from "../../../types/navigation";
+import type { RideDetails } from "@/services/ride.service";
 
 type FinalOrderSummaryData = any;
 type PaymentMethod = "credit_card" | "pix" | "cash";
@@ -45,7 +48,7 @@ const PAYMENT_METHODS = [
 
 export default function PaymentScreen() {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<NativeStackNavigationProp<ClientStackParamList, "Payment">>();
   const detectedCity = useClientCityStore((state) => state.city);
   const route = useRoute<RouteProp<Params, "Payment">>();
   const amount = route.params?.amount || 0;
@@ -72,8 +75,14 @@ export default function PaymentScreen() {
   }, [navigation, order]);
 
   const cityId = useMemo(() => {
-    return (detectedCity as any)?._id || (detectedCity as any)?.id || detectedCity?.cityId || undefined;
+    return detectedCity?.cityId || undefined;
   }, [detectedCity]);
+
+  const insuranceLevel = useMemo<RideDetails["insurance"]>(() => {
+    const raw = String(order?.insuranceLevel || "none").toLowerCase();
+    if (raw === "basic" || raw === "standard" || raw === "premium") return raw;
+    return "none";
+  }, [order?.insuranceLevel]);
 
   const suggestedMinOffer = useMemo(() => Number((Number(amount || 0) * 0.8).toFixed(2)), [amount]);
   const parsedOfferValue = useMemo(
@@ -176,7 +185,7 @@ export default function PaymentScreen() {
         details: {
           itemType: order.itemType,
           needsHelper: order.helperIncluded,
-          insurance: (order.insuranceLevel as any) || "none",
+          insurance: insuranceLevel,
         },
         payment: {
           method: {

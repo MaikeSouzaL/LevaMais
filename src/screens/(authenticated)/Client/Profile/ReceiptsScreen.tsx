@@ -2,15 +2,19 @@
 import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { MaterialIcons } from "@expo/vector-icons";
 
 import { colors } from "@/theme";
 import { ClientScreenHeader } from "../Shared/components";
 import rideService, { Ride } from "@/services/ride.service";
 import { formatBRL } from "@/utils/mappers";
+import { ClientStackParamList } from "../types/navigation";
 
 export default function ReceiptsScreen() {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<
+    NativeStackNavigationProp<ClientStackParamList, "Receipts">
+  >();
   const [rides, setRides] = useState<Ride[]>([]);
 
   const load = useCallback(async () => {
@@ -55,4 +59,3 @@ export default function ReceiptsScreen() {
     </SafeAreaView>
   );
 }
-
