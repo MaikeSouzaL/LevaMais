@@ -22,6 +22,7 @@ import {
 } from "lucide-react-native";
 
 import webSocketService from "../../../services/websocket.service";
+import { useAuthStore } from "../../../context/authStore";
 import driverAlertService from "../../../services/driverAlert.service";
 import rideService from "../../../services/ride.service";
 import driverLocationService from "../../../services/driverLocation.service";
@@ -87,6 +88,7 @@ type RideRequestItem = {
     suggestedMinPrice?: number | null;
     myOffer?: {
       amount: number;
+      driverAmount?: number;
       status: string;
     } | null;
   };
@@ -103,6 +105,7 @@ export default function DriverRequestsScreen() {
     navigation.setOptions({ headerShown: false });
   }, [navigation]);
 
+  const currentDriverId = useAuthStore((s) => s.userData?.id);
   const [requests, setRequests] = useState<RideRequestItem[]>([]);
   const [driverFilterInfo, setDriverFilterInfo] = useState<{
     status?: string;
@@ -681,6 +684,18 @@ export default function DriverRequestsScreen() {
               scheduled: scheduledRides.length,
             };
 
+            const isClientCounteredTab = tab === "negotiation" && pendingNegotiations.some((item: any) => 
+              item.negotiation?.offers?.some((o: any) => 
+                o.driverId?.toString() === currentDriverId && o.status === "client_countered"
+              )
+            );
+
+            const getLabelColor = () => {
+              if (isActive) return "#091A2F";
+              if (isClientCounteredTab) return "#F59E0B";
+              return "rgba(255, 255, 255, 0.45)";
+            };
+
             return (
               <TouchableOpacity
                 key={tab}
@@ -710,9 +725,9 @@ export default function DriverRequestsScreen() {
                       left: 0,
                       right: 0,
                       bottom: 0,
-                      backgroundColor: "#02de95",
+                      backgroundColor: isClientCounteredTab ? "#F59E0B" : "#02de95",
                       borderRadius: 16,
-                      shadowColor: "#02de95",
+                      shadowColor: isClientCounteredTab ? "#F59E0B" : "#02de95",
                       shadowOffset: { width: 0, height: 4 },
                       shadowOpacity: 0.3,
                       shadowRadius: 8,
@@ -721,9 +736,32 @@ export default function DriverRequestsScreen() {
                     }}
                   />
                 )}
+                
+                {/* Small pulsing indicator dot on non-active countered tab */}
+                {!isActive && isClientCounteredTab && (
+                  <MotiView
+                    from={{ scale: 0.5, opacity: 0.5 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{
+                      type: "timing",
+                      duration: 1000,
+                      loop: true,
+                    }}
+                    style={{
+                      position: "absolute",
+                      top: 6,
+                      right: 8,
+                      width: 6,
+                      height: 6,
+                      borderRadius: 3,
+                      backgroundColor: "#F59E0B",
+                    }}
+                  />
+                )}
+
                 <Text
                   style={{
-                    color: isActive ? "#091A2F" : "rgba(255, 255, 255, 0.45)",
+                    color: getLabelColor(),
                     fontWeight: "900",
                     fontSize: 10.5,
                     textTransform: "uppercase",
@@ -731,7 +769,7 @@ export default function DriverRequestsScreen() {
                   }}
                   numberOfLines={1}
                 >
-                  {tabLabels[tab]} ({tabCounts[tab]})
+                  {tabLabels[tab]} ({tabCounts[tab]}){isClientCounteredTab ? " 🔔" : ""}
                 </Text>
               </TouchableOpacity>
             );

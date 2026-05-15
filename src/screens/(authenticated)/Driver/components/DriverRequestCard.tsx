@@ -39,6 +39,7 @@ export type DriverRequestCardItem = {
     suggestedMinPrice?: number | null;
     myOffer?: {
       amount: number;
+      driverAmount?: number;
       status: string;
     } | null;
   };
@@ -124,6 +125,33 @@ export function DriverRequestCard({
         <Text style={{ color: "rgba(255, 255, 255, 0.45)", fontSize: 11, fontWeight: "700", marginTop: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>
           {item.negotiation?.myOffer?.status === "client_countered" ? "Contraproposta do Cliente" : item.negotiation?.myOffer ? "Sua Contraproposta Enviada" : "Oferta proposta pelo cliente"}
         </Text>
+
+        {/* 🔄 Visual comparison of driver's original offer vs client's counter */}
+        {item.negotiation?.myOffer?.status === "client_countered" && !!item.negotiation.myOffer.driverAmount && (
+          <MotiView 
+            from={{ opacity: 0, translateY: 4 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            style={{ 
+              marginTop: 12, 
+              flexDirection: "row", 
+              alignItems: "center", 
+              backgroundColor: "rgba(255, 255, 255, 0.04)", 
+              paddingHorizontal: 12, 
+              paddingVertical: 6, 
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: "rgba(255, 255, 255, 0.05)",
+              gap: 6
+            }}
+          >
+            <Text style={{ color: "rgba(255, 255, 255, 0.5)", fontSize: 11, fontWeight: "800" }}>
+              SUA OFERTA ANTERIOR:
+            </Text>
+            <Text style={{ color: "#FFF", fontSize: 11, fontWeight: "900", textDecorationLine: "line-through", opacity: 0.8 }}>
+              R$ {item.negotiation.myOffer.driverAmount.toFixed(2).replace(".", ",")}
+            </Text>
+          </MotiView>
+        )}
 
         {item.negotiation?.enabled && !item.negotiation?.myOffer && (
           <View style={{ marginTop: 8, backgroundColor: "rgba(245, 158, 11, 0.08)", borderWidth: 1, borderColor: "rgba(245, 158, 11, 0.15)", paddingHorizontal: 12, paddingVertical: 5, borderRadius: 12 }}>

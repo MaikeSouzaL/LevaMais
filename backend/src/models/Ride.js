@@ -213,6 +213,7 @@ const rideSchema = new mongoose.Schema(
             required: true,
           },
           amount: { type: Number, required: true },
+          driverAmount: { type: Number, default: null },
           status: {
             type: String,
             enum: ["accepted", "countered", "rejected", "client_countered"],

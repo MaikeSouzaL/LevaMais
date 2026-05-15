@@ -194,7 +194,8 @@ export interface PendingNegotiationRequest extends AvailableRideRequest {
   negotiation?: AvailableRideRequest["negotiation"] & {
     myOffer?: {
       amount: number;
-      status: "accepted" | "countered" | "rejected";
+      driverAmount?: number;
+      status: "accepted" | "countered" | "rejected" | "client_countered";
       message?: string;
       createdAt?: string;
       updatedAt?: string;

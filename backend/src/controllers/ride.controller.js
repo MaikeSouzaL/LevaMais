@@ -824,6 +824,7 @@ class RideController {
             myOffer: myOffer
               ? {
                   amount: myOffer.amount,
+                  driverAmount: myOffer.driverAmount || null,
                   status: myOffer.status,
                   message: myOffer.message || "",
                   createdAt: myOffer.createdAt,
@@ -1619,6 +1620,10 @@ class RideController {
       }
 
       const now = new Date();
+      // Preserve original driver offer before client counter-proposal
+      if (!offer.driverAmount) {
+        offer.driverAmount = offer.amount;
+      }
       offer.amount = toMoney(amount);
       offer.status = "client_countered";
       offer.updatedAt = now;
