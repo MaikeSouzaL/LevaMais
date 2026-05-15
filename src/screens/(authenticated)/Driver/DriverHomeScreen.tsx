@@ -91,6 +91,8 @@ export default function DriverHomeScreen() {
   const [isTogglingOnline, setIsTogglingOnline] = useState(false);
   const [pendingRequests, setPendingRequests] = useState(0);
   const [waitingQueueCount, setWaitingQueueCount] = useState(0);
+  const [pendingNegotiationsCount, setPendingNegotiationsCount] = useState(0);
+  const [clientCounteredCount, setClientCounteredCount] = useState(0);
   const [scheduledCount, setScheduledCount] = useState(0);
   const [todayEarnings, setTodayEarnings] = useState(0);
   const [incomingRequest, setIncomingRequest] = useState<any>(null);
@@ -259,6 +261,8 @@ export default function DriverHomeScreen() {
       const requests = response?.requests || [];
       const qCount = response?.waitingQueueCount || 0;
       setWaitingQueueCount(qCount);
+      setPendingNegotiationsCount(response?.pendingNegotiationsCount || 0);
+      setClientCounteredCount(response?.clientCounteredCount || 0);
 
       if (!requests.length) {
         setPendingRequests(0);
@@ -1171,6 +1175,7 @@ export default function DriverHomeScreen() {
                     pendingRequests={pendingRequests}
                     scheduledCount={scheduledCount}
                     waitingQueueCount={waitingQueueCount}
+                    pendingNegotiationsCount={pendingNegotiationsCount}
                     onPressNotifications={handleNotifications}
                     online={online}
                   />
@@ -1217,33 +1222,106 @@ export default function DriverHomeScreen() {
                    }`}
                  >
                    <Layers size={22} color={isSwitchingMapStyle ? "#091A2F" : "#FFF"} />
-                 </TouchableOpacity>
-              </View>
+                  </TouchableOpacity>
+
+               </View>
             )}
 
-            {/* ⚠️ URGENT QUEUE BANNER (Inline Persistent Alert) */}
-            {waitingQueueCount > 0 && pendingRequests === 0 && (
+            {/* 🌟 ACTIVE NEGOTIATIONS BANNER (Highest Priority) */}
+            {pendingNegotiationsCount > 0 && pendingRequests === 0 && (
                <MotiView
                  from={{ opacity: 0, translateY: -20 }}
                  animate={{ opacity: 1, translateY: 0 }}
-                 className="absolute top-[120px] left-4 right-4 z-30 bg-amber-500 rounded-2xl p-4 flex-row items-center justify-between shadow-xl"
+                 style={{
+                   position: "absolute",
+                   top: 120,
+                   left: 16,
+                   right: 16,
+                   zIndex: 50,
+                   elevation: 10,
+                   backgroundColor: "#F59E0B",
+                   borderRadius: 16,
+                   padding: 16,
+                   flexDirection: "row",
+                   alignItems: "center",
+                   borderWidth: 1,
+                   borderColor: "rgba(255,255,255,0.2)",
+                   shadowColor: "#000",
+                   shadowOffset: { width: 0, height: 4 },
+                   shadowOpacity: 0.2,
+                   shadowRadius: 8,
+                 }}
                >
-                 <View className="flex-row items-center flex-1">
-                    <Info size={20} color="#091A2F" className="mr-3" />
-                    <Text className="text-[#091A2F] font-bold text-sm flex-1">
-                       Existem {waitingQueueCount} pedido(s) na Fila de Espera!
+                 <View style={{ backgroundColor: "rgba(9, 26, 47, 0.2)", padding: 8, borderRadius: 12, marginRight: 12 }}>
+                    <Info size={20} color="#091A2F" />
+                 </View>
+                 <View style={{ flex: 1 }}>
+                    <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 14, textTransform: "uppercase" }}>
+                       {clientCounteredCount > 0 ? "CONTRAPROPOSTA RECEBIDA 🔔" : "NEGOCIAÇÕES ATIVAS"}
+                    </Text>
+                    <Text style={{ color: "rgba(9, 26, 47, 0.8)", fontWeight: "700", fontSize: 12 }}>
+                       {clientCounteredCount > 0 
+                          ? "O cliente enviou uma contraproposta! Toque para ver." 
+                          : `Você tem ${pendingNegotiationsCount} proposta${pendingNegotiationsCount > 1 ? 's' : ''} em andamento!`}
                     </Text>
                  </View>
                  <TouchableOpacity 
-                   onPress={() => (navigation as any).navigate("DriverRequests", { initialTab: "queue" })}
-                   className="bg-[#091A2F] px-3 py-2 rounded-xl"
+                   activeOpacity={0.9}
+                   onPress={() => (navigation as any).navigate("DriverRequests", { initialTab: "negotiation" })}
+                   style={{ backgroundColor: "#091A2F", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}
                  >
-                    <Text className="text-white font-black text-xs">ABRIR</Text>
+                    <Text style={{ color: "#F59E0B", fontWeight: "900", fontSize: 10 }}>VER</Text>
                  </TouchableOpacity>
                </MotiView>
             )}
 
-            {/* 🚫 ERROR ALERTS */}
+            {/* ⚠️ URGENT QUEUE BANNER (Shown only if no active negotiations) */}
+            {waitingQueueCount > 0 && pendingNegotiationsCount === 0 && pendingRequests === 0 && (
+               <MotiView
+                 from={{ opacity: 0, translateY: -20 }}
+                 animate={{ opacity: 1, translateY: 0 }}
+                 style={{
+                   position: "absolute",
+                   top: 120,
+                   left: 16,
+                   right: 16,
+                   zIndex: 50,
+                   elevation: 10,
+                   backgroundColor: "#02de95",
+                   borderRadius: 16,
+                   padding: 16,
+                   flexDirection: "row",
+                   alignItems: "center",
+                   borderWidth: 1,
+                   borderColor: "rgba(255,255,255,0.2)",
+                   shadowColor: "#000",
+                   shadowOffset: { width: 0, height: 4 },
+                   shadowOpacity: 0.2,
+                   shadowRadius: 8,
+                 }}
+               >
+                 <View style={{ backgroundColor: "rgba(9, 26, 47, 0.2)", padding: 8, borderRadius: 12, marginRight: 12 }}>
+                    <Info size={20} color="#091A2F" />
+                 </View>
+                 <View style={{ flex: 1 }}>
+                    <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 14, textTransform: "uppercase" }}>
+                       FILA DE ESPERA
+                    </Text>
+                    <Text style={{ color: "rgba(9, 26, 47, 0.8)", fontWeight: "700", fontSize: 12 }}>
+                       Existem {waitingQueueCount} pedido(s) na fila pública!
+                    </Text>
+                 </View>
+                 <TouchableOpacity 
+                   activeOpacity={0.9}
+                   onPress={() => (navigation as any).navigate("DriverRequests", { initialTab: "queue" })}
+                   style={{ backgroundColor: "#091A2F", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}
+                 >
+                    <Text style={{ color: "#02de95", fontWeight: "900", fontSize: 10 }}>ABRIR</Text>
+                 </TouchableOpacity>
+               </MotiView>
+            )}
+
+
             {!!error && (
                <MotiView
                  from={{ opacity: 0, scale: 0.9 }}

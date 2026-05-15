@@ -596,12 +596,37 @@ class RideController {
         return sendError(res, 403, "Apenas motoristas podem buscar solicitacoes");
       }
 
+      // 🚀 Pre-calculate negotiations count for the driver home screen banner
+      const pendingNegotiationsCount = await Ride.countDocuments({
+        status: { $in: ["requesting", "driver_assigned"] },
+        "negotiation.enabled": true,
+        "negotiation.finalAgreedPrice": null,
+        "negotiation.offers": {
+          $elemMatch: {
+            driverId: new mongoose.Types.ObjectId(driverId),
+            status: { $in: ["accepted", "countered", "client_countered"] },
+          },
+        },
+      }).catch(() => 0);
+
+      const clientCounteredCount = await Ride.countDocuments({
+        status: { $in: ["requesting", "driver_assigned"] },
+        "negotiation.enabled": true,
+        "negotiation.finalAgreedPrice": null,
+        "negotiation.offers": {
+          $elemMatch: {
+            driverId: new mongoose.Types.ObjectId(driverId),
+            status: "client_countered",
+          },
+        },
+      }).catch(() => 0);
+
       const activeRide = await Ride.findOne({
         driverId,
         status: { $in: NON_TERMINAL_STATUSES },
       }).select("_id");
       if (activeRide?._id) {
-        return res.json({ count: 0, requests: [] });
+        return res.json({ count: 0, requests: [], pendingNegotiationsCount, clientCounteredCount });
       }
 
       const now = new Date();
@@ -612,7 +637,7 @@ class RideController {
         endAt: { $gt: now },
       }).select("_id");
       if (activeShift?._id) {
-        return res.json({ count: 0, requests: [] });
+        return res.json({ count: 0, requests: [], pendingNegotiationsCount, clientCounteredCount });
       }
 
       const driverLocation = await DriverLocation.findOne({ driverId });
@@ -634,7 +659,7 @@ class RideController {
             });
           }
         }
-        return res.json({ count: 0, requests: [], waitingQueueCount });
+        return res.json({ count: 0, requests: [], waitingQueueCount, pendingNegotiationsCount, clientCounteredCount });
       }
 
       const serviceTypes = Array.isArray(driverLocation.serviceTypes)
@@ -642,13 +667,13 @@ class RideController {
         : [];
       if (!serviceTypes.length) {
         const waitingQueueCount = 0;
-        return res.json({ count: 0, requests: [], waitingQueueCount });
+        return res.json({ count: 0, requests: [], waitingQueueCount, pendingNegotiationsCount, clientCounteredCount });
       }
       const compatibleServiceTypes = serviceTypes.filter((serviceType) =>
         isServiceCompatibleWithVehicle(driverLocation.vehicleType, serviceType),
       );
       if (!compatibleServiceTypes.length) {
-        return res.json({ count: 0, requests: [], waitingQueueCount: 0 });
+        return res.json({ count: 0, requests: [], waitingQueueCount: 0, pendingNegotiationsCount, clientCounteredCount });
       }
 
       const requestedAfter = new Date(Date.now() - 2 * 60 * 1000);
@@ -742,7 +767,7 @@ class RideController {
       // always matches exactly what the driver sees in the queue tab.
       const waitingQueueCount = requests.filter((r) => r.isWaitingInQueue === true).length;
 
-      return res.json({ count: requests.length, requests, waitingQueueCount });
+      return res.json({ count: requests.length, requests, waitingQueueCount, pendingNegotiationsCount, clientCounteredCount });
     } catch (error) {
       console.error("Erro ao buscar solicitacoes disponiveis:", error);
       return sendError(res, 500, "Erro ao buscar solicitacoes disponiveis", {

@@ -184,6 +184,8 @@ export interface AvailableRideRequestsResponse {
   count: number;
   requests: AvailableRideRequest[];
   waitingQueueCount?: number;
+  pendingNegotiationsCount?: number;
+  clientCounteredCount?: number;
 }
 
 export interface PendingNegotiationRequest extends AvailableRideRequest {
