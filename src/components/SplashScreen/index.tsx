@@ -1,11 +1,12 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, StatusBar } from 'react-native';
+import { View, Text, StyleSheet, StatusBar, Image } from 'react-native';
 import { MotiView, MotiText } from 'moti';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BackgroundMap } from './components/BackgroundMap';
 import { Particles } from './components/Particles';
 import { AnimatedLoader } from './components/AnimatedLoader';
 import theme from '../../theme';
+const LogoImg = require('../../assets/Logo/logo.png');
 
 interface SplashScreenProps {
   durationMs?: number;
@@ -55,10 +56,10 @@ export default function SplashScreen({ durationMs = 3500, onFinish }: SplashScre
             style={[StyleSheet.absoluteFill, styles.logoGlow]}
             pointerEvents="none"
           >
-            <Text style={[styles.logoText, { color: theme.COLORS.BRAND_LIGHT, opacity: 0.5 }]}>LEVA</Text>
+            <Image source={LogoImg} style={styles.logoImageGlow} resizeMode="contain" />
           </MotiView>
 
-          <MotiText
+          <MotiView
             from={{ opacity: 0, scale: 0.8, translateY: 15 }}
             animate={{ opacity: 1, scale: 1, translateY: 0 }}
             transition={{
@@ -67,10 +68,9 @@ export default function SplashScreen({ durationMs = 3500, onFinish }: SplashScre
               stiffness: 100,
               delay: 100,
             }}
-            style={styles.logoText}
           >
-            LEVA
-          </MotiText>
+            <Image source={LogoImg} style={styles.logoImage} resizeMode="contain" />
+          </MotiView>
         </View>
 
         {/* Animated Subtitle */}
@@ -119,13 +119,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
   },
-  logoText: {
-    fontFamily: theme.FONT_FAMILY.BOLD,
-    fontSize: 54,
-    color: theme.COLORS.BRAND_LIGHT,
-    fontWeight: '900',
-    letterSpacing: 2,
-    textTransform: 'uppercase',
+  logoImage: {
+    width: 280,
+    height: 100,
+  },
+  logoImageGlow: {
+    width: 280,
+    height: 100,
+    opacity: 0.5,
   },
   logoGlow: {
     justifyContent: 'center',

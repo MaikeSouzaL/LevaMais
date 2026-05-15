@@ -209,6 +209,7 @@ export default function HomeScreen() {
     navigation.navigate("DestinationSearch", {
       initialVehicle: defaultVehicle,
       preferScheduled: Boolean(options?.preferScheduled),
+      serviceType: type,
       // REMOVED pre-filled pickup to force user verification
     });
   }, [navigation, currentAddress, userRegion, region]);

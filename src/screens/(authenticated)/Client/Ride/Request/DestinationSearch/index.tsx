@@ -237,22 +237,37 @@ export default function DestinationSearchScreen() {
 
   const handleContinue = () => {
     if (!destinationDetails) return;
-    navigation.navigate("DeliverySetup", {
-      vehicleType: params.initialVehicle || "motorcycle",
-      preferScheduled: Boolean(params.preferScheduled),
-      pickup: {
-        address: origin.address,
-        latitude: Number(origin.latitude),
-        longitude: Number(origin.longitude),
-      },
-      dropoff: {
-        address: destinationDetails.formattedAddress,
-        latitude: Number(destinationDetails.latitude),
-        longitude: Number(destinationDetails.longitude),
-      },
-      initialDistanceKm: distanceRaw,
-      initialDurationMin: durationRaw,
-    });
+    
+    const isDelivery = params.serviceType === "delivery";
+    
+    const pickupData = {
+      address: origin.address,
+      latitude: Number(origin.latitude),
+      longitude: Number(origin.longitude),
+    };
+    
+    const dropoffData = {
+      address: destinationDetails.formattedAddress,
+      latitude: Number(destinationDetails.latitude),
+      longitude: Number(destinationDetails.longitude),
+    };
+
+    if (isDelivery) {
+      navigation.navigate("DeliverySetup", {
+        vehicleType: params.initialVehicle || "motorcycle",
+        preferScheduled: Boolean(params.preferScheduled),
+        pickup: pickupData,
+        dropoff: dropoffData,
+        initialDistanceKm: distanceRaw,
+        initialDurationMin: durationRaw,
+      });
+    } else {
+      navigation.navigate("RideSetup", {
+        vehicleType: (params.initialVehicle as any) || "car",
+        pickup: pickupData,
+        dropoff: dropoffData,
+      });
+    }
   };
 
   useEffect(() => {

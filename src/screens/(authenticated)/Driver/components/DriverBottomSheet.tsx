@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
 import BottomSheet, { BottomSheetView, BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import { Car, Package, Star, TrendingUp, Clock } from "lucide-react-native";
 import { OnlineOfflineToggle } from "../../../../components/driver/home/OnlineOfflineToggle";
+import { MotiView } from "moti";
 
 export type DriverServicePrefs = {
   ride: boolean;
@@ -36,7 +37,7 @@ export function DriverBottomSheet({
   vehicleType,
   stats,
 }: DriverBottomSheetProps) {
-  const finalSnapPoints = useMemo(() => userSnapPoints || ["38%", "65%"], [userSnapPoints]);
+  const finalSnapPoints = useMemo(() => userSnapPoints || ["18%", "30%"], [userSnapPoints]);
 
   const canDoRides = vehicleType === "car" || vehicleType === "motorcycle";
 
@@ -68,6 +69,56 @@ export function DriverBottomSheet({
         contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 40 }}
       >
         
+        {/* 🛰️ REAL-TIME ONLINE SEARCHING STATUS CAPSULE */}
+        {online && (
+          <MotiView
+            from={{ opacity: 0, scale: 0.9, translateY: -10 }}
+            animate={{ opacity: 1, scale: 1, translateY: 0 }}
+            transition={{ type: "spring", damping: 15 }}
+            style={{
+              alignItems: "center",
+              marginBottom: 16,
+            }}
+          >
+            <View 
+              className="flex-row items-center px-4 py-2.5 rounded-full bg-white/[0.04] border border-[#02de95]/30"
+              style={{
+                alignSelf: "center",
+              }}
+            >
+              {/* Small Breathing/Pulsing Radio Beacon dot */}
+              <View className="w-2.5 h-2.5 mr-2.5 items-center justify-center relative">
+                <View className="w-2 h-2 rounded-full bg-[#02de95]" />
+                <MotiView
+                  from={{ scale: 1, opacity: 0.7 }}
+                  animate={{ scale: 2.5, opacity: 0 }}
+                  transition={{
+                    type: "timing",
+                    duration: 1500,
+                    loop: true,
+                    repeatReverse: false,
+                  }}
+                  style={{
+                    position: "absolute",
+                    width: 8,
+                    height: 8,
+                    borderRadius: 4,
+                    backgroundColor: "#02de95",
+                  }}
+                />
+              </View>
+              
+              <Text className="text-white font-black text-[10px] tracking-widest uppercase opacity-90">
+                {services.ride && services.delivery 
+                  ? "Buscando corridas e entregas" 
+                  : services.ride 
+                    ? "Buscando corridas" 
+                    : "Buscando entregas"}
+              </Text>
+            </View>
+          </MotiView>
+        )}
+
         {/* 🚀 HIGH IMPACT CONTROL: GO ONLINE/OFFLINE */}
         <View className="mb-6">
           <OnlineOfflineToggle 

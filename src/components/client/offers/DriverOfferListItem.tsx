@@ -31,10 +31,24 @@ export function DriverOfferListItem({ offer, clientBudget, onSelect, onDecline, 
   const isCounterOffer = offer.status !== "accepted";
   const isPendingDriver = offer.status === "client_countered";
 
-  // Simulated/calculated metrics for elite vibe 📈
-  const rating = useMemo(() => (4.7 + Math.random() * 0.2).toFixed(1), []);
-  const deliveryCount = useMemo(() => Math.floor(400 + Math.random() * 1200), []);
-  const eta = useMemo(() => Math.floor(4 + Math.random() * 7), []);
+  // Deterministic calculated metrics based on driverId for absolute consistency! 🧬📈
+  const [rating, deliveryCount, eta] = useMemo(() => {
+    const dId = typeof offer.driverId === "string" ? offer.driverId : offer.driverId?._id || "default-driver";
+    
+    // Linear congruential generator style deterministic hash
+    let hash = 0;
+    for (let i = 0; i < dId.length; i++) {
+      hash = dId.charCodeAt(i) + ((hash << 5) - hash);
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    const seed = Math.abs(hash);
+
+    const finalRating = (4.7 + (seed % 3) * 0.1).toFixed(1); // Deterministic: 4.7, 4.8, 4.9
+    const finalDeliveryCount = 350 + (seed % 950); // Deterministic delivery count 350-1300
+    const finalEta = 3 + (seed % 6); // Deterministic ETA between 3 and 8 min
+    
+    return [finalRating, finalDeliveryCount, finalEta];
+  }, [offer.driverId]);
   
 
   // 🧠 Smart AI justification generator based on local heuristics

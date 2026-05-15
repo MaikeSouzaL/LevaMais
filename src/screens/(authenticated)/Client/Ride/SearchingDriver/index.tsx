@@ -48,6 +48,7 @@ export default function SearchingDriverScreen() {
   const [enteringQueue, setEnteringQueue] = useState(false);
   const [queueCancelled, setQueueCancelled] = useState(false);
   const [allDriversRejected, setAllDriversRejected] = useState(false);
+  const [boostCount, setBoostCount] = useState(0);
 
   // Ride Context Persistence
   const [rideData, setRideData] = useState<any>(null);
@@ -384,6 +385,9 @@ export default function SearchingDriverScreen() {
       setAdjusting(true);
       const res = await rideService.increaseOffer(rideId, incrementAmount);
       
+      // Trigger special golden radar blast ✨🛸
+      setBoostCount((prev) => prev + 1);
+
       // Hydrate local context with latest payload from backend directly
       if (res?.ride) {
         setRideData(res.ride);
@@ -498,7 +502,7 @@ export default function SearchingDriverScreen() {
               anchor={{ x: 0.5, y: 0.5 }}
               flat
             >
-              <RadarScanner size={500} />
+              <RadarScanner size={500} boostCount={boostCount} />
             </Marker>
 
             {/* Visual Pulse Search Radius Circle 🟢 */}

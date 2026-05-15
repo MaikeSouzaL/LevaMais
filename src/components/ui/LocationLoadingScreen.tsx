@@ -1,6 +1,8 @@
 import React from "react";
-import { View, Text } from "react-native";
+import { View, Text, Image, StyleSheet } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
+import { MotiView } from "moti";
+const LogoImg = require("../../assets/Logo/logo.png");
 
 interface LocationLoadingScreenProps {
   /**
@@ -60,9 +62,37 @@ export function LocationLoadingScreen({
       <View
         style={{
           alignItems: "center",
-          gap: 16,
+          gap: 24, // increased gap
         }}
       >
+        {/* Animated Logo Integration 💫 */}
+        <View style={styles.logoWrapper}>
+          <MotiView
+            from={{ opacity: 0, scale: 1.5 }}
+            animate={{ opacity: 0.6, scale: 1.1 }}
+            transition={{ type: 'timing', duration: 2000, delay: 300 }}
+            style={[StyleSheet.absoluteFill, styles.logoGlow]}
+            pointerEvents="none"
+          >
+            <Image source={LogoImg} style={styles.logoImageGlow} resizeMode="contain" />
+          </MotiView>
+
+          <MotiView
+            from={{ opacity: 0, scale: 0.8, translateY: 15 }}
+            animate={{ opacity: 1, scale: 1, translateY: 0 }}
+            transition={{
+              type: 'spring',
+              damping: 15,
+              stiffness: 100,
+              delay: 100,
+            }}
+          >
+            <Image source={LogoImg} style={styles.logoImage} resizeMode="contain" />
+          </MotiView>
+        </View>
+
+        <View style={{ height: 12 }} /> {/* Spacer */}
+
         {/* Ícone com círculo de fundo */}
         <View
           style={{
@@ -77,29 +107,59 @@ export function LocationLoadingScreen({
           <MaterialIcons name="my-location" size={32} color={accentColor} />
         </View>
 
-        {/* Título */}
-        <Text
-          style={{
-            color: "#fff",
-            fontSize: 18,
-            fontWeight: "700",
-          }}
-        >
-          {title}
-        </Text>
+        <View style={{ alignItems: "center", gap: 8 }}>
+          {/* Título */}
+          <Text
+            style={{
+              color: "#fff",
+              fontSize: 18,
+              fontWeight: "700",
+            }}
+          >
+            {title}
+          </Text>
 
-        {/* Subtítulo */}
-        <Text
-          style={{
-            color: "rgba(255,255,255,0.6)",
-            fontSize: 14,
-            textAlign: "center",
-            paddingHorizontal: 32,
-          }}
-        >
-          {subtitle}
-        </Text>
+          {/* Subtítulo */}
+          <Text
+            style={{
+              color: "rgba(255,255,255,0.6)",
+              fontSize: 14,
+              textAlign: "center",
+              paddingHorizontal: 32,
+            }}
+          >
+            {subtitle}
+          </Text>
+        </View>
       </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  logoWrapper: {
+    width: 220,
+    height: 80,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+    marginBottom: 10,
+  },
+  logoImage: {
+    width: 220,
+    height: 80,
+  },
+  logoImageGlow: {
+    width: 220,
+    height: 80,
+    opacity: 0.5,
+  },
+  logoGlow: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: "#02de95",
+    shadowRadius: 20,
+    shadowOpacity: 0.6,
+    shadowOffset: { width: 0, height: 0 },
+  }
+});

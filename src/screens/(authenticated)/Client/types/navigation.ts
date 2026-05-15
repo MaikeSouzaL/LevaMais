@@ -82,6 +82,7 @@ export type ClientStackParamList = {
     | {
         initialVehicle?: string;
         preferScheduled?: boolean;
+        serviceType?: "ride" | "delivery";
         pickup?: {
           address?: string;
           formattedAddress?: string;

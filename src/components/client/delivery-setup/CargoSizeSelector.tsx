@@ -15,6 +15,12 @@ const SIZES: { id: CargoSize; label: string }[] = [
   { id: "large", label: "Grande" },
 ];
 
+const DESCRIPTIONS: Record<CargoSize, string> = {
+  small: "• Cabe em mochila (ex: chaves, documentos, caixas pequenas)",
+  medium: "• Cabe no baú da moto (ex: sacolas de mercado, caixas de sapato)",
+  large: "• Requer porta-malas / carroceria (ex: malas grandes, TVs, móveis)",
+};
+
 export const CargoSizeSelector = ({ value, onChange }: CargoSizeSelectorProps) => {
   const screenWidth = Dimensions.get("window").width - 48;
   const buttonWidth = screenWidth / 3;
@@ -52,6 +58,18 @@ export const CargoSizeSelector = ({ value, onChange }: CargoSizeSelectorProps) =
           );
         })}
       </View>
+
+      {/* ✨ Smart descriptive prompt informing the user of spatial constraints */}
+      <MotiView
+        key={value}
+        from={{ opacity: 0, translateY: 5 }}
+        animate={{ opacity: 1, translateY: 0 }}
+        transition={{ type: "timing", duration: 200 }}
+      >
+        <Text className="text-[#02de95]/80 text-[10px] font-bold italic mt-2 text-center uppercase tracking-wide">
+          {DESCRIPTIONS[value]}
+        </Text>
+      </MotiView>
     </View>
   );
 };

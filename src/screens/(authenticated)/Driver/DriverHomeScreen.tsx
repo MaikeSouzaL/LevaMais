@@ -1192,10 +1192,6 @@ export default function DriverHomeScreen() {
                 </View>
              </View>
 
-
-
-            {/* Driver Status & Stats Hook - REMOVED DUPLICATE */}
-
              {/* 📡 OPERATIONAL RIGHT WING CONTROLS */}
              {!incomingRequest?.rideId && (
                <View className="absolute right-4 top-[30%] z-40 flex-col gap-3">

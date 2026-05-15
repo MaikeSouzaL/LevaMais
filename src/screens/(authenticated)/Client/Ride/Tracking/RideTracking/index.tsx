@@ -4,7 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import MapView, { Marker, Polyline } from "react-native-maps";
+import MapView, { Marker, Polyline, AnimatedRegion } from "react-native-maps";
 import { MaterialIcons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
 import * as Location from "expo-location";
@@ -136,6 +136,7 @@ export default function RideTrackingScreen() {
   const unreadCount = useChatStore((s) => s.unreadCounts[rideId]) || 0;
   const mapRef = useRef<MapView>(null);
   const watchRef = useRef<any>(null);
+  const driverAnimatedLocation = useRef<any>(null);
 
   const [ride, setRide] = useState<Ride | null>(null);
   const [loading, setLoading] = useState(true);
@@ -233,9 +234,28 @@ export default function RideTrackingScreen() {
         Number.isFinite(Number(loc?.latitude)) &&
         Number.isFinite(Number(loc?.longitude))
       ) {
+        const newLat = Number(loc.latitude);
+        const newLng = Number(loc.longitude);
+
+        if (!driverAnimatedLocation.current) {
+          driverAnimatedLocation.current = new AnimatedRegion({
+            latitude: newLat,
+            longitude: newLng,
+            latitudeDelta: 0.004,
+            longitudeDelta: 0.004,
+          });
+        } else {
+          driverAnimatedLocation.current.timing({
+            latitude: newLat,
+            longitude: newLng,
+            duration: 3000,
+            useNativeDriver: false,
+          }).start();
+        }
+
         setDriverLocation({
-          latitude: Number(loc.latitude),
-          longitude: Number(loc.longitude),
+          latitude: newLat,
+          longitude: newLng,
         });
       }
     };
@@ -554,10 +574,10 @@ export default function RideTrackingScreen() {
     <MapMarker type="dropoff" />
   </Marker>
 )}
-{!!driverLocation && (
-  <Marker coordinate={driverLocation} title="Motorista" tracksViewChanges={false} anchor={{ x: 0.5, y: 1 }}>
+{!!driverLocation && driverAnimatedLocation.current && (
+  <Marker.Animated coordinate={driverAnimatedLocation.current as any} title="Motorista" tracksViewChanges={false} anchor={{ x: 0.5, y: 1 }}>
     <MapMarker type="driver" />
-  </Marker>
+  </Marker.Animated>
 )}
       </MapView>
 

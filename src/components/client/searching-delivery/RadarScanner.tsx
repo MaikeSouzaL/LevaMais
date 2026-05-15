@@ -5,11 +5,13 @@ import { Easing } from "react-native-reanimated";
 
 interface RadarScannerProps {
   size?: number;
+  boostCount?: number;
 }
 
-export function RadarScanner({ size = 300 }: RadarScannerProps) {
+export function RadarScanner({ size = 300, boostCount = 0 }: RadarScannerProps) {
   return (
     <View className="items-center justify-center" style={{ width: size, height: size }}>
+      {/* Regular Continuous Scanning Pulsar Rings */}
       {[...Array(5).keys()].map((index) => (
         <MotiView
           key={index}
@@ -34,6 +36,35 @@ export function RadarScanner({ size = 300 }: RadarScannerProps) {
           }}
         />
       ))}
+
+      {/* 🚀 EXPLOSIVE BOOST SHOCKWAVE: Triggers a majestic golden blast expanding far out */}
+      {boostCount > 0 && (
+        <MotiView
+          key={`boost-blast-${boostCount}`}
+          from={{ opacity: 1, scale: 0.05 }}
+          animate={{ opacity: 0, scale: 1.75 }}
+          transition={{
+            type: "timing",
+            duration: 1800,
+            easing: Easing.out(Easing.exp),
+          }}
+          style={{
+            width: size,
+            height: size,
+            borderRadius: size / 2,
+            borderWidth: 4,
+            borderColor: "#FBBF24",
+            backgroundColor: "rgba(251, 191, 36, 0.08)",
+            position: "absolute",
+            shadowColor: "#FBBF24",
+            shadowOffset: { width: 0, height: 0 },
+            shadowOpacity: 0.6,
+            shadowRadius: 15,
+            elevation: 10,
+          }}
+        />
+      )}
+
       {/* Absolute Center Point Indicator */}
       <View 
         className="w-6 h-6 bg-[#02de95] rounded-full items-center justify-center border-4 border-[#091A2F]"
