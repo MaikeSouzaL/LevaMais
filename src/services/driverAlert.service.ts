@@ -92,6 +92,10 @@ class DriverAlertService {
     await playOneShot(require("../assets/sound/pluckOff.mp3"));
   }
 
+  async playCounterProposalSound() {
+    await playOneShot(require("../assets/sound/pedidoAceito.mp3"));
+  }
+
   isRunning() {
     return running;
   }

@@ -618,11 +618,20 @@ export default function DriverHomeScreen() {
       }
     };
 
+    const onClientCounterProposal = () => {
+      if (mounted && isFocused) {
+        driverAlertService.playCounterProposalSound().catch(() => {});
+        syncAvailableRequests().catch(() => {});
+        (navigation as any).navigate("DriverRequests", { initialTab: "negotiation" });
+      }
+    };
+
     webSocketService.on("new-ride-request", onNewRideRequest);
     webSocketService.on("ride-taken", onRideTaken);
     webSocketService.on("ride-cancelled", onRideCancelled);
     webSocketService.on("waiting-queue-updated", syncAvailableRequests);
     webSocketService.on("online_time_updated", onOnlineTimeUpdated);
+    webSocketService.on("client-counter-proposal", onClientCounterProposal);
 
     webSocketService.connect().catch(() => {});
     syncAvailableRequests().catch(() => {});
@@ -634,6 +643,7 @@ export default function DriverHomeScreen() {
       webSocketService.off("ride-cancelled", onRideCancelled);
       webSocketService.off("waiting-queue-updated", syncAvailableRequests);
       webSocketService.off("online_time_updated", onOnlineTimeUpdated);
+      webSocketService.off("client-counter-proposal", onClientCounterProposal);
     };
   }, [online, incomingRequest?.rideId, isFocused]);
 
