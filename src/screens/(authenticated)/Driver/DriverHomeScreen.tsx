@@ -951,7 +951,7 @@ export default function DriverHomeScreen() {
           text1: "Oferta aceita",
           text2: "Aguardando cliente selecionar sua proposta.",
         });
-        await clearIncoming();
+        // We do NOT call clearIncoming() here. The IncomingRideCard will display the 'Aguardando Resposta' state.
         return;
       }
 
@@ -977,7 +977,7 @@ export default function DriverHomeScreen() {
       await rideService.reject(incomingRequest.rideId, "driver_rejected");
       await clearIncoming();
     } catch (e) {
-          }
+    }
   };
 
   const counterOfferIncoming = async (amount: number, message: string) => {
@@ -999,7 +999,7 @@ export default function DriverHomeScreen() {
         text1: "Proposta Enviada! 🚀",
         text2: `Sua oferta de R$ ${amount.toFixed(2).replace(".", ",")} foi enviada ao cliente.`,
       });
-      await clearIncoming();
+      // We do NOT call clearIncoming() here. The IncomingRideCard will display the 'Aguardando Resposta' state.
     } catch (err: any) {
       Toast.show({
         type: "error",

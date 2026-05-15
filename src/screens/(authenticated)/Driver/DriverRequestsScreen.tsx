@@ -404,7 +404,19 @@ export default function DriverRequestsScreen() {
         });
       } finally {
         if (sent) {
+          const updatedReq = {
+            ...request,
+            negotiation: {
+              ...request.negotiation,
+              myOffer: { amount: Number(request.negotiation.clientOffer || request.pricing?.total || 0), status: 'pending' }
+            }
+          };
+          setPendingNegotiations((prev) => {
+            if (prev.some(p => p.rideId === rideId)) return prev;
+            return [updatedReq as any, ...prev];
+          });
           setRequests((prev) => prev.filter((r) => r.rideId !== rideId));
+          setActiveTab("negotiation");
           driverAlertService.stop().catch(() => {});
         }
       }
@@ -469,7 +481,19 @@ export default function DriverRequestsScreen() {
         text1: "Contraoferta enviada",
         text2: `Valor sugerido: ${formatBRL(amount)}`,
       });
+      const updatedReq = {
+        ...request,
+        negotiation: {
+          ...request.negotiation,
+          myOffer: { amount, status: 'pending' }
+        }
+      };
+      setPendingNegotiations((prev) => {
+        if (prev.some(p => p.rideId === rideId)) return prev;
+        return [updatedReq as any, ...prev];
+      });
       setRequests((prev) => prev.filter((r) => r.rideId !== rideId));
+      setActiveTab("negotiation");
       driverAlertService.stop().catch(() => {});
     } catch (e: any) {
       Toast.show({
@@ -629,14 +653,17 @@ export default function DriverRequestsScreen() {
 
       {/* 🧬 Glassmorphic Operational Tabs Matrix */}
       <View style={{ paddingHorizontal: 16, marginTop: 16, zIndex: 98 }}>
-        <View
-          style={{
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{
             flexDirection: "row",
             backgroundColor: "rgba(11, 26, 42, 0.4)",
             borderRadius: 20,
             padding: 5,
             borderWidth: 1,
             borderColor: "rgba(255, 255, 255, 0.05)",
+            gap: 4
           }}
         >
           {(["queue", "realtime", "negotiation", "scheduled"] as const).map((tab) => {
@@ -663,7 +690,7 @@ export default function DriverRequestsScreen() {
                   if (tab === "scheduled") loadScheduledRides();
                 }}
                 style={{
-                  flex: 1,
+                  paddingHorizontal: 16,
                   height: 42,
                   alignItems: "center",
                   justifyContent: "center",
@@ -709,7 +736,7 @@ export default function DriverRequestsScreen() {
               </TouchableOpacity>
             );
           })}
-        </View>
+        </ScrollView>
       </View>
 
       {/* 🚨 Active Profile Filter Blueprint */}

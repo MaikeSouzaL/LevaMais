@@ -61,14 +61,7 @@ export function DriverRequestCard({
   const [showDetails, setShowDetails] = useState(false);
   const isQueueItem = item.isWaitingInQueue === true;
   
-  // ⏳ Realtime Urgency Countdown Simulator
-  const [timeLeft, setTimeLeft] = useState(45);
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => (prev > 1 ? prev - 1 : 45));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
+
 
   const finalPrice = item.negotiation?.clientOffer ?? item.pricing?.total ?? 0;
   const minPrice = item.negotiation?.suggestedMinPrice ?? (finalPrice * 0.8);
@@ -101,24 +94,6 @@ export function DriverRequestCard({
           </Text>
         </View>
 
-        {/* ⏱️ Urgency Countdown Visualizer */}
-        <View 
-          style={{ 
-            flexDirection: "row", 
-            alignItems: "center", 
-            backgroundColor: timeLeft < 10 ? "rgba(239, 68, 68, 0.1)" : "rgba(255, 255, 255, 0.03)", 
-            paddingHorizontal: 10, 
-            paddingVertical: 5, 
-            borderRadius: 10,
-            borderWidth: 1,
-            borderColor: timeLeft < 10 ? "rgba(239, 68, 68, 0.2)" : "rgba(255, 255, 255, 0.05)"
-          }}
-        >
-          <Clock size={12} color={timeLeft < 10 ? "#ef4444" : "rgba(255,255,255,0.6)"} style={{ marginRight: 4 }} />
-          <Text style={{ color: timeLeft < 10 ? "#ef4444" : "#fff", fontSize: 11, fontWeight: "900" }}>
-            EXPIRA EM {timeLeft}s
-          </Text>
-        </View>
       </View>
 
       {/* 💰 Golden Super-Sized Value Pod */}

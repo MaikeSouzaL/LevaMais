@@ -36,15 +36,6 @@ export function DriverOfferListItem({ offer, clientBudget, onSelect, onDecline, 
   const deliveryCount = useMemo(() => Math.floor(400 + Math.random() * 1200), []);
   const eta = useMemo(() => Math.floor(4 + Math.random() * 7), []);
   
-  // ⏱️ Local realtime countdown to inject urgent psychological drive
-  const [timeLeft, setTimeLeft] = useState(30);
-  useEffect(() => {
-    if (isPendingDriver) return;
-    const interval = setInterval(() => {
-      setTimeLeft((prev) => (prev <= 1 ? 0 : prev - 1));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [isPendingDriver]);
 
   // 🧠 Smart AI justification generator based on local heuristics
   const smartJustification = useMemo(() => {
@@ -98,20 +89,6 @@ export function DriverOfferListItem({ offer, clientBudget, onSelect, onDecline, 
             </View>
           )}
 
-          {/* ⏰ Realtime Urgency Countdown Clock */}
-          {!isPendingDriver && (
-            <MotiView
-              from={{ opacity: 0.6 }}
-              animate={{ opacity: 1 }}
-              transition={{ loop: true, duration: 1500, repeatReverse: true }}
-              className={`flex-row items-center px-3.5 py-1.5 rounded-full border ${timeLeft <= 10 ? 'bg-red-500/10 border-red-500/20' : 'bg-black/40 border-white/10'}`}
-            >
-              <Timer size={12} color={timeLeft <= 10 ? "#EF4444" : "#02de95"} className="mr-1.5" />
-              <Text className={`text-[10px] font-black uppercase tracking-widest ${timeLeft <= 10 ? 'text-[#EF4444]' : 'text-white/70'}`}>
-                {timeLeft > 0 ? `Expira em ${timeLeft}s` : "Expirado"}
-              </Text>
-            </MotiView>
-          )}
         </View>
 
         {/* 2. MEIO: CARD MOTORISTA (Avatar + Badges Individuais) */}

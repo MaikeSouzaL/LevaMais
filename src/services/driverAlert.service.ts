@@ -1,6 +1,6 @@
 import { Vibration } from "react-native";
+import { Audio } from "expo-av";
 
-let SoundModule: any = null;
 let sound: any = null;
 let vibTimer: any = null;
 let starting = false;
@@ -11,33 +11,13 @@ function getSoletoAsset() {
   return require("../assets/sound/Soleto.mp3");
 }
 
-async function ensureExpoAv() {
-  if (SoundModule) return SoundModule;
-
-  // Lazy import so the app still starts even if expo-av isn't installed yet.
-  // If missing, we'll throw a helpful error.
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    SoundModule = require("expo-av");
-    return SoundModule;
-  } catch (e) {
-    throw new Error(
-      "expo-av não está instalado. Rode: npx expo install expo-av",
-    );
-  }
-}
-
 async function ensureSound() {
-  const { Audio } = await ensureExpoAv();
-
   if (sound) return sound;
 
   await Audio.setAudioModeAsync({
     allowsRecordingIOS: false,
     playsInSilentModeIOS: true,
     staysActiveInBackground: true,
-    interruptionModeIOS: 1,
-    interruptionModeAndroid: 1,
     shouldDuckAndroid: true,
     playThroughEarpieceAndroid: false,
   });
@@ -88,7 +68,6 @@ function stopVibrationLoop() {
 
 async function playOneShot(asset: any) {
   try {
-    const { Audio } = await ensureExpoAv();
     const { sound: shotSound } = await Audio.Sound.createAsync(asset, {
       shouldPlay: true,
       volume: 1,

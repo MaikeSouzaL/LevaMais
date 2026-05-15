@@ -409,7 +409,7 @@ export default function RideOffersMarketplaceScreen() {
         visible={showCancelModal}
         title="Cancelar Pedido?"
         type="error"
-        confirmText={isCancelling ? "Cancelando..." : "Confirmar Cancelamento"}
+        confirmText={isCancelling ? "Cancelando..." : "Confirmar"}
         onClose={() => !isCancelling && setShowCancelModal(false)}
         onConfirm={handleConfirmCancel}
       >
