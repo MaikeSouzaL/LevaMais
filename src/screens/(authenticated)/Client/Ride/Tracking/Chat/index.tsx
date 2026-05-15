@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Toast from "react-native-toast-message";
 
 import rideService from "@/services/ride.service";
@@ -8,13 +9,7 @@ import webSocketService from "@/services/websocket.service";
 import { useAuthStore } from "@/context/authStore";
 import { useChatStore } from "@/context/chatStore";
 import { RideChatView } from "@/components/chat/RideChatView";
-
-type Params = {
-  Chat: {
-    rideId: string;
-    driverName?: string;
-  };
-};
+import { ClientStackParamList } from "../../../types/navigation";
 
 type ChatItem = {
   id: string;
@@ -34,8 +29,8 @@ function toChatItem(item: ChatMessage, currentUserId?: string): ChatItem {
 }
 
 export default function ChatScreen() {
-  const navigation = useNavigation();
-  const route = useRoute<RouteProp<Params, "Chat">>();
+  const navigation = useNavigation<NativeStackNavigationProp<ClientStackParamList, "Chat">>();
+  const route = useRoute<RouteProp<ClientStackParamList, "Chat">>();
   const rideId = route.params?.rideId;
 
   const currentUserId = useAuthStore((s) => s.userData?.id);
@@ -56,7 +51,7 @@ export default function ChatScreen() {
     let mounted = true;
 
     if (!rideId) {
-      (navigation as any).goBack();
+      navigation.goBack();
       return;
     }
 
@@ -68,8 +63,11 @@ export default function ChatScreen() {
         ]);
         if (!mounted) return;
 
-        const did = (ride?.driverId as any)?._id || (ride?.driverId as any)?.id;
-        const dname = (ride?.driverId as any)?.name;
+        const did =
+          typeof ride?.driverId === "string"
+            ? ride.driverId
+            : ride?.driverId?._id || ride?.driverId?.id;
+        const dname = typeof ride?.driverId === "string" ? undefined : ride?.driverId?.name;
         if (did) setDriverId(String(did));
         if (dname) setDriverName(String(dname));
         setMessages(persistedMessages.map((item) => toChatItem(item, currentUserId)));
@@ -167,7 +165,7 @@ export default function ChatScreen() {
       message={message}
       quickReplies={quickReplies}
       canSend={canSend}
-      onBack={() => (navigation as any).goBack()}
+      onBack={() => navigation.goBack()}
       onChangeMessage={setMessage}
       onSend={handleSend}
     />

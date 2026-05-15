@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { View, Text, StyleSheet, TouchableOpacity, Linking, Share } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import { MaterialIcons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
@@ -17,6 +18,7 @@ import { useChatStore } from "@/context/chatStore";
 import { darkMapStyle } from "@/utils/mapStyle";
 import { decodePolyline, LatLng } from "@/utils/polyline";
 import MapMarker from "@/components/MapMarker";
+import { ClientStackParamList } from "../../../types/navigation";
 
 const TERMINAL_STATUSES = [
   "completed",
@@ -126,10 +128,10 @@ function getStatusMeta(status?: string, serviceType?: string) {
 }
 
 export default function RideTrackingScreen() {
-  const route = useRoute();
-  const navigation = useNavigation<any>();
+  const route = useRoute<RouteProp<ClientStackParamList, "RideTracking">>();
+  const navigation = useNavigation<NativeStackNavigationProp<ClientStackParamList>>();
   const insets = useSafeAreaInsets();
-  const { rideId } = (route.params as any) || {};
+  const { rideId } = route.params;
   const currentUserId = useAuthStore((s) => s.userData?.id) || "";
   const unreadCount = useChatStore((s) => s.unreadCounts[rideId]) || 0;
   const mapRef = useRef<MapView>(null);
@@ -143,6 +145,11 @@ export default function RideTrackingScreen() {
   const [routeDistanceText, setRouteDistanceText] = useState("");
   const isDeliveryFlow =
     ride?.serviceType === "delivery" || ride?.serviceType === "frete";
+  const driverName = useMemo(() => {
+    const driver = ride?.driverId;
+    if (!driver || typeof driver === "string") return null;
+    return driver.name || null;
+  }, [ride?.driverId]);
 
   const loadRide = useCallback(async () => {
     if (!rideId) return;
@@ -158,7 +165,7 @@ export default function RideTrackingScreen() {
             total: data?.pricing?.total,
             pickupAddress: data?.pickup?.address,
             dropoffAddress: data?.dropoff?.address,
-            driverName: (data?.driverId as any)?.name,
+            driverName: typeof data?.driverId === "string" ? undefined : data?.driverId?.name,
             serviceType: data?.serviceType,
           });
         } else {
@@ -480,13 +487,13 @@ export default function RideTrackingScreen() {
   }, [pickupCoord, dropoffCoord, driverLocation]);
 
   const handleShareRide = () => {
-    const driverName = (ride?.driverId as any)?.name || "motorista";
+    const driverLabel = driverName || "motorista";
     const serviceLabel =
       ride?.serviceType === "delivery" || ride?.serviceType === "frete"
         ? "entrega"
         : "corrida";
     Share.share({
-      message: `Estou em ${serviceLabel} no Leva Mais com ${driverName}. Pedido ${ride?._id || ""}.`,
+      message: `Estou em ${serviceLabel} no Leva Mais com ${driverLabel}. Pedido ${ride?._id || ""}.`,
     }).catch(() => {});
   };
 
@@ -519,19 +526,19 @@ export default function RideTrackingScreen() {
       >
         {routeCoords.length >= 2 ? (
           <Polyline
-            coordinates={routeCoords as any}
+            coordinates={routeCoords}
             strokeWidth={4}
             strokeColor={routeMode === "toPickup" ? "#60a5fa" : "#02de95"}
           />
         ) : routeMode === "toPickup" && driverLocation && pickupCoord ? (
           <Polyline
-            coordinates={[driverLocation, pickupCoord] as any}
+            coordinates={[driverLocation, pickupCoord]}
             strokeWidth={4}
             strokeColor="#60a5fa"
           />
         ) : routeMode === "toDropoff" && toDropoffOrigin && dropoffCoord ? (
           <Polyline
-            coordinates={[toDropoffOrigin, dropoffCoord] as any}
+            coordinates={[toDropoffOrigin, dropoffCoord]}
             strokeWidth={4}
             strokeColor="#02de95"
           />
@@ -601,7 +608,7 @@ export default function RideTrackingScreen() {
 
         <View style={styles.metaRow}>
           <Text style={styles.metaText}>
-            Motorista: {(ride?.driverId as any)?.name || "Aguardando atribuicao"}
+            Motorista: {driverName || "Aguardando atribuicao"}
           </Text>
           <Text style={styles.metaText}>
             Total: {ride?.pricing?.total != null ? `R$ ${Number(ride.pricing.total).toFixed(2)}` : "-"}
@@ -617,7 +624,7 @@ export default function RideTrackingScreen() {
               useChatStore.getState().clearUnread(rideId);
               navigation.navigate("Chat", {
                 rideId,
-                driverName: (ride?.driverId as any)?.name || "Motorista",
+                driverName: driverName || "Motorista",
               });
             }}
           >

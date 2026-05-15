@@ -1,13 +1,16 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { MaterialIcons } from "@expo/vector-icons";
 
 import rideService, { Ride } from "@/services/ride.service";
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
 import { ClientScreenHeader, StatusBadge, LoadingButton } from "../../Shared/components";
 import { formatBRL } from "@/utils/mappers";
+import { ClientStackParamList } from "../../types/navigation";
+import type { RideStatus } from "../../types";
 
 function formatDateTime(value?: string): string {
   if (!value) return "-";
@@ -34,14 +37,40 @@ function formatDuration(duration?: Ride["duration"]): string {
   return duration.text || `${Math.ceil((duration.value || 0) / 60)} min`;
 }
 
+const VALID_RIDE_STATUSES: RideStatus[] = [
+  "requesting",
+  "driver_assigned",
+  "accepted",
+  "driver_arriving",
+  "arrived",
+  "in_progress",
+  "completed",
+  "cancelled",
+  "cancelled_by_client",
+  "cancelled_by_driver",
+  "cancelled_no_driver",
+  "expired",
+  "timeout",
+  "pending",
+  "arriving",
+];
+
+function normalizeRideStatus(status?: string): RideStatus {
+  return VALID_RIDE_STATUSES.includes(status as RideStatus)
+    ? (status as RideStatus)
+    : "pending";
+}
+
 export default function OrderDetailsScreen() {
-  const navigation = useNavigation<any>();
-  const route = useRoute<any>();
+  const navigation = useNavigation<
+    NativeStackNavigationProp<ClientStackParamList, "OrderDetails">
+  >();
+  const route = useRoute<RouteProp<ClientStackParamList, "OrderDetails">>();
   const [ride, setRide] = useState<Ride | null>(null);
   const [loading, setLoading] = useState(true);
 
   const rideIdFromParams = useMemo(() => {
-    const params = (route.params || {}) as any;
+    const params = route.params || {};
     if (params.rideId) return String(params.rideId);
     if (params.order?._id) return String(params.order._id);
     if (params.order?.id) return String(params.order.id);
@@ -128,8 +157,14 @@ export default function OrderDetailsScreen() {
   }
 
   const driverName =
-    (ride.driverId as any)?.name ||
-    (ride.driverId as any)?.nome ||
+    (typeof ride.driverId === "string"
+      ? undefined
+      : ride.driverId?.name ||
+        (ride.driverId &&
+        typeof ride.driverId === "object" &&
+        "nome" in ride.driverId
+          ? String((ride.driverId as Record<string, unknown>).nome || "")
+          : undefined)) ||
     "Motorista nao atribuido";
 
   return (
@@ -146,7 +181,7 @@ export default function OrderDetailsScreen() {
             <Text style={styles.headerTitle}>Status atual</Text>
             <Text style={styles.headerSub}>{formatDateTime(ride.updatedAt)}</Text>
           </View>
-          <StatusBadge status={ride.status as any} />
+          <StatusBadge status={normalizeRideStatus(String(ride.status || ""))} />
         </View>
 
         <View style={styles.section}>

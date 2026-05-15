@@ -122,7 +122,7 @@ export function DriverRequestCard({
           </Text>
         </MotiView>
         <Text style={{ color: "rgba(255, 255, 255, 0.45)", fontSize: 11, fontWeight: "700", marginTop: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>
-          {item.negotiation?.myOffer ? "Sua Contraproposta Enviada" : "Oferta proposta pelo cliente"}
+          {item.negotiation?.myOffer?.status === "client_countered" ? "Contraproposta do Cliente" : item.negotiation?.myOffer ? "Sua Contraproposta Enviada" : "Oferta proposta pelo cliente"}
         </Text>
 
         {item.negotiation?.enabled && !item.negotiation?.myOffer && (
@@ -296,7 +296,52 @@ export function DriverRequestCard({
       </View>
 
       {/* ⚡ Action Command Console Row */}
-      {item.negotiation?.myOffer ? (
+      {item.negotiation?.myOffer?.status === "client_countered" ? (
+        <View style={{ flexDirection: "row", gap: 12 }}>
+            <TouchableOpacity
+              onPress={() => onReject(item.rideId)}
+              style={{
+                flex: 1,
+                height: 56,
+                borderRadius: 16,
+                borderWidth: 1.5,
+                borderColor: "rgba(239, 68, 68, 0.3)",
+                backgroundColor: "rgba(239, 68, 68, 0.02)",
+                alignItems: "center",
+                justifyContent: "center",
+                flexDirection: "row",
+                gap: 6
+              }}
+              activeOpacity={0.7}
+            >
+              <Trash2 size={18} color="#ef4444" />
+              <Text style={{ color: "#ef4444", fontWeight: "900", fontSize: 14, textTransform: "uppercase", letterSpacing: 0.5 }}>Recusar</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => onAccept(item.rideId)}
+              style={{
+                flex: 1.4,
+                height: 56,
+                borderRadius: 16,
+                backgroundColor: "#02de95",
+                alignItems: "center",
+                justifyContent: "center",
+                flexDirection: "row",
+                gap: 8,
+                shadowColor: "#02de95",
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.3,
+                shadowRadius: 12,
+                elevation: 8,
+              }}
+              activeOpacity={0.8}
+            >
+              <Check size={20} color="#091A2F" strokeWidth={3} />
+              <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 14, textTransform: "uppercase", letterSpacing: 0.5 }}>Aceitar R$ {item.negotiation.myOffer.amount.toFixed(2).replace('.', ',')}</Text>
+            </TouchableOpacity>
+        </View>
+      ) : item.negotiation?.myOffer ? (
         <View style={{
           height: 56,
           borderRadius: 16,

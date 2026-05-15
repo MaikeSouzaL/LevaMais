@@ -2,27 +2,20 @@ import React, { useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { MaterialIcons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
 
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
 import { ClientScreenHeader, LoadingButton } from "../../../Shared/components";
 import rideService from "@/services/ride.service";
-
-type Params = {
-  RideCompleted: {
-    rideId: string;
-    total?: number;
-    pickupAddress?: string;
-    dropoffAddress?: string;
-    driverName?: string;
-    serviceType?: string;
-  };
-};
+import { ClientStackParamList } from "../../../types/navigation";
 
 export default function RideCompletedScreen() {
-  const navigation = useNavigation();
-  const route = useRoute<RouteProp<Params, "RideCompleted">>();
+  const navigation = useNavigation<
+    NativeStackNavigationProp<ClientStackParamList, "RideCompleted">
+  >();
+  const route = useRoute<RouteProp<ClientStackParamList, "RideCompleted">>();
   const rideId = route.params?.rideId;
   const total = route.params?.total;
   const pickupAddress = route.params?.pickupAddress;
@@ -165,18 +158,18 @@ export default function RideCompletedScreen() {
           title="Avaliar motorista"
           onPress={() =>
             rideId
-              ? (navigation as any).navigate("ClientRateDriver", {
+              ? navigation.navigate("ClientRateDriver", {
                   rideId,
                   driverName,
                   serviceType,
                 })
-              : (navigation as any).navigate("Home")
+              : navigation.navigate("Home")
           }
           variant="primary"
         />
         <LoadingButton
           title="Voltar ao inicio"
-          onPress={() => (navigation as any).navigate("Home")}
+          onPress={() => navigation.navigate("Home")}
           variant="ghost"
         />
       </View>

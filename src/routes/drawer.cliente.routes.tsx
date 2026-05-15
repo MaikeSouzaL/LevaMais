@@ -9,6 +9,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { useAuthStore } from "../context/authStore";
 import ClientStackRoutes from "./client.stack.routes";
+import { colors } from "@/theme";
 
 type DrawerClienteRoutesProps = {
   initialRideId?: string | null;
@@ -17,22 +18,22 @@ type DrawerClienteRoutesProps = {
 const Drawer = createDrawerNavigator();
 
 const menuItems = [
-  { route: "Home", label: "Inicio", icon: "home" },
-  { route: "History", label: "Historico", icon: "history" },
+  { route: "Home", label: "Início", icon: "home" },
+  { route: "History", label: "Histórico", icon: "history" },
   { route: "ActiveOrders", label: "Pedidos ativos", icon: "map-marker-path" },
-  { route: "ShiftOffersClient", label: "Plantoes motoboy", icon: "store-clock-outline" },
+  { route: "ShiftOffersClient", label: "Plantões motoboy", icon: "store-clock-outline" },
   { route: "Receipts", label: "Comprovantes", icon: "receipt-text-outline" },
   { route: "Wallet", label: "Carteira", icon: "wallet" },
   { route: "PaymentsCenter", label: "Pagamentos", icon: "credit-card-outline" },
   { route: "Coupons", label: "Cupons", icon: "ticket-percent-outline" },
   { route: "Profile", label: "Perfil", icon: "account-circle" },
-  { route: "NotificationsCenter", label: "Notificacoes", icon: "bell" },
+  { route: "NotificationsCenter", label: "Notificações", icon: "bell" },
   { route: "Favorites", label: "Favoritos", icon: "star" },
-  { route: "SafetyCenter", label: "Seguranca", icon: "shield-check" },
+  { route: "SafetyCenter", label: "Segurança", icon: "shield-check" },
   { route: "SupportCenter", label: "Suporte", icon: "lifebuoy" },
   { route: "PrivacyData", label: "Privacidade", icon: "shield-account-outline" },
   { route: "InviteFriends", label: "Convidar amigos", icon: "account-multiple-plus-outline" },
-  { route: "Settings", label: "Configuracoes", icon: "cog" },
+  { route: "Settings", label: "Configurações", icon: "cog" },
 ];
 
 function CustomDrawerContent(props: DrawerContentComponentProps) {
@@ -50,7 +51,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
   return (
     <DrawerContentScrollView
       {...props}
-      contentContainerStyle={{ flexGrow: 1, backgroundColor: "#091A2F" }}
+      contentContainerStyle={{ flexGrow: 1, backgroundColor: colors.background.primary }}
     >
       <View style={{ paddingHorizontal: 20, paddingVertical: 24 }}>
         <Text style={{ color: "white", fontSize: 20, fontWeight: "800" }}>
@@ -77,19 +78,19 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
                 paddingVertical: 12,
                 backgroundColor: active ? "rgba(2,222,149,0.12)" : "transparent",
                 borderLeftWidth: active ? 3 : 0,
-                borderLeftColor: "#02de95",
+                borderLeftColor: colors.primary[500],
               }}
               activeOpacity={0.8}
             >
               <MaterialCommunityIcons
                 name={item.icon as any}
                 size={22}
-                color={active ? "#02de95" : "rgba(255,255,255,0.75)"}
+                color={active ? colors.primary[500] : colors.text.secondary}
               />
               <Text
                 style={{
                   marginLeft: 12,
-                  color: active ? "#02de95" : "rgba(255,255,255,0.85)",
+                  color: active ? colors.primary[500] : colors.text.primary,
                   fontWeight: "700",
                   fontSize: 15,
                 }}
@@ -113,8 +114,8 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
           }}
           activeOpacity={0.8}
         >
-          <MaterialCommunityIcons name="logout" size={22} color="#ef4444" />
-          <Text style={{ marginLeft: 12, color: "#ef4444", fontWeight: "700" }}>
+          <MaterialCommunityIcons name="logout" size={22} color={colors.error} />
+          <Text style={{ marginLeft: 12, color: colors.error, fontWeight: "700" }}>
             Sair
           </Text>
         </TouchableOpacity>
@@ -134,7 +135,7 @@ export default function DrawerClienteRoutes({
         drawerType: "slide",
         overlayColor: "rgba(0,0,0,0.45)",
         drawerStyle: {
-          backgroundColor: "#091A2F",
+          backgroundColor: colors.background.primary,
           width: 300,
         },
       }}

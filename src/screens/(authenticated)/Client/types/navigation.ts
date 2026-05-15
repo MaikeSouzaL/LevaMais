@@ -50,6 +50,7 @@ export type ClientStackParamList = {
           latitude: number;
           longitude: number;
         };
+        showSuccessQueueModal?: boolean;
         currentLocation?: {
           address: string;
           latitude: number;
@@ -65,6 +66,8 @@ export type ClientStackParamList = {
     | {
         selectionMode?: string;
         returnScreen?: string;
+        favoriteId?: string;
+        favoriteData?: any;
         initialLocation?: {
           formattedAddress?: string;
           latitude: number;
@@ -72,6 +75,24 @@ export type ClientStackParamList = {
         };
         initialVehicle?: string;
         initialService?: string;
+      }
+    | undefined;
+  DestinationSearch:
+    | {
+        initialVehicle?: string;
+        preferScheduled?: boolean;
+        pickup?: {
+          address?: string;
+          formattedAddress?: string;
+          latitude: number;
+          longitude: number;
+        };
+        dropoff?: {
+          address?: string;
+          formattedAddress?: string;
+          latitude: number;
+          longitude: number;
+        };
       }
     | undefined;
   EditFavorite:
@@ -98,6 +119,16 @@ export type ClientStackParamList = {
     | undefined;
   FinalOrderSummary: { data: any };
   Payment: { amount: number; order?: any };
+  DeliverySetup:
+    | {
+        vehicleType?: string;
+        preferScheduled?: boolean;
+        pickup?: { address: string; latitude: number; longitude: number };
+        dropoff?: { address: string; latitude: number; longitude: number };
+        initialDistanceKm?: number | null;
+        initialDurationMin?: number | null;
+      }
+    | undefined;
   RideTracking: { rideId: string };
   Chat: { rideId: string; driverName?: string };
   RideCompleted: {

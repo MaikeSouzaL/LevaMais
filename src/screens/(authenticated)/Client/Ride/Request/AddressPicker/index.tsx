@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, StyleSheet, TouchableOpacity, ActivityIndicator, Modal, Text, TextInput, Alert, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import MapView, { Marker, Region } from 'react-native-maps';
 import { MaterialIcons } from '@expo/vector-icons';
 
@@ -17,11 +18,12 @@ import { useMapLocation } from '../../../Shared/hooks';
 import { darkMapStyle } from '@/utils/mapStyle';
 import googlePlacesService from '@/services/googlePlaces.service';
 import favoriteAddressService from '@/services/favoriteAddress.service';
+import { ClientStackParamList } from '../../../types/navigation';
 
 export default function AddressPickerScreen() {
-  const navigation = useNavigation();
-  const route = useRoute();
-  const { selectionMode, returnScreen, initialLocation, favoriteId, favoriteData, initialVehicle, initialService } = (route.params as any) || {};
+  const navigation = useNavigation<NativeStackNavigationProp<ClientStackParamList, "LocationPicker">>();
+  const route = useRoute<RouteProp<ClientStackParamList, "LocationPicker">>();
+  const { selectionMode, returnScreen, initialLocation, favoriteId, favoriteData, initialVehicle, initialService } = route.params || {};
   const isEditMode = !!favoriteId;
   
   const mapLocation = useMapLocation();
@@ -34,8 +36,8 @@ export default function AddressPickerScreen() {
   
   // Coordenada central atual
   const initialRegion = (favoriteData || initialLocation) ? {
-       latitude: favoriteData?.latitude || initialLocation.latitude,
-       longitude: favoriteData?.longitude || initialLocation.longitude,
+       latitude: favoriteData?.latitude || initialLocation?.latitude || mapLocation.region?.latitude || 0,
+       longitude: favoriteData?.longitude || initialLocation?.longitude || mapLocation.region?.longitude || 0,
        latitudeDelta: 0.002,
        longitudeDelta: 0.002,
   } : mapLocation.region;
@@ -232,14 +234,14 @@ export default function AddressPickerScreen() {
           "Origem pendente",
           "Defina sua localizacao de coleta antes de continuar.",
         );
-        (navigation as any).navigate("LocationPicker", {
+        navigation.navigate("LocationPicker", {
           selectionMode: "currentLocation",
           returnScreen: "Home",
         });
         return;
       }
 
-      (navigation as any).navigate("ServicePurpose", {
+      navigation.navigate("ServicePurpose", {
         vehicleType: initialVehicle,
         initialPurposeId: initialService,
         pickup: {
@@ -256,16 +258,37 @@ export default function AddressPickerScreen() {
       return;
     }
 
-    (navigation as any).navigate(returnScreen || 'Home', {
-      [selectionMode]: {
+    const homeParams: NonNullable<ClientStackParamList["Home"]> = {
+      initialVehicle,
+      initialService,
+    };
+
+    const locationPayload = {
+      address: resolvedAddress,
+      latitude: Number(finalLat),
+      longitude: Number(finalLng),
+      formattedAddress: resolvedAddress,
+    };
+
+    if (selectionMode === "pickup") {
+      homeParams.pickup = locationPayload;
+    } else if (selectionMode === "dropoff") {
+      homeParams.dropoff = locationPayload;
+    } else if (selectionMode === "home_dropoff") {
+      homeParams.home_dropoff = {
         address: resolvedAddress,
         latitude: Number(finalLat),
         longitude: Number(finalLng),
-        formattedAddress: resolvedAddress,
-      },
-      initialVehicle,
-      initialService
-    });
+      };
+    } else if (selectionMode === "currentLocation") {
+      homeParams.currentLocation = {
+        address: resolvedAddress,
+        latitude: Number(finalLat),
+        longitude: Number(finalLng),
+      };
+    }
+
+    navigation.navigate("Home", homeParams);
   };
 
   const handleOpenFavModal = () => {
@@ -289,6 +312,9 @@ export default function AddressPickerScreen() {
           setSavingFav(true);
           
           if (isEditMode) {
+              if (!favoriteId) {
+                  throw new Error("Favorito nao identificado para atualizacao.");
+              }
               await favoriteAddressService.update(favoriteId, {
                   name: favName,
                   address: selectedAddress,
@@ -323,9 +349,11 @@ export default function AddressPickerScreen() {
           
           if (selectionMode === 'favorite_creation' || isEditMode) {
               // Se o fluxo era apenas criar/editar favorito, voltamos direto
-              navigation.navigate(returnScreen || 'Home' as any, { 
-                  favorite_creation: true 
-              });
+              if (returnScreen === "Home") {
+                navigation.navigate("Home", { favorite_creation: true });
+              } else {
+                navigation.goBack();
+              }
           } else {
               Alert.alert('Sucesso', 'Endereço salvo nos favoritos!');
           }
@@ -403,7 +431,7 @@ export default function AddressPickerScreen() {
                      </Text>
                  </View>
                  {/* Botão Salvar Favorito (Apenas para Origem ou Criação) */}
-                 {['currentLocation', 'favorite_creation', 'pickup'].includes(selectionMode) && (
+                 {['currentLocation', 'favorite_creation', 'pickup'].includes(selectionMode || '') && (
                     <TouchableOpacity 
                         onPress={handleOpenFavModal} 
                         style={styles.favBtnIcon}

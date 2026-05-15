@@ -1,7 +1,6 @@
 import React, { useCallback, useState, useEffect } from "react";
 import { StyleSheet, StatusBar, Alert, View, Text, TouchableOpacity } from "react-native";
-import { useNavigation, useFocusEffect, useRoute } from "@react-navigation/native";
-import { DrawerNavigationProp } from "@react-navigation/drawer";
+import { NavigationProp, RouteProp, useNavigation, useFocusEffect, useRoute } from "@react-navigation/native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { MotiView } from "moti";
 import { Info } from "lucide-react-native";
@@ -24,10 +23,11 @@ import { ClientFloatingHeader } from "@/components/client/home/ClientFloatingHea
 import { ClientBottomSheet } from "@/components/client/home/ClientBottomSheet";
 import { FloatingActions } from "@/components/client/home/FloatingActions";
 import { colors } from "@/theme";
+import { ClientStackParamList } from "../types/navigation";
 
 export default function HomeScreen() {
-  const navigation = useNavigation<DrawerNavigationProp<any>>();
-  const route = useRoute<any>();
+  const navigation = useNavigation<NavigationProp<ClientStackParamList>>();
+  const route = useRoute<RouteProp<ClientStackParamList, "Home">>();
   const { userData: user } = useAuthStore();
   
   const [showHomeSuccessModal, setShowHomeSuccessModal] = useState(false);
@@ -36,7 +36,7 @@ export default function HomeScreen() {
     if (route.params?.showSuccessQueueModal) {
        setShowHomeSuccessModal(true);
        // Consumes the param so it doesn't retrigger on subsequent renders
-       navigation.setParams({ showSuccessQueueModal: undefined } as any);
+       navigation.setParams({ showSuccessQueueModal: undefined });
     }
   }, [route.params]);
   
@@ -189,10 +189,10 @@ export default function HomeScreen() {
   // Drawer Open
   const handleMenuPress = useCallback(() => {
     const parent = navigation.getParent();
-    if (parent && "openDrawer" in parent) {
-      (parent as any).openDrawer();
-    } else if ("openDrawer" in navigation) {
-      (navigation as any).openDrawer();
+    if (parent && "openDrawer" in parent && typeof parent.openDrawer === "function") {
+      parent.openDrawer();
+    } else if ("openDrawer" in navigation && typeof navigation.openDrawer === "function") {
+      navigation.openDrawer();
     } else {
       Alert.alert("Menu", "Navegador Drawer não encontrado.");
     }
@@ -210,13 +210,13 @@ export default function HomeScreen() {
       initialVehicle: defaultVehicle,
       preferScheduled: Boolean(options?.preferScheduled),
       // REMOVED pre-filled pickup to force user verification
-    } as never);
+    });
   }, [navigation, currentAddress, userRegion, region]);
 
   const handleSearchPress = useCallback(() => {
     navigation.navigate("DestinationSearch", {
       // REMOVED pre-filled pickup to force user verification
-    } as never);
+    });
   }, [navigation, currentAddress, userRegion, region]);
 
   const handleWalletPress = useCallback(() => {
@@ -244,7 +244,7 @@ export default function HomeScreen() {
   const handleSOS = useCallback(() => {
     try {
       // Navigates seamlessly to client-specific safety zone! 🛡️
-      navigation.navigate("ClientSafety" as any);
+      navigation.navigate("SafetyCenter");
     } catch {
       Alert.alert("SOS", "Ativando modo de emergência do passageiro...");
     }
@@ -287,7 +287,7 @@ export default function HomeScreen() {
         >
           <TouchableOpacity
             activeOpacity={0.9}
-            onPress={() => navigation.navigate("RideOffersMarketplace", { rideId: negotiationRideId } as never)}
+            onPress={() => navigation.navigate("RideOffersMarketplace", { rideId: negotiationRideId })}
             style={{
               backgroundColor: "#F59E0B",
               borderRadius: 16,
@@ -330,7 +330,7 @@ export default function HomeScreen() {
         >
           <TouchableOpacity
             activeOpacity={0.9}
-            onPress={() => navigation.navigate("ActiveOrders" as never)}
+            onPress={() => navigation.navigate("ActiveOrders")}
             className="bg-[#02de95] rounded-2xl p-4 flex-row items-center border border-white/10 shadow-xl"
           >
             <View className="bg-[#091A2F]/20 p-2 rounded-xl mr-3">
@@ -378,7 +378,7 @@ export default function HomeScreen() {
               latitude: Number(fav.latitude),
               longitude: Number(fav.longitude),
             }
-          } as never);
+          });
         }}
         onChangeSnap={(idx) => setSheetSnapIndex(idx)}
       />

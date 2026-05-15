@@ -7,21 +7,14 @@ import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Toast from "react-native-toast-message";
 
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
 import { ClientScreenHeader, LoadingButton } from "../../../Shared/components";
 import rideService from "@/services/ride.service";
 import { formatBRL } from "@/utils/mappers";
-
-type Params = {
-  ClientCancelRide: {
-    rideId: string;
-    total?: number;
-    status?: string;
-    estimatedFee?: number;
-  };
-};
+import { ClientStackParamList } from "../../../types/navigation";
 
 const CANCEL_REASONS = [
   "Mudei de ideia",
@@ -32,8 +25,8 @@ const CANCEL_REASONS = [
 ];
 
 export default function CancelRideScreen() {
-  const navigation = useNavigation();
-  const route = useRoute<RouteProp<Params, "ClientCancelRide">>();
+  const navigation = useNavigation<NativeStackNavigationProp<ClientStackParamList, "ClientCancelRide">>();
+  const route = useRoute<RouteProp<ClientStackParamList, "ClientCancelRide">>();
   const rideId = route.params?.rideId;
   const total = route.params?.total;
   const initialStatus = route.params?.status;
@@ -98,13 +91,14 @@ export default function CancelRideScreen() {
         text1: isDelivery ? "Entrega cancelada" : "Corrida cancelada",
       });
       if (chargedFee > 0) {
-        (navigation as any).replace("CancelFee", {
+        navigation.replace("CancelFee", {
+          rideId,
           fee: chargedFee,
           total: rideTotal,
           serviceType,
         });
       } else {
-        (navigation as any).reset({ index: 0, routes: [{ name: "Home" }] });
+        navigation.reset({ index: 0, routes: [{ name: "Home" }] });
       }
     } catch (error: any) {
       Toast.show({

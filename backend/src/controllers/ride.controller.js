@@ -767,7 +767,7 @@ class RideController {
         "negotiation.offers": {
           $elemMatch: {
             driverId: new mongoose.Types.ObjectId(driverId),
-            status: { $in: ["accepted", "countered"] },
+            status: { $in: ["accepted", "countered", "client_countered"] },
           },
         },
       })
@@ -1607,6 +1607,7 @@ class RideController {
           rideId: ride._id,
           amount: offer.amount
         });
+        io.to(`driver-${driverId}`).emit("waiting-queue-updated", { rideId: ride._id });
       }
 
       return res.json({

@@ -390,6 +390,17 @@ export function IncomingRideCard({
            return;
         }
 
+        if (myOffer && myOffer.status === "client_countered" && loadingState === "waiting") {
+           setLoadingState("idle");
+           setCounterValue(myOffer.amount || baseValue);
+           Toast.show({
+             type: "info",
+             text1: "Contraproposta Recebida!",
+             text2: "O cliente enviou uma nova proposta."
+           });
+           return;
+        }
+
         // 🛑 Terminal Cancel Status
         if (["cancelled", "cancelled_by_client", "expired"].includes(rideStatus)) {
            handleRideCancelled();
@@ -596,10 +607,7 @@ export function IncomingRideCard({
                 />
                 
                 <TouchableOpacity
-                  onPress={() => {
-                    setLoadingState("idle");
-                    sheetRef.current?.snapToIndex(0);
-                  }}
+                  onPress={onReject}
                   activeOpacity={0.7}
                   className="w-full py-3 bg-white/[0.03] border border-white/10 rounded-xl items-center"
                 >

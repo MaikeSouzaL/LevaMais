@@ -12,6 +12,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Toast from "react-native-toast-message";
 import { MaterialIcons } from "@expo/vector-icons";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
 import { ClientScreenHeader } from "../../Shared/components";
@@ -19,6 +20,7 @@ import { useClientCityStore } from "@/context/clientCityStore";
 import { useNavigation } from "@react-navigation/native";
 import userService from "@/services/user.service";
 import { useAuthStore } from "@/context/authStore";
+import { ClientStackParamList } from "../../types/navigation";
 
 const SETTINGS_STORAGE_KEY = "client-settings-v1";
 
@@ -45,7 +47,9 @@ const INTERVAL_OPTIONS = [
 ];
 
 export default function SettingsScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<
+    NativeStackNavigationProp<ClientStackParamList, "Settings">
+  >();
   const currentCity = useClientCityStore((s) => s.city);
   const [settings, setSettings] = useState<LocalSettings>(initialState);
   const [selectedInterval, setSelectedInterval] = useState<number | null>(null);
@@ -223,7 +227,7 @@ export default function SettingsScreen() {
         <Text style={styles.sectionTitle}>LOCALIZACAO</Text>
         <TouchableOpacity
           style={styles.actionCard}
-          onPress={() => (navigation as any).navigate("ClientCity")}
+          onPress={() => navigation.navigate("ClientCity")}
         >
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
             <View style={{ flex: 1 }}>
@@ -239,7 +243,7 @@ export default function SettingsScreen() {
         <Text style={styles.sectionTitle}>CONTA</Text>
         <TouchableOpacity
           style={styles.actionCard}
-          onPress={() => (navigation as any).navigate("EditAccount")}
+          onPress={() => navigation.navigate("EditAccount")}
         >
           <Text style={styles.actionTitle}>Editar dados da conta</Text>
           <Text style={styles.actionSubtitle}>Nome, telefone e informacoes pessoais</Text>

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, RefreshControl, TextInput } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { NavigationProp, useNavigation } from "@react-navigation/native";
 import { MaterialIcons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
 
@@ -10,6 +10,7 @@ import rideService, { Ride } from "@/services/ride.service";
 import { formatBRL } from "@/utils/mappers";
 import { Modal } from "@/components/Modal";
 import { Zap, Coins, TrendingDown } from "lucide-react-native";
+import { ClientStackParamList } from "../../types/navigation";
 
 function rideTitle(ride: Ride) {
   return ride.serviceType === "delivery" ? "Entrega" : "Corrida";
@@ -23,14 +24,14 @@ function mapStatusLabel(status?: string) {
 }
 
 export default function ActiveOrdersScreen() {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<NavigationProp<ClientStackParamList>>();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [rides, setRides] = useState<Ride[]>([]);
   const [editingRideId, setEditingRideId] = useState<string | null>(null);
   const [cancellingRideId, setCancellingRideId] = useState<string | null>(null);
 
-  const [adjustingRide, setAdjustingRide] = useState<any>(null);
+  const [adjustingRide, setAdjustingRide] = useState<Ride | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [pendingIncrement, setPendingIncrement] = useState("5");
   const [isSubtractMode, setIsSubtractMode] = useState(false);
@@ -60,7 +61,7 @@ export default function ActiveOrdersScreen() {
     }
   }, [load]);
 
-  const openConfirmModal = (ride: any, val: number) => {
+  const openConfirmModal = (ride: Ride, val: number) => {
     setAdjustingRide(ride);
     setPendingIncrement(val > 0 ? String(val) : "");
     setIsSubtractMode(false);
@@ -82,7 +83,7 @@ export default function ActiveOrdersScreen() {
     }
 
     const currentBase = Number(adjustingRide.negotiation?.clientOffer || adjustingRide.pricing?.total || 0);
-    const minFloor = Number(adjustingRide.negotiation?.initialClientOffer || adjustingRide.pricing?.subtotal || 5.00);
+    const minFloor = Number(adjustingRide.negotiation?.suggestedMinPrice || adjustingRide.pricing?.subtotal || 5.0);
     const finalPredict = currentBase + numVal;
 
     if (finalPredict < minFloor) {
@@ -419,7 +420,7 @@ export default function ActiveOrdersScreen() {
       >
          <View style={{ width: "100%", marginTop: 12, alignItems: "center" }}>
             <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 13, marginBottom: 12, textAlign: "center", lineHeight: 18 }}>
-               Ajuste o valor da proposta base. (Valor mínimo do seu chamado: <Text style={{ color: "#fff", fontWeight: "bold" }}>{formatBRL(Number(adjustingRide?.negotiation?.initialClientOffer || adjustingRide?.pricing?.subtotal || 5.00))}</Text>)
+               Ajuste o valor da proposta base. (Valor mínimo do seu chamado: <Text style={{ color: "#fff", fontWeight: "bold" }}>{formatBRL(Number(adjustingRide?.negotiation?.suggestedMinPrice || adjustingRide?.pricing?.subtotal || 5.0))}</Text>)
             </Text>
 
             {/* Chaveador de Operação (Somar / Subtrair) 🧬 */}

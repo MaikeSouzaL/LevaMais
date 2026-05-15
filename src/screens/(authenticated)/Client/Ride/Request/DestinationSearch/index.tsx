@@ -5,7 +5,7 @@ import favoriteAddressService from "@/services/favoriteAddress.service";
 import Toast from "react-native-toast-message";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import MapViewDirections from "react-native-maps-directions";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { NavigationProp, RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { Car, Bike } from "lucide-react-native";
 
 import { darkMapStyle } from "@/utils/mapStyle";
@@ -24,6 +24,7 @@ import { FloatingActions } from "@/components/client/home/FloatingActions";
 import { PremiumMapMarker } from "@/components/maps/PremiumMapMarker";
 import { PremiumDottedRoute } from "@/components/routes/PremiumDottedRoute";
 import { MotiView } from "moti";
+import { ClientStackParamList } from "../../../types/navigation";
 
 const { width, height } = Dimensions.get("window");
 const GOOGLE_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || "";
@@ -37,9 +38,9 @@ interface RealtimeVehicle {
 }
 
 export default function DestinationSearchScreen() {
-  const navigation = useNavigation<any>();
-  const route = useRoute();
-  const params = (route.params || {}) as any;
+  const navigation = useNavigation<NavigationProp<ClientStackParamList>>();
+  const route = useRoute<RouteProp<ClientStackParamList, "DestinationSearch">>();
+  const params = route.params || {};
 
   const { userRegion, currentAddress, region, mapRef, centerOnUser } = useMapLocation();
 
@@ -75,7 +76,7 @@ export default function DestinationSearchScreen() {
 
   const handleSOS = () => {
     try {
-      navigation.navigate("ClientSafety" as any);
+      navigation.navigate("SafetyCenter");
     } catch {
       Alert.alert("SOS", "Ativando modo de emergência do passageiro...");
     }
@@ -86,7 +87,7 @@ export default function DestinationSearchScreen() {
     params.dropoff
       ? {
           placeId: "predefined",
-          formattedAddress: params.dropoff.address,
+          formattedAddress: params.dropoff.address || "",
           latitude: Number(params.dropoff.latitude),
           longitude: Number(params.dropoff.longitude),
         }
@@ -107,7 +108,7 @@ export default function DestinationSearchScreen() {
     params.pickup
       ? {
           placeId: "predefined",
-          formattedAddress: params.pickup.address,
+          formattedAddress: params.pickup.address || "",
           latitude: Number(params.pickup.latitude),
           longitude: Number(params.pickup.longitude),
         }
