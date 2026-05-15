@@ -258,7 +258,7 @@ export default function RideOffersMarketplaceScreen() {
       {/* 🏷️ Premium Top Inset & HUD Header */}
       <View style={{ height: insets.top + 80, backgroundColor: "transparent", zIndex: 10 }}>
         <MarketplaceHeader 
-          onBack={() => navigation.goBack()} 
+          onBack={() => navigation.navigate("Home")} 
           offerCount={sortedOffers.length} 
           useDarkMap={true}
         />

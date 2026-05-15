@@ -999,6 +999,7 @@ export default function DriverHomeScreen() {
         text1: "Proposta Enviada! 🚀",
         text2: `Sua oferta de R$ ${amount.toFixed(2).replace(".", ",")} foi enviada ao cliente.`,
       });
+      await clearIncoming();
     } catch (err: any) {
       Toast.show({
         type: "error",

@@ -54,6 +54,7 @@ export default function HomeScreen() {
   const [favorites, setFavorites] = useState<any[]>([]);
   const [sheetSnapIndex, setSheetSnapIndex] = useState(0);
   const [waitingQueueCount, setWaitingQueueCount] = useState<number>(0);
+  const [negotiationRideId, setNegotiationRideId] = useState<string | null>(null);
   const [availability, setAvailability] = useState<{
     rideDrivers: number;
     deliveryDrivers: number;
@@ -76,28 +77,29 @@ export default function HomeScreen() {
 
     const checkActiveRide = async () => {
       try {
-        // 1. Sincroniza a lista completa de corridas do cliente para lidar com multiplos pedidos! ⚡
+        // 1. Sincroniza a lista completa de corridas do cliente
         const res = await rideService.getActiveList();
         if (!isMounted) return;
         
         const activeRides = res?.rides || [];
         
-        // 2. Filtra e conta quantas estão ativamente na Fila de Espera Geral (isWaitingInQueue)
+        // Find if any ride has active negotiations/offers
+        const rideWithOffers = activeRides.find(ride => (ride.negotiation?.offers?.length || 0) > 0);
+        if (rideWithOffers) {
+           setNegotiationRideId(rideWithOffers._id);
+        } else {
+           setNegotiationRideId(null);
+        }
+
+        // 2. Filtra Fila de Espera Geral (isWaitingInQueue)
         const queuedRides = activeRides.filter(ride => ride.isWaitingInQueue === true && ride.status === "requesting");
         setWaitingQueueCount(queuedRides.length);
 
-        // 3. Busca um pedido primário (que NÃO esteja em fila silenciosa) para disparar redirecionamento de tela ativa
+        // 3. Busca um pedido primário (que NÃO esteja em fila silenciosa)
         const primaryRide = activeRides.find(ride => !ride.isWaitingInQueue);
 
         if (primaryRide) {
-          // Cenário A: Existem propostas ativas de motorista? VAI DIRETO AO MARKETPLACE!
-          const offerCount = primaryRide.negotiation?.offers?.length || 0;
-          if (offerCount > 0) {
-             navigation.navigate("RideOffersMarketplace", { rideId: primaryRide._id } as never);
-             return;
-          }
-          
-          // Cenário B: Motorista aceitou? VAI DIRETO AO TRACKING/MAPA DE CORRIDA!
+          // Motorista aceitou? VAI DIRETO AO TRACKING/MAPA DE CORRIDA!
           if (primaryRide.driverId && ["accepted", "driver_arriving", "arrived", "in_progress"].includes(primaryRide.status)) {
              navigation.reset({
                index: 0,
@@ -105,14 +107,6 @@ export default function HomeScreen() {
              });
              return;
           }
-        }
-
-        // Cenário C: E se algum pedido da fila de espera receber uma proposta?
-        // Devemos monitorar TODOS os pedidos na fila e pular pro Marketplace instantaneamente se o motorista ofertar!
-        const queuedWithOffers = activeRides.find(ride => (ride.negotiation?.offers?.length || 0) > 0);
-        if (queuedWithOffers) {
-           navigation.navigate("RideOffersMarketplace", { rideId: queuedWithOffers._id } as never);
-           return;
         }
         
       } catch (err) {
@@ -284,12 +278,55 @@ export default function HomeScreen() {
         currentAddress={currentAddress}
       />
 
-      {/* 🚁 Premium Background Queue Awareness Banner (Sempre ativo enquanto houver pedidos em espera) */}
-      {waitingQueueCount > 0 && (
+      {/* 🌟 Yellow Active Proposals Banner */}
+      {negotiationRideId && (
         <MotiView
           from={{ opacity: 0, translateY: -20 }}
           animate={{ opacity: 1, translateY: 0 }}
-          className="absolute top-[135px] left-4 right-4 z-50 shadow-2xl"
+          style={{ position: 'absolute', top: 135, left: 16, right: 16, zIndex: 50, elevation: 10 }}
+        >
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={() => navigation.navigate("RideOffersMarketplace", { rideId: negotiationRideId } as never)}
+            style={{
+              backgroundColor: "#F59E0B",
+              borderRadius: 16,
+              padding: 16,
+              flexDirection: "row",
+              alignItems: "center",
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.2)",
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.2,
+              shadowRadius: 8,
+              elevation: 5
+            }}
+          >
+            <View style={{ backgroundColor: "rgba(9, 26, 47, 0.2)", padding: 8, borderRadius: 12, marginRight: 12 }}>
+               <Info size={20} color="#091A2F" />
+            </View>
+            <View style={{ flex: 1 }}>
+               <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 14, textTransform: "uppercase" }}>
+                 Propostas Recebidas
+               </Text>
+               <Text style={{ color: "rgba(9, 26, 47, 0.8)", fontWeight: "700", fontSize: 12 }}>
+                 Toque para avaliar as ofertas dos motoristas
+               </Text>
+            </View>
+            <View style={{ backgroundColor: "#091A2F", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}>
+               <Text style={{ color: "#F59E0B", fontWeight: "900", fontSize: 10 }}>VER</Text>
+            </View>
+          </TouchableOpacity>
+        </MotiView>
+      )}
+
+      {/* 🚁 Premium Background Queue Awareness Banner */}
+      {waitingQueueCount > 0 && !negotiationRideId && (
+        <MotiView
+          from={{ opacity: 0, translateY: -20 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          style={{ position: 'absolute', top: 135, left: 16, right: 16, zIndex: 50, elevation: 10 }}
         >
           <TouchableOpacity
             activeOpacity={0.9}

@@ -45,10 +45,10 @@ export function MarketplaceHeader({ onBack, offerCount, useDarkMap = true }: Mar
             </View>
             <View className="items-start">
               <Text className="text-white font-black text-[10.5px] tracking-[1.5px] uppercase leading-none mb-0.5">
-                Busca Ativa
+                Propostas Ativas
               </Text>
               <Text className="text-[#02de95] font-black text-[8px] tracking-wider uppercase leading-none">
-                {Math.max(3, offerCount + 2)} parceiros visualizando
+                {offerCount} {offerCount === 1 ? 'parceiro em negociação' : 'parceiros em negociação'}
               </Text>
             </View>
           </View>

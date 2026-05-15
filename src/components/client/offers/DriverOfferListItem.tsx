@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from "react";
-import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, Text, TouchableOpacity, ActivityIndicator, Image } from "react-native";
 import { MotiView } from "moti";
 import { BlurView } from "expo-blur";
 import { Star, Package, Clock, Check, MessageCircle, User, Timer, Shield, TrendingUp, Sparkles, Info } from "lucide-react-native";
@@ -20,6 +20,11 @@ export function DriverOfferListItem({ offer, clientBudget, onSelect, onDecline, 
   const driverName = useMemo(() => {
     if (typeof offer.driverId === "string") return "Entregador Parceiro";
     return offer.driverId?.name || "Entregador Parceiro";
+  }, [offer.driverId]);
+
+  const driverPhoto = useMemo(() => {
+    if (typeof offer.driverId === "string") return null;
+    return offer.driverId?.profilePhoto || null;
   }, [offer.driverId]);
 
   const isCheaperOrEqual = Number(offer.amount) <= clientBudget;
@@ -132,7 +137,11 @@ export function DriverOfferListItem({ offer, clientBudget, onSelect, onDecline, 
             }}
           >
             <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: '#112A49', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-              <User size={28} color="rgba(255,255,255,0.6)" />
+              {driverPhoto ? (
+                <Image source={{ uri: driverPhoto }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+              ) : (
+                <User size={28} color="rgba(255,255,255,0.6)" />
+              )}
             </View>
             {/* Online Glowing Indicator */}
             <MotiView

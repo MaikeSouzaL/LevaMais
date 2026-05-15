@@ -1,6 +1,25 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, Linking, ActivityIndicator, ScrollView, Alert } from "react-native";
+import { View, Text, TouchableOpacity, Linking, ActivityIndicator, ScrollView, Alert, Dimensions, StatusBar } from "react-native";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { BlurView } from "expo-blur";
+import { MotiView, AnimatePresence } from "moti";
+import { 
+  Layers, 
+  Package, 
+  Shield, 
+  TrendingUp, 
+  Clock, 
+  DollarSign, 
+  MapPin, 
+  Activity, 
+  ChevronLeft, 
+  Menu, 
+  RefreshCw, 
+  Sparkles,
+  AlertTriangle,
+  Check
+} from "lucide-react-native";
 
 import webSocketService from "../../../services/websocket.service";
 import driverAlertService from "../../../services/driverAlert.service";
@@ -14,6 +33,39 @@ import { DriverRequestCard } from "./components/DriverRequestCard";
 import { Modal } from "../../../components/Modal";
 import { formatBRL } from "@/utils/mappers";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+
+const { width, height } = Dimensions.get("window");
+
+interface OperationalBackgroundProps {
+  currentLoc?: { latitude: number; longitude: number };
+}
+function OperationalBackground({ currentLoc }: OperationalBackgroundProps) {
+  const MapViewModule = require("react-native-maps");
+  const MapView = MapViewModule.default;
+  const { darkMapStyle } = require("@/utils/mapStyle");
+
+  return (
+    <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 0, overflow: "hidden" }}>
+      <MapView
+        provider="google"
+        customMapStyle={darkMapStyle}
+        initialRegion={{
+          latitude: currentLoc?.latitude || -23.5505,
+          longitude: currentLoc?.longitude || -46.6333,
+          latitudeDelta: 0.05,
+          longitudeDelta: 0.05,
+        }}
+        style={{ width: width, height: height, opacity: 0.55 }}
+        scrollEnabled={false}
+        zoomEnabled={false}
+        rotateEnabled={false}
+        pitchEnabled={false}
+      />
+      <BlurView intensity={35} tint="dark" style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }} />
+      <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(9, 26, 47, 0.55)" }} />
+    </View>
+  );
+}
 
 type RideRequestItem = {
   rideId: string;
@@ -33,6 +85,10 @@ type RideRequestItem = {
     enabled?: boolean;
     clientOffer?: number | null;
     suggestedMinPrice?: number | null;
+    myOffer?: {
+      amount: number;
+      status: string;
+    } | null;
   };
   isWaitingInQueue?: boolean;
 };
@@ -40,6 +96,13 @@ type RideRequestItem = {
 export default function DriverRequestsScreen() {
   const navigation = useNavigation();
   const route = useRoute<any>();
+  const insets = useSafeAreaInsets();
+
+  // 🔐 Lock native header to implement premium transparent operational HUD
+  useEffect(() => {
+    navigation.setOptions({ headerShown: false });
+  }, [navigation]);
+
   const [requests, setRequests] = useState<RideRequestItem[]>([]);
   const [driverFilterInfo, setDriverFilterInfo] = useState<{
     status?: string;
@@ -78,6 +141,7 @@ export default function DriverRequestsScreen() {
             enabled: item?.negotiation?.enabled,
             clientOffer: item?.negotiation?.clientOffer,
             suggestedMinPrice: item?.negotiation?.suggestedMinPrice,
+            myOffer: item?.negotiation?.myOffer,
           },
         })),
       );
@@ -476,346 +540,378 @@ export default function DriverRequestsScreen() {
     Linking.openURL(url);
   };
 
-  const queueRequests = requests.filter((r) => r.isWaitingInQueue === true);
-  const realtimeRequests = requests.filter((r) => r.isWaitingInQueue !== true);
+  // 🔀 Advanced Operational Filtration System
+  const pendingIds = new Set(pendingNegotiations.map((n) => n.rideId));
+  const activeRequests = requests.filter((r) => !pendingIds.has(r.rideId));
+
+  const queueRequests = activeRequests.filter((r) => r.isWaitingInQueue === true);
+  const realtimeRequests = activeRequests.filter((r) => r.isWaitingInQueue !== true);
+
+  const currentTabCount =
+    activeTab === "queue"
+      ? queueRequests.length
+      : activeTab === "realtime"
+      ? realtimeRequests.length
+      : activeTab === "negotiation"
+      ? pendingNegotiations.length
+      : scheduledRides.length;
 
   return (
-    <DriverScreen
-      title="Solicitações"
-      padded={false}
-      hideHeader={true}
-      scroll={activeTab !== "scheduled"}
-      headerRight={
-        <Text style={{ color: "rgba(255,255,255,0.7)", fontWeight: "800" }}>
-          {activeTab === "queue"
-            ? queueRequests.length
-            : activeTab === "realtime"
-            ? realtimeRequests.length
-            : activeTab === "negotiation"
-            ? pendingNegotiations.length
-            : scheduledRides.length}
-        </Text>
-      }
-    >
-      {/* Abas Personalizadas Premium (3 Tabs System) */}
-      <View
-        style={{
-          flexDirection: "row",
-          backgroundColor: "rgba(255,255,255,0.05)",
-          borderRadius: 14,
-          padding: 4,
-          marginHorizontal: 16,
-          marginTop: 12,
-          marginBottom: 12,
-          borderWidth: 1,
-          borderColor: "rgba(255,255,255,0.06)",
+    <View style={{ flex: 1, backgroundColor: "#091A2F" }}>
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+
+      {/* 📡 Live Operational Ground Control Map */}
+      <OperationalBackground />
+
+      {/* 🛡️ Premium HUD Top Command Terminal */}
+      <View 
+        style={{ 
+          paddingTop: Math.max(insets.top, 16),
+          paddingHorizontal: 24,
+          paddingBottom: 16,
+          backgroundColor: "transparent",
+          borderBottomWidth: 1,
+          borderBottomColor: "rgba(255, 255, 255, 0.04)",
+          zIndex: 99,
         }}
       >
-        <TouchableOpacity
-          onPress={() => setActiveTab("queue")}
-          style={{
-            flex: 1,
-            paddingVertical: 10,
-            alignItems: "center",
-            borderRadius: 12,
-            backgroundColor: activeTab === "queue" ? "#02de95" : "transparent",
-          }}
-          activeOpacity={0.8}
-        >
-          <Text
-            style={{
-              color: activeTab === "queue" ? "#091A2F" : "#9ca5a3",
-              fontWeight: "900",
-              fontSize: 11,
-            }}
-            numberOfLines={1}
-          >
-            Fila ({queueRequests.length})
-          </Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+            <TouchableOpacity 
+              onPress={() => navigation.goBack()}
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 16,
+                backgroundColor: "rgba(255, 255, 255, 0.04)",
+                borderWidth: 1,
+                borderColor: "rgba(255, 255, 255, 0.06)",
+                alignItems: "center",
+                justifyContent: "center"
+              }}
+              activeOpacity={0.7}
+            >
+              <ChevronLeft size={22} color="#ffffff" />
+            </TouchableOpacity>
+            <View>
+              <Text style={{ color: "#ffffff", fontSize: 22, fontWeight: "900", letterSpacing: -0.5 }}>
+                Solicitações
+              </Text>
+              <Text style={{ color: "rgba(255, 255, 255, 0.4)", fontSize: 11, fontWeight: "700", letterSpacing: 0.3, textTransform: "uppercase", marginTop: 1 }}>
+                Central de Negociação Realtime
+              </Text>
+            </View>
+          </View>
 
-        <TouchableOpacity
-          onPress={() => setActiveTab("realtime")}
-          style={{
-            flex: 1,
-            paddingVertical: 10,
-            alignItems: "center",
-            borderRadius: 12,
-            backgroundColor: activeTab === "realtime" ? "#02de95" : "transparent",
-          }}
-          activeOpacity={0.8}
-        >
-          <Text
+          {/* 🟢 Live Operations Active Capsule Pod */}
+          <MotiView
+            from={{ scale: 0.95, opacity: 0.9 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ loop: true, duration: 3000, type: "timing" }}
             style={{
-              color: activeTab === "realtime" ? "#091A2F" : "#9ca5a3",
-              fontWeight: "900",
-              fontSize: 11,
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: "rgba(2, 222, 149, 0.08)",
+              borderWidth: 1,
+              borderColor: "rgba(2, 222, 149, 0.2)",
+              paddingHorizontal: 12,
+              paddingVertical: 6,
+              borderRadius: 12,
             }}
-            numberOfLines={1}
           >
-            Direto ({realtimeRequests.length})
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          onPress={() => {
-            setActiveTab("negotiation");
-            loadPendingNegotiations();
-          }}
-          style={{
-            flex: 1,
-            paddingVertical: 10,
-            alignItems: "center",
-            borderRadius: 12,
-            backgroundColor: activeTab === "negotiation" ? "#02de95" : "transparent",
-          }}
-          activeOpacity={0.8}
-        >
-          <Text
-            style={{
-              color: activeTab === "negotiation" ? "#091A2F" : "#9ca5a3",
-              fontWeight: "900",
-              fontSize: 11,
-            }}
-            numberOfLines={1}
-          >
-            Negociacoes ({pendingNegotiations.length})
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          onPress={() => {
-            setActiveTab("scheduled");
-            loadScheduledRides();
-          }}
-          style={{
-            flex: 1,
-            paddingVertical: 10,
-            alignItems: "center",
-            borderRadius: 12,
-            backgroundColor: activeTab === "scheduled" ? "#02de95" : "transparent",
-          }}
-          activeOpacity={0.8}
-        >
-          <Text
-            style={{
-              color: activeTab === "scheduled" ? "#091A2F" : "#9ca5a3",
-              fontWeight: "900",
-              fontSize: 11,
-            }}
-            numberOfLines={1}
-          >
-            Agendado ({scheduledRides.length})
-          </Text>
-        </TouchableOpacity>
+            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: "#02de95", marginRight: 6 }} />
+            <Text style={{ color: "#02de95", fontSize: 11, fontWeight: "900", letterSpacing: 0.5 }}>
+              {currentTabCount} ATIVAS
+            </Text>
+          </MotiView>
+        </View>
       </View>
+
+      {/* 🧬 Glassmorphic Operational Tabs Matrix */}
+      <View style={{ paddingHorizontal: 16, marginTop: 16, zIndex: 98 }}>
+        <View
+          style={{
+            flexDirection: "row",
+            backgroundColor: "rgba(11, 26, 42, 0.4)",
+            borderRadius: 20,
+            padding: 5,
+            borderWidth: 1,
+            borderColor: "rgba(255, 255, 255, 0.05)",
+          }}
+        >
+          {(["queue", "realtime", "negotiation", "scheduled"] as const).map((tab) => {
+            const isActive = activeTab === tab;
+            const tabLabels = {
+              queue: "Fila",
+              realtime: "Chamadas",
+              negotiation: "Negociações",
+              scheduled: "Agendados",
+            };
+            const tabCounts = {
+              queue: queueRequests.length,
+              realtime: realtimeRequests.length,
+              negotiation: pendingNegotiations.length,
+              scheduled: scheduledRides.length,
+            };
+
+            return (
+              <TouchableOpacity
+                key={tab}
+                onPress={() => {
+                  setActiveTab(tab);
+                  if (tab === "negotiation") loadPendingNegotiations();
+                  if (tab === "scheduled") loadScheduledRides();
+                }}
+                style={{
+                  flex: 1,
+                  height: 42,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: 16,
+                  position: "relative",
+                  overflow: "hidden",
+                }}
+                activeOpacity={0.85}
+              >
+                {isActive && (
+                  <MotiView
+                    from={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      backgroundColor: "#02de95",
+                      borderRadius: 16,
+                      shadowColor: "#02de95",
+                      shadowOffset: { width: 0, height: 4 },
+                      shadowOpacity: 0.3,
+                      shadowRadius: 8,
+                      elevation: 6,
+                      zIndex: -1
+                    }}
+                  />
+                )}
+                <Text
+                  style={{
+                    color: isActive ? "#091A2F" : "rgba(255, 255, 255, 0.45)",
+                    fontWeight: "900",
+                    fontSize: 10.5,
+                    textTransform: "uppercase",
+                    letterSpacing: 0.3
+                  }}
+                  numberOfLines={1}
+                >
+                  {tabLabels[tab]} ({tabCounts[tab]})
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* 🚨 Active Profile Filter Blueprint */}
       <View
         style={{
-          backgroundColor: "rgba(255,255,255,0.04)",
+          backgroundColor: "rgba(11, 26, 42, 0.35)",
           borderWidth: 1,
-          borderColor: "rgba(255,255,255,0.08)",
-          borderRadius: 12,
-          paddingHorizontal: 12,
-          paddingVertical: 10,
+          borderColor: "rgba(255, 255, 255, 0.03)",
+          borderRadius: 16,
+          paddingHorizontal: 16,
+          paddingVertical: 12,
           marginHorizontal: 16,
+          marginTop: 12,
           marginBottom: 8,
         }}
       >
-        <Text style={{ color: "rgba(255,255,255,0.65)", fontSize: 11, fontWeight: "700" }}>
-          FILTROS ATIVOS DE SOLICITACOES
-        </Text>
-        <Text style={{ color: "#fff", fontSize: 12, marginTop: 4 }}>
-          Status: {driverFilterInfo.status || "offline"} | Veiculo:{" "}
-          {driverFilterInfo.vehicleType || "nao definido"} | Servicos:{" "}
-          {driverFilterInfo.serviceTypes.length
-            ? driverFilterInfo.serviceTypes.join(", ")
-            : "nenhum"}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
+          <Layers size={12} color="rgba(255, 255, 255, 0.3)" />
+          <Text style={{ color: "rgba(255, 255, 255, 0.3)", fontSize: 9.5, fontWeight: "800", letterSpacing: 0.5, textTransform: "uppercase" }}>
+            Parâmetros de Varredura Ativos
+          </Text>
+        </View>
+        <Text style={{ color: "rgba(255, 255, 255, 0.7)", fontSize: 11.5, fontWeight: "600" }}>
+          Status: <Text style={{ color: "#02de95", fontWeight: "800" }}>{driverFilterInfo.status || "offline"}</Text> • {driverFilterInfo.vehicleType || "nao definido"} • {driverFilterInfo.serviceTypes.join(", ") || "nenhum"}
         </Text>
       </View>
 
-      {activeTab === "queue" ? (
-        queueRequests.length === 0 ? (
-          <DriverEmptyState title="Nenhuma solicitação na fila de espera." />
-        ) : (
-          queueRequests.map((r) => (
-            <DriverRequestCard
-              key={r.rideId}
-              item={r}
-              onAccept={accept}
-              onReject={reject}
-              onCounterOffer={counterOffer}
-            />
-          ))
-        )
-      ) : activeTab === "realtime" ? (
-        realtimeRequests.length === 0 ? (
-          <DriverEmptyState title="Nenhuma solicitação direta no momento." />
-        ) : (
-          realtimeRequests.map((r) => (
-            <DriverRequestCard
-              key={r.rideId}
-              item={r}
-              onAccept={accept}
-              onReject={reject}
-              onCounterOffer={counterOffer}
-            />
-          ))
-        )
-      ) : activeTab === "negotiation" ? (
-        pendingNegotiations.length === 0 ? (
-          <DriverEmptyState title="Nenhuma negociacao pendente aguardando cliente." />
-        ) : (
-          pendingNegotiations.map((r) => (
-            <DriverRequestCard
-              key={r.rideId}
-              item={r}
-              onAccept={accept}
-              onReject={reject}
-              onCounterOffer={counterOffer}
-            />
-          ))
-        )
-      ) : (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}>
-          <View
-            style={{
-              backgroundColor: "rgba(255,255,255,0.04)",
-              borderWidth: 1,
-              borderColor: "rgba(255,255,255,0.08)",
-              borderRadius: 12,
-              paddingHorizontal: 12,
-              paddingVertical: 10,
-              marginBottom: 12,
-            }}
-          >
-            <Text style={{ color: "rgba(255,255,255,0.65)", fontSize: 11, fontWeight: "700" }}>
-              FILTROS ATIVOS DE AGENDADOS
-            </Text>
-            <Text style={{ color: "#fff", fontSize: 12, marginTop: 4 }}>
-              Veiculo: {scheduledFilterInfo.vehicleType || "nao definido"} | Servicos:{" "}
-              {scheduledFilterInfo.serviceTypes.length
-                ? scheduledFilterInfo.serviceTypes.join(", ")
-                : "nenhum"}
-            </Text>
-          </View>
-          {loadingScheduled ? (
-            <View style={{ padding: 40, alignItems: "center" }}>
-              <ActivityIndicator size="large" color="#02de95" />
-              <Text style={{ color: "rgba(255,255,255,0.6)", marginTop: 12, fontWeight: "600" }}>Buscando agendamentos...</Text>
-            </View>
-          ) : scheduledRides.length === 0 ? (
-            <DriverEmptyState title="Nenhum agendamento pendente no momento." />
-          ) : (
-            scheduledRides.map((ride) => (
-              <View
-                key={ride._id}
-                style={{
-                  backgroundColor: "#11253E",
-                  borderRadius: 16,
-                  padding: 18,
-                  marginBottom: 16,
-                  borderWidth: 1,
-                  borderColor: "rgba(2,222,149,0.15)",
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.25,
-                  shadowRadius: 8,
-                  elevation: 5,
-                }}
-              >
-                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                    <MaterialCommunityIcons
-                      name={ride.serviceType === "delivery" ? "package-variant-closed" : "car-sports"}
-                      size={20}
-                      color="#02de95"
-                    />
-                    <Text style={{ color: "#fff", fontWeight: "900", fontSize: 15 }}>
-                      {ride.serviceType === "delivery" ? "Entrega Agendada" : "Corrida Agendada"}
+      {/* 🧬 Main Dynamic Operations Feed Scroll Matrix */}
+      <ScrollView 
+        style={{ flex: 1 }} 
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120, gap: 16, paddingTop: 8 }}
+      >
+        <AnimatePresence exitBeforeEnter>
+          {activeTab === "queue" && (
+            queueRequests.length === 0 ? (
+              <MotiView from={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                <DriverEmptyState title="Nenhuma solicitação na fila de espera." />
+              </MotiView>
+            ) : (
+              queueRequests.map((r, i) => (
+                <MotiView key={r.rideId} from={{ opacity: 0, translateY: 15 }} animate={{ opacity: 1, translateY: 0 }} transition={{ delay: i * 80 }}>
+                  <DriverRequestCard item={r} onAccept={accept} onReject={reject} onCounterOffer={counterOffer} />
+                </MotiView>
+              ))
+            )
+          )}
+
+          {activeTab === "realtime" && (
+            realtimeRequests.length === 0 ? (
+              <MotiView from={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                <DriverEmptyState title="Nenhuma solicitação direta no momento." />
+              </MotiView>
+            ) : (
+              realtimeRequests.map((r, i) => (
+                <MotiView key={r.rideId} from={{ opacity: 0, translateY: 15 }} animate={{ opacity: 1, translateY: 0 }} transition={{ delay: i * 80 }}>
+                  <DriverRequestCard item={r} onAccept={accept} onReject={reject} onCounterOffer={counterOffer} />
+                </MotiView>
+              ))
+            )
+          )}
+
+          {activeTab === "negotiation" && (
+            pendingNegotiations.length === 0 ? (
+              <MotiView from={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                <DriverEmptyState title="Nenhuma negociação ativa pendente." />
+              </MotiView>
+            ) : (
+              pendingNegotiations.map((r, i) => (
+                <MotiView key={r.rideId} from={{ opacity: 0, translateY: 15 }} animate={{ opacity: 1, translateY: 0 }} transition={{ delay: i * 80 }}>
+                  <DriverRequestCard item={r} onAccept={accept} onReject={reject} onCounterOffer={counterOffer} />
+                </MotiView>
+              ))
+            )
+          )}
+
+          {activeTab === "scheduled" && (
+            loadingScheduled ? (
+              <View style={{ padding: 60, alignItems: "center" }}>
+                <ActivityIndicator size="large" color="#02de95" />
+                <Text style={{ color: "rgba(255,255,255,0.4)", marginTop: 16, fontWeight: "700", fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  Acessando Banco de Reservas...
+                </Text>
+              </View>
+            ) : scheduledRides.length === 0 ? (
+              <DriverEmptyState title="Nenhum agendamento pendente." />
+            ) : (
+              scheduledRides.map((ride, i) => (
+                <MotiView
+                  key={ride._id}
+                  from={{ opacity: 0, translateY: 15 }}
+                  animate={{ opacity: 1, translateY: 0 }}
+                  transition={{ delay: i * 80 }}
+                  style={{
+                    backgroundColor: "#11253E",
+                    borderRadius: 24,
+                    padding: 20,
+                    borderWidth: 1,
+                    borderColor: "rgba(2,222,149,0.1)",
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 8 },
+                    shadowOpacity: 0.3,
+                    shadowRadius: 12,
+                    elevation: 6,
+                  }}
+                >
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: "rgba(2, 222, 149, 0.1)", alignItems: "center", justifyContent: "center" }}>
+                         <Package size={16} color="#02de95" />
+                      </View>
+                      <Text style={{ color: "#fff", fontWeight: "900", fontSize: 14, letterSpacing: -0.3 }}>
+                        {ride.serviceType === "delivery" ? "Entrega Agendada" : "Corrida Agendada"}
+                      </Text>
+                    </View>
+                    <Text style={{ color: "#02de95", fontWeight: "900", fontSize: 18 }}>
+                      {formatBRL(ride.pricing?.total || 0)}
                     </Text>
                   </View>
-                  <Text style={{ color: "#02de95", fontWeight: "900", fontSize: 18 }}>
-                    {formatBRL(ride.pricing?.total || 0)}
-                  </Text>
-                </View>
 
-                {/* Horário */}
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(2,222,149,0.08)", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, marginBottom: 14 }}>
-                  <MaterialCommunityIcons name="clock-outline" size={16} color="#02de95" />
-                  <Text style={{ color: "#fff", fontWeight: "800", fontSize: 13 }}>
-                    Para: {new Date(ride.scheduledFor).toLocaleString("pt-BR", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit", year: "numeric" })}
-                  </Text>
-                </View>
+                  {/* Schedule Horário Badge */}
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(255,255,255,0.03)", borderWidth: 1, borderColor: "rgba(255,255,255,0.05)", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, marginBottom: 16 }}>
+                    <Clock size={14} color="#02de95" />
+                    <Text style={{ color: "rgba(255, 255, 255, 0.8)", fontWeight: "800", fontSize: 12 }}>
+                      Execução: {new Date(ride.scheduledFor).toLocaleString("pt-BR", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" })}
+                    </Text>
+                  </View>
 
-                {/* Rotas */}
-                <View style={{ gap: 10, marginBottom: 16 }}>
-                  <View style={{ flexDirection: "row", gap: 10 }}>
-                    <View style={{ alignItems: "center", paddingTop: 4 }}>
-                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#02de95" }} />
-                      <View style={{ width: 1, flex: 1, backgroundColor: "rgba(255,255,255,0.15)", marginVertical: 4 }} />
+                  {/* Timeline Route */}
+                  <View style={{ gap: 12, marginBottom: 18, paddingLeft: 4 }}>
+                    <View style={{ flexDirection: "row", gap: 12 }}>
+                      <View style={{ alignItems: "center", paddingTop: 4 }}>
+                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#02de95", shadowColor: "#02de95", shadowOpacity: 0.6, shadowRadius: 4 }} />
+                        <View style={{ width: 0, flex: 1, borderLeftWidth: 1.5, borderColor: "rgba(255, 255, 255, 0.15)", borderStyle: "dashed", marginVertical: 4 }} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 9.5, fontWeight: "800", letterSpacing: 0.5 }}>PARTIDA (COLETA)</Text>
+                        <Text style={{ color: "#fff", fontSize: 13, fontWeight: "600", marginTop: 2 }}>{ride.pickup?.address}</Text>
+                      </View>
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ color: "rgba(255,255,255,0.45)", fontSize: 11, fontWeight: "700" }}>PARTIDA (COLETA)</Text>
-                      <Text style={{ color: "#fff", fontSize: 13, fontWeight: "600", marginTop: 2 }}>{ride.pickup?.address}</Text>
+                    <View style={{ flexDirection: "row", gap: 12 }}>
+                      <View style={{ alignItems: "center", paddingTop: 4 }}>
+                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#ef4444" }} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 9.5, fontWeight: "800", letterSpacing: 0.5 }}>DESTINO (ENTREGA)</Text>
+                        <Text style={{ color: "#fff", fontSize: 13, fontWeight: "600", marginTop: 2 }}>{ride.dropoff?.address}</Text>
+                      </View>
                     </View>
                   </View>
-                  <View style={{ flexDirection: "row", gap: 10 }}>
-                    <View style={{ alignItems: "center", paddingTop: 4 }}>
-                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#ef4444" }} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ color: "rgba(255,255,255,0.45)", fontSize: 11, fontWeight: "700" }}>DESTINO (ENTREGA)</Text>
-                      <Text style={{ color: "#fff", fontSize: 13, fontWeight: "600", marginTop: 2 }}>{ride.dropoff?.address}</Text>
-                    </View>
+
+                  {/* Actions Buttons */}
+                  <View style={{ flexDirection: "row", gap: 12 }}>
+                    <TouchableOpacity
+                      onPress={() => handleOpenMap(ride.pickup, ride.dropoff)}
+                      style={{
+                        flex: 1,
+                        height: 48,
+                        borderRadius: 14,
+                        borderWidth: 1,
+                        borderColor: "rgba(255,255,255,0.08)",
+                        backgroundColor: "rgba(255,255,255,0.02)",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexDirection: "row",
+                        gap: 8
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <MaterialCommunityIcons name="map-marker-distance" size={18} color="rgba(255,255,255,0.6)" />
+                      <Text style={{ color: "rgba(255,255,255,0.7)", fontWeight: "800", fontSize: 12, textTransform: "uppercase" }}>Ver rota</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      onPress={() => handleAcceptScheduled(ride._id)}
+                      style={{
+                        flex: 1.3,
+                        height: 48,
+                        borderRadius: 14,
+                        backgroundColor: "#02de95",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexDirection: "row",
+                        gap: 8,
+                        shadowColor: "#02de95",
+                        shadowOpacity: 0.3,
+                        shadowRadius: 6,
+                        elevation: 4
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Check size={18} color="#091A2F" strokeWidth={3} />
+                      <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 12, textTransform: "uppercase" }}>Reservar</Text>
+                    </TouchableOpacity>
                   </View>
-                </View>
-
-                {/* Ações */}
-                <View style={{ flexDirection: "row", gap: 12 }}>
-                  <TouchableOpacity
-                    onPress={() => handleOpenMap(ride.pickup, ride.dropoff)}
-                    style={{
-                      flex: 1,
-                      height: 44,
-                      borderRadius: 14,
-                      borderWidth: 1,
-                      borderColor: "rgba(255,255,255,0.12)",
-                      backgroundColor: "rgba(255,255,255,0.04)",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexDirection: "row",
-                      gap: 6
-                    }}
-                    activeOpacity={0.8}
-                  >
-                    <MaterialCommunityIcons name="map-marker-distance" size={18} color="#fff" />
-                    <Text style={{ color: "#fff", fontWeight: "900", fontSize: 13 }}>Ver rota</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={() => handleAcceptScheduled(ride._id)}
-                    style={{
-                      flex: 1.3,
-                      height: 44,
-                      borderRadius: 14,
-                      backgroundColor: "#02de95",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexDirection: "row",
-                      gap: 6
-                    }}
-                    activeOpacity={0.8}
-                  >
-                    <MaterialCommunityIcons name="calendar-check" size={18} color="#091A2F" />
-                    <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 13 }}>Aceitar</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ))
+                </MotiView>
+              ))
+            )
           )}
-        </ScrollView>
-      )}
+        </AnimatePresence>
+      </ScrollView>
 
+      {/* ⚠️ No Balance Modal Wrapper */}
       <Modal
         visible={showNoBalanceModal}
         title="Saldo Insuficiente"
@@ -828,6 +924,6 @@ export default function DriverRequestsScreen() {
           (navigation as any).navigate("DriverFinance", { screen: "DriverEarnings" });
         }}
       />
-    </DriverScreen>
+    </View>
   );
 }
