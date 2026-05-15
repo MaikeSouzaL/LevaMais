@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import { View, Text, TouchableOpacity, ActivityIndicator, StatusBar } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import Toast from "react-native-toast-message";
+import { GlobalMap } from "@/components/GlobalMap";
 import MapView, { PROVIDER_GOOGLE, Marker, Circle } from "react-native-maps";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { MotiView } from "moti";
@@ -520,11 +521,11 @@ export default function SearchingDriverScreen() {
       />
 
       {/* Background Deep Mapping Topology */}
-      <MapView
+      <GlobalMap
         ref={mapRef}
         style={{ flex: 1 }}
-        provider={PROVIDER_GOOGLE}
-        customMapStyle={useDarkMap ? darkMapStyle : undefined}
+        
+        useDarkStyle={useDarkMap}
         pitchEnabled={false}
         rotateEnabled={false}
         mapPadding={{ top: 110, right: 0, bottom: 390, left: 0 }}
@@ -566,7 +567,7 @@ export default function SearchingDriverScreen() {
             <NearbyDriversLayer drivers={drivers} />
           </>
         )}
-      </MapView>
+      </GlobalMap>
 
       {/* Realtime Dynamic System Error Banner (Inline) */}
       {!!error && (

@@ -91,6 +91,7 @@ export default function GooglePhonePromptScreen() {
 
         navigation.navigate("PhoneVerification", {
           phone: rawPhone,
+          codeSent: true,
           nextScreen: "SelectProfile",
           nextParams: {
             user: updatedUser,

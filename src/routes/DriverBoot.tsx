@@ -5,13 +5,24 @@ const LogoImg = require("../assets/Logo/logo.png");
 
 import DrawerDriverRoutes from "./drawer.driver.routes";
 import rideService from "../services/ride.service";
+import { useAuthStore } from "../context/authStore";
 
 export default function DriverBoot() {
+  const { userData, userType } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [initialRideId, setInitialRideId] = useState<string | null>(null);
 
+  const status = userData?.driverStatus || "none";
+  const isApproved = status === "approved";
+
   useEffect(() => {
     let mounted = true;
+
+    // Só busca corrida ativa se já estiver aprovado
+    if (!isApproved) {
+      setLoading(false);
+      return;
+    }
 
     (async () => {
       try {
@@ -32,7 +43,7 @@ export default function DriverBoot() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [isApproved]);
 
   if (loading) {
     return (
@@ -71,13 +82,17 @@ export default function DriverBoot() {
         </View>
 
         <Text style={{ color: "rgba(255,255,255,0.7)", marginTop: 32, fontWeight: '600', letterSpacing: 1 }}>
-          Carregando...
+          Preparando ambiente...
         </Text>
       </View>
     );
   }
 
-  return <DrawerDriverRoutes initialRideId={initialRideId} />;
+  if (userType === "driver") {
+    return <DrawerDriverRoutes initialRideId={initialRideId} />;
+  }
+
+  return null;
 }
 
 const styles = StyleSheet.create({

@@ -3,7 +3,6 @@ import { View, Text } from "react-native";
 import AuthRoutes from "./auth.routes";
 import ClientBoot from "./ClientBoot";
 import DriverBoot from "./DriverBoot";
-import DriverPendingRoutes from "./driver.pending.routes";
 import { useAuthStore } from "../context/authStore";
 import { getProfile } from "../services/auth.service";
 
@@ -94,14 +93,7 @@ export default function Routes() {
       mounted = false;
     };
   }, [
-    hasHydrated,
-    isAuthenticated,
-    userType,
-    userData?.id,
-    userData?.driverStatus,
     token,
-    updateUserType,
-    updateUserData,
     logout,
   ]);
 

@@ -15,24 +15,24 @@ import { NavigationContainer } from "@react-navigation/native";
 import Toast from "react-native-toast-message";
 import Routes from "./src/routes";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
+import { GoogleSignin } from "@react-native-google-signin/google-signin";
+import { CLIENTE_WEB_ID } from "@env";
 
 export default function App() {
   const [splashVisible, setSplashVisible] = useState(true);
-  
+
   const [fontsLoaded] = useFonts({
     Roboto_400Regular,
     Roboto_700Bold,
   });
 
-  // Mecanismo de segurança (Failsafe): Força a liberação do app após timeout máximo
-  // Isso garante que mesmo se uma fonte falhar em baixar, o App não trave eternamente!
+
   const [forceReady, setForceReady] = useState(false);
   useEffect(() => {
     const timer = setTimeout(() => setForceReady(true), 5000); // 5 segundos failsafe
     return () => clearTimeout(timer);
   }, []);
 
-  // Esconder barra de navegação do Android globalmente
   useEffect(() => {
     if (Platform.OS === "android") {
       NavigationBar.setVisibilityAsync("hidden");

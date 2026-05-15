@@ -39,13 +39,14 @@ export default function PhoneVerificationScreen() {
   const phone = route.params?.phone || "";
   const nextScreen = route.params?.nextScreen || "SelectProfile";
   const nextParams = route.params?.nextParams || {};
+  const codeSent = route.params?.codeSent || false;
 
   // State Hooks
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
-  const [countdown, setCountdown] = useState(0);
-  const [hasSentInitialCode, setHasSentInitialCode] = useState(false);
+  const [countdown, setCountdown] = useState(codeSent ? 60 : 0);
+  const [hasSentInitialCode, setHasSentInitialCode] = useState(codeSent);
 
   // Effect: Safeguard missing phone reference
   useEffect(() => {
@@ -129,7 +130,7 @@ export default function PhoneVerificationScreen() {
   }
 
   async function handleVerify() {
-    if (code.length < 6) {
+    if (code.length < 4) {
       Toast.show({ type: "error", text1: "Código incompleto", text2: "Preencha todos os dígitos" });
       return;
     }
@@ -218,23 +219,27 @@ export default function PhoneVerificationScreen() {
             transition={{ type: 'timing', duration: 500, delay: 200 }}
             style={styles.interactionContainer}
           >
-            <OTPInput value={code} onChange={setCode} />
+            <OTPInput value={code} onChange={setCode} cellCount={4} />
 
             {/* 🚀 Confirm Trigger */}
             <TouchableOpacity
               style={[
                 styles.primaryButton,
-                { backgroundColor: colors.primary[500] },
-                code.length < 6 && { opacity: 0.6 }
+                code.length < 4 || loading
+                  ? { backgroundColor: colors.background.secondary, opacity: 0.7 }
+                  : { backgroundColor: colors.primary[500] }
               ]}
               onPress={handleVerify}
-              disabled={loading || code.length < 6}
+              disabled={loading || code.length < 4}
               activeOpacity={0.85}
             >
               {loading ? (
                 <ActivityIndicator color="#000" />
               ) : (
-                <Text style={styles.buttonText}>Verificar</Text>
+                <Text style={[
+                  styles.buttonText,
+                  (code.length < 4 || loading) && { color: colors.text.tertiary }
+                ]}>Verificar</Text>
               )}
             </TouchableOpacity>
 

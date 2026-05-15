@@ -292,6 +292,10 @@ export default function DriverDocumentsScreen() {
           {renderDocThumbnail("FRENTE CRLV", "crlvFront", docs.crlvFront)}
           {renderDocThumbnail("VERSO CRLV", "crlvBack", docs.crlvBack)}
         </View>
+        <View style={{ flexDirection: "row", gap: 12, marginTop: 12 }}>
+          {renderDocThumbnail("FOTO DO VEÍCULO", "vehiclePhoto", docs.vehiclePhoto)}
+          <View style={{ flex: 1 }} />
+        </View>
       </View>
 
       {/* 🛡️ Grupo 3: Identidade e Veículo */}
@@ -303,8 +307,8 @@ export default function DriverDocumentsScreen() {
           </Text>
         </View>
         <View style={{ flexDirection: "row", gap: 12 }}>
-          {renderDocThumbnail("FOTO DO VEÍCULO", "vehiclePhoto", docs.vehiclePhoto)}
           {renderDocThumbnail("SELFIE DO MOTORISTA", "selfie", docs.selfie)}
+          <View style={{ flex: 1 }} />
         </View>
       </View>
 

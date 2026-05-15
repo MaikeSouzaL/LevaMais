@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { View, Dimensions, ScrollView, ActivityIndicator } from "react-native";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { GlobalMap } from "@/components/GlobalMap";
 import MapView, { Marker, PROVIDER_GOOGLE, Polyline } from "react-native-maps";
 import MapViewDirections from "react-native-maps-directions";
 import { BlurView } from "expo-blur";
@@ -142,11 +143,11 @@ export default function RideSetupScreen() {
     <View className="flex-1 bg-[#050F0C]">
       {/* 🌌 BACKGROUND LAYER: Dark Blured Active Map 🗺️ */}
       <View className="absolute inset-0 opacity-60">
-        <MapView
+        <GlobalMap
           ref={mapRef}
-          provider={PROVIDER_GOOGLE}
+          
           style={{ width: '100%', height: '100%' }}
-          customMapStyle={darkMapStyle}
+          useDarkStyle={true}
           showsCompass={false}
           initialRegion={{
             latitude: params.pickup?.latitude || 0,
@@ -188,7 +189,7 @@ export default function RideSetupScreen() {
             strokeColor="transparent"
             onReady={onDirectionsReady}
           />
-        </MapView>
+        </GlobalMap>
       </View>
 
       {/* 🌫️ BLUR LAYER covering the raw map, providing consistent readability over visual depth */}

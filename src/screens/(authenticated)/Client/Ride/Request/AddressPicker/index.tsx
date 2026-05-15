@@ -3,6 +3,7 @@ import { View, StyleSheet, TouchableOpacity, ActivityIndicator, Modal, Text, Tex
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { GlobalMap } from "@/components/GlobalMap";
 import MapView, { Marker, Region } from 'react-native-maps';
 import { MaterialIcons } from '@expo/vector-icons';
 
@@ -415,10 +416,10 @@ export default function AddressPickerScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={{ flex: 1 }}>
-        <MapView
+        <GlobalMap
             ref={mapLocation.mapRef}
             style={styles.map}
-            customMapStyle={useDarkMap ? darkMapStyle : undefined}
+            useDarkStyle={useDarkMap}
             initialRegion={initialRegion}
             onRegionChange={mapLocation.handleRegionChange}
             onRegionChangeComplete={onRegionChangeComplete}

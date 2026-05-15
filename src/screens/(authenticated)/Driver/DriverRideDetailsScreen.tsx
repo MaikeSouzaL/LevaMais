@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { View, Text, ScrollView, Dimensions, ActivityIndicator } from "react-native";
 import { useRoute, useNavigation } from "@react-navigation/native";
+import { GlobalMap } from "@/components/GlobalMap";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import { MaterialIcons, FontAwesome5, Ionicons } from "@expo/vector-icons";
 import { DriverScreen } from "./components/DriverScreen"; // Adjust path if needed
@@ -94,10 +95,10 @@ export default function DriverRideDetailsScreen() {
         
         {/* Map Section */}
         <View style={{ height: 250, borderRadius: 16, overflow: "hidden", margin: 16, marginBottom: 8, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" }}>
-          <MapView
+          <GlobalMap
             ref={mapRef}
             style={{ flex: 1 }}
-            provider={PROVIDER_GOOGLE}
+            
             initialRegion={{
               latitude: details.pickup.latitude,
               longitude: details.pickup.longitude,
@@ -120,7 +121,7 @@ export default function DriverRideDetailsScreen() {
                 strokeWidth={4}
                 strokeColor="#02de95"
             />
-          </MapView>
+          </GlobalMap>
         </View>
 
         {/* Status Header */}

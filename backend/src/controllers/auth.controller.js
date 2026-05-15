@@ -19,7 +19,19 @@ const RIDE_CAPABLE_VEHICLES = new Set(["motorcycle", "car"]);
 
 function normalizePhone(phone) {
   if (!phone) return "";
-  return String(phone).replace(/\D/g, "");
+  let normalized = String(phone).replace(/\D/g, "");
+
+  // Remove leading zero (comum em discagem interurbana no Brasil: 0 + DDD)
+  if ((normalized.length === 11 || normalized.length === 12) && normalized.startsWith("0")) {
+    normalized = normalized.substring(1);
+  }
+
+  // Remove prefixo 55 se presente (Brasil)
+  if ((normalized.length === 12 || normalized.length === 13) && normalized.startsWith("55")) {
+    normalized = normalized.substring(2);
+  }
+
+  return normalized;
 }
 
 function normalizePreferredPayment(value) {
@@ -346,7 +358,7 @@ class AuthController {
   // Login ou cadastro com Google
   async googleAuth(req, res) {
     try {
-      const { googleId, email, name, profilePhoto } = req.body;
+      const { googleId, email, name, profilePhoto, userType } = req.body;
 
       if (!googleId || !email) {
         return sendError(res, 400, "Google ID e email são obrigatórios");
@@ -357,27 +369,37 @@ class AuthController {
         $or: [{ googleId }, { email: email.toLowerCase() }],
       });
 
-      if (user) {
-        if (!user.isActive) {
-          return sendError(res, 401, "Conta desativada");
-        }
+      let isNewUser = false;
 
-        // Atualizar informações do Google se necessário
+      if (user) {
+        // Se o usuário já existe, atualizar informações do Google se necessário
         if (!user.googleId) {
           user.googleId = googleId;
         }
         if (profilePhoto && !user.profilePhoto) {
           user.profilePhoto = profilePhoto;
         }
+        
+        // Se um userType foi enviado e o usuário ainda não tem um definido ou se queremos permitir trocar agora
+        if (userType && ["client", "driver"].includes(userType)) {
+          user.userType = userType;
+        }
+        
         await user.save();
       } else {
         // Criar novo usuário
+        isNewUser = true;
+        
+        const resolvedUserType = ["client", "driver"].includes(String(userType || ""))
+          ? String(userType)
+          : "client";
+
         user = await User.create({
           googleId,
           email: email.toLowerCase(),
           name,
           profilePhoto,
-          userType: "client",
+          userType: resolvedUserType,
           acceptedTerms: true,
           acceptedTermsAt: new Date(),
           acceptedPrivacyAt: new Date(),
@@ -396,6 +418,7 @@ class AuthController {
         data: {
           user,
           token,
+          isNewUser,
         },
       });
     } catch (error) {
@@ -445,6 +468,7 @@ class AuthController {
         notificationsEnabled,
         enableMapAnimation,
         queueRedispatchInterval,
+        userType, // <-- Added userType
         // driver
         vehicleType,
         vehicleInfo,
@@ -461,6 +485,12 @@ class AuthController {
       }
       if (city !== undefined) user.city = String(city);
       if (profilePhoto !== undefined) user.profilePhoto = String(profilePhoto);
+      
+      if (userType !== undefined) {
+        if (["client", "driver", "admin"].includes(userType)) {
+          user.userType = userType;
+        }
+      }
 
       if (preferredPayment !== undefined) {
         const normalized = normalizePreferredPayment(preferredPayment);
@@ -1093,8 +1123,8 @@ class AuthController {
         });
       }
 
-      // Gerar código de 6 dígitos
-      const code = crypto.randomInt(100000, 999999).toString();
+      // Gerar código de 4 dígitos
+      const code = crypto.randomInt(1000, 9999).toString();
 
       // Definir expiração (10 minutos)
       const expiresAt = new Date();
@@ -1244,7 +1274,7 @@ class AuthController {
         { used: true },
       );
 
-      const code = crypto.randomInt(100000, 999999).toString();
+      const code = crypto.randomInt(1000, 9999).toString();
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
       await PhoneVerification.create({

@@ -3,6 +3,7 @@ import { View, Dimensions, StatusBar, Platform, Modal, Text, TextInput, Touchabl
 import { Heart, X, Star, Info } from "lucide-react-native";
 import favoriteAddressService from "@/services/favoriteAddress.service";
 import Toast from "react-native-toast-message";
+import { GlobalMap } from "@/components/GlobalMap";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import MapViewDirections from "react-native-maps-directions";
 import { NavigationProp, RouteProp, useNavigation, useRoute } from "@react-navigation/native";
@@ -287,12 +288,12 @@ export default function DestinationSearchScreen() {
 
       {/* 🗺️ Maps Implementation using 100% absolute placement utility */}
       <View className="absolute inset-0">
-        <MapView
+        <GlobalMap
           key={useDarkMap ? "client-dest-dark" : "client-dest-light"}
           ref={mapRef}
-          provider={PROVIDER_GOOGLE}
+          
           style={{ flex: 1, width: '100%', height: '100%' }}
-          customMapStyle={useDarkMap ? darkMapStyle : []}
+          useDarkStyle={useDarkMap}
           showsCompass={false}
           showsPointsOfInterest={false}
           showsBuildings={true}
@@ -355,7 +356,7 @@ export default function DestinationSearchScreen() {
               />
             </>
           )}
-        </MapView>
+        </GlobalMap>
       </View>
 
       {/* 💎 Overlaid User Controls without styleSheet */}

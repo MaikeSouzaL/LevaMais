@@ -16,7 +16,7 @@ import { DriverDepositModal } from "@/components/DriverDepositModal";
 import { QueueTagYellowFloating } from "@/components/QueueTagYellow";
 import { MapActionButtons } from "@/components/MapActionButtons";
 
-import GlobalMap from "../../../components/GlobalMap";
+
 import { useAuthStore } from "../../../context/authStore";
 import driverLocationService, {
   DriverStatus,
@@ -31,6 +31,7 @@ import userService from "../../../services/user.service";
 import { DriverBottomSheet } from "./components/DriverBottomSheet";
 import DriverOnboardingDashboard from "@/components/driver/home/DriverOnboardingDashboard";
 import { getCurrentLocationAndAddress } from "../../../utils/location";
+import { GlobalMap } from "@/components/GlobalMap";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import { decodePolyline, LatLng } from "../../../utils/polyline";
 import { LocationLoadingScreen } from "../../../components/ui/LocationLoadingScreen";
@@ -1108,6 +1109,7 @@ export default function DriverHomeScreen() {
             region={region ?? undefined}
             showsUserLocation={false}
             useDarkStyle={useDarkMap}
+            animateTo3DOnReady={true}
             onMapRef={(ref) => {
               mapRef.current = ref;
             }}
@@ -1268,7 +1270,7 @@ export default function DriverHomeScreen() {
             )}
 
             {/* ⚠️ URGENT QUEUE BANNER (Shown only if no active negotiations) */}
-            {waitingQueueCount > 0 && pendingNegotiationsCount === 0 && pendingRequests === 0 && (
+            {!!waitingQueueCount && pendingNegotiationsCount === 0 && pendingRequests === 0 && (
                <MotiView
                  from={{ opacity: 0, translateY: -20 }}
                  animate={{ opacity: 1, translateY: 0 }}

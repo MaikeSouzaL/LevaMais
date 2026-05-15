@@ -203,17 +203,10 @@ export default function SelectProfileScreen() {
           animate={{ opacity: 1, translateY: 0 }}
           transition={{ type: "timing", duration: 600 }}
           style={styles.textHeader}
-        >
-          <Text style={styles.mainHeading}>Como deseja usar o LEVA?</Text>
-          <Text style={styles.subHeading}>
-            Escolha como deseja acessar o ecossistema LEVA.
-          </Text>
-        </MotiView>
+        ><Text style={styles.mainHeading}>Como deseja usar o Leva+?</Text><Text style={styles.subHeading}>Escolha como deseja acessar o ecossistema Leva+.</Text></MotiView>
 
         {/* 💠 Modular Selection Section */}
-        <View style={styles.selectionZone}>
-          
-          <ModeSelectionCard
+        <View style={styles.selectionZone}><ModeSelectionCard
             isSelected={selectedProfile === "client"}
             onSelect={() => setSelectedProfile("client")}
             title="Pedir corridas e entregas"
@@ -221,19 +214,15 @@ export default function SelectProfileScreen() {
             Icon={Car}
             accentColor={colors.primary[500]}
             iconBgColor="rgba(2, 222, 149, 0.1)"
-          />
-
-          <ModeSelectionCard
+          /><ModeSelectionCard
             isSelected={selectedProfile === "driver"}
             onSelect={() => setSelectedProfile("driver")}
-            title="Trabalhar no LEVA"
-            description="Faça corridas, entregas e aumente seus ganhos utilizando o LEVA."
+            title="Trabalhar no Leva+"
+            description="Faça corridas, entregas e aumente seus ganhos utilizando o Leva+."
             Icon={Briefcase}
             accentColor="#FFF"
             iconBgColor="rgba(255, 255, 255, 0.05)"
-          />
-
-        </View>
+          /></View>
 
         {/* 🚀 Modularized Action Footer */}
         <ModeFooter 

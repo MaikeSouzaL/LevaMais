@@ -55,9 +55,9 @@ export const DeliveryPrioritySelector = ({ value, onChange }: DeliveryPrioritySe
         className="mt-2.5 flex-row items-center justify-center"
       >
         <Text className="text-[11px] text-slate-400 text-center font-medium italic">
-          {value === 0 && "🐢 Menor custo, maior janela de entrega."}
-          {value === 1 && "📦 Equilíbrio ideal para o dia a dia."}
-          {value === 2 && "🚀 Alerta máximo, coleta imediata."}
+          {value === 0 ? "🐢 Menor custo, maior janela de entrega." :
+           value === 1 ? "📦 Equilíbrio ideal para o dia a dia." :
+           value === 2 ? "🚀 Alerta máximo, coleta imediata." : ""}
         </Text>
       </MotiView>
     </View>

@@ -499,19 +499,17 @@ function ProposalStatusCard({ counterValue, baseValue, distanceKm, durationText,
   );
 }
 
+import { GlobalMap } from "@/components/GlobalMap";
+
 interface TacticalBackgroundProps {
   pickup: { latitude: number; longitude: number };
 }
 function TacticalBackground({ pickup }: TacticalBackgroundProps) {
-  const MapViewModule = require("react-native-maps");
-  const MapView = MapViewModule.default;
-  const { darkMapStyle } = require("@/utils/mapStyle");
-
   return (
     <View className="absolute inset-0 z-0 overflow-hidden">
-      <MapView
+      <GlobalMap
         provider="google"
-        customMapStyle={darkMapStyle}
+        useDarkStyle={true}
         initialRegion={{
           latitude: pickup?.latitude || -23.5505,
           longitude: pickup?.longitude || -46.6333,

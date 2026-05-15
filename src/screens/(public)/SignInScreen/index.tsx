@@ -31,6 +31,8 @@ import { useAuthStore } from "../../../context/authStore";
 import {
   GoogleSignin,
   isSuccessResponse,
+  isErrorWithCode,
+  statusCodes,
 } from "@react-native-google-signin/google-signin";
 import Toast from "react-native-toast-message";
 import { CLIENTE_WEB_ID } from "@env";
@@ -45,6 +47,8 @@ import { AuthInput } from "../../../components/auth/AuthInput";
 import { SocialLoginButtons } from "../../../components/auth/SocialLoginButtons";
 import { BackgroundMap } from "../../../components/visuals/BackgroundMap";
 import { Particles } from "../../../components/visuals/Particles";
+
+
 
 // 🔐 Google Authentication Initialization
 GoogleSignin.configure({
@@ -91,9 +95,14 @@ export default function SignInScreen() {
   // 💼 Handlers
   async function handleGoogleSignIn() {
     setGoogleLoading(true);
+    console.log("[GoogleSignIn] Início do processo");
     try {
+      console.log("[GoogleSignIn] Verificando Play Services");
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      
+      console.log("[GoogleSignIn] Iniciando signIn()");
       const userInfo = await GoogleSignin.signIn();
+      console.log("[GoogleSignIn] SignIn realizado com sucesso", userInfo);
 
       if (!isSuccessResponse(userInfo)) {
         Toast.show({ type: "error", text1: "Falha ao autenticar com Google" });
@@ -114,7 +123,7 @@ export default function SignInScreen() {
       });
 
       if (response.success && response.data) {
-        const { user: userData, token } = response.data;
+        const { user: userData, token, isNewUser } = response.data;
         const {
           _id,
           name: userName,
@@ -127,7 +136,7 @@ export default function SignInScreen() {
           city,
         } = userData;
 
-        // 🚨 Force Phone Capture if missing (User Request: Google signup MUST force phone confirmation)
+        // 🚨 Force Phone Capture if missing
         if (!phone) {
           const generatedPassword = `${userEmail}-${id}`;
           navigation.navigate("GooglePhonePrompt", {
@@ -137,6 +146,28 @@ export default function SignInScreen() {
               email: userEmail,
               password: generatedPassword,
               phone: "",
+              city: city || "",
+              userType: userType || undefined,
+              googleId: gId,
+              profilePhoto,
+              acceptedTerms,
+            },
+            token,
+          });
+          return;
+        }
+
+        // 🚀 If it's a NEW user, they MUST go to SelectProfile to choose between Client or Driver!
+        // Also if userType is not explicitly set (rare with defaults, but safe)
+        if (isNewUser || !userType) {
+          const generatedPassword = `${userEmail}-${id}`;
+          navigation.navigate("SelectProfile", {
+            user: {
+              _id,
+              name: userName,
+              email: userEmail,
+              password: generatedPassword,
+              phone: phone,
               city: city || "",
               userType: userType || undefined,
               googleId: gId,
@@ -196,7 +227,11 @@ export default function SignInScreen() {
         });
       }
     } catch (error: any) {
-            Toast.show({
+      console.error("[GoogleSignIn] Erro capturado no catch:", error);
+      if (isErrorWithCode(error)) {
+        console.log("[GoogleSignIn] Erro com código:", error.code);
+      }
+      Toast.show({
         type: "error",
         text1: "Erro ao fazer login com Google",
         text2: error.message || "Verifique sua conexão.",

@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { GlobalMap } from "@/components/GlobalMap";
 import MapView, { Marker, Polyline, AnimatedRegion } from "react-native-maps";
 import { MaterialIcons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
@@ -585,7 +586,7 @@ export default function RideTrackingScreen() {
   return (
     <ErrorBoundary componentName="RideTrackingScreen">
       <SafeAreaView style={styles.container}>
-      <MapView
+      <GlobalMap
         ref={mapRef}
         style={styles.map}
         initialRegion={{
@@ -594,7 +595,7 @@ export default function RideTrackingScreen() {
           latitudeDelta: 0.04,
           longitudeDelta: 0.04,
         }}
-        customMapStyle={useDarkMap ? darkMapStyle : undefined}
+        useDarkStyle={useDarkMap}
         showsUserLocation
       >
         {routeCoords.length >= 2 ? (
@@ -632,7 +633,7 @@ export default function RideTrackingScreen() {
     <MapMarker type="driver" />
   </Marker.Animated>
 )}
-      </MapView>
+      </GlobalMap>
 
       <View style={[styles.topCard, { top: Math.max(insets.top + 10, spacing.xl) }]}>
         <View style={styles.topHeaderRow}>

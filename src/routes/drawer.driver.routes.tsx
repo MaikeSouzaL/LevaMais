@@ -74,8 +74,20 @@ const menuItems = [
 
 function CustomDrawerContent(props: DrawerContentComponentProps) {
   const { logout, userData } = useAuthStore();
-
   const currentRouteName = props.state.routeNames[props.state.index];
+
+  const isApproved = userData?.driverStatus === "approved";
+  const filteredMenuItems = menuItems.filter((item) => {
+    if (isApproved) return true;
+    const allowed = [
+      "DriverHome",
+      "DriverVehicle",
+      "DriverDocuments",
+      "DriverProfile",
+      "DriverSupportCenter",
+    ];
+    return allowed.includes(item.name);
+  });
 
   return (
     <DrawerContentScrollView
@@ -98,7 +110,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
       </View>
 
       <View style={{ flex: 1, paddingTop: 12 }}>
-        {menuItems.map((item) => {
+        {filteredMenuItems.map((item) => {
           const isFocused = currentRouteName === item.name;
 
           return (

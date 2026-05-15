@@ -164,13 +164,18 @@ export async function getProfile(
 
     return response.data;
   } catch (error: any) {
+    // 🛡️ Graceful Gating: Don't log error if it's just a 401 (expired/invalid token)
+    // This avoids "scary" logs when the app is just cleaning up a stale session.
+    if (error.response?.status !== 401) {
+      console.error("Erro ao buscar perfil:", error);
+    }
+
     // Erro da API
     if (error.response?.data) {
       return error.response.data;
     }
 
     // Erro de rede ou outro
-    console.error("Erro ao buscar perfil:", error);
     return {
       success: false,
       message: error.message || "Erro de conexão. Verifique sua internet.",
@@ -363,7 +368,18 @@ export async function sendPhoneVerification(
   phone: string,
 ): Promise<ApiResponse<{ message: string }>> {
   try {
-    const normalizedPhone = String(phone || "").replace(/\D/g, "");
+    let normalizedPhone = String(phone || "").replace(/\D/g, "");
+    
+    // Remove leading zero (comum em discagem interurbana no Brasil: 0 + DDD)
+    if ((normalizedPhone.length === 11 || normalizedPhone.length === 12) && normalizedPhone.startsWith("0")) {
+      normalizedPhone = normalizedPhone.substring(1);
+    }
+
+    // Remove prefixo 55 se presente (Brasil)
+    if ((normalizedPhone.length === 12 || normalizedPhone.length === 13) && normalizedPhone.startsWith("55")) {
+      normalizedPhone = normalizedPhone.substring(2);
+    }
+
     if (normalizedPhone.length < 10 || normalizedPhone.length > 11) {
       return { success: false, message: "Telefone invalido" };
     }
@@ -386,7 +402,16 @@ export async function verifyPhoneCode(
   try {
     const currentCode = String(code || "").trim();
     
-    const normalizedPhone = String(phone || "").replace(/\D/g, "");
+    let normalizedPhone = String(phone || "").replace(/\D/g, "");
+    
+    // Remove leading zero
+    if ((normalizedPhone.length === 11 || normalizedPhone.length === 12) && normalizedPhone.startsWith("0")) {
+      normalizedPhone = normalizedPhone.substring(1);
+    }
+
+    if ((normalizedPhone.length === 12 || normalizedPhone.length === 13) && normalizedPhone.startsWith("55")) {
+      normalizedPhone = normalizedPhone.substring(2);
+    }
     const response = await apiPost<ApiResponse<{ verified: boolean }>>(
       "/auth/verify-phone-code",
       { phone: normalizedPhone, code: currentCode },

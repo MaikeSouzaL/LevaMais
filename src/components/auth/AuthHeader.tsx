@@ -1,11 +1,12 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { ArrowLeft } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { colors } from '../../theme/colors';
-import { fonts, fontSize } from '../../theme/typography';
 import { spacing } from '../../theme/dimensions';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+const LogoImg = require('../../assets/Logo/logo.png');
 
 interface AuthHeaderProps {
   showBackButton?: boolean;
@@ -30,8 +31,11 @@ export function AuthHeader({ showBackButton = true }: AuthHeaderProps) {
       )}
 
       <View style={styles.logoContainer}>
-        <Text style={styles.logoText}>LEVA</Text>
-        <View style={styles.logoDot} />
+        <Image 
+          source={LogoImg} 
+          style={styles.logoImage} 
+          resizeMode="contain" 
+        />
       </View>
       
       <View style={styles.spacer} />
@@ -50,35 +54,25 @@ const styles = StyleSheet.create({
     zIndex: 50,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: colors.background.tertiary,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.border.light,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   logoContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  logoText: {
-    fontFamily: fonts.bold,
-    fontSize: 20,
-    color: colors.primary[500],
-    letterSpacing: 2,
-    fontWeight: '900',
-  },
-  logoDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.primary[500],
-    marginBottom: 5,
-    marginLeft: 2,
+  logoImage: {
+    width: 140,
+    height: 45,
   },
   spacer: {
-    width: 40, // matches backButton width for accurate centering
+    width: 44, // matches backButton width for accurate centering
   }
 });

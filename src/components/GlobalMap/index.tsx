@@ -1,10 +1,9 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useImperativeHandle, forwardRef } from "react";
 import {
   StyleSheet,
   Platform,
   View,
   TouchableOpacity,
-  Text,
 } from "react-native";
 import MapView, {
   MapViewProps,
@@ -15,8 +14,8 @@ import MapView, {
 import { MaterialIcons } from "@expo/vector-icons";
 import { darkMapStyle } from "@/utils/mapStyle";
 
-export type GlobalMapProps = {
-  initialRegion: Region;
+export interface GlobalMapProps extends Omit<MapViewProps, "customMapStyle"> {
+  initialRegion?: Region;
   region?: Region;
   showsUserLocation?: boolean;
   /**
@@ -27,41 +26,59 @@ export type GlobalMapProps = {
   useDarkStyle?: boolean;
   onMapRef?: (ref: MapView | null) => void;
   onPressMyLocation?: () => void;
-  onMapRegionChange?: (region: Region) => void;
-  onRegionChangeComplete?: (region: Region) => void;
-  children?: MapViewProps["children"];
-};
+  /**
+   * Se verdadeiro, o mapa fará uma animação de câmera inclinada 3D quando estiver pronto.
+   * Ideal para a Home Screen do motorista.
+   */
+  animateTo3DOnReady?: boolean;
+}
 
-export function GlobalMap({
+export const GlobalMap = forwardRef<MapView, GlobalMapProps>(({
   initialRegion,
   region,
   showsUserLocation = true,
   useDarkStyle = true,
   onMapRef,
   onPressMyLocation,
-  onMapRegionChange,
-  onRegionChangeComplete,
+  animateTo3DOnReady = false,
   children,
-}: GlobalMapProps) {
+  onMapReady,
+  ...restProps
+}, ref) => {
   const mapRef = useRef<MapView>(null);
   const didApply3DRef = useRef(false);
 
+  // Expose the internal ref to the parent ref provided via React.forwardRef
+  useImperativeHandle(ref, () => mapRef.current!);
+
   useEffect(() => {
-    onMapRef?.(mapRef.current);
+    if (mapRef.current) {
+      onMapRef?.(mapRef.current);
+    }
   }, [onMapRef]);
 
-  // Log de diagnóstico pro dev verificar se as tiles do Google Maps carregaram
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      console.log(
-        "[GlobalMap] Se o mapa está branco/vazio (só pin de localização), verifique:\n" +
-          "1) Google Maps API Key configurada no AndroidManifest.xml\n" +
-          "2) Maps SDK for Android habilitado no Google Cloud Console\n" +
-          "3) Key sem restrições de package/SHA1 (ou package correto adicionado)",
-      );
-    }, 3000);
-    return () => clearTimeout(timer);
-  }, []);
+  const handleMapReady = () => {
+    onMapReady?.();
+
+    if (animateTo3DOnReady && !didApply3DRef.current) {
+      didApply3DRef.current = true;
+      const center = region || initialRegion;
+      if (center && mapRef.current) {
+        mapRef.current.animateCamera(
+          {
+            center: {
+              latitude: center.latitude,
+              longitude: center.longitude,
+            },
+            heading: 0,
+            pitch: 45,
+            zoom: 16,
+          },
+          { duration: 700 }
+        );
+      }
+    }
+  };
 
   return (
     <View style={{ flex: 1 }}>
@@ -74,11 +91,7 @@ export function GlobalMap({
         style={StyleSheet.absoluteFillObject}
         initialRegion={initialRegion}
         region={region}
-        onRegionChange={onMapRegionChange}
-        onRegionChangeComplete={onRegionChangeComplete}
-        // Em alguns devices o Google Maps não aplica/remove o style dinamicamente.
-        // Forçamos remount via key e usamos [] para resetar.
-        customMapStyle={useDarkStyle ? darkMapStyle : []}
+        customMapStyle={useDarkStyle ? darkMapStyle : undefined}
         showsUserLocation={showsUserLocation}
         showsMyLocationButton={false}
         showsCompass={false}
@@ -90,27 +103,8 @@ export function GlobalMap({
         scrollEnabled={true}
         zoomEnabled={true}
         pitchEnabled={true}
-        onMapReady={() => {
-          console.log("[GlobalMap] MapView ready (tiles devem carregar agora)");
-          if (didApply3DRef.current) return;
-          didApply3DRef.current = true;
-          const center = region || initialRegion;
-          mapRef.current?.animateCamera(
-            {
-              center: {
-                latitude: center.latitude,
-                longitude: center.longitude,
-              },
-              heading: 0,
-              pitch: 45,
-              zoom: 16,
-            },
-            { duration: 700 },
-          );
-        }}
-        onMapLoaded={() => {
-          console.log("[GlobalMap] MapView loaded completamente");
-        }}
+        onMapReady={handleMapReady}
+        {...restProps}
       >
         {children}
       </MapView>
@@ -123,14 +117,15 @@ export function GlobalMap({
               width: 48,
               height: 48,
               borderRadius: 24,
-              backgroundColor: "rgba(21,46,38,0.9)",
+              backgroundColor: "rgba(9,26,47,0.9)",
               borderWidth: 1,
-              borderColor: "rgba(255,255,255,0.1)",
+              borderColor: "rgba(255,255,255,0.15)",
               alignItems: "center",
               justifyContent: "center",
               shadowColor: "#000",
               shadowOpacity: 0.5,
-              shadowRadius: 12,
+              shadowRadius: 8,
+              elevation: 4,
             }}
             activeOpacity={0.8}
           >
@@ -140,6 +135,6 @@ export function GlobalMap({
       )}
     </View>
   );
-}
+});
 
 export default GlobalMap;

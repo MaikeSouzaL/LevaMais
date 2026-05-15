@@ -154,11 +154,10 @@ export default function LocationPermissionScreen({
         {/* Texto principal */}
         <View className="items-center mb-8">
           <Text className="text-white text-3xl font-bold mb-4 text-center">
-            Habilite sua localização
+            Permissões do App
           </Text>
           <Text className="text-gray-400 text-base text-center leading-6 px-4">
-            Precisamos da sua localização para encontrar entregadores próximos e
-            rastrear sua entrega com precisão.
+            Para começar, precisamos da sua localização para te conectar às melhores rotas. Fique tranquilo, só mais tarde pediremos acesso à sua câmera e galeria para completar o seu perfil!
           </Text>
         </View>
 

@@ -35,21 +35,18 @@ import { Modal } from "../../../components/Modal";
 import { formatBRL } from "@/utils/mappers";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
+import { GlobalMap } from "@/components/GlobalMap";
 const { width, height } = Dimensions.get("window");
 
 interface OperationalBackgroundProps {
   currentLoc?: { latitude: number; longitude: number };
 }
 function OperationalBackground({ currentLoc }: OperationalBackgroundProps) {
-  const MapViewModule = require("react-native-maps");
-  const MapView = MapViewModule.default;
-  const { darkMapStyle } = require("@/utils/mapStyle");
-
   return (
     <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 0, overflow: "hidden" }}>
-      <MapView
+      <GlobalMap
         provider="google"
-        customMapStyle={darkMapStyle}
+        useDarkStyle={true}
         initialRegion={{
           latitude: currentLoc?.latitude || -23.5505,
           longitude: currentLoc?.longitude || -46.6333,

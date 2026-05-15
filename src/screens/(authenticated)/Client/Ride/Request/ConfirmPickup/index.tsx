@@ -9,6 +9,7 @@ import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { MaterialIcons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
+import { GlobalMap } from "@/components/GlobalMap";
 import MapView, { Marker } from "react-native-maps";
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
 import { LoadingButton } from "../../../Shared/components";
@@ -114,12 +115,12 @@ export default function ConfirmPickupScreen() {
 
   return (
     <View style={styles.container}>
-      <MapView
+      <GlobalMap
         ref={mapRef}
         style={styles.map}
         region={region}
         onRegionChangeComplete={setRegion}
-        customMapStyle={useDarkMap ? darkMapStyle : undefined}
+        useDarkStyle={useDarkMap}
         showsUserLocation
         showsMyLocationButton={false}
       >
@@ -134,7 +135,7 @@ export default function ConfirmPickupScreen() {
           }}
           title="Ponto de coleta"
         />
-      </MapView>
+      </GlobalMap>
 
       <TouchableOpacity
         style={styles.backButton}

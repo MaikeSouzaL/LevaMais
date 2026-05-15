@@ -180,7 +180,7 @@ export default function DriverOnboardingDashboard() {
             transition={{ duration: 500, delay: 300 }}
             style={styles.stepsZone}
           >
-            {driverStatus === "rejected" && (
+            {driverStatus === "rejected" ? (
               <View style={styles.rejectedBanner}>
                 <AlertCircle size={20} color="#ef4444" style={{ marginRight: 10 }} />
                 <View style={{ flex: 1 }}>
@@ -190,77 +190,79 @@ export default function DriverOnboardingDashboard() {
                   </Text>
                 </View>
               </View>
-            )}
+            ) : null}
 
             <Text style={styles.stepsHeadline}>Checklist de Configuração</Text>
 
-            {onboardingSteps.map((step, idx) => {
-              const Icon = step.icon;
-              const isClickable = !!step.action && step.status !== "completed";
+            <React.Fragment>
+              {onboardingSteps.map((step) => {
+                const Icon = step.icon;
+                const isClickable = !!step.action && step.status !== "completed";
 
-              return (
-                <TouchableOpacity
-                  key={step.id}
-                  disabled={!isClickable}
-                  onPress={step.action || undefined}
-                  style={[
-                    styles.stepCard,
-                    step.status === "completed" && styles.stepCardCompleted,
-                    step.status === "processing" && styles.stepCardProcessing,
-                    isClickable && styles.stepCardClickable,
-                  ]}
-                  activeOpacity={0.8}
-                >
-                  <View style={[
-                    styles.stepIconContainer,
-                    step.status === "completed" && { backgroundColor: "rgba(2,222,149,0.1)" },
-                    step.status === "processing" && { backgroundColor: "rgba(245,158,11,0.1)" },
-                    step.status === "locked" && { opacity: 0.5 },
-                  ]}>
-                    <Icon 
-                      size={22} 
-                      color={
-                        step.status === "completed" ? "#02de95" : 
-                        step.status === "processing" ? "#f59e0b" : 
-                        "rgba(255,255,255,0.5)"
-                      } 
-                    />
-                  </View>
-
-                  <View style={styles.stepContent}>
-                    <Text style={[
-                      styles.stepTitle,
-                      step.status === "locked" && { color: "rgba(255,255,255,0.3)" }
+                return (
+                  <TouchableOpacity
+                    key={step.id}
+                    disabled={!isClickable}
+                    onPress={step.action || undefined}
+                    style={[
+                      styles.stepCard,
+                      step.status === "completed" && styles.stepCardCompleted,
+                      step.status === "processing" && styles.stepCardProcessing,
+                      isClickable && styles.stepCardClickable,
+                    ]}
+                    activeOpacity={0.8}
+                  >
+                    <View style={[
+                      styles.stepIconContainer,
+                      step.status === "completed" && { backgroundColor: "rgba(2,222,149,0.1)" },
+                      step.status === "processing" && { backgroundColor: "rgba(245,158,11,0.1)" },
+                      step.status === "locked" && { opacity: 0.5 },
                     ]}>
-                      {step.title}
-                    </Text>
-                    <Text style={[
-                      styles.stepDesc,
-                      step.status === "locked" && { color: "rgba(255,255,255,0.2)" }
-                    ]}>
-                      {step.desc}
-                    </Text>
-                  </View>
+                      <Icon 
+                        size={22} 
+                        color={
+                          step.status === "completed" ? "#02de95" : 
+                          step.status === "processing" ? "#f59e0b" : 
+                          "rgba(255,255,255,0.5)"
+                        } 
+                      />
+                    </View>
 
-                  <View style={styles.stepIndicator}>
-                    {step.status === "completed" ? (
-                      <CheckCircle2 size={22} color="#02de95" fill="rgba(2,222,149,0.15)" />
-                    ) : step.status === "processing" ? (
-                      <ActivityIndicator size="small" color="#f59e0b" />
-                    ) : step.status === "locked" ? (
-                      <View style={styles.lockDot} />
-                    ) : (
-                      <MotiView
-                        animate={{ translateX: [0, 3, 0] }}
-                        transition={{ loop: true, duration: 1200, type: "timing" }}
-                      >
-                        <ChevronRight size={20} color="#02de95" />
-                      </MotiView>
-                    )}
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
+                    <View style={styles.stepContent}>
+                      <Text style={[
+                        styles.stepTitle,
+                        step.status === "locked" && { color: "rgba(255,255,255,0.3)" }
+                      ]}>
+                        {step.title}
+                      </Text>
+                      <Text style={[
+                        styles.stepDesc,
+                        step.status === "locked" && { color: "rgba(255,255,255,0.2)" }
+                      ]}>
+                        {step.desc}
+                      </Text>
+                    </View>
+
+                    <View style={styles.stepIndicator}>
+                      {step.status === "completed" ? (
+                        <CheckCircle2 size={22} color="#02de95" fill="rgba(2,222,149,0.15)" />
+                      ) : step.status === "processing" ? (
+                        <ActivityIndicator size="small" color="#f59e0b" />
+                      ) : step.status === "locked" ? (
+                        <View style={styles.lockDot} />
+                      ) : (
+                        <MotiView
+                          animate={{ translateX: [0, 3, 0] }}
+                          transition={{ loop: true, duration: 1200, type: "timing" }}
+                        >
+                          <ChevronRight size={20} color="#02de95" />
+                        </MotiView>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </React.Fragment>
           </MotiView>
         )}
 

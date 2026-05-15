@@ -52,6 +52,7 @@ export type UpdateProfilePayload = Partial<
     | "name"
     | "phone"
     | "city"
+    | "userType"
     | "profilePhoto"
     | "preferredPayment"
     | "notificationsEnabled"

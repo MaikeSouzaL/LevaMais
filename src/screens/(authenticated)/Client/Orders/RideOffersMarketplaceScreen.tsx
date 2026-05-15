@@ -18,6 +18,8 @@ import { Modal } from "@/components/Modal";
 import { MarketplaceHeader } from "@/components/client/offers/MarketplaceHeader";
 import { DriverOfferListItem } from "@/components/client/offers/DriverOfferListItem";
 
+import { GlobalMap } from "@/components/GlobalMap";
+
 const { width, height } = Dimensions.get("window");
 
 async function playOfferReceivedSound() {
@@ -40,15 +42,11 @@ interface TacticalBackgroundProps {
   pickup?: { latitude: number; longitude: number };
 }
 function TacticalBackground({ pickup }: TacticalBackgroundProps) {
-  const MapViewModule = require("react-native-maps");
-  const MapView = MapViewModule.default;
-  const { darkMapStyle } = require("@/utils/mapStyle");
-
   return (
     <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 0, overflow: "hidden" }}>
-      <MapView
+      <GlobalMap
         provider="google"
-        customMapStyle={darkMapStyle}
+        useDarkStyle={true}
         initialRegion={{
           latitude: pickup?.latitude || -23.5505,
           longitude: pickup?.longitude || -46.6333,

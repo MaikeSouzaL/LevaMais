@@ -59,9 +59,9 @@ export const RidePrioritySlider = ({ level, onChange }: RidePrioritySliderProps)
         className="mt-2 flex-row items-center justify-center"
       >
         <Text className="text-[11px] text-slate-400 text-center">
-          {level === 0 && "💡 Reduz o preço, pode levar mais tempo."}
-          {level === 1 && "🚀 Velocidade normal de aceitação."}
-          {level === 2 && "⚡ Envio prioritário aos melhores motoristas."}
+          {level === 0 ? "💡 Reduz o preço, pode levar mais tempo." : 
+           level === 1 ? "🚀 Velocidade normal de aceitação." : 
+           level === 2 ? "⚡ Envio prioritário aos melhores motoristas." : ""}
         </Text>
       </MotiView>
     </View>

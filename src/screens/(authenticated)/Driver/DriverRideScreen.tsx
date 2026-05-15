@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { View, Text, TouchableOpacity, AppState, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
+import { GlobalMap } from "@/components/GlobalMap";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import * as Location from "expo-location";
 import * as ImagePicker from "expo-image-picker";
@@ -13,7 +14,7 @@ import {
   DriverCancelReasonModal,
   CancelReason,
 } from "./components/DriverCancelReasonModal";
-import GlobalMap from "../../../components/GlobalMap";
+
 import rideService, { Ride } from "../../../services/ride.service";
 import webSocketService from "../../../services/websocket.service";
 import { useAuthStore } from "../../../context/authStore";

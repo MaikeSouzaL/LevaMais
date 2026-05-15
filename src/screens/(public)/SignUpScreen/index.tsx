@@ -186,9 +186,14 @@ export default function SignUpScreen() {
   // 💼 Modern Google Signup Logic (Aligned with Backend & Social Flows)
   async function handleGoogleSignUp() {
     setGoogleLoading(true);
+    console.log("[GoogleSignUp] Início do processo");
     try {
-      await GoogleSignin.hasPlayServices();
+      console.log("[GoogleSignUp] Verificando Play Services");
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      
+      console.log("[GoogleSignUp] Iniciando signIn()");
       const userInfo = await GoogleSignin.signIn();
+      console.log("[GoogleSignUp] SignIn realizado com sucesso", userInfo);
 
       if (!isSuccessResponse(userInfo)) {
         Toast.show({ type: "error", text1: "Falha ao autenticar com Google" });
@@ -198,7 +203,6 @@ export default function SignUpScreen() {
       const { id, email, name, photo } = userInfo.data.user;
       const normalizedEmail = email.trim().toLowerCase();
 
-      // Fire real authentication call to backend!
       const response = await googleAuth({
         googleId: id,
         email: normalizedEmail,
@@ -207,7 +211,7 @@ export default function SignUpScreen() {
       });
 
       if (response.success && response.data) {
-        const { user: userData, token } = response.data;
+        const { user: userData, token, isNewUser } = response.data;
         const {
           _id,
           name: userName,
@@ -221,7 +225,7 @@ export default function SignUpScreen() {
 
         const userCity = initialCity || detectedCity || "";
 
-        // 🚨 Force Phone Capture if missing (Crucial User Request Alignment)
+        // 🚨 Force Phone Capture if missing
         if (!phone) {
           const generatedPassword = `${userEmail}-${id}`;
           navigation.navigate("GooglePhonePrompt", {
@@ -242,7 +246,28 @@ export default function SignUpScreen() {
           return;
         }
 
-        // If phone exists, route as usual
+        // 🚀 If it's a NEW user, they MUST go to SelectProfile to choose between Client or Driver!
+        if (isNewUser || !userType) {
+          const generatedPassword = `${userEmail}-${id}`;
+          navigation.navigate("SelectProfile", {
+            user: {
+              _id,
+              name: userName,
+              email: userEmail,
+              password: generatedPassword,
+              phone: phone,
+              city: userCity,
+              userType: userType || undefined,
+              googleId: gId,
+              profilePhoto,
+              acceptedTerms,
+            },
+            token,
+          });
+          return;
+        }
+
+        // If phone exists and not new user, route as usual
         if (userType === "client" || userType === "driver") {
           useAuthStore.getState().login(
             userType,
@@ -290,10 +315,19 @@ export default function SignUpScreen() {
         });
       }
     } catch (error: any) {
-            if (isErrorWithCode(error)) {
-        if (error.code === statusCodes.SIGN_IN_CANCELLED) return;
+      console.error("[GoogleSignUp] Erro capturado no catch:", error);
+      if (isErrorWithCode(error)) {
+        console.log("[GoogleSignUp] Erro com código:", error.code);
+        if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+            console.log("[GoogleSignUp] Login cancelado pelo usuário");
+            return;
+        }
       }
-      Toast.show({ type: "error", text1: "Falha ao conectar com Google" });
+      Toast.show({ 
+        type: "error", 
+        text1: "Falha ao conectar com Google",
+        text2: error?.message || "Erro interno da API do Google"
+      });
     } finally {
       setGoogleLoading(false);
     }
