@@ -18,7 +18,7 @@ export function PriorityQueueButton({ onPress, loading }: PriorityQueueButtonPro
         style={styles.buttonShadow}
       >
         <LinearGradient
-          colors={["#00E5FF", "#0088FF"]}
+          colors={["#02de95", "#0088FF"]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
           style={styles.gradient}
@@ -57,7 +57,7 @@ const styles = StyleSheet.create({
     height: 56,
     borderRadius: 16,
     overflow: "hidden",
-    shadowColor: "#00E5FF",
+    shadowColor: "#02de95",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.35,
     shadowRadius: 10,

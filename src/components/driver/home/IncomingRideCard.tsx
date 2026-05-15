@@ -10,6 +10,7 @@ import {
   Dimensions,
 } from "react-native";
 import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
+import { BlurView } from "expo-blur";
 import { MotiView, AnimatePresence } from "moti";
 import { Easing } from "react-native-reanimated";
 import {
@@ -81,6 +82,152 @@ function getServiceModeName(mode: string, category?: string) {
   return "Entrega Expressa Premium";
 }
 
+// ========================================================
+// 📡 LOCAL TACTICAL WAITING SUB-COMPONENTS FOR BOTTOM SHEET
+// ========================================================
+
+interface LiveNegotiationRadarProps {
+  clientName: string;
+}
+function LiveNegotiationRadar({ clientName }: LiveNegotiationRadarProps) {
+  return (
+    <View className="w-40 h-40 items-center justify-center mb-5 relative">
+      {/* Core pulse waves */}
+      <MotiView
+        from={{ scale: 0.6, opacity: 0.6 }}
+        animate={{ scale: 1.5, opacity: 0 }}
+        transition={{ loop: true, duration: 3000, type: "timing", easing: Easing.out(Easing.ease) }}
+        className="absolute w-full h-full rounded-full bg-[#02de95]/5 border-2 border-[#02de95]/20"
+      />
+      <MotiView
+        from={{ scale: 0.6, opacity: 0.5 }}
+        animate={{ scale: 2.2, opacity: 0 }}
+        transition={{ loop: true, duration: 4000, delay: 1500, type: "timing", easing: Easing.out(Easing.ease) }}
+        className="absolute w-full h-full rounded-full bg-[#02de95]/3 border border-[#02de95]/10"
+      />
+      
+      {/* Tactical Radar Ring Grid */}
+      <View className="absolute w-full h-full rounded-full border border-white/5 items-center justify-center">
+        <View className="w-3/4 h-3/4 rounded-full border border-white/10 items-center justify-center">
+          <View className="w-1/2 h-1/2 rounded-full border border-[#02de95]/20 items-center justify-center" />
+        </View>
+      </View>
+
+      {/* Radar Sweeper Needle Animation */}
+      <MotiView
+        from={{ rotate: "0deg" }}
+        animate={{ rotate: "360deg" }}
+        transition={{ loop: true, duration: 6000, easing: Easing.linear, type: "timing" }}
+        className="absolute w-full h-full items-center justify-start"
+      >
+        <View className="w-1 h-1/2 rounded-full opacity-60" style={{ backgroundColor: "#02de95" }} />
+      </MotiView>
+
+      {/* Animated Core Hub */}
+      <View className="w-20 h-20 rounded-full bg-[#091A2F] border-2 border-[#02de95]/40 items-center justify-center shadow-2xl z-10">
+        <MotiView
+          from={{ scale: 1, opacity: 0.8 }}
+          animate={{ scale: [1, 1.1, 1] }}
+          transition={{ loop: true, duration: 2000, type: "timing" }}
+          className="absolute w-full h-full rounded-full bg-[#02de95]/10"
+        />
+        
+        <View className="w-12 h-12 rounded-full bg-[#02de95]/20 items-center justify-center border border-[#02de95]/50">
+          <Sparkles size={24} color="#02de95" fill="#02de95" className="opacity-90" />
+        </View>
+        
+        <MotiView 
+          from={{ opacity: 0.5 }} 
+          animate={{ opacity: 1 }} 
+          transition={{ loop: true, duration: 1000, type: "timing" }} 
+          className="absolute bottom-1 right-1 w-4 h-4 bg-[#02de95] border-4 border-[#091A2F] rounded-full" 
+        />
+      </View>
+    </View>
+  );
+}
+
+interface RealtimeStatusBadgeProps {
+  message: string;
+}
+function RealtimeStatusBadge({ message }: RealtimeStatusBadgeProps) {
+  return (
+    <MotiView
+      key={message}
+      from={{ opacity: 0, translateY: 10, scale: 0.9 }}
+      animate={{ opacity: 1, translateY: 0, scale: 1 }}
+      exit={{ opacity: 0, translateY: -10, scale: 0.9 }}
+      className="flex-row items-center bg-white/[0.03] border border-[#02de95]/20 px-4 py-2 rounded-full mb-3"
+    >
+      <ActivityIndicator size="small" color="#02de95" className="mr-2 scale-75" />
+      <Text className="text-[#02de95] font-extrabold text-[10px] uppercase tracking-widest">{message}</Text>
+    </MotiView>
+  );
+}
+
+interface ProposalStatusCardProps {
+  counterValue: number;
+  baseValue: number;
+  distanceKm: string;
+  durationText: string;
+  acceptanceChance: number;
+}
+function ProposalStatusCard({ counterValue, baseValue, distanceKm, durationText, acceptanceChance }: ProposalStatusCardProps) {
+  const diff = counterValue - baseValue;
+  return (
+    <MotiView
+      from={{ opacity: 0, translateY: 20 }}
+      animate={{ opacity: 1, translateY: 0 }}
+      transition={{ type: "spring", damping: 20 }}
+      className="w-full bg-white/[0.02] border border-white/10 rounded-[28px] overflow-hidden mb-5"
+    >
+      <BlurView intensity={30} className="p-5">
+        <View className="flex-row justify-between items-center mb-4 border-b border-white/5 pb-4">
+          <View>
+            <Text className="text-white/40 text-[9px] font-black uppercase tracking-widest mb-0.5">PROPOSTA ENVIADA</Text>
+            <Text className="text-white font-black text-3xl tracking-tighter">{formatBRL(counterValue)}</Text>
+          </View>
+          <View className="bg-[#02de95]/10 border border-[#02de95]/30 px-2.5 py-1 rounded-xl items-center">
+            <Text className="text-[#02de95] font-black text-xs">+{formatBRL(diff)}</Text>
+            <Text className="text-white/50 font-bold text-[7px] uppercase mt-0.5">vs Base</Text>
+          </View>
+        </View>
+
+        <View className="flex-row justify-between gap-3 mb-4">
+          <View className="flex-1 bg-white/[0.02] border border-white/5 p-2.5 rounded-xl items-center justify-center">
+            <Text className="text-white/30 text-[7px] font-black uppercase tracking-widest mb-0.5">DISTÂNCIA</Text>
+            <Text className="text-white font-black text-xs">{distanceKm}</Text>
+          </View>
+
+          <View className="flex-1 bg-white/[0.02] border border-white/5 p-2.5 rounded-xl items-center justify-center">
+            <Text className="text-white/30 text-[7px] font-black uppercase tracking-widest mb-0.5">DURAÇÃO</Text>
+            <Text className="text-white font-black text-xs">{durationText}</Text>
+          </View>
+        </View>
+
+        <View>
+          <View className="flex-row justify-between items-center mb-1.5">
+            <View className="flex-row items-center">
+              <Sparkles size={9} color="#02de95" fill="#02de95" className="mr-1" />
+              <Text className="text-white/60 font-extrabold text-[9px] uppercase tracking-wider">CHANCE DE ACEITE POR IA</Text>
+            </View>
+            <Text className="text-[#02de95] font-black text-[10px]">{acceptanceChance}%</Text>
+          </View>
+          
+          <View className="w-full h-2 bg-white/[0.05] border border-white/10 rounded-full overflow-hidden">
+             <MotiView
+                from={{ width: "0%" }}
+                animate={{ width: `${acceptanceChance}%` }}
+                transition={{ duration: 1000, type: "timing" }}
+                className="h-full bg-[#02de95] rounded-full"
+             />
+          </View>
+        </View>
+      </BlurView>
+    </MotiView>
+  );
+}
+
 export function IncomingRideCard({
   isVisible,
   request,
@@ -104,6 +251,68 @@ export function IncomingRideCard({
   const [counterValue, setCounterValue] = useState(baseValue);
   const [message, setMessage] = useState("");
   const [loadingState, setLoadingState] = useState<"idle" | "sending" | "waiting">("idle");
+
+  // 🚨 Premium Waiting Metrics State
+  const [negotiationTimeLeft, setNegotiationTimeLeft] = useState(35);
+  const [liveStatusMessage, setLiveStatusMessage] = useState("Transmitindo Proposta...");
+
+  const diff = counterValue - baseValue;
+  const iaAcceptanceChance = useMemo(() => {
+    if (diff <= 0) return 100;
+    if (diff <= 2) return 94;
+    if (diff <= 5) return 81;
+    if (diff <= 10) return 63;
+    return 35;
+  }, [diff]);
+
+  // 📡 Auto-Snap Sheet Upwards when Negotiation is Active
+  useEffect(() => {
+    if (loadingState === "waiting") {
+      sheetRef.current?.snapToIndex(1);
+    }
+  }, [loadingState]);
+
+  // 🤖 Animated Status Message Cycler for Tactical Vibe
+  useEffect(() => {
+    if (loadingState !== "waiting") return;
+    
+    const messages = [
+      "Cliente analisando proposta...",
+      "Cliente online agora",
+      "Analisando trânsito na rota...",
+      "Chance de aceite favorável",
+      "Cliente visualizando contraproposta...",
+      "Aguardando decisão final..."
+    ];
+    let index = 0;
+    setLiveStatusMessage(messages[0]);
+    
+    const interval = setInterval(() => {
+      index = (index + 1) % messages.length;
+      setLiveStatusMessage(messages[index]);
+    }, 5000);
+    
+    return () => clearInterval(interval);
+  }, [loadingState]);
+
+  // ⏱️ Custom Countdown Timer for Urgency
+  useEffect(() => {
+    if (loadingState !== "waiting") return;
+    
+    setNegotiationTimeLeft(35);
+    
+    const timer = setInterval(() => {
+      setNegotiationTimeLeft(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    
+    return () => clearInterval(timer);
+  }, [loadingState]);
 
   useEffect(() => {
     if (isVisible) {
@@ -321,47 +530,106 @@ export function IncomingRideCard({
             FINTECH LOADING STATE OVERLAY (Embedded)
            ========================================== */}
         {loadingState !== "idle" ? (
-          <View className="flex-1 items-center justify-center px-8 pb-10">
-            <MotiView
-              from={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="items-center w-full"
-            >
-              <View className="w-24 h-24 rounded-full bg-[#02de95]/10 border border-[#02de95]/30 items-center justify-center mb-8 relative">
-                <MotiView
-                  from={{ scale: 1, opacity: 0.6 }}
-                  animate={{ scale: 1.6, opacity: 0 }}
-                  transition={{ loop: true, duration: 2000, type: "timing" }}
-                  className="absolute inset-0 rounded-full bg-[#02de95]/10 border border-[#02de95]/40"
-                />
-                <MotiView
-                  from={{ rotate: "0deg" }}
-                  animate={{ rotate: "360deg" }}
-                  transition={{ loop: true, duration: 4000, easing: Easing.linear, type: "timing" }}
-                >
-                  <Sparkles size={38} color="#02de95" fill="#02de95" />
-                </MotiView>
-              </View>
-
-              <Text className="text-white font-black text-2xl tracking-tight text-center mb-2">
-                {loadingState === "sending" ? "Transmitindo Proposta..." : "Aguardando o Cliente..."}
-              </Text>
-
-              <Text className="text-white/50 text-center text-sm leading-6 mb-8 max-w-[280px]">
-                {loadingState === "sending"
-                  ? "Alinhando sua oferta com nossa central logística inteligente."
-                  : `Sua proposta de R$ ${counterValue.toFixed(2).replace(".", ",")} está no celular do cliente.`}
-              </Text>
-
-              <View className="w-full bg-white/[0.03] border border-white/10 rounded-3xl p-5 flex-row items-center justify-between">
-                <View>
-                  <Text className="text-white/40 text-[10px] font-black uppercase tracking-widest mb-0.5">PROPOSTA ENVIADA</Text>
-                  <Text className="text-white font-black text-2xl">R$ {counterValue.toFixed(2).replace(".", ",")}</Text>
+          loadingState === "sending" ? (
+            <View className="flex-1 items-center justify-center px-8 pb-10">
+              <MotiView
+                from={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="items-center w-full"
+              >
+                <View className="w-24 h-24 rounded-full bg-[#02de95]/10 border border-[#02de95]/30 items-center justify-center mb-8 relative">
+                  <MotiView
+                    from={{ scale: 1, opacity: 0.6 }}
+                    animate={{ scale: 1.6, opacity: 0 }}
+                    transition={{ loop: true, duration: 2000, type: "timing" }}
+                    className="absolute inset-0 rounded-full bg-[#02de95]/10 border border-[#02de95]/40"
+                  />
+                  <MotiView
+                    from={{ rotate: "0deg" }}
+                    animate={{ rotate: "360deg" }}
+                    transition={{ loop: true, duration: 4000, easing: Easing.linear, type: "timing" }}
+                  >
+                    <Sparkles size={38} color="#02de95" fill="#02de95" />
+                  </MotiView>
                 </View>
-                <ActivityIndicator color="#02de95" size="small" />
+
+                <Text className="text-white font-black text-2xl tracking-tight text-center mb-2">
+                  Transmitindo Proposta...
+                </Text>
+
+                <Text className="text-white/50 text-center text-sm leading-6 mb-8 max-w-[280px]">
+                  Alinhando sua oferta com nossa central logística inteligente.
+                </Text>
+
+                <View className="w-full bg-white/[0.03] border border-white/10 rounded-3xl p-5 flex-row items-center justify-between">
+                  <View>
+                    <Text className="text-white/40 text-[10px] font-black uppercase tracking-widest mb-0.5">PROPOSTA ENVIADA</Text>
+                    <Text className="text-white font-black text-2xl">{formatBRL(counterValue)}</Text>
+                  </View>
+                  <ActivityIndicator color="#02de95" size="small" />
+                </View>
+              </MotiView>
+            </View>
+          ) : (
+            // ========================================================
+            // 📡 HIGH END TACTICAL NEGOTIATION HUD (WAITING MODE)
+            // ========================================================
+            <View className="flex-1 items-center justify-between px-6 pb-8 pt-4">
+              {/* Realtime Countdown Header */}
+              <View className="w-full items-center">
+                <MotiView
+                  from={{ opacity: 0, translateY: -10 }}
+                  animate={{ opacity: 1, translateY: 0 }}
+                  className="flex-row items-center bg-black/40 border border-white/10 px-3 py-1.5 rounded-full mb-2"
+                >
+                  <View className="w-2 h-2 bg-[#02de95] rounded-full mr-2 animate-pulse" />
+                  <Text className="text-white font-black text-[9px] tracking-widest uppercase">Radar Ativo</Text>
+                </MotiView>
+                <Text className="text-white/50 font-extrabold text-[11px]">
+                  Expira em: <Text className="text-[#ef4444] font-black text-sm">{negotiationTimeLeft}s</Text>
+                </Text>
               </View>
-            </MotiView>
-          </View>
+
+              {/* Central Stage Hologram */}
+              <View className="items-center justify-center w-full my-4">
+                <LiveNegotiationRadar clientName="C" />
+                
+                <Text className="text-white font-black text-xl tracking-tight text-center mb-1.5">
+                  Aguardando Resposta
+                </Text>
+                
+                <AnimatePresence exitBeforeEnter>
+                  <RealtimeStatusBadge message={liveStatusMessage} />
+                </AnimatePresence>
+                
+                <Text className="text-white/40 text-center text-[11px] font-medium leading-4 max-w-[260px]">
+                  Sua proposta está sob análise no dispositivo do cliente.
+                </Text>
+              </View>
+
+              {/* Dynamic Stats Dashboard */}
+              <View className="w-full">
+                <ProposalStatusCard
+                  counterValue={counterValue}
+                  baseValue={baseValue}
+                  distanceKm={offer?.distanceKm || offer?.distance?.text || "-- km"}
+                  durationText={offer?.estimatedDuration || offer?.duration?.text || "-- min"}
+                  acceptanceChance={iaAcceptanceChance}
+                />
+                
+                <TouchableOpacity
+                  onPress={() => {
+                    setLoadingState("idle");
+                    sheetRef.current?.snapToIndex(0);
+                  }}
+                  activeOpacity={0.7}
+                  className="w-full py-3 bg-white/[0.03] border border-white/10 rounded-xl items-center"
+                >
+                  <Text className="text-white/60 font-bold text-xs uppercase tracking-widest">Ocultar Detalhes</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )
         ) : (
           /* ==========================================
               MAIN UNIFIED INTERFACE SCROLLVIEW

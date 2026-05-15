@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Text, TouchableOpacity, StatusBar, ScrollView, TextInput } from "react-native";
+import { View, Text, TouchableOpacity, StatusBar, ScrollView, TextInput, Dimensions } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import { BlurView } from "expo-blur";
 import Toast from "react-native-toast-message";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { MotiView, AnimatePresence } from "moti";
@@ -14,6 +15,39 @@ import { formatBRL } from "@/utils/mappers";
 import { Modal } from "@/components/Modal";
 import { MarketplaceHeader } from "@/components/client/offers/MarketplaceHeader";
 import { DriverOfferListItem } from "@/components/client/offers/DriverOfferListItem";
+
+const { width, height } = Dimensions.get("window");
+
+interface TacticalBackgroundProps {
+  pickup?: { latitude: number; longitude: number };
+}
+function TacticalBackground({ pickup }: TacticalBackgroundProps) {
+  const MapViewModule = require("react-native-maps");
+  const MapView = MapViewModule.default;
+  const { darkMapStyle } = require("@/utils/mapStyle");
+
+  return (
+    <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 0, overflow: "hidden" }}>
+      <MapView
+        provider="google"
+        customMapStyle={darkMapStyle}
+        initialRegion={{
+          latitude: pickup?.latitude || -23.5505,
+          longitude: pickup?.longitude || -46.6333,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        }}
+        style={{ width: width, height: height, opacity: 0.6 }}
+        scrollEnabled={false}
+        zoomEnabled={false}
+        rotateEnabled={false}
+        pitchEnabled={false}
+      />
+      <BlurView intensity={40} tint="dark" style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }} />
+      <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(9, 26, 47, 0.45)" }} />
+    </View>
+  );
+}
 
 export default function RideOffersMarketplaceScreen() {
   const navigation = useNavigation<any>();
@@ -215,11 +249,14 @@ export default function RideOffersMarketplaceScreen() {
   };
 
   return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#091A2F" }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#091A2F", position: "relative" }}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
+      {/* 📡 Operational Blurred Tactical Background */}
+      <TacticalBackground pickup={rideDetails?.pickup} />
+
       {/* 🏷️ Premium Top Inset & HUD Header */}
-      <View style={{ height: insets.top + 80, backgroundColor: "#091A2F" }}>
+      <View style={{ height: insets.top + 80, backgroundColor: "transparent", zIndex: 10 }}>
         <MarketplaceHeader 
           onBack={() => navigation.goBack()} 
           offerCount={sortedOffers.length} 
@@ -227,8 +264,8 @@ export default function RideOffersMarketplaceScreen() {
         />
       </View>
 
-      {/* 💰 Sua Proposta Base */}
-      <View style={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)", backgroundColor: "#0B1A2A" }}>
+      {/* 💰 Sua Proposta Base with Semi-Translucence */}
+      <View style={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)", backgroundColor: "rgba(11, 26, 42, 0.7)", zIndex: 10 }}>
         <View className="flex-row items-center justify-between">
           <View>
             <Text className="text-white/40 text-[10px] font-black uppercase tracking-wider mb-0.5">
@@ -238,16 +275,12 @@ export default function RideOffersMarketplaceScreen() {
               {formatBRL(Number(negotiation?.clientOffer || 0))}
             </Text>
           </View>
-          
-          <View className="bg-[#02de95]/10 rounded-full px-4 py-1.5 border border-[#02de95]/20">
-             <Text className="text-[#02de95] text-[10px] font-bold uppercase tracking-widest">⚡ Negociação</Text>
-          </View>
         </View>
       </View>
 
       {/* 🧬 Scrollable Vertical Matrix of Counter-Offers */}
       <ScrollView 
-        style={{ flex: 1, backgroundColor: "#091A2F" }} 
+        style={{ flex: 1, backgroundColor: "transparent", zIndex: 10 }} 
         contentContainerStyle={{ padding: 24, paddingBottom: 150 }}
       >
         {/* 💡 Accelerate Advice Indicator */}
@@ -387,7 +420,7 @@ export default function RideOffersMarketplaceScreen() {
          </View>
       </Modal>
 
-      {/* 🛑 Fixed Root-Level Cancel Button */}
+      {/* 🛑 Discreet Root-Level Cancel Action */}
       <View
         style={{ 
           position: "absolute", 
@@ -395,13 +428,10 @@ export default function RideOffersMarketplaceScreen() {
           left: 0, 
           right: 0,
           paddingHorizontal: 24,
-          paddingBottom: Math.max(insets.bottom, 24),
-          paddingTop: 16,
-          backgroundColor: "#0B1A2A",
-          borderTopWidth: 1,
-          borderTopColor: "rgba(255,255,255,0.07)",
+          paddingBottom: Math.max(insets.bottom, 16),
+          paddingTop: 12,
+          backgroundColor: "transparent",
           zIndex: 9999,
-          elevation: 99,
         }}
       >
          <TouchableOpacity 
@@ -412,19 +442,16 @@ export default function RideOffersMarketplaceScreen() {
                alignItems: "center", 
                justifyContent: "center", 
                width: "100%",
-               height: 56,
-               borderRadius: 20,
-               backgroundColor: "#ef4444",
-               shadowColor: "#ef4444",
-               shadowOffset: { width: 0, height: 6 },
-               shadowOpacity: 0.4,
-               shadowRadius: 12,
-               elevation: 8,
+               height: 48,
+               borderRadius: 16,
+               backgroundColor: "rgba(255, 255, 255, 0.03)",
+               borderWidth: 1,
+               borderColor: "rgba(255, 255, 255, 0.08)",
             }}
          >
-            <Trash2 size={20} color="#fff" style={{ marginRight: 10 }} />
-            <Text style={{ color: "#fff", fontSize: 15, fontWeight: "900", letterSpacing: 1 }}>
-               CANCELAR ESTE PEDIDO
+            <Trash2 size={14} color="rgba(255,255,255,0.35)" style={{ marginRight: 8 }} />
+            <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 11.5, fontWeight: "700", letterSpacing: 0.5, textTransform: "uppercase" }}>
+               Cancelar Solicitação
             </Text>
          </TouchableOpacity>
       </View>

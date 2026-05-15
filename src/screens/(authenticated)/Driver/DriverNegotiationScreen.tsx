@@ -341,6 +341,195 @@ function ProfitCard({ value, distanceKm }: ProfitCardProps) {
   );
 }
 
+// ========================================================
+// 📡 TACTICAL WAITING SUB-COMPONENTS FOR DRIVER SIDE
+// ========================================================
+
+interface LiveNegotiationRadarProps {
+  clientName: string;
+}
+function LiveNegotiationRadar({ clientName }: LiveNegotiationRadarProps) {
+  return (
+    <View className="w-56 h-56 items-center justify-center mb-6 relative">
+      {/* Core pulse waves */}
+      <MotiView
+        from={{ scale: 0.6, opacity: 0.6 }}
+        animate={{ scale: 1.5, opacity: 0 }}
+        transition={{ loop: true, duration: 3000, type: "timing", easing: Easing.out(Easing.ease) }}
+        className="absolute w-full h-full rounded-full bg-[#02de95]/5 border-2 border-[#02de95]/20"
+      />
+      <MotiView
+        from={{ scale: 0.6, opacity: 0.5 }}
+        animate={{ scale: 2.2, opacity: 0 }}
+        transition={{ loop: true, duration: 4000, delay: 1500, type: "timing", easing: Easing.out(Easing.ease) }}
+        className="absolute w-full h-full rounded-full bg-[#02de95]/3 border border-[#02de95]/10"
+      />
+      
+      {/* Tactical Radar Ring Grid */}
+      <View className="absolute w-full h-full rounded-full border border-white/5 items-center justify-center">
+        <View className="w-3/4 h-3/4 rounded-full border border-white/10 items-center justify-center">
+          <View className="w-1/2 h-1/2 rounded-full border border-[#02de95]/20 items-center justify-center" />
+        </View>
+      </View>
+
+      {/* Radar Sweeper Needle Animation */}
+      <MotiView
+        from={{ rotate: "0deg" }}
+        animate={{ rotate: "360deg" }}
+        transition={{ loop: true, duration: 6000, easing: Easing.linear, type: "timing" }}
+        className="absolute w-full h-full items-center justify-start"
+      >
+        <View className="w-1 h-1/2 rounded-full opacity-60" style={{ backgroundColor: "#02de95" }} />
+      </MotiView>
+
+      {/* Animated Core Hub */}
+      <View className="w-24 h-24 rounded-full bg-[#091A2F] border-2 border-[#02de95]/40 items-center justify-center shadow-2xl z-10">
+        <MotiView
+          from={{ scale: 1, opacity: 0.8 }}
+          animate={{ scale: [1, 1.1, 1] }}
+          transition={{ loop: true, duration: 2000, type: "timing" }}
+          className="absolute w-full h-full rounded-full bg-[#02de95]/10"
+        />
+        
+        <View className="w-16 h-16 rounded-full bg-[#02de95]/20 items-center justify-center border border-[#02de95]/50">
+          <Sparkles size={30} color="#02de95" fill="#02de95" className="opacity-90" />
+        </View>
+        
+        <MotiView 
+          from={{ opacity: 0.5 }} 
+          animate={{ opacity: 1 }} 
+          transition={{ loop: true, duration: 1000, type: "timing" }} 
+          className="absolute bottom-1 right-1 w-5 h-5 bg-[#02de95] border-4 border-[#091A2F] rounded-full" 
+        />
+      </View>
+    </View>
+  );
+}
+
+interface RealtimeStatusBadgeProps {
+  message: string;
+}
+function RealtimeStatusBadge({ message }: RealtimeStatusBadgeProps) {
+  return (
+    <MotiView
+      key={message}
+      from={{ opacity: 0, translateY: 10, scale: 0.9 }}
+      animate={{ opacity: 1, translateY: 0, scale: 1 }}
+      exit={{ opacity: 0, translateY: -10, scale: 0.9 }}
+      className="flex-row items-center bg-white/[0.03] border border-[#02de95]/20 px-4 py-2.5 rounded-full mb-4"
+    >
+      <ActivityIndicator size="small" color="#02de95" className="mr-2.5" />
+      <Text className="text-[#02de95] font-extrabold text-xs uppercase tracking-widest">{message}</Text>
+    </MotiView>
+  );
+}
+
+interface ProposalStatusCardProps {
+  counterValue: number;
+  baseValue: number;
+  distanceKm: string;
+  durationText: string;
+  acceptanceChance: number;
+}
+function ProposalStatusCard({ counterValue, baseValue, distanceKm, durationText, acceptanceChance }: ProposalStatusCardProps) {
+  const profitPerKm = useMemo(() => {
+    const distNum = parseFloat(distanceKm.replace(/[^0-9.]/g, ""));
+    const safeDist = isNaN(distNum) || distNum === 0 ? 1 : distNum;
+    return counterValue / safeDist;
+  }, [counterValue, distanceKm]);
+
+  const diff = counterValue - baseValue;
+
+  return (
+    <MotiView
+      from={{ opacity: 0, translateY: 30 }}
+      animate={{ opacity: 1, translateY: 0 }}
+      transition={{ type: "spring", damping: 20 }}
+      className="w-full bg-white/[0.02] border border-white/10 rounded-[36px] overflow-hidden mb-6"
+    >
+      <BlurView intensity={30} className="p-6">
+        <View className="flex-row justify-between items-center mb-5 border-b border-white/5 pb-5">
+          <View>
+            <Text className="text-white/40 text-[10px] font-black uppercase tracking-widest mb-1">PROPOSTA ENVIADA</Text>
+            <Text className="text-white font-black text-4xl tracking-tighter">{formatBRL(counterValue)}</Text>
+          </View>
+          <View className="bg-[#02de95]/10 border border-[#02de95]/30 px-3 py-1.5 rounded-2xl items-center">
+            <Text className="text-[#02de95] font-black text-xs">+{formatBRL(diff)}</Text>
+            <Text className="text-white/50 font-bold text-[8px] uppercase mt-0.5">vs Base</Text>
+          </View>
+        </View>
+
+        <View className="flex-row justify-between gap-3 mb-5">
+          <View className="flex-1 bg-white/[0.02] border border-white/5 p-3 rounded-2xl items-center justify-center">
+            <Text className="text-white/30 text-[8px] font-black uppercase tracking-widest mb-1">LUCRO / KM</Text>
+            <Text className="text-white font-black text-sm">{formatBRL(profitPerKm)}</Text>
+          </View>
+          
+          <View className="flex-1 bg-white/[0.02] border border-white/5 p-3 rounded-2xl items-center justify-center">
+            <Text className="text-white/30 text-[8px] font-black uppercase tracking-widest mb-1">DISTÂNCIA</Text>
+            <Text className="text-white font-black text-sm">{distanceKm}</Text>
+          </View>
+
+          <View className="flex-1 bg-white/[0.02] border border-white/5 p-3 rounded-2xl items-center justify-center">
+            <Text className="text-white/30 text-[8px] font-black uppercase tracking-widest mb-1">DURAÇÃO</Text>
+            <Text className="text-white font-black text-sm">{durationText}</Text>
+          </View>
+        </View>
+
+        <View>
+          <View className="flex-row justify-between items-center mb-2">
+            <View className="flex-row items-center">
+              <Sparkles size={10} color="#02de95" fill="#02de95" className="mr-1.5" />
+              <Text className="text-white/60 font-extrabold text-[10px] uppercase tracking-wider">CHANCE DE ACEITE POR IA</Text>
+            </View>
+            <Text className="text-[#02de95] font-black text-xs">{acceptanceChance}%</Text>
+          </View>
+          
+          <View className="w-full h-2.5 bg-white/[0.05] border border-white/10 rounded-full overflow-hidden relative">
+             <MotiView
+                from={{ width: "0%" }}
+                animate={{ width: `${acceptanceChance}%` }}
+                transition={{ duration: 1000, type: "timing" }}
+                className="h-full bg-[#02de95] rounded-full"
+             />
+          </View>
+        </View>
+      </BlurView>
+    </MotiView>
+  );
+}
+
+interface TacticalBackgroundProps {
+  pickup: { latitude: number; longitude: number };
+}
+function TacticalBackground({ pickup }: TacticalBackgroundProps) {
+  const MapViewModule = require("react-native-maps");
+  const MapView = MapViewModule.default;
+  const { darkMapStyle } = require("@/utils/mapStyle");
+
+  return (
+    <View className="absolute inset-0 z-0 overflow-hidden">
+      <MapView
+        provider="google"
+        customMapStyle={darkMapStyle}
+        initialRegion={{
+          latitude: pickup?.latitude || -23.5505,
+          longitude: pickup?.longitude || -46.6333,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        }}
+        style={{ width: width, height: height, opacity: 0.4 }}
+        scrollEnabled={false}
+        zoomEnabled={false}
+        rotateEnabled={false}
+        pitchEnabled={false}
+      />
+      <BlurView intensity={85} tint="dark" className="absolute inset-0" />
+      <View className="absolute inset-0 bg-[#091A2F]/70" />
+    </View>
+  );
+}
+
 // ==========================================
 // MAIN SCREEN COMPONENT
 // ==========================================
@@ -356,6 +545,61 @@ export default function DriverNegotiationScreen() {
   const [message, setMessage] = useState("");
   const [loadingState, setLoadingState] = useState<"idle" | "sending" | "waiting" | "accepted" | "rejected" | "client_countered">("idle");
   const [clientCounterVal, setClientCounterVal] = useState<number>(0);
+
+  // 🚨 Premium Real-time Wait Screen State
+  const [negotiationTimeLeft, setNegotiationTimeLeft] = useState(35);
+  const [liveStatusMessage, setLiveStatusMessage] = useState("Transmitindo Proposta...");
+
+  const diff = counterValue - baseValue;
+  const iaAcceptanceChance = useMemo(() => {
+    if (diff <= 0) return 100;
+    if (diff <= 2) return 94;
+    if (diff <= 5) return 81;
+    if (diff <= 10) return 63;
+    return 35;
+  }, [diff]);
+
+  // 🤖 Animated Status Message Cycler for Tactical Vibe
+  useEffect(() => {
+    if (loadingState !== "waiting") return;
+    
+    const messages = [
+      "Cliente analisando proposta...",
+      "Cliente online agora",
+      "Analisando trânsito na rota...",
+      "Chance de aceite favorável",
+      "Cliente visualizando contraproposta...",
+      "Aguardando decisão final..."
+    ];
+    let index = 0;
+    setLiveStatusMessage(messages[0]);
+    
+    const interval = setInterval(() => {
+      index = (index + 1) % messages.length;
+      setLiveStatusMessage(messages[index]);
+    }, 5000);
+    
+    return () => clearInterval(interval);
+  }, [loadingState]);
+
+  // ⏱️ Custom Countdown Timer for Urgency
+  useEffect(() => {
+    if (loadingState !== "waiting") return;
+    
+    setNegotiationTimeLeft(35);
+    
+    const timer = setInterval(() => {
+      setNegotiationTimeLeft(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    
+    return () => clearInterval(timer);
+  }, [loadingState]);
 
   // Safe numeric parse for Dynamic stats 📊
   const distanceKm = useMemo(() => {
@@ -543,14 +787,14 @@ export default function DriverNegotiationScreen() {
           transition={{ type: "spring", damping: 15 }}
           className="w-full bg-white/[0.03] border border-white/10 rounded-[36px] p-6 items-center"
         >
-          <View className="w-20 h-20 rounded-full bg-[#00E5FF]/10 border border-[#00E5FF]/30 items-center justify-center mb-6 relative">
+          <View className="w-20 h-20 rounded-full bg-[#02de95]/10 border border-[#02de95]/30 items-center justify-center mb-6 relative">
              <MotiView
               from={{ scale: 1, opacity: 0.5 }}
               animate={{ scale: 1.4, opacity: 0 }}
               transition={{ loop: true, duration: 2000, type: "timing" }}
-              className="absolute inset-0 rounded-full bg-[#00E5FF]/10"
+              className="absolute inset-0 rounded-full bg-[#02de95]/10"
             />
-            <DollarSign size={32} color="#00E5FF" />
+            <DollarSign size={32} color="#02de95" />
           </View>
 
           <Text className="text-white font-black text-2xl text-center mb-2">
@@ -563,7 +807,7 @@ export default function DriverNegotiationScreen() {
 
           <View className="w-full bg-white/[0.03] border border-white/5 rounded-3xl p-6 items-center justify-center mb-8 shadow-2xl">
              <Text className="text-white/40 text-[10px] font-black uppercase tracking-widest mb-1">NOVA OFERTA DO CLIENTE</Text>
-             <Text className="text-[#00E5FF] font-black text-5xl tracking-tighter">
+             <Text className="text-[#02de95] font-black text-5xl tracking-tighter">
                {formatBRL(clientCounterVal)}
              </Text>
           </View>
@@ -582,7 +826,7 @@ export default function DriverNegotiationScreen() {
                   }
                 }}
                 activeOpacity={0.9}
-                className="w-full h-16 bg-[#00E5FF] rounded-2xl items-center justify-center flex-row shadow-lg shadow-[#00E5FF]/20"
+                className="w-full h-16 bg-[#02de95] rounded-2xl items-center justify-center flex-row shadow-lg shadow-[#02de95]/20"
              >
                 <Check size={20} color="#091A2F" className="mr-2" strokeWidth={3} />
                 <Text className="text-[#091A2F] font-black text-base uppercase tracking-wider">Aceitar e Iniciar Corrida</Text>
@@ -614,60 +858,116 @@ export default function DriverNegotiationScreen() {
   }
 
   if (loadingState !== "idle") {
+    if (loadingState === "sending") {
+      return (
+        <View className="flex-1 bg-[#091A2F] items-center justify-center px-8">
+          <StatusBar barStyle="light-content" />
+          
+          <MotiView
+            from={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: "spring" }}
+            className="items-center"
+          >
+            {/* Immersive animated ring */}
+            <View className="w-24 h-24 rounded-full bg-[#02de95]/10 border border-[#02de95]/30 items-center justify-center mb-8 relative">
+              <MotiView
+                from={{ scale: 1, opacity: 0.6 }}
+                animate={{ scale: 1.6, opacity: 0 }}
+                transition={{ loop: true, duration: 2000, type: "timing" }}
+                className="absolute inset-0 rounded-full bg-[#02de95]/10 border border-[#02de95]/40"
+              />
+              <MotiView
+                from={{ rotate: "0deg" }}
+                animate={{ rotate: "360deg" }}
+                transition={{ loop: true, duration: 4000, easing: Easing.linear, type: "timing" }}
+              >
+                <Sparkles size={38} color="#02de95" fill="#02de95" />
+              </MotiView>
+            </View>
+
+            <Text className="text-white font-black text-2xl tracking-tight text-center mb-2">
+              Transmitindo Proposta...
+            </Text>
+            
+            <Text className="text-white/50 text-center text-sm leading-6 mb-8 max-w-[280px]">
+              Alinhando sua oferta com nossa central logística inteligente.
+            </Text>
+
+            <View className="w-full bg-white/[0.03] border border-white/10 rounded-3xl p-5 flex-row items-center justify-between">
+               <View>
+                  <Text className="text-white/40 text-[10px] font-black uppercase tracking-widest mb-0.5">VALOR ENVIADO</Text>
+                  <Text className="text-white font-black text-xl">{formatBRL(counterValue)}</Text>
+               </View>
+               <ActivityIndicator color="#02de95" size="small" />
+            </View>
+          </MotiView>
+        </View>
+      );
+    }
+
+    // ========================================================
+    // 📱 EXTREME PREMIUM TACTICAL WAITING SCREEN!
+    // ========================================================
     return (
-      <View className="flex-1 bg-[#091A2F] items-center justify-center px-8">
-        <StatusBar barStyle="light-content" />
+      <View className="flex-1 bg-[#091A2F] relative">
+        <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+        <TacticalBackground pickup={offer?.pickup} />
         
-        <MotiView
-          from={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ type: "spring" }}
-          className="items-center"
-        >
-          {/* Immersive animated ring */}
-          <View className="w-24 h-24 rounded-full bg-[#02de95]/10 border border-[#02de95]/30 items-center justify-center mb-8 relative">
+        <SafeAreaView className="flex-1 items-center justify-between px-6 py-8 z-10" edges={["top", "bottom"]}>
+          
+          {/* Realtime Header Indicator */}
+          <View className="w-full items-center mt-4">
             <MotiView
-              from={{ scale: 1, opacity: 0.6 }}
-              animate={{ scale: 1.6, opacity: 0 }}
-              transition={{ loop: true, duration: 2000, type: "timing" }}
-              className="absolute inset-0 rounded-full bg-[#02de95]/10 border border-[#02de95]/40"
-            />
-            <MotiView
-              from={{ rotate: "0deg" }}
-              animate={{ rotate: "360deg" }}
-              transition={{ loop: true, duration: 4000, easing: Easing.linear, type: "timing" }}
+              from={{ opacity: 0, translateY: -10 }}
+              animate={{ opacity: 1, translateY: 0 }}
+              className="flex-row items-center bg-black/40 border border-white/10 px-4 py-2 rounded-2xl mb-2"
             >
-              <Sparkles size={38} color="#02de95" fill="#02de95" />
+              <View className="w-2 h-2 bg-[#02de95] rounded-full mr-2" />
+              <Text className="text-white font-black text-[10px] tracking-widest uppercase">Radar de Negociação Ativo</Text>
             </MotiView>
+            <Text className="text-white/50 font-extrabold text-xs">
+              Expira em: <Text className="text-[#ef4444] font-black text-base">{negotiationTimeLeft}s</Text>
+            </Text>
           </View>
 
-          <Text className="text-white font-black text-2xl tracking-tight text-center mb-2">
-            {loadingState === "sending" ? "Transmitindo Proposta..." : "Aguardando o Cliente..."}
-          </Text>
-          
-          <Text className="text-white/50 text-center text-sm leading-6 mb-8 max-w-[280px]">
-            {loadingState === "sending" 
-              ? "Alinhando sua oferta com nossa central logística inteligente." 
-              : `Sua proposta de ${formatBRL(counterValue)} está no celular do cliente. Respondendo em breve...`}
-          </Text>
-
-          <View className="w-full bg-white/[0.03] border border-white/10 rounded-3xl p-5 flex-row items-center justify-between">
-             <View>
-                <Text className="text-white/40 text-[10px] font-black uppercase tracking-widest mb-0.5">VALOR ENVIADO</Text>
-                <Text className="text-white font-black text-xl">{formatBRL(counterValue)}</Text>
-             </View>
-             <ActivityIndicator color="#02de95" size="small" />
+          {/* Central Tactical Hub */}
+          <View className="flex-1 items-center justify-center w-full">
+            <LiveNegotiationRadar clientName={offer?.client?.name || "C"} />
+            
+            <Text className="text-white font-black text-2xl tracking-tight text-center mb-2">
+              Aguardando o Cliente
+            </Text>
+            
+            <AnimatePresence exitBeforeEnter>
+              <RealtimeStatusBadge message={liveStatusMessage} />
+            </AnimatePresence>
+            
+            <Text className="text-white/40 text-center text-xs font-medium leading-5 max-w-[280px] mb-6">
+              Sua contraproposta foi enviada e está sendo analisada no app do cliente.
+            </Text>
           </View>
-          
-          {loadingState === "waiting" && (
-            <TouchableOpacity 
+
+          {/* Bottom Operational Deck */}
+          <View className="w-full items-center">
+            <ProposalStatusCard
+              counterValue={counterValue}
+              baseValue={baseValue}
+              distanceKm={offer?.distanceKm || offer?.distance?.text || "-- km"}
+              durationText={offer?.estimatedDuration || offer?.duration?.text || "-- min"}
+              acceptanceChance={iaAcceptanceChance}
+            />
+            
+            <TouchableOpacity
               onPress={() => navigation.popToTop()}
-              className="mt-10 px-6 py-3 border border-white/10 rounded-xl"
+              activeOpacity={0.7}
+              className="px-8 py-4 bg-white/[0.03] border border-white/10 rounded-2xl w-full items-center"
             >
-               <Text className="text-white/60 font-bold text-xs uppercase tracking-wider">Voltar ao Painel</Text>
+              <Text className="text-white/60 font-black text-xs uppercase tracking-wider">Voltar ao Painel</Text>
             </TouchableOpacity>
-          )}
-        </MotiView>
+          </View>
+
+        </SafeAreaView>
       </View>
     );
   }

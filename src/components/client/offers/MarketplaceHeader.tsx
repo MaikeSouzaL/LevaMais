@@ -31,29 +31,27 @@ export function MarketplaceHeader({ onBack, offerCount, useDarkMap = true }: Mar
           </BlurView>
         </TouchableOpacity>
 
-        {/* Center Title Capsule (Minimalist, clean, without background) */}
-        <View className="flex-1 px-2 items-center justify-center h-[52px]">
-          <MotiView
-            from={{ opacity: 0.5 }}
-            animate={{ opacity: 1 }}
-            transition={{
-              type: "timing",
-              duration: 1000,
-              loop: true,
-              repeatReverse: true
-            }}
-            className="flex-row items-center justify-center"
-          >
-            {/* Premium Glowing Pulsing Dot */}
-            <View className="w-1.5 h-1.5 rounded-full bg-[#02de95] mr-2 shadow-md shadow-[#02de95]" />
-            
-            <Text 
-              className={`${useDarkMap ? "text-white" : "text-[#091A2F]"} font-black text-[12.5px] tracking-widest uppercase`} 
-              numberOfLines={1}
-            >
-              Buscando Entregadores
-            </Text>
-          </MotiView>
+        {/* Center Title Capsule - Augmented Live State Radar 📡 */}
+        <View className="flex-1 items-center justify-center h-[52px] px-2">
+          <View className="bg-white/[0.03] border border-white/10 rounded-[20px] px-3 py-2 flex-row items-center shadow-2xl">
+            <View className="mr-2 relative items-center justify-center">
+              <MotiView
+                from={{ scale: 0.8, opacity: 0.5 }}
+                animate={{ scale: 1.7, opacity: 0 }}
+                transition={{ loop: true, duration: 2000, type: "timing" }}
+                className="absolute w-2.5 h-2.5 rounded-full bg-[#02de95]"
+              />
+              <View className="w-2 h-2 rounded-full bg-[#02de95] shadow-sm shadow-[#02de95] z-10" />
+            </View>
+            <View className="items-start">
+              <Text className="text-white font-black text-[10.5px] tracking-[1.5px] uppercase leading-none mb-0.5">
+                Busca Ativa
+              </Text>
+              <Text className="text-[#02de95] font-black text-[8px] tracking-wider uppercase leading-none">
+                {Math.max(3, offerCount + 2)} parceiros visualizando
+              </Text>
+            </View>
+          </View>
         </View>
 
         {/* Right Live Counter Pill (Larger, Elevated design) 🛍️ */}
