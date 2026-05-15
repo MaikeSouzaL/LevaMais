@@ -215,7 +215,7 @@ const rideSchema = new mongoose.Schema(
           amount: { type: Number, required: true },
           status: {
             type: String,
-            enum: ["accepted", "countered", "rejected"],
+            enum: ["accepted", "countered", "rejected", "client_countered"],
             default: "countered",
           },
           message: String,

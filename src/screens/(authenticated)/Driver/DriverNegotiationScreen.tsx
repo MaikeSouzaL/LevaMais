@@ -354,7 +354,8 @@ export default function DriverNegotiationScreen() {
 
   const [counterValue, setCounterValue] = useState(baseValue + 2); // Default boost
   const [message, setMessage] = useState("");
-  const [loadingState, setLoadingState] = useState<"idle" | "sending" | "waiting" | "accepted" | "rejected">("idle");
+  const [loadingState, setLoadingState] = useState<"idle" | "sending" | "waiting" | "accepted" | "rejected" | "client_countered">("idle");
+  const [clientCounterVal, setClientCounterVal] = useState<number>(0);
 
   // Safe numeric parse for Dynamic stats 📊
   const distanceKm = useMemo(() => {
@@ -465,6 +466,11 @@ export default function DriverNegotiationScreen() {
            return oDriverId && driverId && oDriverId === driverId;
         });
 
+        if (myOffer && myOffer.status === "client_countered") {
+           setClientCounterVal(Number(myOffer.amount || 0));
+           setLoadingState("client_countered");
+        }
+
         if (myOffer && myOffer.status === "rejected") {
            handleOfferRejected();
            return;
@@ -525,6 +531,87 @@ export default function DriverNegotiationScreen() {
       Toast.show({ type: "error", text1: "Erro", text2: error?.message });
     }
   };
+
+  if (loadingState === "client_countered") {
+    return (
+      <View className="flex-1 bg-[#091A2F] items-center justify-center px-6">
+        <StatusBar barStyle="light-content" />
+        
+        <MotiView
+          from={{ scale: 0.8, opacity: 0, translateY: 20 }}
+          animate={{ scale: 1, opacity: 1, translateY: 0 }}
+          transition={{ type: "spring", damping: 15 }}
+          className="w-full bg-white/[0.03] border border-white/10 rounded-[36px] p-6 items-center"
+        >
+          <View className="w-20 h-20 rounded-full bg-[#00E5FF]/10 border border-[#00E5FF]/30 items-center justify-center mb-6 relative">
+             <MotiView
+              from={{ scale: 1, opacity: 0.5 }}
+              animate={{ scale: 1.4, opacity: 0 }}
+              transition={{ loop: true, duration: 2000, type: "timing" }}
+              className="absolute inset-0 rounded-full bg-[#00E5FF]/10"
+            />
+            <DollarSign size={32} color="#00E5FF" />
+          </View>
+
+          <Text className="text-white font-black text-2xl text-center mb-2">
+            Contraproposta do Cliente! ⚡
+          </Text>
+          
+          <Text className="text-white/50 text-center text-sm leading-5 mb-6">
+            O cliente analisou sua oferta e enviou uma proposta especial para fechar a corrida agora:
+          </Text>
+
+          <View className="w-full bg-white/[0.03] border border-white/5 rounded-3xl p-6 items-center justify-center mb-8 shadow-2xl">
+             <Text className="text-white/40 text-[10px] font-black uppercase tracking-widest mb-1">NOVA OFERTA DO CLIENTE</Text>
+             <Text className="text-[#00E5FF] font-black text-5xl tracking-tighter">
+               {formatBRL(clientCounterVal)}
+             </Text>
+          </View>
+
+          <View className="w-full space-y-3 gap-3">
+             <TouchableOpacity
+                onPress={async () => {
+                  try {
+                    setLoadingState("sending");
+                    await rideService.respondToOffer(offer._id, {
+                      action: "accept"
+                    });
+                  } catch (e: any) {
+                    setLoadingState("client_countered");
+                    Toast.show({ type: "error", text1: "Erro ao aceitar", text2: e?.message });
+                  }
+                }}
+                activeOpacity={0.9}
+                className="w-full h-16 bg-[#00E5FF] rounded-2xl items-center justify-center flex-row shadow-lg shadow-[#00E5FF]/20"
+             >
+                <Check size={20} color="#091A2F" className="mr-2" strokeWidth={3} />
+                <Text className="text-[#091A2F] font-black text-base uppercase tracking-wider">Aceitar e Iniciar Corrida</Text>
+             </TouchableOpacity>
+
+             <TouchableOpacity
+                onPress={async () => {
+                  try {
+                    setLoadingState("sending");
+                    await rideService.respondToOffer(offer._id, {
+                      action: "reject"
+                    });
+                    Toast.show({ type: "info", text1: "Oferta recusada", text2: "Você rejeitou a contraproposta do cliente." });
+                    navigation.popToTop();
+                  } catch (e: any) {
+                    setLoadingState("client_countered");
+                    Toast.show({ type: "error", text1: "Erro ao recusar", text2: e?.message });
+                  }
+                }}
+                activeOpacity={0.7}
+                className="w-full h-14 bg-transparent border border-white/10 rounded-2xl items-center justify-center"
+             >
+                <Text className="text-red-400 font-bold text-base">Recusar e Voltar</Text>
+             </TouchableOpacity>
+          </View>
+        </MotiView>
+      </View>
+    );
+  }
 
   if (loadingState !== "idle") {
     return (

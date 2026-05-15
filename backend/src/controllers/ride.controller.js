@@ -46,6 +46,40 @@ function sendError(res, status, message, extras = {}) {
   });
 }
 
+
+function calculateDynamicSearchRadius(ride) {
+  const vehicleType = ride.vehicleType || "motorcycle";
+  const isWaitingInQueue = !!ride.isWaitingInQueue;
+  
+  // Align with progressive scaler defined in src/hooks/useRealtimeDelivery.ts
+  const radiusConfig = {
+    motorcycle: { nearby: 2.5, expanded: 8.0, regional: 15.0 },
+    car: { nearby: 5.0, expanded: 15.0, regional: 30.0 },
+    van: { nearby: 10.0, expanded: 35.0, regional: 80.0 },
+    truck: { nearby: 15.0, expanded: 80.0, regional: 200.0 },
+  };
+
+  const vehicleConfig = radiusConfig[vehicleType] || radiusConfig.motorcycle;
+  
+  if (isWaitingInQueue) {
+    return vehicleConfig.regional * 1000;
+  }
+
+  const requestedTime = new Date(ride.requestedAt || ride.createdAt).getTime();
+  const secondsElapsed = (Date.now() - requestedTime) / 1000;
+
+  let activeRadiusKm = vehicleConfig.regional;
+  if (secondsElapsed < 20) {
+    activeRadiusKm = vehicleConfig.nearby;
+  } else if (secondsElapsed < 60) {
+    activeRadiusKm = vehicleConfig.expanded;
+  } else {
+    activeRadiusKm = vehicleConfig.regional;
+  }
+
+  return activeRadiusKm * 1000;
+}
+
 const SCHEDULED_DISPATCH_TIMEOUTS = new Map();
 const ACTIVE_SEARCH_TIMEOUTS = new Map();
 
@@ -227,18 +261,21 @@ class RideController {
         await ride.populate("clientId");
       }
 
-      let searchRadius = 15000;
+      let cityRadius = 15000;
       try {
         if (ride.cityId) {
           const city = await City.findById(ride.cityId).select("searchRadius");
           if (city?.searchRadius) {
-            searchRadius = city.searchRadius;
+            cityRadius = city.searchRadius;
           }
         }
       } catch (cityErr) {
         console.error("Erro ao buscar raio de busca da cidade:", cityErr);
-        searchRadius = 15000;
       }
+
+      // Dynamic Progressive Scaling synchronized with the client-side circle UI!
+      const dynamicRadius = calculateDynamicSearchRadius(ride);
+      const searchRadius = Math.min(dynamicRadius, cityRadius);
 
       let nearbyDrivers = [];
       try {
@@ -619,6 +656,7 @@ class RideController {
         status: { $in: ["requesting", "driver_assigned"] },
         vehicleType: driverLocation.vehicleType,
         serviceType: { $in: compatibleServiceTypes },
+        "negotiation.offers.driverId": { $ne: new mongoose.Types.ObjectId(driverId) }, // 🚀 Robust casting to exclude active negotiations!
         $and: [
           {
             $or: [
@@ -676,14 +714,19 @@ class RideController {
           const pickup = ride.pickup;
           if (!pickup?.latitude || !pickup?.longitude) return null;
 
-          const maxDistance =
+          const cityMaxDistance =
             radiusByCityId.get(ride.cityId?.toString()) || 15000;
+          
+          // Align driver visibility filter with progressive frontend seeker! 🧭🚀
+          const dynamicRadius = calculateDynamicSearchRadius(ride);
+          const activeMaxDistance = Math.min(dynamicRadius, cityMaxDistance);
+
           const distanceToPickup = driverLocation.distanceTo(
             pickup.latitude,
             pickup.longitude,
           );
 
-          if (distanceToPickup > maxDistance) return null;
+          if (distanceToPickup > activeMaxDistance) return null;
           const cId = ride.clientId?._id?.toString();
           const clientRidesCount = countByClientId.get(cId) || 0;
           return buildRideRequestPayload(ride, { distanceToPickup, clientRidesCount });
@@ -1397,6 +1440,15 @@ class RideController {
         return sendError(res, 400, "Negociacao nao habilitada para esta corrida");
       }
 
+      ride.negotiation.offers = Array.isArray(ride.negotiation.offers)
+        ? ride.negotiation.offers
+        : [];
+
+      const existingIndex = ride.negotiation.offers.findIndex(
+        (item) => String(item.driverId) === driverId,
+      );
+      const existingOffer = existingIndex >= 0 ? ride.negotiation.offers[existingIndex] : null;
+
       const action = String(req.body?.action || "").toLowerCase();
       const message = String(req.body?.message || "").slice(0, 300);
       const clientOffer = Number(ride.negotiation.clientOffer || ride.pricing.total || 0);
@@ -1405,9 +1457,18 @@ class RideController {
       let status = "countered";
       let amount = clientOffer;
 
+      if (existingOffer && existingOffer.status === "client_countered") {
+        amount = existingOffer.amount || clientOffer;
+      }
+
+      let shouldAutoMatch = false;
+
       if (action === "accept") {
         status = "accepted";
-        amount = clientOffer;
+        if (existingOffer && existingOffer.status === "client_countered") {
+          amount = existingOffer.amount;
+          shouldAutoMatch = true; // Directly agreed! 🚀
+        }
       } else if (action === "counter") {
         if (!Number.isFinite(providedAmount) || providedAmount <= 0) {
           return sendError(res, 400, "Valor de contraoferta invalido");
@@ -1421,23 +1482,12 @@ class RideController {
         return sendError(res, 400, "Acao invalida");
       }
 
-      ride.negotiation.offers = Array.isArray(ride.negotiation.offers)
-        ? ride.negotiation.offers
-        : [];
-
-      const existingIndex = ride.negotiation.offers.findIndex(
-        (item) => String(item.driverId) === driverId,
-      );
-
       const payload = {
         driverId,
         amount,
         status,
         message,
-        createdAt:
-          existingIndex >= 0
-            ? ride.negotiation.offers[existingIndex].createdAt || now
-            : now,
+        createdAt: existingOffer ? existingOffer.createdAt || now : now,
         updatedAt: now,
       };
 
@@ -1447,10 +1497,54 @@ class RideController {
         ride.negotiation.offers.push(payload);
       }
 
+      const io = req.app.get("io");
+
+      if (shouldAutoMatch) {
+        const finalPrice = toMoney(amount);
+        applyFinalPriceOnRide(
+          ride,
+          finalPrice,
+          Number(ride.splitDetails?.platformConfigUsed || 15),
+        );
+
+        ride.negotiation.finalAgreedPrice = finalPrice;
+        ride.negotiation.selectedDriverId = driverId;
+        ride.negotiation.selectedAt = now;
+        ride.driverId = driverId;
+        ride.status = "driver_assigned";
+        ride.requestedAt = now;
+
+        await ride.save();
+        await ride.populate("driverId", "name phone profilePhoto");
+        await ride.populate("clientId");
+
+        if (io) {
+          const clientRidesCount = await Ride.countDocuments({ clientId: ride.clientId._id || ride.clientId, status: "completed" }).catch(() => 0);
+          io.to(`driver-${driverId}`).emit(
+            "new-ride-request",
+            buildRideRequestPayload(ride, {
+              negotiationSelected: true,
+              clientRidesCount,
+            }),
+          );
+          io.to(`client-${ride.clientId._id || ride.clientId}`).emit("ride-offer-selected", {
+            rideId: ride._id,
+            driverId,
+            finalPrice
+          });
+        }
+
+        return res.json({
+          success: true,
+          message: "Contraproposta aceita com sucesso! Corrida atribuída.",
+          offer: payload,
+          rideMatched: true
+        });
+      }
+
       await ride.save();
       await ride.populate("negotiation.offers.driverId", "name profilePhoto");
 
-      const io = req.app.get("io");
       if (io) {
         io.to(`client-${ride.clientId._id || ride.clientId}`).emit("ride-offers-updated", {
           rideId: ride._id,
@@ -1467,6 +1561,63 @@ class RideController {
       return sendError(res, 500, "Erro ao enviar oferta", {
         details: error.message,
       });
+    }
+  }
+
+
+  async clientCounterOffer(req, res) {
+    try {
+      const { rideId } = req.params;
+      const clientId = String(req.user.id);
+      const { driverId, amount } = req.body;
+
+      if (!driverId || !amount || isNaN(amount) || amount <= 0) {
+        return sendError(res, 400, "Motorista e valor da contraproposta sao obrigatorios");
+      }
+
+      const ride = await Ride.findById(rideId);
+      if (!ride) return sendError(res, 404, "Corrida nao encontrada");
+      
+      if (String(ride.clientId?._id || ride.clientId) !== clientId) {
+        return sendError(res, 403, "Apenas o cliente pode enviar contraproposta");
+      }
+
+      if (!["requesting", "driver_assigned"].includes(String(ride.status || ""))) {
+        return sendError(res, 400, "A corrida nao permite negociacao ativa");
+      }
+
+      ride.negotiation.offers = Array.isArray(ride.negotiation.offers) ? ride.negotiation.offers : [];
+      const offer = ride.negotiation.offers.find(item => String(item.driverId?._id || item.driverId) === String(driverId));
+
+      if (!offer) {
+        return sendError(res, 404, "Oferta do motorista nao encontrada para negociar");
+      }
+
+      const now = new Date();
+      offer.amount = toMoney(amount);
+      offer.status = "client_countered";
+      offer.updatedAt = now;
+
+      await ride.save();
+
+      const io = req.app.get("io");
+      if (io) {
+        io.to(`client-${clientId}`).emit("ride-offers-updated", { rideId: ride._id });
+        io.to(`driver-${driverId}`).emit("client-counter-proposal", {
+          rideId: ride._id,
+          amount: offer.amount
+        });
+      }
+
+      return res.json({
+        success: true,
+        message: "Contraproposta enviada ao motorista com sucesso",
+        newAmount: offer.amount
+      });
+
+    } catch (error) {
+      console.error("Erro ao enviar contraproposta:", error);
+      return sendError(res, 500, "Erro ao enviar contraproposta", { details: error.message });
     }
   }
 

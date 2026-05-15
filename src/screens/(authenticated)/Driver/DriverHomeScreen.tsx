@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { AppState, View, Text, TouchableOpacity, useColorScheme, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -267,7 +267,18 @@ export default function DriverHomeScreen() {
 
       // Filtrar apenas chamadas que NÃO são da fila de espera
       // Fila será mostrada apenas na aba "Fila" do DriverRequestsScreen
-      const realtimeRequests = requests.filter((r: any) => r.isWaitingInQueue !== true);
+      const currentDriverId = useAuthStore.getState().userData?.id;
+      // Filtrar apenas chamadas que NÃO são da fila de espera E que o motorista NÃO está negociando
+      const realtimeRequests = requests.filter((r: any) => {
+        if (r.isWaitingInQueue === true) return false;
+
+        // 🚀 Bloqueio Duplo: Evitar que chamadas que eu já contrapropus façam o bottom sheet piscar/reaparecer
+        const alreadyProposed = Array.isArray(r.negotiation?.offers) && r.negotiation.offers.some((o: any) => {
+          const oId = typeof o.driverId === "string" ? o.driverId : o.driverId?._id;
+          return oId && currentDriverId && String(oId) === String(currentDriverId);
+        });
+        return !alreadyProposed;
+      });
       
       if (realtimeRequests.length > 0) {
         await showIncomingRideRequest(realtimeRequests[0], response.count || requests.length);

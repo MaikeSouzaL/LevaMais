@@ -107,7 +107,7 @@ export interface Ride {
 export interface RideOffer {
   driverId: string | { _id: string; name?: string; profilePhoto?: string };
   amount: number;
-  status: "accepted" | "countered" | "rejected";
+  status: "accepted" | "countered" | "rejected" | "client_countered";
   message?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -428,6 +428,11 @@ class RideService {
   async selectOffer(rideId: string, driverId: string): Promise<Ride> {
     const response = await api.post(`/rides/${rideId}/offers/select`, { driverId });
     return response.data?.ride;
+  }
+
+  async clientCounterOffer(rideId: string, driverId: string, amount: number): Promise<any> {
+    const response = await api.post(`/rides/${rideId}/offers/client-counter`, { driverId, amount });
+    return response.data;
   }
 
   async declineOffer(rideId: string, driverId: string): Promise<any> {

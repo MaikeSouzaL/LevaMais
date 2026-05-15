@@ -28,7 +28,7 @@ export default function RideOffersMarketplaceScreen() {
   
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [pendingIncrement, setPendingIncrement] = useState("5");
-  const [isSubtractMode, setIsSubtractMode] = useState(false);
+  const [targetOfferForCounter, setTargetOfferForCounter] = useState<RideOffer | null>(null);
   
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
@@ -37,15 +37,15 @@ export default function RideOffersMarketplaceScreen() {
   const [negotiation, setNegotiation] = useState<any>(null);
   const [offers, setOffers] = useState<RideOffer[]>([]);
 
-  const openConfirmModal = (val: number) => {
-    setPendingIncrement(val > 0 ? String(val) : "");
-    setIsSubtractMode(false);
+  const handleOpenCounterModal = (offer: RideOffer) => {
+    setTargetOfferForCounter(offer);
+    setPendingIncrement(String(offer.amount));
     setShowConfirmModal(true);
   };
 
-  const handleConfirmIncrease = async () => {
+  const handleConfirmClientCounter = async () => {
     const cleanVal = pendingIncrement.replace(",", ".");
-    let numVal = parseFloat(cleanVal);
+    const numVal = parseFloat(cleanVal);
     
     if (isNaN(numVal) || numVal <= 0) {
       Toast.show({
@@ -56,44 +56,35 @@ export default function RideOffersMarketplaceScreen() {
       return;
     }
 
-    if (isSubtractMode) {
-       numVal = -numVal;
-    }
+    if (!targetOfferForCounter || !rideId) return;
+    
+    const driverId = typeof targetOfferForCounter.driverId === "string" 
+      ? targetOfferForCounter.driverId 
+      : targetOfferForCounter.driverId?._id;
 
-    const currentBase = Number(negotiation?.clientOffer || 0);
-    const minFloor = Number(negotiation?.initialClientOffer || rideDetails?.pricing?.subtotal || 5.00);
-    const finalPredict = currentBase + numVal;
-
-    if (finalPredict < minFloor) {
-      Toast.show({
-        type: "error",
-        text1: "Limite Mínimo Atingido",
-        text2: `Sua proposta não pode ser menor que o valor inicial de ${formatBRL(minFloor)}.`,
-      });
-      return;
-    }
+    if (!driverId) return;
 
     setShowConfirmModal(false);
-    if (isIncreasing || !rideId) return;
+    if (isIncreasing) return;
     setIsIncreasing(true);
+
     try {
-      const res = await rideService.increaseOffer(rideId, numVal);
-      if (res.success) {
-        Toast.show({
-          type: "success",
-          text1: isSubtractMode ? "Oferta Reduzida! 📉" : "Oferta Aumentada! 🚀",
-          text2: `Sua nova oferta base agora é ${formatBRL(res.newOffer)}!`,
-        });
-        await loadOffers();
-      }
+      await rideService.clientCounterOffer(rideId, driverId, numVal);
+      Toast.show({
+        type: "success",
+        text1: "Contraproposta enviada! 🚀",
+        text2: `Você ofereceu ${formatBRL(numVal)} ao entregador. Aguardando resposta...`,
+      });
+      await loadOffers();
     } catch (e: any) {
       Toast.show({
         type: "error",
-        text1: "Falha ao ajustar",
+        text1: "Falha ao enviar contraproposta",
         text2: e?.response?.data?.error || e?.message || "Tente novamente.",
       });
     } finally {
       setIsIncreasing(false);
+      setTargetOfferForCounter(null);
     }
   };
 
@@ -236,9 +227,9 @@ export default function RideOffersMarketplaceScreen() {
         />
       </View>
 
-      {/* 💰 Sua Proposta Base + Zap Pills Accelerator Desk */}
-      <View style={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: 20, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)", backgroundColor: "#0B1A2A" }}>
-        <View className="flex-row items-center justify-between mb-4">
+      {/* 💰 Sua Proposta Base */}
+      <View style={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)", backgroundColor: "#0B1A2A" }}>
+        <View className="flex-row items-center justify-between">
           <View>
             <Text className="text-white/40 text-[10px] font-black uppercase tracking-wider mb-0.5">
               Sua Proposta Base
@@ -252,80 +243,6 @@ export default function RideOffersMarketplaceScreen() {
              <Text className="text-[#02de95] text-[10px] font-bold uppercase tracking-widest">⚡ Negociação</Text>
           </View>
         </View>
-
-        <View className="flex-row items-center mb-3 mt-1">
-           <TrendingUp size={13} color="#02de95" style={{ marginRight: 6 }} />
-           <Text className="text-white/60 text-[10px] font-black uppercase tracking-widest">Acelerar Pedido (Aumentar Oferta)</Text>
-        </View>
-        
-        <ScrollView 
-           horizontal 
-           showsHorizontalScrollIndicator={false} 
-           className="flex-row overflow-visible"
-           contentContainerStyle={{ paddingRight: 24 }}
-        >
-          <View className="flex-row gap-3">
-            {/* 🚀 + R$ 2 */}
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => openConfirmModal(2)}
-              className="bg-[#02de95] rounded-2xl h-[46px] px-4 flex-row items-center justify-center shadow-lg shadow-[#02de95]/20"
-            >
-               <Zap size={14} fill="#091A2F" color="#091A2F" style={{ marginRight: 6 }} />
-               <Text className="text-[#091A2F] text-[14px] font-black">+R$ 2</Text>
-            </TouchableOpacity>
-
-            {/* ⚡ + R$ 5 */}
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => openConfirmModal(5)}
-              className="bg-[#02de95] rounded-2xl h-[46px] px-4 flex-row items-center justify-center shadow-lg shadow-[#02de95]/20"
-            >
-               <Zap size={14} fill="#091A2F" color="#091A2F" style={{ marginRight: 6 }} />
-               <Text className="text-[#091A2F] text-[14px] font-black">+R$ 5</Text>
-            </TouchableOpacity>
-
-            {/* 🔥 + R$ 10 */}
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => openConfirmModal(10)}
-              className="bg-[#02de95] rounded-2xl h-[46px] px-4 flex-row items-center justify-center shadow-lg shadow-[#02de95]/20"
-            >
-               <Zap size={14} fill="#091A2F" color="#091A2F" style={{ marginRight: 6 }} />
-               <Text className="text-[#091A2F] text-[14px] font-black">+R$ 10</Text>
-            </TouchableOpacity>
-
-            {/* 💰 + R$ 15 */}
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => openConfirmModal(15)}
-              className="bg-[#02de95] rounded-2xl h-[46px] px-4 flex-row items-center justify-center shadow-lg shadow-[#02de95]/20"
-            >
-               <Zap size={14} fill="#091A2F" color="#091A2F" style={{ marginRight: 6 }} />
-               <Text className="text-[#091A2F] text-[14px] font-black">+R$ 15</Text>
-            </TouchableOpacity>
-
-            {/* 💎 + R$ 20 */}
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => openConfirmModal(20)}
-              className="bg-[#02de95] rounded-2xl h-[46px] px-4 flex-row items-center justify-center shadow-lg shadow-[#02de95]/20"
-            >
-               <Zap size={14} fill="#091A2F" color="#091A2F" style={{ marginRight: 6 }} />
-               <Text className="text-[#091A2F] text-[14px] font-black">+R$ 20</Text>
-            </TouchableOpacity>
-
-            {/* ✏️ Outro Valor */}
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => openConfirmModal(0)}
-              className="bg-[#02de95]/10 border border-[#02de95]/50 rounded-2xl h-[46px] px-4 flex-row items-center justify-center shadow-sm"
-            >
-               <TrendingUp size={15} color="#02de95" style={{ marginRight: 6 }} />
-               <Text className="text-[#02de95] text-[14px] font-black">✏️ Outro Valor</Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
       </View>
 
       {/* 🧬 Scrollable Vertical Matrix of Counter-Offers */}
@@ -390,6 +307,7 @@ export default function RideOffersMarketplaceScreen() {
                     loading={selectingId === dId}
                     onSelect={handleSelectOffer}
                     onDecline={handleDeclineOffer}
+                    onCounter={handleOpenCounterModal}
                   />
                 );
               })}
@@ -398,63 +316,23 @@ export default function RideOffersMarketplaceScreen() {
         </AnimatePresence>
       </ScrollView>
 
-      {/* 💎 Ajustar Oferta Modal */}
+      {/* 💎 Ajustar Contraproposta Modal */}
       <Modal
         visible={showConfirmModal}
-        title="Ajustar Oferta"
+        title="Contrapropor Entregador"
         type="info"
-        confirmText="Confirmar"
-        onClose={() => setShowConfirmModal(false)}
-        onConfirm={handleConfirmIncrease}
+        confirmText="Enviar Contraproposta"
+        onClose={() => {
+          setShowConfirmModal(false);
+          setTargetOfferForCounter(null);
+        }}
+        onConfirm={handleConfirmClientCounter}
       >
          <View style={{ width: "100%", marginTop: 12, alignItems: "center" }}>
-            <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 13, marginBottom: 12, textAlign: "center", lineHeight: 18 }}>
-               Ajuste o valor da proposta base. (Valor mínimo do seu chamado: <Text style={{ color: "#fff", fontWeight: "bold" }}>{formatBRL(Number(negotiation?.initialClientOffer || rideDetails?.pricing?.subtotal || 5.00))}</Text>)
+            <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 13, marginBottom: 16, textAlign: "center", lineHeight: 18 }}>
+               Envie uma nova proposta diretamente para o entregador <Text style={{ color: "#fff", fontWeight: "bold" }}>{typeof targetOfferForCounter?.driverId === "string" ? "Parceiro" : targetOfferForCounter?.driverId?.name || "Parceiro"}</Text>. A oferta atual dele é de <Text style={{ color: "#fbbf24", fontWeight: "bold" }}>{formatBRL(Number(targetOfferForCounter?.amount || 0))}</Text>.
             </Text>
 
-            <View style={{ 
-               flexDirection: "row", 
-               backgroundColor: "rgba(255,255,255,0.06)", 
-               borderRadius: 12, 
-               padding: 4, 
-               width: "100%", 
-               marginBottom: 16 
-            }}>
-               <TouchableOpacity 
-                  onPress={() => setIsSubtractMode(false)}
-                  activeOpacity={0.8}
-                  style={{ 
-                     flex: 1, 
-                     height: 40, 
-                     borderRadius: 8, 
-                     backgroundColor: !isSubtractMode ? "#02de95" : "transparent", 
-                     alignItems: "center", 
-                     justifyContent: "center", 
-                     flexDirection: "row" 
-                  }}
-               >
-                  <Zap size={13} fill={!isSubtractMode ? "#091A2F" : "rgba(255,255,255,0.5)"} color={!isSubtractMode ? "#091A2F" : "rgba(255,255,255,0.5)"} style={{ marginRight: 6 }} />
-                  <Text style={{ color: !isSubtractMode ? "#091A2F" : "rgba(255,255,255,0.5)", fontSize: 13, fontWeight: "bold" }}>Somar (+)</Text>
-               </TouchableOpacity>
-
-               <TouchableOpacity 
-                  onPress={() => setIsSubtractMode(true)}
-                  activeOpacity={0.8}
-                  style={{ 
-                     flex: 1, 
-                     height: 40, 
-                     borderRadius: 8, 
-                     backgroundColor: isSubtractMode ? "#ef4444" : "transparent", 
-                     alignItems: "center", 
-                     justifyContent: "center", 
-                     flexDirection: "row" 
-                  }}
-               >
-                  <TrendingDown size={14} color={isSubtractMode ? "#fff" : "rgba(255,255,255,0.5)"} style={{ marginRight: 6 }} />
-                  <Text style={{ color: isSubtractMode ? "#fff" : "rgba(255,255,255,0.5)", fontSize: 13, fontWeight: "bold" }}>Subtrair (-)</Text>
-               </TouchableOpacity>
-            </View>
-            
             <View style={{
                width: "100%",
                flexDirection: "row",
@@ -464,15 +342,16 @@ export default function RideOffersMarketplaceScreen() {
                borderColor: "rgba(255, 255, 255, 0.1)",
                borderRadius: 16,
                paddingHorizontal: 16,
-               height: 56,
+               height: 64,
+               marginBottom: 8
             }}>
                <Text style={{ 
-                  color: !isSubtractMode ? "#02de95" : "#ef4444", 
-                  fontSize: 18, 
-                  fontWeight: "bold", 
+                  color: "#02de95", 
+                  fontSize: 22, 
+                  fontWeight: "900", 
                   marginRight: 8 
                }}>
-                  {isSubtractMode ? "- R$" : "R$"}
+                  R$
                </Text>
                <TextInput
                   value={pendingIncrement}
@@ -482,8 +361,8 @@ export default function RideOffersMarketplaceScreen() {
                   style={{
                      flex: 1,
                      color: "#fff",
-                     fontSize: 18,
-                     fontWeight: "bold",
+                     fontSize: 24,
+                     fontWeight: "900",
                   }}
                   placeholder="0,00"
                   placeholderTextColor="rgba(255,255,255,0.3)"
