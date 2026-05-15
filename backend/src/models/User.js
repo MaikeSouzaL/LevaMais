@@ -1,5 +1,43 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
+const crypto = require("crypto");
+
+// 🔐 SECURITY CONFIGURATION
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || "d6f9a2e1b4c7d0e3f6a9b2c5d8e1f4a7"; // Must be 32 bytes
+const IV_LENGTH = 16; 
+
+function encrypt(text) {
+  if (!text) return text;
+  try {
+    const iv = crypto.randomBytes(IV_LENGTH);
+    const cipher = crypto.createCipheriv("aes-256-cbc", Buffer.from(ENCRYPTION_KEY), iv);
+    let encrypted = cipher.update(text);
+    encrypted = Buffer.concat([encrypted, cipher.final()]);
+    return iv.toString("hex") + ":" + encrypted.toString("hex");
+  } catch (e) {
+    return text;
+  }
+}
+
+function decrypt(text) {
+  if (!text || typeof text !== 'string' || !text.includes(":")) return text;
+  try {
+    const textParts = text.split(":");
+    const iv = Buffer.from(textParts.shift(), "hex");
+    const encryptedText = Buffer.from(textParts.join(":"), "hex");
+    const decipher = crypto.createDecipheriv("aes-256-cbc", Buffer.from(ENCRYPTION_KEY), iv);
+    let decrypted = decipher.update(encryptedText);
+    decrypted = Buffer.concat([decrypted, decipher.final()]);
+    return decrypted.toString();
+  } catch (e) {
+    return text;
+  }
+}
+
+function generateHash(text) {
+  if (!text) return text;
+  return crypto.createHash("sha256").update(text).digest("hex");
+}
 
 const vehicleSchema = new mongoose.Schema(
   {
@@ -75,12 +113,27 @@ const userSchema = new mongoose.Schema(
       type: String,
       trim: true,
       sparse: true,
+      get: decrypt,
+      set: encrypt,
+    },
+    cpfHash: {
+      type: String,
+      index: true,
+      sparse: true,
     },
     cnpj: {
       type: String,
       trim: true,
       sparse: true,
+      get: decrypt,
+      set: encrypt,
     },
+    cnpjHash: {
+      type: String,
+      index: true,
+      sparse: true,
+    },
+
     // Dados da empresa (se CNPJ)
     companyName: {
       type: String,
@@ -342,22 +395,35 @@ const userSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
+    toJSON: { getters: true, transform: (doc, ret) => { delete ret.password; delete ret.cpfHash; delete ret.cnpjHash; return ret; } },
+    toObject: { getters: true }
   }
 );
 
-// Hash da senha antes de salvar
+// Hash e Segurança antes de salvar
 userSchema.pre("save", async function (next) {
-  if (!this.isModified("password")) {
-    return next();
+  // 1. Hash da senha
+  if (this.isModified("password") && this.password) {
+    try {
+      const salt = await bcrypt.genSalt(10);
+      this.password = await bcrypt.hash(this.password, salt);
+    } catch (error) {
+      return next(error);
+    }
   }
 
-  try {
-    const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
-    next();
-  } catch (error) {
-    next(error);
+  // 2. Gerar hashes de busca para CPF/CNPJ
+  if (this.isModified("cpf") && this.cpf) {
+    const rawCpf = this.cpf.includes(":") ? decrypt(this.cpf) : this.cpf;
+    this.cpfHash = generateHash(rawCpf);
   }
+
+  if (this.isModified("cnpj") && this.cnpj) {
+    const rawCnpj = this.cnpj.includes(":") ? decrypt(this.cnpj) : this.cnpj;
+    this.cnpjHash = generateHash(rawCnpj);
+  }
+
+  next();
 });
 
 // MÃ©todo para comparar senha
@@ -366,13 +432,6 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
     return false;
   }
   return await bcrypt.compare(candidatePassword, this.password);
-};
-
-// MÃ©todo para remover campos sensÃ­veis do JSON
-userSchema.methods.toJSON = function () {
-  const userObject = this.toObject();
-  delete userObject.password;
-  return userObject;
 };
 
 const User = mongoose.model("User", userSchema);

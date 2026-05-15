@@ -5,6 +5,8 @@ import ClientBoot from "./ClientBoot";
 import DriverBoot from "./DriverBoot";
 import { useAuthStore } from "../context/authStore";
 import { getProfile } from "../services/auth.service";
+import userService from "../services/user.service";
+import TermsScreen from "../screens/(public)/TermsScreen";
 
 function RouteFallbackLoader() {
   return (
@@ -116,12 +118,25 @@ export default function Routes() {
     return <RouteFallbackLoader />;
   }
 
-  if (userType === "client") {
-    return <ClientBoot />;
+  // ⚖️ LEGAL GATEKEEPER: All authenticated users must accept Terms before proceeding.
+  if (!userData?.aceitouTermos) {
+    const handleAccept = async () => {
+      try {
+        await userService.updateProfile({ acceptedTerms: true });
+        updateUserData({ aceitouTermos: true });
+      } catch (e) {
+        console.error("Erro ao aceitar termos no dispatch central:", e);
+      }
+    };
+    return <TermsScreen onAccept={handleAccept} />;
   }
 
   if (userType === "driver") {
     return <DriverBoot />;
+  }
+
+  if (userType === "client") {
+    return <ClientBoot />;
   }
 
   return <RouteFallbackLoader />;

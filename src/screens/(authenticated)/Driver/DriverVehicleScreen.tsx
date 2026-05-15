@@ -265,6 +265,59 @@ export default function DriverVehicleScreen() {
           </View>
         </LinearGradient>
 
+        {/* 📑 Active Vehicle Documents Section (Centralized here) */}
+        {activeVehicle && (
+          <View style={{ marginBottom: 30 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12, paddingHorizontal: 4 }}>
+              <FileText size={16} color="#02de95" />
+              <Text style={{ color: "rgba(255,255,255,0.7)", fontWeight: "800", fontSize: 13, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                Documentação do Veículo Ativo
+              </Text>
+            </View>
+            
+            <SectionCard style={{ padding: 16 }}>
+              <View style={{ flexDirection: "row", gap: 12 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: "700", marginBottom: 6, textTransform: "uppercase" }}>CRLV Frente/Verso</Text>
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    <View style={{ flex: 1, height: 80, backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 12, overflow: "hidden", borderWidth: 1, borderColor: activeVehicle.documents?.crlvFront ? "rgba(2, 222, 149, 0.3)" : "rgba(255,255,255,0.1)" }}>
+                      {activeVehicle.documents?.crlvFront ? (
+                        <Image source={{ uri: activeVehicle.documents.crlvFront }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+                      ) : (
+                        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}><MaterialIcons name="image-not-supported" size={20} color="rgba(255,255,255,0.2)" /></View>
+                      )}
+                    </View>
+                    <View style={{ flex: 1, height: 80, backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 12, overflow: "hidden", borderWidth: 1, borderColor: activeVehicle.documents?.crlvBack ? "rgba(2, 222, 149, 0.3)" : "rgba(255,255,255,0.1)" }}>
+                      {activeVehicle.documents?.crlvBack ? (
+                        <Image source={{ uri: activeVehicle.documents.crlvBack }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+                      ) : (
+                        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}><MaterialIcons name="image-not-supported" size={20} color="rgba(255,255,255,0.2)" /></View>
+                      )}
+                    </View>
+                  </View>
+                </View>
+                <View style={{ flex: 0.5 }}>
+                  <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: "700", marginBottom: 6, textTransform: "uppercase" }}>Foto Veículo</Text>
+                  <View style={{ width: "100%", height: 80, backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 12, overflow: "hidden", borderWidth: 1, borderColor: activeVehicle.documents?.vehiclePhoto ? "rgba(2, 222, 149, 0.3)" : "rgba(255,255,255,0.1)" }}>
+                    {activeVehicle.documents?.vehiclePhoto ? (
+                      <Image source={{ uri: activeVehicle.documents.vehiclePhoto }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+                    ) : (
+                      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}><MaterialIcons name="image-not-supported" size={20} color="rgba(255,255,255,0.2)" /></View>
+                    )}
+                  </View>
+                </View>
+              </View>
+              
+              <TouchableOpacity 
+                style={{ marginTop: 12, alignSelf: "center", paddingVertical: 4, paddingHorizontal: 12, backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 8 }}
+                onPress={() => setViewMode("add")}
+              >
+                <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, fontWeight: "700" }}>Editar ou Trocar Veículo</Text>
+              </TouchableOpacity>
+            </SectionCard>
+          </View>
+        )}
+
         {/* Row Header for Fleet */}
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 18, paddingHorizontal: 2 }}>
           <View>

@@ -107,12 +107,8 @@ export default function DriverOnboardingDashboard() {
 
   return (
     <View style={styles.container}>
-      {/* 🌌 Glass Backing allowing the map to peek through */}
-      <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
-      <LinearGradient
-        colors={["rgba(9,26,47,0.9)", "rgba(9,26,47,0.98)"]}
-        style={StyleSheet.absoluteFill}
-      />
+      {/* 🌌 Solid Dark Background (No Transparency) */}
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: "#091A2F" }]} />
 
       <ScrollView 
         contentContainerStyle={[

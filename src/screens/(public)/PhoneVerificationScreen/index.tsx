@@ -9,11 +9,13 @@ import {
   StyleSheet,
   StatusBar,
   ActivityIndicator,
+  PermissionsAndroid,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { MotiView, MotiText } from "moti";
+import { ShieldCheck, MessageSquare, Info } from "lucide-react-native";
 import Toast from "react-native-toast-message";
 
 // 🔧 Core Services
@@ -96,6 +98,36 @@ export default function PhoneVerificationScreen() {
 
     sendInitialCode();
   }, [phone, hasSentInitialCode]);
+
+  // Effect: Request SMS Permission (Android Only)
+  useEffect(() => {
+    if (Platform.OS === "android") {
+      requestSMSPermission();
+    }
+  }, []);
+
+  async function requestSMSPermission() {
+    try {
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.RECEIVE_SMS,
+        {
+          title: "Permissão de SMS",
+          message:
+            "O Leva+ precisa de acesso aos seus SMS para detectar o código de verificação automaticamente.",
+          buttonNeutral: "Perguntar Depois",
+          buttonNegative: "Cancelar",
+          buttonPositive: "OK",
+        }
+      );
+      if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+        console.log("SMS Permission Granted");
+      } else {
+        console.log("SMS Permission Denied");
+      }
+    } catch (err) {
+      console.warn(err);
+    }
+  }
 
   // Timer Handler
   useEffect(() => {
@@ -221,6 +253,36 @@ export default function PhoneVerificationScreen() {
           >
             <OTPInput value={code} onChange={setCode} cellCount={4} />
 
+             {/* 🤖 Automatic Retrieval Hint & Info */}
+             <MotiView 
+                from={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 1000 }}
+                className="flex-row items-center justify-center mb-4 gap-2"
+             >
+                <ActivityIndicator size="small" color={colors.primary[500]} style={{ transform: [{ scale: 0.6 }] }} />
+                <Text className="text-white/40 text-[10px] font-medium tracking-widest uppercase">
+                  Detectando SMS automaticamente...
+                </Text>
+             </MotiView>
+
+             <MotiView 
+                from={{ opacity: 0, translateY: 10 }}
+                animate={{ opacity: 1, translateY: 0 }}
+                transition={{ type: 'timing', duration: 600, delay: 500 }}
+                className="mb-8 p-4 bg-white/5 rounded-2xl border border-white/10"
+             >
+                <View className="flex-row items-center gap-3 mb-2">
+                   <View style={{ backgroundColor: colors.primary[500] + '20' }} className="p-2 rounded-lg">
+                      <MessageSquare size={16} color={colors.primary[500]} />
+                   </View>
+                   <Text className="text-white font-bold text-xs">Agilidade no Cadastro</Text>
+                </View>
+                <Text className="text-white/50 text-[11px] leading-4">
+                  O sistema tentará capturar o código do SMS automaticamente para facilitar seu acesso. Caso não ocorra, você pode digitar os 4 dígitos manualmente.
+                </Text>
+             </MotiView>
+
             {/* 🚀 Confirm Trigger */}
             <TouchableOpacity
               style={[
@@ -267,6 +329,24 @@ export default function PhoneVerificationScreen() {
                 </TouchableOpacity>
               )}
             </View>
+          </MotiView>
+
+          {/* 🛡️ Transparency & Safety Info */}
+          <MotiView
+            from={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ type: 'timing', duration: 600, delay: 400 }}
+            className="mt-12 p-5 bg-white/5 rounded-3xl border border-white/10"
+          >
+             <View className="flex-row items-center gap-3 mb-2">
+                <View className="bg-[#02de95]/20 p-2 rounded-xl">
+                   <ShieldCheck size={18} color="#02de95" />
+                </View>
+                <Text className="text-white font-bold text-sm">Sua Segurança é Prioridade</Text>
+             </View>
+             <Text className="text-white/60 text-xs leading-5">
+               Solicitamos seu telefone para validar sua conta e garantir a integridade do sistema. Isso evita fraudes e assegura que todos os usuários do Leva+ sejam reais e verificados. Seus dados são protegidos por criptografia de ponta e nunca serão compartilhados para fins comerciais.
+             </Text>
           </MotiView>
         </ScrollView>
       </KeyboardAvoidingView>

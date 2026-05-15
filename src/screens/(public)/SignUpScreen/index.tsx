@@ -350,7 +350,7 @@ export default function SignUpScreen() {
         userType: undefined,
         googleId: undefined,
         profilePhoto: undefined,
-        acceptedTerms: true,
+        acceptedTerms: false,
       };
 
       // Handover to verification routing

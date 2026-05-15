@@ -14,7 +14,7 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { MotiView } from "moti";
-import { Phone } from "lucide-react-native";
+import { Phone, ShieldCheck } from "lucide-react-native";
 import Toast from "react-native-toast-message";
 
 // React Hook Form + Zod
@@ -184,6 +184,24 @@ export default function GooglePhonePromptScreen() {
                 <Text style={styles.btnText}>Enviar Código</Text>
               )}
             </TouchableOpacity>
+
+            {/* 🛡️ Transparency & Safety Info */}
+            <MotiView
+              from={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ type: 'timing', duration: 600, delay: 300 }}
+              className="mt-10 p-5 bg-white/5 rounded-3xl border border-white/10"
+            >
+               <View className="flex-row items-center gap-3 mb-2">
+                  <View className="bg-[#02de95]/20 p-2 rounded-xl">
+                     <ShieldCheck size={18} color="#02de95" />
+                  </View>
+                  <Text className="text-white font-bold text-sm">Privacidade Garantida</Text>
+               </View>
+               <Text className="text-white/60 text-xs leading-5">
+                 Seu número é essencial para garantir a segurança da plataforma. Ele permite validar sua conta, prevenir acessos não autorizados e facilitar a comunicação segura entre passageiro e motorista.
+               </Text>
+            </MotiView>
           </MotiView>
         </ScrollView>
       </KeyboardAvoidingView>

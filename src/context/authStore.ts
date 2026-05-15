@@ -16,6 +16,7 @@ export interface UserData {
   fotoPerfil?: string;
   googleId?: string;
   aceitouTermos: boolean;
+  acceptedTerms?: boolean;
   expoPushToken?: string;
   vehicleType?: unknown;
   vehicleInfo?: unknown;
@@ -51,7 +52,8 @@ function normalizeUserData(data: UserData): UserData {
     cidade: data.cidade || "",
     telefone: data.telefone || "",
     email: data.email?.trim().toLowerCase() || "",
-    aceitouTermos: Boolean(data.aceitouTermos),
+    aceitouTermos: Boolean(data.aceitouTermos || data.acceptedTerms),
+    acceptedTerms: Boolean(data.acceptedTerms || data.aceitouTermos),
   };
 }
 

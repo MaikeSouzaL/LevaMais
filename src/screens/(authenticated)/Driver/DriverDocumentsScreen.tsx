@@ -42,15 +42,12 @@ export default function DriverDocumentsScreen() {
     return {
       cnhFront: d.cnhFront || null,
       cnhBack: d.cnhBack || null,
-      crlvFront: d.crlvFront || null,
-      crlvBack: d.crlvBack || null,
-      vehiclePhoto: d.vehiclePhoto || null,
       selfie: d.selfie || null,
     };
   }, [profile]);
 
   const completedCount = Object.values(docs).filter(Boolean).length;
-  const totalCount = 6;
+  const totalCount = 3;
   const progress = Math.round((completedCount / totalCount) * 100);
 
   const getStatusConfig = () => {
@@ -234,7 +231,7 @@ export default function DriverDocumentsScreen() {
   };
 
   return (
-    <DriverScreen title="Documentos do Condutor" scroll hideHeader={true}>
+    <DriverScreen title="Meus Documentos" scroll hideHeader={true}>
       
       {/* 📊 Resumo do Painel */}
       <SectionCard style={{ padding: 18, borderRadius: 22 }}>
@@ -262,7 +259,7 @@ export default function DriverDocumentsScreen() {
           <View style={{ width: `${progress}%`, height: "100%", backgroundColor: statusCfg.color, borderRadius: 3 }} />
         </View>
         <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginTop: 6 }}>
-          {completedCount} de {totalCount} documentos válidos detectados.
+          {completedCount} de {totalCount} documentos pessoais válidos.
         </Text>
       </SectionCard>
 
@@ -280,30 +277,12 @@ export default function DriverDocumentsScreen() {
         </View>
       </View>
 
-      {/* 🚗 Grupo 2: Documento Veicular */}
-      <View style={{ marginVertical: 12 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10, paddingHorizontal: 4 }}>
-          <FontAwesome5 name="file-contract" size={14} color="#02de95" style={{ opacity: 0.8 }} />
-          <Text style={{ color: "rgba(255,255,255,0.7)", fontWeight: "800", fontSize: 13, textTransform: "uppercase", letterSpacing: 0.5 }}>
-            Documento do Veículo (CRLV)
-          </Text>
-        </View>
-        <View style={{ flexDirection: "row", gap: 12 }}>
-          {renderDocThumbnail("FRENTE CRLV", "crlvFront", docs.crlvFront)}
-          {renderDocThumbnail("VERSO CRLV", "crlvBack", docs.crlvBack)}
-        </View>
-        <View style={{ flexDirection: "row", gap: 12, marginTop: 12 }}>
-          {renderDocThumbnail("FOTO DO VEÍCULO", "vehiclePhoto", docs.vehiclePhoto)}
-          <View style={{ flex: 1 }} />
-        </View>
-      </View>
-
       {/* 🛡️ Grupo 3: Identidade e Veículo */}
       <View style={{ marginVertical: 12, marginBottom: 20 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10, paddingHorizontal: 4 }}>
-          <FontAwesome5 name="shield-alt" size={14} color="#02de95" style={{ opacity: 0.8 }} />
+          <FontAwesome5 name="camera" size={14} color="#02de95" style={{ opacity: 0.8 }} />
           <Text style={{ color: "rgba(255,255,255,0.7)", fontWeight: "800", fontSize: 13, textTransform: "uppercase", letterSpacing: 0.5 }}>
-            Segurança e Fotos
+            Reconhecimento Facial
           </Text>
         </View>
         <View style={{ flexDirection: "row", gap: 12 }}>

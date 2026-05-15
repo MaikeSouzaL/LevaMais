@@ -6,6 +6,8 @@ const LogoImg = require("../assets/Logo/logo.png");
 import DrawerDriverRoutes from "./drawer.driver.routes";
 import rideService from "../services/ride.service";
 import { useAuthStore } from "../context/authStore";
+import userService from "../services/user.service";
+import TermsScreen from "../screens/(public)/TermsScreen";
 
 export default function DriverBoot() {
   const { userData, userType } = useAuthStore();

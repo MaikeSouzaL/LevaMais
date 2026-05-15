@@ -42,6 +42,7 @@ export type UserProfile = {
     selfie?: string;
     submittedAt?: string;
   };
+  acceptedTerms?: boolean;
 };
 
 export type GetProfileResponse = { success: boolean; data: { user: UserProfile } };
@@ -61,6 +62,7 @@ export type UpdateProfilePayload = Partial<
     | "queueRedispatchInterval"
     | "vehicleType"
     | "vehicleInfo"
+    | "acceptedTerms"
   >
 >;
 

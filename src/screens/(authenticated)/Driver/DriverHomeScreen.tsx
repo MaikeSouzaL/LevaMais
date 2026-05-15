@@ -495,6 +495,23 @@ export default function DriverHomeScreen() {
     };
   }, []);
 
+  // 🌍 AUTO CITY DETECTION & UPDATE (Ensures driver profile has a registered city)
+  useEffect(() => {
+    if (!userData || userData.city) return;
+
+    (async () => {
+      try {
+        const result = await getCurrentLocationAndAddress();
+        if (result?.address?.city) {
+          await userService.updateProfile({ city: result.address.city });
+          // Note: profile sync happens via authStore listeners or manual refresh if needed
+        }
+      } catch (err) {
+        console.error("Failed to auto-detect city:", err);
+      }
+    })();
+  }, [userData]);
+
   // Sincroniza status online inicial com backend (evita UI divergente ao reabrir app)
   useEffect(() => {
     let mounted = true;
@@ -519,6 +536,7 @@ export default function DriverHomeScreen() {
       mounted = false;
     };
   }, []);
+
 
   const startSharing = async () => {
     setError(null);
@@ -1095,317 +1113,214 @@ export default function DriverHomeScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [incomingRequest?.rideId]);
 
+
+
   return (
-    <ErrorBoundary componentName="DriverHomeScreen">
-      <GestureHandlerRootView className="flex-1 bg-[#091A2F]">
-      <StatusBar style="light" />
+    <ErrorBoundary>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <View style={{ flex: 1, backgroundColor: "#091A2F" }}>
+          <StatusBar style="light" />
 
-      <View className="flex-1 relative">
-        {!region ? (
-          <LocationLoadingScreen />
-        ) : (
-          <GlobalMap
-            initialRegion={region as any}
-            region={region ?? undefined}
-            showsUserLocation={false}
-            useDarkStyle={useDarkMap}
-            animateTo3DOnReady={true}
-            onMapRef={(ref) => {
-              mapRef.current = ref;
-            }}
-            onRegionChangeComplete={(r) => setRegion(r as any)}
-          >
-            {/* 🚗 The Premium Custom High-Def Driver Tracker Puck */}
-            {!!driverCoords && (
-              <Marker
-                coordinate={{
-                  latitude: driverCoords.latitude,
-                  longitude: driverCoords.longitude,
+          {region && (
+            <>
+              <GlobalMap
+                ref={mapRef}
+                region={region}
+                onRegionChangeComplete={(r) => {
+                  if (!isCentering) setRegion(r);
                 }}
-                flat={true}
-                anchor={{ x: 0.5, y: 0.5 }}
-                tracksViewChanges={true}
-                style={{ width: 40, height: 40 }}
+                useDarkStyle={useDarkMap}
               >
-                 <VehicleMarker 
-                   type={vehicleType as any} 
-                   isOnline={online} 
-                 />
-              </Marker>
-            )}
-            {!!incomingRequest?.pickup?.latitude &&
-              !!incomingRequest?.pickup?.longitude && (
-                <Marker
-                  coordinate={{
-                    latitude: incomingRequest.pickup.latitude,
-                    longitude: incomingRequest.pickup.longitude,
-                  }}
-                  tracksViewChanges={true}
-                  anchor={{ x: 0.5, y: 0.5 }}
-                >
-                  <PremiumMapMarker type="origin" />
-                </Marker>
-              )}
-
-            {!!incomingRequest?.dropoff?.latitude &&
-              !!incomingRequest?.dropoff?.longitude && (
-                <Marker
-                  coordinate={{
-                    latitude: incomingRequest.dropoff.latitude,
-                    longitude: incomingRequest.dropoff.longitude,
-                  }}
-                  tracksViewChanges={true}
-                  anchor={{ x: 0.5, y: 0.5 }}
-                >
-                  <PremiumMapMarker type="destination" />
-                </Marker>
-              )}
-
-            {!!incomingRequest?.pickup?.latitude &&
-              !!incomingRequest?.dropoff?.latitude && 
-              routeCoords.length >= 2 && (
-                <PremiumDottedRoute coordinates={routeCoords as any} />
-              )}
-          </GlobalMap>
-        )}
-
-        {/* 🌌 Dynamic UI Overlay Layer */}
-        {!!region && isApproved && (
-          <>
-             {/* 🎛️ TOP FLOATING DASHBOARD HUD */}
-             <View className="absolute top-12 left-4 right-4 z-50 flex-row items-center gap-3">
-                
-                {/* Menu Toggle */}
-                <TouchableOpacity
-                  onPress={() => (navigation as any).openDrawer?.()}
-                  className="h-[58px] w-[58px] bg-[#091A2F] rounded-2xl border border-white/10 items-center justify-center"
-                >
-                   <Menu size={24} color="#FFF" />
-                </TouchableOpacity>
-
-                {/* Driver Status & Stats Hook */}
-                <View className="flex-1">
-                  <DriverStatusHeader
-                    todayEarnings={todayEarnings}
-                    pendingRequests={pendingRequests}
-                    scheduledCount={scheduledCount}
-                    waitingQueueCount={waitingQueueCount}
-                    pendingNegotiationsCount={pendingNegotiationsCount}
-                    onPressNotifications={handleNotifications}
-                    online={online}
-                  />
-                </View>
-             </View>
-
-             {/* 📡 OPERATIONAL RIGHT WING CONTROLS */}
-             {isApproved && !incomingRequest?.rideId && (
-               <View className="absolute right-4 top-[30%] z-40 flex-col gap-3">
-                  {/* Queue Tag Yellow (Floating) */}
-                  {waitingQueueCount > 0 && (
-                    <QueueTagYellowFloating
-                      queueCount={waitingQueueCount}
-                      onPress={() => (navigation as any).navigate("DriverRequests", { initialTab: "queue" })}
+                {/* 🎯 Real-Time User Puck Marker (HD) */}
+                {driverCoords && (
+                  <Marker 
+                    coordinate={{
+                      latitude: driverCoords.latitude,
+                      longitude: driverCoords.longitude
+                    }}
+                    rotation={driverCoords.heading}
+                    anchor={{ x: 0.5, y: 0.5 }}
+                    flat={true}
+                  >
+                    <VehicleMarker 
+                      type={vehicleType as any} 
+                      isOnline={online} 
                     />
-                  )}
+                  </Marker>
+                )}
 
-                  <MapActionButtons
-                    onSosPress={handleSOS}
-                    onLocationPress={handleCenterMyLocation}
-                    onMapStylePress={handleToggleMapStyle}
-                    useDarkMap={useDarkMap}
-                    isCentering={isCentering}
-                    isSwitchingStyle={isSwitchingMapStyle}
-                    containerStyle={{ position: "relative", right: 0 }}
-                  />
+                {/* 🛣️ Route visualization when request is active */}
+                {incomingRequest?.rideId && routeCoords.length > 0 && (
+                  <>
+                    <PremiumDottedRoute coordinates={routeCoords} />
+                    <Marker 
+                      coordinate={routeCoords[0]} 
+                      title="Partida"
+                      anchor={{ x: 0.5, y: 0.5 }}
+                    >
+                      <View className="bg-[#02de95] w-4 h-4 rounded-full border-2 border-white shadow-lg" />
+                    </Marker>
+                    <Marker 
+                      coordinate={routeCoords[routeCoords.length - 1]} 
+                      title="Destino"
+                    >
+                      <MapMarker type="dropoff" />
+                    </Marker>
+                  </>
+                )}
+              </GlobalMap>
 
-               </View>
-            )}
-
-            {/* 🌟 ACTIVE NEGOTIATIONS BANNER (Highest Priority) */}
-            {pendingNegotiationsCount > 0 && pendingRequests === 0 && (
-               <MotiView
-                 from={{ opacity: 0, translateY: -20 }}
-                 animate={{ opacity: 1, translateY: 0 }}
-                 style={{
-                   position: "absolute",
-                   top: 120,
-                   left: 16,
-                   right: 16,
-                   zIndex: 50,
-                   elevation: 10,
-                   backgroundColor: "#F59E0B",
-                   borderRadius: 16,
-                   padding: 16,
-                   flexDirection: "row",
-                   alignItems: "center",
-                   borderWidth: 1,
-                   borderColor: "rgba(255,255,255,0.2)",
-                   shadowColor: "#000",
-                   shadowOffset: { width: 0, height: 4 },
-                   shadowOpacity: 0.2,
-                   shadowRadius: 8,
-                 }}
-               >
-                 <View style={{ backgroundColor: "rgba(9, 26, 47, 0.2)", padding: 8, borderRadius: 12, marginRight: 12 }}>
-                    <Info size={20} color="#091A2F" />
-                 </View>
-                 <View style={{ flex: 1 }}>
-                    <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 14, textTransform: "uppercase" }}>
-                       {clientCounteredCount > 0 ? "CONTRAPROPOSTA RECEBIDA 🔔" : "NEGOCIAÇÕES ATIVAS"}
-                    </Text>
-                    <Text style={{ color: "rgba(9, 26, 47, 0.8)", fontWeight: "700", fontSize: 12 }}>
-                       {clientCounteredCount > 0 
-                          ? "O cliente enviou uma contraproposta! Toque para ver." 
-                          : `Você tem ${pendingNegotiationsCount} proposta${pendingNegotiationsCount > 1 ? 's' : ''} em andamento!`}
-                    </Text>
-                 </View>
-                 <TouchableOpacity 
-                   activeOpacity={0.9}
-                   onPress={() => (navigation as any).navigate("DriverRequests", { initialTab: "negotiation" })}
-                   style={{ backgroundColor: "#091A2F", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}
+              {/* 🎛️ TOP FLOATING DASHBOARD HUD */}
+              <View className="absolute top-12 left-4 right-4 z-50 flex-row items-center gap-3">
+                 <TouchableOpacity
+                   onPress={() => (navigation as any).openDrawer?.()}
+                   className="h-[58px] w-[58px] bg-[#091A2F] rounded-2xl border border-white/10 items-center justify-center shadow-2xl"
                  >
-                    <Text style={{ color: "#F59E0B", fontWeight: "900", fontSize: 10 }}>VER</Text>
+                    <Menu size={24} color="#FFF" />
                  </TouchableOpacity>
-               </MotiView>
-            )}
 
-            {/* ⚠️ URGENT QUEUE BANNER (Shown only if no active negotiations) */}
-            {!!waitingQueueCount && pendingNegotiationsCount === 0 && pendingRequests === 0 && (
-               <MotiView
-                 from={{ opacity: 0, translateY: -20 }}
-                 animate={{ opacity: 1, translateY: 0 }}
-                 style={{
-                   position: "absolute",
-                   top: 120,
-                   left: 16,
-                   right: 16,
-                   zIndex: 50,
-                   elevation: 10,
-                   backgroundColor: "#02de95",
-                   borderRadius: 16,
-                   padding: 16,
-                   flexDirection: "row",
-                   alignItems: "center",
-                   borderWidth: 1,
-                   borderColor: "rgba(255,255,255,0.2)",
-                   shadowColor: "#000",
-                   shadowOffset: { width: 0, height: 4 },
-                   shadowOpacity: 0.2,
-                   shadowRadius: 8,
-                 }}
-               >
-                 <View style={{ backgroundColor: "rgba(9, 26, 47, 0.2)", padding: 8, borderRadius: 12, marginRight: 12 }}>
+                 <View className="flex-1">
+                    <DriverStatusHeader 
+                      todayEarnings={todayEarnings}
+                      pendingRequests={pendingRequests}
+                      scheduledCount={scheduledCount}
+                      waitingQueueCount={waitingQueueCount}
+                      pendingNegotiationsCount={pendingNegotiationsCount}
+                      onPressNotifications={handleNotifications}
+                      online={online}
+                    />
+                 </View>
+              </View>
+
+              {/* 🛠️ Map Action Buttons (Centering, Zoom, Layers, SOS) */}
+              <MapActionButtons 
+                onSosPress={handleSOS}
+                onLocationPress={handleCenterMyLocation}
+                onMapStylePress={handleToggleMapStyle}
+                useDarkMap={useDarkMap}
+                isCentering={isCentering}
+                isSwitchingStyle={isSwitchingMapStyle}
+              />
+
+              {/* ⚠️ URGENT QUEUE BANNER */}
+              {!!waitingQueueCount && pendingNegotiationsCount === 0 && pendingRequests === 0 && (
+                <MotiView
+                  from={{ opacity: 0, translateY: -20 }}
+                  animate={{ opacity: 1, translateY: 0 }}
+                  style={{
+                    position: "absolute",
+                    top: 120,
+                    left: 16,
+                    right: 16,
+                    zIndex: 40,
+                    backgroundColor: "#02de95",
+                    borderRadius: 16,
+                    padding: 16,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    borderWidth: 1,
+                    borderColor: "rgba(255,255,255,0.2)",
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.2,
+                    shadowRadius: 8,
+                  }}
+                >
+                  <View style={{ backgroundColor: "rgba(9, 26, 47, 0.2)", padding: 8, borderRadius: 12, marginRight: 12 }}>
                     <Info size={20} color="#091A2F" />
-                 </View>
-                 <View style={{ flex: 1 }}>
-                    <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 14, textTransform: "uppercase" }}>
-                       FILA DE ESPERA
-                    </Text>
-                    <Text style={{ color: "rgba(9, 26, 47, 0.8)", fontWeight: "700", fontSize: 12 }}>
-                       Existem {waitingQueueCount} pedido(s) na fila pública!
-                    </Text>
-                 </View>
-                 <TouchableOpacity 
-                   activeOpacity={0.9}
-                   onPress={() => (navigation as any).navigate("DriverRequests", { initialTab: "queue" })}
-                   style={{ backgroundColor: "#091A2F", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}
-                 >
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 14, textTransform: "uppercase" }}>FILA DE ESPERA</Text>
+                    <Text style={{ color: "rgba(9, 26, 47, 0.8)", fontWeight: "700", fontSize: 12 }}>Existem {waitingQueueCount} pedido(s) na fila pública!</Text>
+                  </View>
+                  <TouchableOpacity 
+                    activeOpacity={0.9}
+                    onPress={() => (navigation as any).navigate("DriverRequests", { initialTab: "queue" })}
+                    style={{ backgroundColor: "#091A2F", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}
+                  >
                     <Text style={{ color: "#02de95", fontWeight: "900", fontSize: 10 }}>ABRIR</Text>
-                 </TouchableOpacity>
-               </MotiView>
-            )}
+                  </TouchableOpacity>
+                </MotiView>
+              )}
 
-
-            {!!error && (
-               <MotiView
-                 from={{ opacity: 0, scale: 0.9 }}
-                 animate={{ opacity: 1, scale: 1 }}
-                 className="absolute top-[120px] left-4 right-4 z-40 bg-[#091A2F] border-2 border-amber-500/50 rounded-2xl p-4 flex-row items-center shadow-2xl"
-               >
+              {!!error && (
+                <MotiView
+                  from={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="absolute top-[120px] left-4 right-4 z-40 bg-[#091A2F] border-2 border-amber-500/50 rounded-2xl p-4 flex-row items-center shadow-2xl"
+                >
                   <ShieldAlert size={20} color="#FBBF24" className="mr-3" />
                   <Text className="text-white font-bold text-xs flex-1">{error}</Text>
-               </MotiView>
-            )}
+                </MotiView>
+              )}
+            </>
+          )}
 
-            {/* 🔔 NEW REQUEST Ticker (Subtle reminder if visible) */}
-            {pendingRequests > 0 && !incomingRequest?.rideId && (
-               <TouchableOpacity 
-                 onPress={handleNotifications}
-                 className="absolute bottom-[40%] left-8 right-8 z-40 bg-[#02de95] rounded-full py-3 items-center shadow-2xl flex-row justify-center"
-               >
-                  <Text className="text-[#091A2F] font-black tracking-widest">VER SOLICITAÇÕES ATIVAS ({pendingRequests})</Text>
-               </TouchableOpacity>
-            )}
+          {/* 🎁 MASTER DISPATCH INTERCEPTION NODE */}
+          {isApproved && (
+            <IncomingRideCard 
+              isVisible={!!incomingRequest?.rideId}
+              request={incomingRequest}
+              countdown={countdown}
+              onAccept={acceptIncoming}
+              onReject={rejectIncoming}
+              onClose={clearIncoming}
+              onCounterOffer={counterOfferIncoming}
+            />
+          )}
 
-          </>
-        )}
+          {/* 📊 INTELLIGENT OPERATIONAL BASE CAMP */}
+          {!incomingRequest?.rideId && (
+            <DriverBottomSheet
+              online={online}
+              services={services}
+              isTogglingOnline={isTogglingOnline}
+              onToggleOnline={toggleOnline}
+              onToggleService={toggleService}
+              vehicleType={vehicleType}
+              stats={driverStats}
+            />
+          )}
 
-        {/* 🎁 MASTER DISPATCH INTERCEPTION NODE */}
-        {isApproved && (
-        <IncomingRideCard 
-          isVisible={!!incomingRequest?.rideId}
-          request={incomingRequest}
-          countdown={countdown}
-          onAccept={acceptIncoming}
-          onReject={rejectIncoming}
-          onClose={clearIncoming}
-          onCounterOffer={counterOfferIncoming}
-        />
-
-        )}
-
-        {/* 📊 INTELLIGENT OPERATIONAL BASE CAMP (Hidden during active dispatch to prevent visual collision) */}
-        {!incomingRequest?.rideId && (
-          <DriverBottomSheet
-            online={online}
-            services={services}
-            isTogglingOnline={isTogglingOnline}
-            onToggleOnline={toggleOnline}
-            onToggleService={toggleService}
-            vehicleType={vehicleType}
-            stats={driverStats}
+          <Modal
+            visible={showCancelModal}
+            title="Pedido Cancelado"
+            message="O cliente cancelou esta solicitação e ela não está mais disponível para aceite."
+            type="warning"
+            confirmText="Entendido"
+            onClose={() => {
+              setShowCancelModal(false);
+              setCancelModalReason(null);
+            }}
           />
-        )}
 
-        <Modal
-          visible={showCancelModal}
-          title="Pedido Cancelado"
-          message="O cliente cancelou esta solicitação e ela não está mais disponível para aceite."
-          type="warning"
-          confirmText="Entendido"
-          onClose={() => {
-            setShowCancelModal(false);
-            setCancelModalReason(null);
-          }}
-        />
+          <Modal
+            visible={showNoBalanceModal}
+            title="Saldo Insuficiente"
+            message="Você precisa adicionar saldo para ficar online e receber corridas. Acesse a tela de Ganhos e Carteira para recarregar."
+            type="error"
+            confirmText="Ir para Recarga"
+            onClose={() => setShowNoBalanceModal(false)}
+            onConfirm={() => {
+              setShowNoBalanceModal(false);
+              (navigation as any).navigate("DriverFinance", { screen: "DriverEarnings" });
+            }}
+          />
 
-        <Modal
-          visible={showNoBalanceModal}
-          title="Saldo Insuficiente"
-          message="Você precisa adicionar saldo para ficar online e receber corridas. Acesse a tela de Ganhos e Carteira para recarregar."
-          type="error"
-          confirmText="Ir para Recarga"
-          onClose={() => setShowNoBalanceModal(false)}
-          onConfirm={() => {
-            setShowNoBalanceModal(false);
-            (navigation as any).navigate("DriverFinance", { screen: "DriverEarnings" });
-          }}
-        />
+          <DriverDepositModal
+            visible={showDepositModal}
+            onClose={() => setShowDepositModal(false)}
+            onSuccess={() => {
+              setShowDepositModal(false);
+              loadBalance(); 
+            }}
+          />
 
-        <DriverDepositModal
-          visible={showDepositModal}
-          onClose={() => setShowDepositModal(false)}
-          onSuccess={() => {
-            setShowDepositModal(false);
-            loadBalance(); // ⚡ Refresh balance immediately on success!
-          }}
-        />
-
-        {!isApproved && (
-          <DriverOnboardingDashboard />
-        )}
-      </View>
-    </GestureHandlerRootView>
+          {!isApproved && (
+            <DriverOnboardingDashboard />
+          )}
+        </View>
+      </GestureHandlerRootView>
     </ErrorBoundary>
   );
 }

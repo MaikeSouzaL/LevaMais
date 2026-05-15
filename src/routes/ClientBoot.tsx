@@ -12,8 +12,13 @@ import {
 import { resolveCityIdByNameAndState } from "../services/cityResolver.service";
 import { useClientCityStore } from "../context/clientCityStore";
 import { logger } from "../utils/logger";
+import { useAuthStore } from "../context/authStore";
+import userService from "../services/user.service";
+import TermsScreen from "../screens/(public)/TermsScreen";
+import ClientOnboardingDashboard from "../components/client/home/ClientOnboardingDashboard";
 
 export default function ClientBoot() {
+  const { userData, updateUserData } = useAuthStore();
   const setCity = useClientCityStore((s) => s.setCity);
   const [loading, setLoading] = useState(true);
   const [initialRideId, setInitialRideId] = useState<string | null>(null);
@@ -143,6 +148,8 @@ export default function ClientBoot() {
     };
   }, []);
 
+  const [activated, setActivated] = useState(false);
+
   if (loading) {
     return (
       <View
@@ -184,6 +191,11 @@ export default function ClientBoot() {
         </Text>
       </View>
     );
+  }
+
+  // Se não estiver ativado (onboarding inicial), mostra dashboard de ativação
+  if (!activated) {
+    return <ClientOnboardingDashboard onContinue={() => setActivated(true)} />;
   }
 
   return <DrawerClienteRoutes initialRideId={initialRideId} />;

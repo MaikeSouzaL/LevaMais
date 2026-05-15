@@ -400,16 +400,12 @@ class AuthController {
           name,
           profilePhoto,
           userType: resolvedUserType,
-          acceptedTerms: true,
-          acceptedTermsAt: new Date(),
-          acceptedPrivacyAt: new Date(),
+          acceptedTerms: false,
           consentVersion: CURRENT_CONSENT_VERSION,
           termsVersion: CURRENT_CONSENT_VERSION,
           privacyPolicyVersion: CURRENT_CONSENT_VERSION,
         });
       }
-
-      // Gerar token
       const token = this.generateToken(user);
 
       res.json({
