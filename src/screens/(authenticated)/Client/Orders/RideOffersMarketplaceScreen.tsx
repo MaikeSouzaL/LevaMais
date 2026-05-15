@@ -9,6 +9,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AlertCircle, RefreshCw, TrendingUp, Zap, TrendingDown, Trash2 } from "lucide-react-native";
 
 import rideService, { RideOffer } from "@/services/ride.service";
+import webSocketService from "@/services/websocket.service";
+import { Audio } from "expo-av";
 import { formatBRL } from "@/utils/mappers";
 
 // Custom Premium Hooks & Components ✨
@@ -17,6 +19,22 @@ import { MarketplaceHeader } from "@/components/client/offers/MarketplaceHeader"
 import { DriverOfferListItem } from "@/components/client/offers/DriverOfferListItem";
 
 const { width, height } = Dimensions.get("window");
+
+async function playOfferReceivedSound() {
+  try {
+    const { sound } = await Audio.Sound.createAsync(
+      require("../../../../../assets/sound/Meniza.wav"),
+      { shouldPlay: true, volume: 1 }
+    );
+    sound.setOnPlaybackStatusUpdate((status: any) => {
+      if (status.didJustFinish) {
+        sound.unloadAsync().catch(() => {});
+      }
+    });
+  } catch (error) {
+    console.log("[RideOffersMarketplace] Falha ao reproduzir Meniza.wav:", error);
+  }
+}
 
 interface TacticalBackgroundProps {
   pickup?: { latitude: number; longitude: number };
@@ -134,7 +152,15 @@ export default function RideOffersMarketplaceScreen() {
     try {
       const data = await rideService.getOffers(rideId);
       setNegotiation(data.negotiation);
-      setOffers((data.offers || []).filter((o) => o.status !== "rejected"));
+      const filtered = (data.offers || []).filter((o) => o.status !== "rejected");
+      
+      setOffers((prev) => {
+        // Play sound if number of active offers increased
+        if (filtered.length > prev.length) {
+          playOfferReceivedSound().catch(() => {});
+        }
+        return filtered;
+      });
     } catch (e) {}
   }, [rideId]);
 
@@ -159,6 +185,14 @@ export default function RideOffersMarketplaceScreen() {
     
     init();
 
+    const onOffersUpdated = (data: any) => {
+      if (mounted && data?.rideId === rideId) {
+        loadOffers().catch(() => {});
+      }
+    };
+
+    webSocketService.on("ride-offers-updated", onOffersUpdated);
+
     const interval = setInterval(() => {
       loadOffers().catch(() => {});
     }, 6000);
@@ -166,6 +200,7 @@ export default function RideOffersMarketplaceScreen() {
     return () => {
       mounted = false;
       clearInterval(interval);
+      webSocketService.off("ride-offers-updated", onOffersUpdated);
     };
   }, [loadOffers]);
 
