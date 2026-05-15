@@ -143,6 +143,14 @@ export default function SearchingDriverScreen() {
               }
     }
   }, [rideId]);
+  
+  const offersUpdatedCallback = useCallback((data: any) => {
+    if (data?.rideId === rideId && !doneRef.current) {
+      doneRef.current = true;
+      cleanup();
+      navigation.replace("RideOffersMarketplace", { rideId });
+    }
+  }, [navigation, rideId]);
 
   const rideCancelledCallback = useCallback(
     (data: any) => {
@@ -180,6 +188,7 @@ export default function SearchingDriverScreen() {
     webSocketService.off("driver-found", driverFoundCallback);
     webSocketService.off("ride-expired", rideExpiredCallback);
     webSocketService.off("ride-cancelled", rideCancelledCallback);
+    webSocketService.off("ride-offers-updated", offersUpdatedCallback);
     setError(null);
     setNetworkUnstable(false);
 
@@ -189,6 +198,7 @@ export default function SearchingDriverScreen() {
       webSocketService.onDriverFound(driverFoundCallback);
       webSocketService.onRideExpired(rideExpiredCallback);
       webSocketService.onRideCancelled(rideCancelledCallback);
+      webSocketService.on("ride-offers-updated", offersUpdatedCallback);
     } catch (e: any) {
       setError("Conexao instavel. Mantendo busca pelo servidor.");
     }
@@ -268,8 +278,9 @@ export default function SearchingDriverScreen() {
       webSocketService.off("driver-found", driverFoundCallback);
       webSocketService.off("ride-expired", rideExpiredCallback);
       webSocketService.off("ride-cancelled", rideCancelledCallback);
+      webSocketService.off("ride-offers-updated", offersUpdatedCallback);
     };
-  }, [connectAndSearch, driverFoundCallback, rideCancelledCallback, rideExpiredCallback]);
+  }, [connectAndSearch, driverFoundCallback, rideCancelledCallback, rideExpiredCallback, offersUpdatedCallback]);
 
   useEffect(() => {
     const timer = setInterval(() => {

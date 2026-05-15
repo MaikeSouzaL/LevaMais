@@ -40,6 +40,8 @@ export default function DeliverySetupScreen() {
   const [loadingPricing, setLoadingPricing] = useState(true);
   const [creatingDelivery, setCreatingDelivery] = useState(false);
   const [priceData, setPriceData] = useState<any>(null);
+  const [pricingError, setPricingError] = useState<string | null>(null);
+  const [pricingReloadTick, setPricingReloadTick] = useState(0);
   
   // Dynamic User Entry Store (Delivery Context)
   const [vehicleType, setVehicleType] = useState<LogisticsVehicleType>(params.vehicleType || "motorcycle");
@@ -52,13 +54,19 @@ export default function DeliverySetupScreen() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType>("cash");
   const [scheduledOffsetMin, setScheduledOffsetMin] = useState<number>(60);
   const [helperAutoSuggested, setHelperAutoSuggested] = useState(false);
+  const hasValidRoute = Boolean(params.pickup && params.dropoff);
 
 
   // Fetch automated server dynamic pricing guidance upon configuration shifts
   useEffect(() => {
     const refreshPricing = async () => {
-      if (!params.pickup || !params.dropoff) return;
+      if (!params.pickup || !params.dropoff) {
+        setPricingError("Origem e destino nao foram definidos. Volte e selecione os enderecos.");
+        setLoadingPricing(false);
+        return;
+      }
       try {
+        setPricingError(null);
         setLoadingPricing(true);
         const res = await rideService.calculatePrice({
           pickup: params.pickup,
@@ -80,8 +88,10 @@ export default function DeliverySetupScreen() {
         // Update floor for initial pricing based on dynamic backend recommendation
         const smartSuggestion = res.smartPricing?.suggestedPrice || res.pricing?.total || 20;
         setOfferValue(Math.round(smartSuggestion));
-      } catch (e) {
-              } finally {
+      } catch (e: any) {
+        setPricingError(e?.message || "Falha ao calcular o preco da entrega.");
+        setPriceData(null);
+      } finally {
         setLoadingPricing(false);
       }
     };
@@ -97,11 +107,27 @@ export default function DeliverySetupScreen() {
     params.initialDistanceKm,
     params.initialDurationMin,
     detectedCity,
+    pricingReloadTick,
   ]);
 
   // Transmits to the finalized backend CreateRideRequest shape perfectly aligned with service.ts
   const handleLaunchSearch = async () => {
-    if (!priceData) return;
+    if (!hasValidRoute) {
+      Toast.show({
+        type: "error",
+        text1: "Rota invalida",
+        text2: "Defina origem e destino antes de solicitar a entrega.",
+      });
+      return;
+    }
+    if (!priceData) {
+      Toast.show({
+        type: "error",
+        text1: "Preco indisponivel",
+        text2: "Aguardando cotacao da entrega. Tente novamente em instantes.",
+      });
+      return;
+    }
     try {
       setCreatingDelivery(true);
       if (!Number.isFinite(offerValue) || offerValue <= 0) {
@@ -196,11 +222,18 @@ export default function DeliverySetupScreen() {
         contentContainerStyle={{ paddingBottom: 180, paddingTop: 16 }}
       >
         <DeliverySummaryCard 
-          originAddress={params.pickup.address} 
-          dropoffAddress={params.dropoff.address} 
+          originAddress={params.pickup?.address || "Origem nao informada"} 
+          dropoffAddress={params.dropoff?.address || "Destino nao informado"} 
           distance={priceData?.distance?.text || (params.initialDistanceKm ? `${params.initialDistanceKm.toFixed(1)} km` : "...")}
           duration={priceData?.duration?.text || (params.initialDurationMin ? `${Math.ceil(params.initialDurationMin)} min` : "...")}
         />
+        {!hasValidRoute && (
+          <View className="mx-4 mb-4 rounded-xl border border-red-400/40 bg-red-500/10 px-3 py-3">
+            <Text className="text-red-300 text-[12px] font-semibold">
+              Origem/destino ausentes. Volte para a tela anterior e selecione os enderecos para continuar.
+            </Text>
+          </View>
+        )}
         {params.preferScheduled && (
           <View className="mx-4 mb-2 rounded-xl border border-[#fbbf24]/35 bg-[#fbbf24]/10 px-3 py-2">
             <Text className="text-[#fbbf24] text-[12px] font-bold">
@@ -272,6 +305,16 @@ export default function DeliverySetupScreen() {
 
         {loadingPricing ? (
           <View className="h-32 items-center justify-center"><ActivityIndicator color="#02de95" /></View>
+        ) : pricingError ? (
+          <View className="mx-4 mb-4 rounded-xl border border-amber-300/40 bg-amber-500/10 px-3 py-3">
+            <Text className="text-amber-200 text-[12px] font-semibold">{pricingError}</Text>
+            <TouchableOpacity
+              onPress={() => setPricingReloadTick((prev) => prev + 1)}
+              className="mt-2 self-start rounded-full border border-amber-300/50 px-3 py-1"
+            >
+              <Text className="text-amber-200 text-[11px] font-bold">Recarregar cotacao</Text>
+            </TouchableOpacity>
+          </View>
         ) : (
           <DeliveryOfferCard 
             value={offerValue} 

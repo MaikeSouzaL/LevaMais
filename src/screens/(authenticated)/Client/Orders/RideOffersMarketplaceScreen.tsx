@@ -1,30 +1,19 @@
-import React, { useCallback, useEffect, useMemo, useState, useRef } from "react";
-import { View, Text, TouchableOpacity, StatusBar, Dimensions, ScrollView, TextInput } from "react-native";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { View, Text, TouchableOpacity, StatusBar, ScrollView, TextInput } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import Toast from "react-native-toast-message";
-import MapView, { PROVIDER_GOOGLE, Marker, Polyline } from "react-native-maps";
-import MapViewDirections from "react-native-maps-directions";
-import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { MotiView, AnimatePresence } from "moti";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Search, AlertCircle, RefreshCw, MapPin, TrendingUp, Zap, Flame, Coins, TrendingDown, Trash2 } from "lucide-react-native";
+import { AlertCircle, RefreshCw, TrendingUp, Zap, TrendingDown, Trash2 } from "lucide-react-native";
 
 import rideService, { RideOffer } from "@/services/ride.service";
-import { darkMapStyle } from "@/utils/mapStyle";
 import { formatBRL } from "@/utils/mappers";
 
 // Custom Premium Hooks & Components ✨
 import { Modal } from "@/components/Modal";
 import { MarketplaceHeader } from "@/components/client/offers/MarketplaceHeader";
 import { DriverOfferListItem } from "@/components/client/offers/DriverOfferListItem";
-import { NearbyDriversLayer } from "@/components/client/searching-delivery/NearbyDriversLayer";
-import { useRealtimeDelivery } from "@/hooks/useRealtimeDelivery";
-import { PremiumMapMarker } from "@/components/maps/PremiumMapMarker";
-import { FloatingActions } from "@/components/client/home/FloatingActions";
-
-const GOOGLE_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || "";
-const { width, height } = Dimensions.get("window");
 
 export default function RideOffersMarketplaceScreen() {
   const navigation = useNavigation<any>();
@@ -36,7 +25,6 @@ export default function RideOffersMarketplaceScreen() {
   const [loading, setLoading] = useState(true);
   const [selectingId, setSelectingId] = useState<string | null>(null);
   const [isIncreasing, setIsIncreasing] = useState(false);
-  const [pathCoords, setPathCoords] = useState<any[]>([]);
   
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [pendingIncrement, setPendingIncrement] = useState("5");
@@ -44,46 +32,14 @@ export default function RideOffersMarketplaceScreen() {
   
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
-  const [sheetIndex, setSheetIndex] = useState(0);
 
   const [rideDetails, setRideDetails] = useState<any>(null);
   const [negotiation, setNegotiation] = useState<any>(null);
   const [offers, setOffers] = useState<RideOffer[]>([]);
-  const [isCentering, setIsCentering] = useState(false);
-  const [mapTheme, setMapTheme] = useState<'dark' | 'light' | 'hybrid'>('dark');
-  const [isSwitchingStyle, setIsSwitchingStyle] = useState(false);
-
-  const mapRef = useRef<MapView>(null);
-  const bottomSheetRef = useRef<BottomSheet>(null);
-  
-  const snapPoints = useMemo(() => ["35%", "86%"], []);
-
-  const handleCenterOnRoute = useCallback(() => {
-    if (!mapRef.current || pathCoords.length === 0) return;
-    setIsCentering(true);
-    mapRef.current.fitToCoordinates(pathCoords, {
-      edgePadding: { top: 140, right: 50, bottom: 380, left: 50 },
-      animated: true,
-    });
-    setTimeout(() => setIsCentering(false), 600);
-  }, [pathCoords]);
-
-  const handleToggleMapStyle = useCallback(() => {
-    if (isSwitchingStyle) return;
-    setIsSwitchingStyle(true);
-    
-    setMapTheme((prev) => {
-      if (prev === 'dark') return 'light';
-      if (prev === 'light') return 'hybrid';
-      return 'dark';
-    });
-
-    setTimeout(() => setIsSwitchingStyle(false), 350);
-  }, [isSwitchingStyle]);
 
   const openConfirmModal = (val: number) => {
     setPendingIncrement(val > 0 ? String(val) : "");
-    setIsSubtractMode(false); // Reseta para somar ao iniciar o ajuste pelas pílulas rápidas
+    setIsSubtractMode(false);
     setShowConfirmModal(true);
   };
 
@@ -100,12 +56,10 @@ export default function RideOffersMarketplaceScreen() {
       return;
     }
 
-    // Se estiver marcado para subtrair, nega o valor! 📉
     if (isSubtractMode) {
        numVal = -numVal;
     }
 
-    // Proteção contra redução abaixo do valor original da corrida! 🛡️
     const currentBase = Number(negotiation?.clientOffer || 0);
     const minFloor = Number(negotiation?.initialClientOffer || rideDetails?.pricing?.subtotal || 5.00);
     const finalPredict = currentBase + numVal;
@@ -143,24 +97,22 @@ export default function RideOffersMarketplaceScreen() {
     }
   };
 
-  // Fetch Ride Data for Map Orientation 🗺️
   const loadRideDetails = useCallback(async () => {
     try {
       const details = await rideService.getById(rideId);
       setRideDetails(details);
-    } catch (e) {
-          }
+    } catch (e) {}
   }, [rideId]);
 
-  // Live Bidding Fetch Function 💸
   const loadOffers = useCallback(async () => {
     if (!rideId) return;
-    const data = await rideService.getOffers(rideId);
-    setNegotiation(data.negotiation);
-    setOffers((data.offers || []).filter((o) => o.status !== "rejected"));
+    try {
+      const data = await rideService.getOffers(rideId);
+      setNegotiation(data.negotiation);
+      setOffers((data.offers || []).filter((o) => o.status !== "rejected"));
+    } catch (e) {}
   }, [rideId]);
 
-  // Init Sequences
   useEffect(() => {
     loadRideDetails();
   }, [loadRideDetails]);
@@ -182,7 +134,6 @@ export default function RideOffersMarketplaceScreen() {
     
     init();
 
-    // Continuous Active Auction Polling 🔁
     const interval = setInterval(() => {
       loadOffers().catch(() => {});
     }, 6000);
@@ -193,22 +144,10 @@ export default function RideOffersMarketplaceScreen() {
     };
   }, [loadOffers]);
 
-  // Simulate visual traffic near the pickup while negotiating 🛰️
-  const pickup = rideDetails?.pickup;
-  const dropoff = rideDetails?.dropoff;
-  
-  const { drivers } = useRealtimeDelivery(
-    pickup?.latitude,
-    pickup?.longitude,
-    rideDetails?.vehicleType || "motorcycle",
-    0,
-    rideDetails?.serviceType || "ride"
-  );
-
   const sortedOffers = useMemo(() => {
-    // Sort by cheapest first
     return [...offers].sort((a, b) => Number(a.amount || 0) - Number(b.amount || 0));
   }, [offers]);
+
   const isDeliveryFlow =
     rideDetails?.serviceType === "delivery" || rideDetails?.serviceType === "frete";
 
@@ -224,7 +163,6 @@ export default function RideOffersMarketplaceScreen() {
         text1: "Proposta aceita!",
         text2: "Aguardando a conexão com o entregador.",
       });
-      // Automatically transition to full live tracking or search success container
       navigation.navigate("SearchingDriver", { rideId });
     } catch (e: any) {
       Toast.show({
@@ -240,7 +178,7 @@ export default function RideOffersMarketplaceScreen() {
     const driverId = typeof offer.driverId === "string" ? offer.driverId : offer.driverId?._id;
     if (!driverId) return;
 
-    setSelectingId(driverId); // Reutiliza o loader no card do motorista
+    setSelectingId(driverId);
     try {
       await rideService.declineOffer(rideId, driverId);
       Toast.show({
@@ -248,7 +186,7 @@ export default function RideOffersMarketplaceScreen() {
         text1: "Oferta Recusada",
         text2: "A proposta do entregador foi removida da lista.",
       });
-      await loadOffers(); // Recarrega a lista imediatamente
+      await loadOffers();
     } catch (e: any) {
       Toast.show({
         type: "error",
@@ -285,266 +223,164 @@ export default function RideOffersMarketplaceScreen() {
     }
   };
 
-  const routeColor = mapTheme === 'light' 
-    ? '#1D4ED8' 
-    : mapTheme === 'hybrid' 
-      ? '#FFEA00' 
-      : '#02de95';
-
-  const routeGlowColor = mapTheme === 'light' 
-    ? 'rgba(29, 78, 216, 0.25)'
-    : mapTheme === 'hybrid' 
-      ? 'rgba(255, 234, 0, 0.3)' 
-      : 'rgba(2, 222, 149, 0.2)';
-
-  const routeWidth = mapTheme === 'light' ? 3.5 : 2;
-  const glowWidth = mapTheme === 'light' ? 8 : 6;
-
   return (
-    <GestureHandlerRootView className="flex-1 bg-[#091A2F]">
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#091A2F" }}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
-      {/* 🌁 Floating Glass Marketplace HUD */}
-      <MarketplaceHeader 
-        onBack={() => navigation.goBack()} 
-        offerCount={sortedOffers.length} 
-        useDarkMap={mapTheme !== 'light'}
-      />
+      {/* 🏷️ Premium Top Inset & HUD Header */}
+      <View style={{ height: insets.top + 80, backgroundColor: "#091A2F" }}>
+        <MarketplaceHeader 
+          onBack={() => navigation.goBack()} 
+          offerCount={sortedOffers.length} 
+          useDarkMap={true}
+        />
+      </View>
 
-      {/* 🗺️ Full Screen Dynamic Topographic Map */}
-      <MapView
-        ref={mapRef}
-        style={{ width, height }}
-        provider={PROVIDER_GOOGLE}
-        mapType={mapTheme === 'hybrid' ? 'hybrid' : 'standard'}
-        customMapStyle={mapTheme === 'dark' ? darkMapStyle : []}
-        initialRegion={pickup ? {
-          latitude: pickup.latitude,
-          longitude: pickup.longitude,
-          latitudeDelta: 0.02,
-          longitudeDelta: 0.02,
-        } : undefined}
-      >
-        {pickup && dropoff && (
-          <>
-            {/* Main Pickup / Dropoff Vector Pipeline 🛣️ */}
-            <MapViewDirections
-              origin={{ latitude: pickup.latitude, longitude: pickup.longitude }}
-              destination={{ latitude: dropoff.latitude, longitude: dropoff.longitude }}
-              apikey={GOOGLE_API_KEY}
-              strokeWidth={0}
-              strokeColor="transparent"
-              mode="DRIVING"
-              onReady={(result) => {
-                setPathCoords(result.coordinates);
-                mapRef.current?.fitToCoordinates(result.coordinates, {
-                  edgePadding: { top: 140, right: 50, bottom: 380, left: 50 },
-                  animated: true,
-                });
-              }}
-            />
-
-            {pathCoords.length > 0 && (
-              <>
-                <Polyline 
-                  coordinates={pathCoords} 
-                  strokeColor={routeGlowColor} 
-                  strokeWidth={glowWidth} 
-                />
-                <Polyline 
-                  coordinates={pathCoords} 
-                  strokeColor={routeColor} 
-                  strokeWidth={routeWidth} 
-                  lineDashPattern={[2, 8]} 
-                />
-              </>
-            )}
-
-            {/* Premium Origin Pointer */}
-            <Marker 
-              coordinate={{ latitude: pickup.latitude, longitude: pickup.longitude }}
-              anchor={{ x: 0.5, y: 0.5 }}
-            >
-               <PremiumMapMarker type="origin" />
-            </Marker>
-
-            {/* Premium Destination Pointer */}
-            <Marker 
-              coordinate={{ latitude: dropoff.latitude, longitude: dropoff.longitude }}
-              anchor={{ x: 0.5, y: 0.5 }}
-            >
-               <PremiumMapMarker type="destination" />
-            </Marker>
-
-            {/* Live Dynamic Negotiation Traffic 🛰️ */}
-            <NearbyDriversLayer drivers={drivers} />
-          </>
-        )}
-      </MapView>
-
-      {/* 🛸 Floating Camera, Style & Security Control Suite */}
-      <FloatingActions 
-        onLocationPress={handleCenterOnRoute}
-        onSosPress={() => navigation.navigate("ClientSafety")}
-        onMapStylePress={handleToggleMapStyle}
-        useDarkMap={mapTheme !== 'light'}
-        isCentering={isCentering}
-        isSwitchingStyle={isSwitchingStyle}
-        topOffset={insets.top + 100}
-      />
-
-      {/* 🗂️ Bottom Sliding Ledger (Trading Desk) */}
-      <BottomSheet
-        ref={bottomSheetRef}
-        index={0}
-        snapPoints={snapPoints}
-        onChange={(index) => setSheetIndex(index)}
-        backgroundStyle={{ backgroundColor: "#0B1A2A", borderRadius: 36 }}
-        handleIndicatorStyle={{ backgroundColor: "rgba(255,255,255,0.15)", width: 40, height: 5 }}
-      >
-        
-        {/* Section 1: Internal Static Header within Sheet */}
-        <View className="px-6 pt-5 pb-4 border-b border-white/[0.04]">
-          <View className="flex-row items-center justify-between mb-4">
-            <View>
-              <Text className="text-white/40 text-[9px] font-black uppercase tracking-wider mb-0.5">
-                Sua Proposta Base
-              </Text>
-              <Text className="text-white font-black text-2xl">
-                {formatBRL(Number(negotiation?.clientOffer || 0))}
-              </Text>
-            </View>
-            
-            <View className="bg-[#02de95]/10 rounded-full px-3 py-1 border border-[#02de95]/20">
-               <Text className="text-[#02de95] text-[10px] font-bold uppercase tracking-wide">⚡ Negociação</Text>
-            </View>
-          </View>
-
-          <View className="flex-row items-center mb-3 mt-1">
-             <TrendingUp size={12} color="#02de95" className="mr-1.5" />
-             <Text className="text-white/50 text-[9px] font-black uppercase tracking-widest">Acelerar Pedido (Aumentar Oferta)</Text>
+      {/* 💰 Sua Proposta Base + Zap Pills Accelerator Desk */}
+      <View style={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: 20, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)", backgroundColor: "#0B1A2A" }}>
+        <View className="flex-row items-center justify-between mb-4">
+          <View>
+            <Text className="text-white/40 text-[10px] font-black uppercase tracking-wider mb-0.5">
+              Sua Proposta Base
+            </Text>
+            <Text className="text-white font-black text-3xl">
+              {formatBRL(Number(negotiation?.clientOffer || 0))}
+            </Text>
           </View>
           
-          <ScrollView 
-             horizontal 
-             showsHorizontalScrollIndicator={false} 
-             className="flex-row overflow-visible"
-             contentContainerStyle={{ paddingRight: 24 }}
-          >
-            <View className="flex-row gap-3">
-              {/* 🚀 + R$ 2 */}
-              <TouchableOpacity
-                activeOpacity={0.7}
-                onPress={() => openConfirmModal(2)}
-                className="bg-[#02de95] rounded-2xl h-[44px] px-4 flex-row items-center justify-center shadow-lg shadow-[#02de95]/20"
-              >
-                 <Zap size={13} fill="#091A2F" color="#091A2F" className="mr-1.5" />
-                 <Text className="text-[#091A2F] text-[13px] font-black">+R$ 2</Text>
-              </TouchableOpacity>
-
-              {/* ⚡ + R$ 5 */}
-              <TouchableOpacity
-                activeOpacity={0.7}
-                onPress={() => openConfirmModal(5)}
-                className="bg-[#02de95] rounded-2xl h-[44px] px-4 flex-row items-center justify-center shadow-lg shadow-[#02de95]/20"
-              >
-                 <Zap size={13} fill="#091A2F" color="#091A2F" className="mr-1.5" />
-                 <Text className="text-[#091A2F] text-[13px] font-black">+R$ 5</Text>
-              </TouchableOpacity>
-
-              {/* 🔥 + R$ 10 */}
-              <TouchableOpacity
-                activeOpacity={0.7}
-                onPress={() => openConfirmModal(10)}
-                className="bg-[#02de95] rounded-2xl h-[44px] px-4 flex-row items-center justify-center shadow-lg shadow-[#02de95]/20"
-              >
-                 <Zap size={13} fill="#091A2F" color="#091A2F" className="mr-1.5" />
-                 <Text className="text-[#091A2F] text-[13px] font-black">+R$ 10</Text>
-              </TouchableOpacity>
-
-              {/* 💰 + R$ 15 */}
-              <TouchableOpacity
-                activeOpacity={0.7}
-                onPress={() => openConfirmModal(15)}
-                className="bg-[#02de95] rounded-2xl h-[44px] px-4 flex-row items-center justify-center shadow-lg shadow-[#02de95]/20"
-              >
-                 <Zap size={13} fill="#091A2F" color="#091A2F" className="mr-1.5" />
-                 <Text className="text-[#091A2F] text-[13px] font-black">+R$ 15</Text>
-              </TouchableOpacity>
-
-              {/* 💎 + R$ 20 */}
-              <TouchableOpacity
-                activeOpacity={0.7}
-                onPress={() => openConfirmModal(20)}
-                className="bg-[#02de95] rounded-2xl h-[44px] px-4 flex-row items-center justify-center shadow-lg shadow-[#02de95]/20"
-              >
-                 <Zap size={13} fill="#091A2F" color="#091A2F" className="mr-1.5" />
-                 <Text className="text-[#091A2F] text-[13px] font-black">+R$ 20</Text>
-              </TouchableOpacity>
-
-              {/* ✏️ Outro Valor */}
-              <TouchableOpacity
-                activeOpacity={0.7}
-                onPress={() => openConfirmModal(0)}
-                className="bg-[#02de95]/10 border border-[#02de95]/50 rounded-2xl h-[44px] px-4 flex-row items-center justify-center shadow-sm"
-              >
-                 <TrendingUp size={14} color="#02de95" className="mr-1.5" />
-                 <Text className="text-[#02de95] text-[13px] font-black">✏️ Outro Valor</Text>
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
+          <View className="bg-[#02de95]/10 rounded-full px-4 py-1.5 border border-[#02de95]/20">
+             <Text className="text-[#02de95] text-[10px] font-bold uppercase tracking-widest">⚡ Negociação</Text>
+          </View>
         </View>
 
-        {/* Section 2: Scrollable Offers Matrix 🧬 */}
-        <BottomSheetScrollView contentContainerStyle={{ padding: 24, paddingBottom: sheetIndex === 1 ? 120 : 40 }}>
-          
-          {/* 💡 Dica de Aceleração de Pedido (Mostrada Apenas se Estiver Vazio!) */}
-          {!loading && sortedOffers.length === 0 && (
-            <MotiView 
-              from={{ opacity: 0, translateY: -10 }} 
-              animate={{ opacity: 1, translateY: 0 }}
-              className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 mb-5 flex-row items-center"
+        <View className="flex-row items-center mb-3 mt-1">
+           <TrendingUp size={13} color="#02de95" style={{ marginRight: 6 }} />
+           <Text className="text-white/60 text-[10px] font-black uppercase tracking-widest">Acelerar Pedido (Aumentar Oferta)</Text>
+        </View>
+        
+        <ScrollView 
+           horizontal 
+           showsHorizontalScrollIndicator={false} 
+           className="flex-row overflow-visible"
+           contentContainerStyle={{ paddingRight: 24 }}
+        >
+          <View className="flex-row gap-3">
+            {/* 🚀 + R$ 2 */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => openConfirmModal(2)}
+              className="bg-[#02de95] rounded-2xl h-[46px] px-4 flex-row items-center justify-center shadow-lg shadow-[#02de95]/20"
             >
-              <View className="w-8 h-8 rounded-full bg-amber-500/20 items-center justify-center mr-3 flex-shrink-0">
-                 <AlertCircle size={16} color="#FBBF24" />
-              </View>
-              <View className="flex-1">
-                 <Text className="text-amber-500/90 text-[11px] font-bold leading-relaxed">
-                   Caso esteja demorando muito, tente aumentar a sua oferta acima para que o seu pedido seja aceito mais rapidamente pelos motoristas!
-                 </Text>
-              </View>
-            </MotiView>
-          )}
+               <Zap size={14} fill="#091A2F" color="#091A2F" style={{ marginRight: 6 }} />
+               <Text className="text-[#091A2F] text-[14px] font-black">+R$ 2</Text>
+            </TouchableOpacity>
 
-          <AnimatePresence>
-            {loading ? (
-              <MotiView 
-                from={{ opacity: 0 }} animate={{ opacity: 1 }} 
-                className="py-12 items-center justify-center"
-              >
-                <RefreshCw size={24} color="#02de95" className="animate-spin" />
-                <Text className="text-white/60 text-sm font-medium mt-4">
-                  Sincronizando marketplace...
-                </Text>
-              </MotiView>
-            ) : sortedOffers.length === 0 ? (
-              <MotiView 
-                from={{ opacity: 0, scale: 0.95 }} 
-                animate={{ opacity: 1, scale: 1 }}
-                className="bg-white/[0.02] border border-white/10 rounded-3xl p-8 items-center justify-center"
-              >
-                <View className="w-16 h-16 bg-amber-500/10 border border-amber-500/20 rounded-full items-center justify-center mb-5">
-                   <AlertCircle size={28} color="#FBBF24" />
-                </View>
-                <Text className="text-white font-bold text-lg mb-2">
-                  Aguardando Propostas
-                </Text>
-                <Text className="text-white/50 text-center text-sm leading-relaxed">
-                  Os entregadores da região estão visualizando sua oferta agora. Em breve as propostas aparecerão aqui.
-                </Text>
-              </MotiView>
-            ) : (
-              sortedOffers.map((offer, idx) => {
+            {/* ⚡ + R$ 5 */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => openConfirmModal(5)}
+              className="bg-[#02de95] rounded-2xl h-[46px] px-4 flex-row items-center justify-center shadow-lg shadow-[#02de95]/20"
+            >
+               <Zap size={14} fill="#091A2F" color="#091A2F" style={{ marginRight: 6 }} />
+               <Text className="text-[#091A2F] text-[14px] font-black">+R$ 5</Text>
+            </TouchableOpacity>
+
+            {/* 🔥 + R$ 10 */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => openConfirmModal(10)}
+              className="bg-[#02de95] rounded-2xl h-[46px] px-4 flex-row items-center justify-center shadow-lg shadow-[#02de95]/20"
+            >
+               <Zap size={14} fill="#091A2F" color="#091A2F" style={{ marginRight: 6 }} />
+               <Text className="text-[#091A2F] text-[14px] font-black">+R$ 10</Text>
+            </TouchableOpacity>
+
+            {/* 💰 + R$ 15 */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => openConfirmModal(15)}
+              className="bg-[#02de95] rounded-2xl h-[46px] px-4 flex-row items-center justify-center shadow-lg shadow-[#02de95]/20"
+            >
+               <Zap size={14} fill="#091A2F" color="#091A2F" style={{ marginRight: 6 }} />
+               <Text className="text-[#091A2F] text-[14px] font-black">+R$ 15</Text>
+            </TouchableOpacity>
+
+            {/* 💎 + R$ 20 */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => openConfirmModal(20)}
+              className="bg-[#02de95] rounded-2xl h-[46px] px-4 flex-row items-center justify-center shadow-lg shadow-[#02de95]/20"
+            >
+               <Zap size={14} fill="#091A2F" color="#091A2F" style={{ marginRight: 6 }} />
+               <Text className="text-[#091A2F] text-[14px] font-black">+R$ 20</Text>
+            </TouchableOpacity>
+
+            {/* ✏️ Outro Valor */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => openConfirmModal(0)}
+              className="bg-[#02de95]/10 border border-[#02de95]/50 rounded-2xl h-[46px] px-4 flex-row items-center justify-center shadow-sm"
+            >
+               <TrendingUp size={15} color="#02de95" style={{ marginRight: 6 }} />
+               <Text className="text-[#02de95] text-[14px] font-black">✏️ Outro Valor</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </View>
+
+      {/* 🧬 Scrollable Vertical Matrix of Counter-Offers */}
+      <ScrollView 
+        style={{ flex: 1, backgroundColor: "#091A2F" }} 
+        contentContainerStyle={{ padding: 24, paddingBottom: 150 }}
+      >
+        {/* 💡 Accelerate Advice Indicator */}
+        {!loading && sortedOffers.length === 0 && (
+          <MotiView 
+            from={{ opacity: 0, translateY: -10 }} 
+            animate={{ opacity: 1, translateY: 0 }}
+            className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 mb-5 flex-row items-center"
+          >
+            <View className="w-9 h-9 rounded-full bg-amber-500/20 items-center justify-center mr-3 flex-shrink-0">
+               <AlertCircle size={18} color="#FBBF24" />
+            </View>
+            <View className="flex-1">
+               <Text className="text-amber-500/90 text-[11px] font-bold leading-relaxed">
+                 Caso esteja demorando muito, tente aumentar a sua oferta acima para que o seu pedido seja aceito mais rapidamente pelos motoristas!
+               </Text>
+            </View>
+          </MotiView>
+        )}
+
+        <AnimatePresence>
+          {loading ? (
+            <MotiView 
+              from={{ opacity: 0 }} animate={{ opacity: 1 }} 
+              className="py-16 items-center justify-center"
+            >
+              <RefreshCw size={28} color="#02de95" className="animate-spin" />
+              <Text className="text-white/60 text-sm font-semibold mt-5">
+                Sincronizando propostas...
+              </Text>
+            </MotiView>
+          ) : sortedOffers.length === 0 ? (
+            <MotiView 
+              from={{ opacity: 0, scale: 0.95 }} 
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white/[0.02] border border-white/5 rounded-3xl p-8 items-center justify-center mt-6"
+            >
+              <View className="w-16 h-16 bg-amber-500/10 border border-amber-500/10 rounded-full items-center justify-center mb-5">
+                 <AlertCircle size={28} color="#FBBF24" />
+              </View>
+              <Text className="text-white font-black text-xl mb-2">
+                Aguardando Propostas
+              </Text>
+              <Text className="text-white/40 text-center text-sm leading-relaxed">
+                Os motoristas da região receberam seu chamado e estão preparando as ofertas. Em breve as propostas aparecerão abaixo.
+              </Text>
+            </MotiView>
+          ) : (
+            <View className="gap-4">
+              {sortedOffers.map((offer, idx) => {
                 const dId = typeof offer.driverId === "string" ? offer.driverId : offer.driverId?._id || `${idx}`;
                 return (
                   <DriverOfferListItem
@@ -556,13 +392,13 @@ export default function RideOffersMarketplaceScreen() {
                     onDecline={handleDeclineOffer}
                   />
                 );
-              })
-            )}
-          </AnimatePresence>
+              })}
+            </View>
+          )}
+        </AnimatePresence>
+      </ScrollView>
 
-        </BottomSheetScrollView>
-      </BottomSheet>
-      
+      {/* 💎 Ajustar Oferta Modal */}
       <Modal
         visible={showConfirmModal}
         title="Ajustar Oferta"
@@ -576,7 +412,6 @@ export default function RideOffersMarketplaceScreen() {
                Ajuste o valor da proposta base. (Valor mínimo do seu chamado: <Text style={{ color: "#fff", fontWeight: "bold" }}>{formatBRL(Number(negotiation?.initialClientOffer || rideDetails?.pricing?.subtotal || 5.00))}</Text>)
             </Text>
 
-            {/* Chaveador de Operação (Somar / Subtrair) 🧬 */}
             <View style={{ 
                flexDirection: "row", 
                backgroundColor: "rgba(255,255,255,0.06)", 
@@ -657,7 +492,7 @@ export default function RideOffersMarketplaceScreen() {
          </View>
       </Modal>
 
-      {/* Luxury Cancel Confirmation Modal 🛑 */}
+      {/* 🛑 Luxury Cancel Modal */}
       <Modal
         visible={showCancelModal}
         title="Cancelar Pedido?"
@@ -673,8 +508,7 @@ export default function RideOffersMarketplaceScreen() {
          </View>
       </Modal>
 
-      {/* 🛑 Fixed Root-Level Cancel Button (Hoisted beyond BottomSheet off-screen container limits!) */}
-      {/* 🛑 Fixed Root-Level Cancel Button (Permanently mounted to solve layout calculation passes) */}
+      {/* 🛑 Fixed Root-Level Cancel Button */}
       <View
         style={{ 
           position: "absolute", 
@@ -689,7 +523,6 @@ export default function RideOffersMarketplaceScreen() {
           borderTopColor: "rgba(255,255,255,0.07)",
           zIndex: 9999,
           elevation: 99,
-          display: sheetIndex > 0 ? "flex" : "none",
         }}
       >
          <TouchableOpacity 

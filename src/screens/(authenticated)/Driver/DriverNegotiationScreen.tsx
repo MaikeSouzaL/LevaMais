@@ -42,6 +42,8 @@ const Haptics = {
 import rideService from "@/services/ride.service";
 import Toast from "react-native-toast-message";
 import { formatBRL } from "@/utils/mappers";
+import webSocketService from "@/services/websocket.service";
+import { useAuthStore } from "@/context/authStore";
 
 const { width, height } = Dimensions.get("window");
 
@@ -365,6 +367,129 @@ export default function DriverNegotiationScreen() {
     return counterValue >= baseValue * 1.8;
   }, [counterValue, baseValue]);
 
+  // =========================================================
+  // 🔄 REAL-TIME ACTIVE SYNC LOOP: WAITING CLIENT APPROVAL
+  // =========================================================
+  useEffect(() => {
+    if (loadingState !== "waiting" || !offer?._id) return;
+
+    let active = true;
+    const driverId = useAuthStore.getState().userData?.id;
+
+    const navigateToActiveRide = (rideId: string) => {
+      if (!active) return;
+      active = false;
+      Toast.show({
+        type: "success",
+        text1: "Proposta Aceita! 🎉",
+        text2: "Prepare-se para realizar a coleta."
+      });
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "DriverRide", params: { rideId } }],
+      });
+    };
+
+    const handleOfferRejected = () => {
+      if (!active) return;
+      active = false;
+      setLoadingState("idle");
+      Toast.show({
+        type: "info",
+        text1: "Oferta Recusada",
+        text2: "O cliente recusou sua contraproposta."
+      });
+      navigation.popToTop();
+    };
+
+    const handleRideCancelled = () => {
+      if (!active) return;
+      active = false;
+      setLoadingState("idle");
+      Toast.show({
+        type: "error",
+        text1: "Corrida Cancelada",
+        text2: "Esta solicitação foi cancelada pelo solicitante."
+      });
+      navigation.popToTop();
+    };
+
+    // 🛰️ Socket Event Listeners
+    const onNewRideReqSocket = (payload: any) => {
+      if (payload?.rideId === offer._id) {
+        navigateToActiveRide(offer._id);
+      }
+    };
+
+    const onRejectedSocket = (payload: any) => {
+      if (payload?.rideId === offer._id) {
+        handleOfferRejected();
+      }
+    };
+
+    const onCancelledSocket = (payload: any) => {
+      if (payload?.rideId === offer._id) {
+        handleRideCancelled();
+      }
+    };
+
+    webSocketService.on("new-ride-request", onNewRideReqSocket);
+    webSocketService.on("ride-offer-rejected-by-client", onRejectedSocket);
+    webSocketService.on("ride-cancelled", onCancelledSocket);
+
+    // 🔁 High-Availability Rest Polling (Every 3.5 seconds)
+    const syncStatusRest = async () => {
+      try {
+        const ride = await rideService.getById(offer._id);
+        if (!active) return;
+
+        const assignedDriver = typeof ride.driverId === "string" ? ride.driverId : ride.driverId?._id;
+        const rideStatus = String(ride.status || "");
+
+        // 🎯 Client accepted this specific driver
+        if (assignedDriver && driverId && assignedDriver === driverId) {
+           if (["accepted", "driver_assigned", "driver_arriving", "arrived", "in_progress"].includes(rideStatus)) {
+              navigateToActiveRide(ride._id);
+              return;
+           }
+        }
+
+        // ❌ Assigned to someone else OR explicitly rejected
+        if (assignedDriver && assignedDriver !== driverId) {
+           handleOfferRejected();
+           return;
+        }
+
+        const myOffer = ride.negotiation?.offers?.find((o: any) => {
+           const oDriverId = typeof o.driverId === "string" ? o.driverId : o.driverId?._id;
+           return oDriverId && driverId && oDriverId === driverId;
+        });
+
+        if (myOffer && myOffer.status === "rejected") {
+           handleOfferRejected();
+           return;
+        }
+
+        // 🛑 Ride got terminal cancelled
+        if (["cancelled", "cancelled_by_client", "expired"].includes(rideStatus)) {
+           handleRideCancelled();
+           return;
+        }
+      } catch {}
+    };
+
+    const syncInterval = setInterval(syncStatusRest, 3500);
+    syncStatusRest();
+
+    return () => {
+      active = false;
+      clearInterval(syncInterval);
+      webSocketService.off("new-ride-request", onNewRideReqSocket);
+      webSocketService.off("ride-offer-rejected-by-client", onRejectedSocket);
+      webSocketService.off("ride-cancelled", onCancelledSocket);
+    };
+  }, [loadingState, offer?._id]);
+
   const handleSend = async () => {
     if (!offer?._id) return;
     
@@ -372,28 +497,22 @@ export default function DriverNegotiationScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setLoadingState("sending");
 
-      // Mock sending step visually for smoother fintech-like UX 💎
       setTimeout(async () => {
         try {
-          setLoadingState("waiting");
-          
-          // Call network api via existing backend proxy engine
           await rideService.respondToOffer(offer._id, {
             action: "counter",
             amount: counterValue,
             message: message || "Negociação justa",
           });
 
-          // In production, websocket triggers acceptance / status check!
-          // For Demo validation: wait 4 seconds then navigate back with Toast
-          setTimeout(() => {
-             Toast.show({ 
-               type: "success", 
-               text1: "Proposta Enviada! 🚀", 
-               text2: `Sua oferta de ${formatBRL(counterValue)} foi enviada ao cliente.` 
-             });
-             navigation.popToTop(); // Retorna pro feed com o status ativo
-          }, 4000);
+          // Transit to persistent waiting state. Sync engine does the rest!
+          setLoadingState("waiting");
+          
+          Toast.show({ 
+            type: "success", 
+            text1: "Proposta Enviada! 🚀", 
+            text2: `Sua oferta de ${formatBRL(counterValue)} foi enviada ao cliente.` 
+          });
 
         } catch (e: any) {
            setLoadingState("idle");

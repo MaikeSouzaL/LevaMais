@@ -34,6 +34,10 @@ import {
   X,
 } from "lucide-react-native";
 import { formatBRL } from "@/utils/mappers";
+import webSocketService from "@/services/websocket.service";
+import { useAuthStore } from "@/context/authStore";
+import rideService from "@/services/ride.service";
+import Toast from "react-native-toast-message";
 
 // Safe local stub for Haptics
 const Haptics = {
@@ -121,6 +125,96 @@ export function IncomingRideCard({
       setCounterValue(baseValue);
     }
   }, [baseValue]);
+
+  // =========================================================
+  // 🔄 REAL-TIME ACTIVE SYNC LOOP FOR INCOMING RIDE CARD
+  // =========================================================
+  useEffect(() => {
+    if (loadingState !== "waiting" || !offer?.rideId) return;
+
+    let active = true;
+    const driverId = useAuthStore.getState().userData?.id;
+
+    const handleOfferRejected = () => {
+      if (!active) return;
+      active = false;
+      setLoadingState("idle");
+      Toast.show({
+        type: "info",
+        text1: "Oferta Recusada",
+        text2: "O cliente recusou sua contraproposta."
+      });
+      onReject(); // Clears incoming state & closes sheet
+    };
+
+    const handleRideCancelled = () => {
+      if (!active) return;
+      active = false;
+      setLoadingState("idle");
+      Toast.show({
+        type: "error",
+        text1: "Corrida Cancelada",
+        text2: "Esta solicitação foi cancelada pelo solicitante."
+      });
+      onReject(); // Clears incoming state & closes sheet
+    };
+
+    // 🛰️ WebSocket Realtime Interception
+    const onRejectedSocket = (payload: any) => {
+      if (payload?.rideId === offer.rideId) {
+        handleOfferRejected();
+      }
+    };
+
+    const onCancelledSocket = (payload: any) => {
+      if (payload?.rideId === offer.rideId) {
+        handleRideCancelled();
+      }
+    };
+
+    webSocketService.on("ride-offer-rejected-by-client", onRejectedSocket);
+    webSocketService.on("ride-cancelled", onCancelledSocket);
+
+    // 🔁 High-Availability Rest Polling Backup (Every 3.5 seconds)
+    const syncInterval = setInterval(async () => {
+      try {
+        const ride = await rideService.getById(offer.rideId);
+        if (!active) return;
+
+        const assignedDriver = typeof ride.driverId === "string" ? ride.driverId : ride.driverId?._id;
+        const rideStatus = String(ride.status || "");
+
+        // ❌ Assigned to someone else
+        if (assignedDriver && driverId && assignedDriver !== driverId) {
+           handleOfferRejected();
+           return;
+        }
+
+        const myOffer = ride.negotiation?.offers?.find((o: any) => {
+           const oDriverId = typeof o.driverId === "string" ? o.driverId : o.driverId?._id;
+           return oDriverId && driverId && oDriverId === driverId;
+        });
+
+        if (myOffer && myOffer.status === "rejected") {
+           handleOfferRejected();
+           return;
+        }
+
+        // 🛑 Terminal Cancel Status
+        if (["cancelled", "cancelled_by_client", "expired"].includes(rideStatus)) {
+           handleRideCancelled();
+           return;
+        }
+      } catch {}
+    }, 3500);
+
+    return () => {
+      active = false;
+      clearInterval(syncInterval);
+      webSocketService.off("ride-offer-rejected-by-client", onRejectedSocket);
+      webSocketService.off("ride-cancelled", onCancelledSocket);
+    };
+  }, [loadingState, offer?.rideId, onReject]);
 
   if (!isVisible || !request) return null;
 

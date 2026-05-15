@@ -47,6 +47,7 @@ function sendError(res, status, message, extras = {}) {
 }
 
 const SCHEDULED_DISPATCH_TIMEOUTS = new Map();
+const ACTIVE_SEARCH_TIMEOUTS = new Map();
 
 function toMoney(value) {
   return Number(Number(value || 0).toFixed(2));
@@ -258,6 +259,19 @@ class RideController {
       nearbyDrivers.forEach((driver) => {
         try {
           if (!driver || !driver.driverId) return;
+          const driverStr = String(driver.driverId);
+
+          const alreadyProposed =
+            Array.isArray(ride.negotiation?.offers) &&
+            ride.negotiation.offers.some(
+              (item) => String(item.driverId?._id || item.driverId) === driverStr,
+            );
+          const alreadyRejected =
+            Array.isArray(ride.rejectedBy) &&
+            ride.rejectedBy.some(
+              (item) => String(item.driverId?._id || item.driverId) === driverStr,
+            );
+          if (alreadyProposed || alreadyRejected) return;
 
           let distanceToPickup = 0;
           try {
@@ -320,12 +334,20 @@ class RideController {
         }
       }
 
-      setTimeout(async () => {
+      const timeoutKey = String(ride._id);
+      const previousActiveTimeout = ACTIVE_SEARCH_TIMEOUTS.get(timeoutKey);
+      if (previousActiveTimeout) {
+        clearTimeout(previousActiveTimeout);
+        ACTIVE_SEARCH_TIMEOUTS.delete(timeoutKey);
+      }
+
+      const activeTimeout = setTimeout(async () => {
         try {
           const updatedRide = await Ride.findById(ride._id);
           if (
             updatedRide &&
-            ["requesting", "driver_assigned"].includes(updatedRide.status) &&
+            String(updatedRide.status) === "requesting" &&
+            !updatedRide.driverId &&
             !updatedRide.isWaitingInQueue
           ) {
             updatedRide.status = "cancelled_no_driver";
@@ -354,8 +376,12 @@ class RideController {
           }
         } catch (timeoutErr) {
           console.error("Erro no timeout de cancelamento por falta de motorista:", timeoutErr);
+        } finally {
+          ACTIVE_SEARCH_TIMEOUTS.delete(timeoutKey);
         }
       }, (ride.searchTimeoutSeconds || 60) * 1000);
+
+      ACTIVE_SEARCH_TIMEOUTS.set(timeoutKey, activeTimeout);
     } catch (dispatchErr) {
       console.error("Erro critico em dispatchRideToNearbyDrivers:", dispatchErr);
     }
@@ -2521,7 +2547,7 @@ class RideController {
           ruleUsed: rule.name,
         },
         distance: {
-          value: Math.round(distance * 1000) / 1000,
+          value: Math.round(distanceInMeters),
           text: `${distanceKm.toFixed(1)} km`,
         },
         duration: {
@@ -2543,7 +2569,7 @@ class RideController {
         ruleUsed: rule.name,
       },
         distance: {
-          value: Math.round(distance * 1000) / 1000,
+          value: Math.round(distanceInMeters),
           text: `${distanceKm.toFixed(1)} km`,
         },
         duration: {
@@ -2893,4 +2919,5 @@ function isTimeInRange(current, start, end) {
 ratingProofMixin.attach(RideController, { Ride, DriverLocation });
 
 module.exports = new RideController();
+
 

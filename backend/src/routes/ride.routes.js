@@ -49,6 +49,7 @@ router.post("/:rideId/proof/delivery", rideController.uploadDeliveryProof);
 router.get("/active", rideController.getActive);
 router.get("/active/list", rideController.getActiveList);
 router.get("/available-requests", rideController.getAvailableRequests);
+router.get("/negotiations/pending", rideController.getPendingNegotiations);
 router.get("/scheduled/available", rideController.getAvailableScheduledRides);
 router.post("/:rideId/accept-scheduled", rideController.acceptScheduled);
 
