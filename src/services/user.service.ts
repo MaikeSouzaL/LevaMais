@@ -12,6 +12,9 @@ export type UserProfile = {
   cidade?: string;
   cpf?: string;
   cnpj?: string;
+  companyName?: string;
+  companyEmail?: string;
+  companyPhone?: string;
   userType?: "client" | "driver" | "admin";
   profilePhoto?: string;
   preferredPayment?: "pix" | "cash" | "card";
@@ -41,8 +44,10 @@ export type UserProfile = {
     vehiclePhoto?: string;
     selfie?: string;
     submittedAt?: string;
+    rejectionReason?: string;
   };
   acceptedTerms?: boolean;
+  paymentMethods?: Array<any>;
 };
 
 export type GetProfileResponse = { success: boolean; data: { user: UserProfile } };
@@ -63,6 +68,11 @@ export type UpdateProfilePayload = Partial<
     | "vehicleType"
     | "vehicleInfo"
     | "acceptedTerms"
+    | "cpf"
+    | "cnpj"
+    | "companyName"
+    | "companyEmail"
+    | "companyPhone"
   >
 >;
 

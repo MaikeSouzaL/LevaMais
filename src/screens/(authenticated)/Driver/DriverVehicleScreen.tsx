@@ -40,6 +40,7 @@ export default function DriverVehicleScreen() {
   const [newModel, setNewModel] = useState("");
   const [newColor, setNewColor] = useState("");
   const [newYear, setNewYear] = useState("");
+  const [newRenavam, setNewRenavam] = useState("");
   
   // Vehicle Documents State
   const [crlvFront, setCrlvFront] = useState<DocState>({ uri: null, loading: false });
@@ -142,8 +143,13 @@ export default function DriverVehicleScreen() {
   };
 
   const handleRegister = async () => {
-    if (!newPlate || !newModel || !newVehicleType) {
-      Alert.alert("Atenção", "Preencha modelo, placa e tipo do veículo.");
+    if (!newPlate || !newModel || !newVehicleType || !newRenavam) {
+      Alert.alert("Atenção", "Preencha modelo, placa, renavam e tipo do veículo.");
+      return;
+    }
+
+    if (String(newRenavam).trim().length !== 11) {
+      Alert.alert("Atenção", "O RENAVAM deve conter exatamente 11 dígitos numéricos.");
       return;
     }
 
@@ -161,6 +167,7 @@ export default function DriverVehicleScreen() {
         model: newModel,
         color: newColor || undefined,
         year: newYear ? Number(newYear) : undefined,
+        renavam: newRenavam,
         documents: {
           crlvFront: crlvFront.uri,
           crlvBack: crlvBack.uri,
@@ -179,6 +186,7 @@ export default function DriverVehicleScreen() {
       setNewModel("");
       setNewColor("");
       setNewYear("");
+      setNewRenavam("");
       setCrlvFront({ uri: null, loading: false });
       setCrlvBack({ uri: null, loading: false });
       setVehiclePhoto({ uri: null, loading: false });
@@ -403,10 +411,16 @@ export default function DriverVehicleScreen() {
                       )}
                     </View>
 
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
                       <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, fontWeight: "600" }}>{vehicle.plate}</Text>
                       <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.2)" }} />
                       <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 13 }}>{vTypeLabel} • {vehicle.year || "Ano N/D"}</Text>
+                      {vehicle.renavam ? (
+                        <>
+                          <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.2)" }} />
+                          <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 13 }}>RNV: {vehicle.renavam}</Text>
+                        </>
+                      ) : null}
                     </View>
 
                     {/* Rejection Message */}
@@ -490,24 +504,29 @@ export default function DriverVehicleScreen() {
           Selecione o Tipo
         </Text>
         
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: 12 }}>
           {VEHICLE_TYPES.map((item) => {
             const active = newVehicleType === item.id;
             return (
               <TouchableOpacity
                 key={item.id}
-                activeOpacity={0.8}
+                activeOpacity={0.85}
                 style={{
-                  flex: 1,
-                  minWidth: "45%",
-                  backgroundColor: active ? "rgba(2, 222, 149, 0.08)" : "rgba(255,255,255,0.03)",
-                  borderRadius: 18,
-                  paddingVertical: 18,
+                  width: "48.5%",
+                  backgroundColor: active ? "rgba(2, 222, 149, 0.08)" : "rgba(255,255,255,0.02)",
+                  borderRadius: 20,
+                  paddingVertical: 20,
                   alignItems: "center",
                   justifyContent: "center",
-                  borderWidth: 1,
+                  borderWidth: 1.5,
                   borderColor: active ? "#02de95" : "rgba(255,255,255,0.08)",
-                  gap: 6
+                  gap: 8,
+                  position: "relative",
+                  shadowColor: active ? "#02de95" : "transparent",
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: active ? 0.15 : 0,
+                  shadowRadius: 8,
+                  elevation: active ? 3 : 0,
                 }}
                 onPress={() => setNewVehicleType(item.id)}
               >
@@ -533,10 +552,10 @@ export default function DriverVehicleScreen() {
         </Text>
 
         <SectionCard style={{ padding: 18, gap: 16 }}>
-          <View>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 }}>
-              <Ionicons name="build-outline" size={14} color="rgba(255,255,255,0.5)" />
-              <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 12, fontWeight: "700" }}>Modelo do Veículo</Text>
+          <View style={{ gap: 4 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 }}>
+              <Ionicons name="build-outline" size={16} color="#02de95" style={{ opacity: 0.8 }} />
+              <Text style={{ color: "rgba(255,255,255,0.75)", fontSize: 12, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5 }}>Modelo do Veículo</Text>
             </View>
             <TextField
               value={newModel}
@@ -546,10 +565,10 @@ export default function DriverVehicleScreen() {
           </View>
 
           <View style={{ flexDirection: "row", gap: 14 }}>
-            <View style={{ flex: 1.2 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                <Ionicons name="card-outline" size={14} color="rgba(255,255,255,0.5)" />
-                <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 12, fontWeight: "700" }}>Placa</Text>
+            <View style={{ flex: 1.2, gap: 4 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                <Ionicons name="card-outline" size={16} color="#02de95" style={{ opacity: 0.8 }} />
+                <Text style={{ color: "rgba(255,255,255,0.75)", fontSize: 12, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5 }}>Placa</Text>
               </View>
               <TextField
                 value={newPlate}
@@ -559,10 +578,10 @@ export default function DriverVehicleScreen() {
               />
             </View>
 
-            <View style={{ flex: 0.8 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                <Ionicons name="calendar-outline" size={14} color="rgba(255,255,255,0.5)" />
-                <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 12, fontWeight: "700" }}>Ano</Text>
+            <View style={{ flex: 0.8, gap: 4 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                <Ionicons name="calendar-outline" size={16} color="#02de95" style={{ opacity: 0.8 }} />
+                <Text style={{ color: "rgba(255,255,255,0.75)", fontSize: 12, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5 }}>Ano</Text>
               </View>
               <TextField
                 value={newYear}
@@ -574,15 +593,29 @@ export default function DriverVehicleScreen() {
             </View>
           </View>
 
-          <View>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 }}>
-              <Ionicons name="color-palette-outline" size={14} color="rgba(255,255,255,0.5)" />
-              <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 12, fontWeight: "700" }}>Cor Predominante</Text>
+          <View style={{ gap: 4 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 }}>
+              <Ionicons name="color-palette-outline" size={16} color="#02de95" style={{ opacity: 0.8 }} />
+              <Text style={{ color: "rgba(255,255,255,0.75)", fontSize: 12, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5 }}>Cor Predominante</Text>
             </View>
             <TextField
               value={newColor}
               onChangeText={setNewColor}
               placeholder="Ex: Preto, Prata, Vermelho..."
+            />
+          </View>
+
+          <View style={{ gap: 4 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 }}>
+              <Ionicons name="document-text-outline" size={16} color="#02de95" style={{ opacity: 0.8 }} />
+              <Text style={{ color: "rgba(255,255,255,0.75)", fontSize: 12, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5 }}>Renavam *</Text>
+            </View>
+            <TextField
+              value={newRenavam}
+              onChangeText={setNewRenavam}
+              keyboardType="numeric"
+              maxLength={11}
+              placeholder="Código de 11 dígitos"
             />
           </View>
         </SectionCard>

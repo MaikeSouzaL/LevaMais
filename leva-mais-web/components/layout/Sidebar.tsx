@@ -1,8 +1,9 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { platformConfigService } from "@/services/platformConfigService";
 import {
   LayoutDashboard,
   Users,
@@ -78,6 +79,48 @@ export function Sidebar({
   onToggleCollapse,
 }: SidebarProps) {
   const pathname = usePathname();
+  const [isDevMode, setIsDevMode] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    platformConfigService.get()
+      .then((data) => {
+        if (mounted) {
+          setIsDevMode(!!data.isDevelopmentMode);
+        }
+      })
+      .catch(() => {});
+
+    const handleExternalUpdate = () => {
+      platformConfigService.get()
+        .then((data) => {
+          if (mounted) {
+            setIsDevMode(!!data.isDevelopmentMode);
+          }
+        })
+        .catch(() => {});
+    };
+
+    window.addEventListener("platform-config-updated", handleExternalUpdate);
+
+    return () => {
+      mounted = false;
+      window.removeEventListener("platform-config-updated", handleExternalUpdate);
+    };
+  }, []);
+
+  const handleToggleDevMode = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const nextVal = !isDevMode;
+    setIsDevMode(nextVal);
+    try {
+      await platformConfigService.update({ isDevelopmentMode: nextVal });
+      window.dispatchEvent(new Event("platform-config-updated"));
+    } catch {
+      setIsDevMode(!nextVal);
+    }
+  };
 
   return (
     <>
@@ -201,15 +244,41 @@ export function Sidebar({
                   admin@levamais.com
                 </p>
               </div>
-              <Settings
-                size={16}
-                className="text-slate-400 group-hover:text-emerald-500 transition-colors"
-              />
+              <div 
+                className="flex items-center gap-1.5 cursor-pointer z-10" 
+                onClick={handleToggleDevMode}
+                title={isDevMode ? "Modo de Desenvolvimento Ativo (Ignorar validações)" : "Modo de Produção Ativo (Validação Estrita)"}
+              >
+                <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-md transition-all select-none ${
+                  isDevMode ? "bg-amber-100 text-amber-800 ring-1 ring-amber-200" : "bg-slate-100 text-slate-600 ring-1 ring-slate-200"
+                }`}>
+                  {isDevMode ? "DEV" : "PROD"}
+                </span>
+                <button
+                  type="button"
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${
+                    isDevMode ? "bg-amber-500" : "bg-slate-300"
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+                      isDevMode ? "translate-x-5" : "translate-x-1"
+                    }`}
+                  />
+                </button>
+              </div>
             </button>
           ) : (
-            <button className="w-full flex justify-center p-2 rounded-xl hover:bg-slate-50 transition-colors group">
-              <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600 ring-2 ring-white group-hover:ring-emerald-100 transition-all">
+            <button 
+              className="w-full flex flex-col items-center justify-center p-2 rounded-xl hover:bg-slate-50 transition-colors group relative"
+              onClick={handleToggleDevMode}
+              title={isDevMode ? "Modo de Desenvolvimento Ativo" : "Modo de Produção Ativo"}
+            >
+              <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600 ring-2 ring-white group-hover:ring-emerald-100 transition-all relative">
                 AD
+                <span className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border border-white flex items-center justify-center ${
+                  isDevMode ? "bg-amber-500" : "bg-slate-400"
+                }`} />
               </div>
             </button>
           )}

@@ -44,6 +44,7 @@ export interface DriverVehicle {
   model: string;
   color?: string;
   year?: number;
+  renavam?: string;
   documents?: {
     crlvFront?: string;
     crlvBack?: string;
@@ -328,6 +329,7 @@ class DriverService {
     model: string;
     color?: string;
     year?: number;
+    renavam?: string;
     documents?: any;
   }): Promise<DriverVehicle> {
     try {

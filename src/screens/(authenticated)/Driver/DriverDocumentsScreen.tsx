@@ -261,6 +261,29 @@ export default function DriverDocumentsScreen() {
         <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginTop: 6 }}>
           {completedCount} de {totalCount} documentos pessoais válidos.
         </Text>
+
+        {/* Motivo da Rejeição */}
+        {profile?.driverStatus === "rejected" && profile?.driverDocuments?.rejectionReason && (
+          <View style={{ 
+            flexDirection: "row", 
+            backgroundColor: "rgba(239, 68, 68, 0.06)", 
+            borderWidth: 1, 
+            borderColor: "rgba(239, 68, 68, 0.2)", 
+            padding: 12, 
+            borderRadius: 14, 
+            marginTop: 16, 
+            gap: 8, 
+            alignItems: "center" 
+          }}>
+            <MaterialIcons name="error" size={20} color="#EF4444" />
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: "#EF4444", fontSize: 12, fontWeight: "800", textTransform: "uppercase" }}>Motivo da Recusa:</Text>
+              <Text style={{ color: "rgba(255, 255, 255, 0.8)", fontSize: 12, fontWeight: "600", marginTop: 2 }}>
+                {profile.driverDocuments.rejectionReason}
+              </Text>
+            </View>
+          </View>
+        )}
       </SectionCard>
 
       {/* 💳 Grupo 1: Carteira de Habilitação */}

@@ -384,6 +384,18 @@ class ConfigService {
     const config = await this.getDepositConfig();
     return amount >= config.minDeposit && amount <= config.maxDeposit;
   }
+
+  // Fetch full platform config including isDevelopmentMode
+  async getFullConfig(): Promise<any> {
+    const res = await apiClient.get<any>("/config/all");
+    return res.data?.data || res.data;
+  }
+
+  // Update platform config
+  async updateConfig(payload: any): Promise<any> {
+    const res = await apiClient.put<any>("/config/update", payload);
+    return res.data?.data || res.data;
+  }
 }
 
 export default new ConfigService();

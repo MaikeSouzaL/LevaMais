@@ -1,4 +1,5 @@
 const User = require("../models/User");
+const PlatformConfig = require("../models/PlatformConfig");
 const PasswordReset = require("../models/PasswordReset");
 const PhoneVerification = require("../models/PhoneVerification");
 const Ride = require("../models/Ride");
@@ -46,6 +47,167 @@ function normalizePreferredPayment(value) {
 
 function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(String(email || ""));
+}
+
+function validateCPFAlgorithm(cpf) {
+  if (typeof cpf !== "string") return false;
+  cpf = cpf.replace(/\D/g, "");
+  if (cpf.length !== 11) return false;
+  if (/^(\d)\1{10}$/.test(cpf)) return false;
+
+  let sum = 0;
+  let remainder;
+
+  for (let i = 1; i <= 9; i++) {
+    sum += parseInt(cpf.substring(i - 1, i)) * (11 - i);
+  }
+  remainder = (sum * 10) % 11;
+  if (remainder === 10 || remainder === 11) remainder = 0;
+  if (remainder !== parseInt(cpf.substring(9, 10))) return false;
+
+  sum = 0;
+  for (let i = 1; i <= 10; i++) {
+    sum += parseInt(cpf.substring(i - 1, i)) * (12 - i);
+  }
+  remainder = (sum * 10) % 11;
+  if (remainder === 10 || remainder === 11) remainder = 0;
+  if (remainder !== parseInt(cpf.substring(10, 11))) return false;
+
+  return true;
+}
+
+function normalizeNameForCompare(name) {
+  return String(name || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function validateCPFWithFreeAPI(cpf) {
+  try {
+    const config = await PlatformConfig.findOne().catch(() => null);
+    const isDev = config ? config.isDevelopmentMode : true;
+    if (isDev) {
+      console.log("[CPF API Validation] Development Mode is ACTIVE. Bypassing external API validation.");
+      return { valid: true, name: null };
+    }
+
+    if (!validateCPFAlgorithm(cpf)) {
+      return { valid: false };
+    }
+
+    const cleanCPF = cpf.replace(/\D/g, "");
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), 3000);
+
+    const response = await fetch(`https://api.laurenti.media/cpf/${cleanCPF}`, {
+      signal: controller.signal
+    }).catch(() => null);
+
+    clearTimeout(id);
+
+    if (response && response.ok) {
+      const data = await response.json().catch(() => null);
+      if (data) {
+        if (data.valid === false || data.valido === false) {
+          return { valid: false };
+        }
+        return {
+          valid: true,
+          name: data.name || data.nome || null
+        };
+      }
+    }
+    return { valid: true, isFallback: true };
+  } catch (error) {
+    console.warn("[CPF API Validation] Erro na API externa, usando fallback matemático local:", error.message);
+    return { valid: true, isFallback: true };
+  }
+}
+
+function validateCNPJAlgorithm(cnpj) {
+  if (typeof cnpj !== "string") return false;
+  cnpj = cnpj.replace(/\D/g, "");
+  if (cnpj.length !== 14) return false;
+  if (/^(\d)\1{13}$/.test(cnpj)) return false;
+
+  let size = cnpj.length - 2;
+  let numbers = cnpj.substring(0, size);
+  const digits = cnpj.substring(size);
+  let sum = 0;
+  let pos = size - 7;
+
+  for (let i = size; i >= 1; i--) {
+    sum += numbers.charAt(size - i) * pos--;
+    if (pos < 2) pos = 9;
+  }
+
+  let result = sum % 11 < 2 ? 0 : 11 - (sum % 11);
+  if (result !== parseInt(digits.charAt(0))) return false;
+
+  size = size + 1;
+  numbers = cnpj.substring(0, size);
+  sum = 0;
+  pos = size - 7;
+
+  for (let i = size; i >= 1; i--) {
+    sum += numbers.charAt(size - i) * pos--;
+    if (pos < 2) pos = 9;
+  }
+
+  result = sum % 11 < 2 ? 0 : 11 - (sum % 11);
+  if (result !== parseInt(digits.charAt(1))) return false;
+
+  return true;
+}
+
+async function validateCNPJWithFreeAPI(cnpj) {
+  try {
+    const config = await PlatformConfig.findOne().catch(() => null);
+    const isDev = config ? config.isDevelopmentMode : true;
+    if (isDev) {
+      console.log("[CNPJ API Validation] Development Mode is ACTIVE. Bypassing external API validation.");
+      return { valid: true, razaoSocial: null };
+    }
+
+    if (!validateCNPJAlgorithm(cnpj)) {
+      return { valid: false };
+    }
+
+    const cleanCNPJ = cnpj.replace(/\D/g, "");
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), 4000);
+
+    const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanCNPJ}`, {
+      signal: controller.signal
+    }).catch(() => null);
+
+    clearTimeout(id);
+
+    if (response && response.ok) {
+      const data = await response.json().catch(() => null);
+      if (data) {
+        if (data.message || data.error) {
+          return { valid: false };
+        }
+        return {
+          valid: true,
+          razaoSocial: data.razao_social || null,
+          nomeFantasia: data.nome_fantasia || null,
+          city: data.municipio || null,
+          state: data.uf || null,
+          status: data.descricao_situacao_cadastral || data.situacao_cadastral || null
+        };
+      }
+    }
+    return { valid: true, isFallback: true };
+  } catch (error) {
+    console.warn("[CNPJ API Validation] Erro na API externa, usando fallback matemático local:", error.message);
+    return { valid: true, isFallback: true };
+  }
 }
 
 function sendError(res, status, message, extras = {}) {
@@ -105,7 +267,7 @@ class AuthController {
     const userType = typeof user === "string" ? undefined : user?.userType;
 
     return jwt.sign(
-      { id: userId, userType },
+      { id: String(userId), userType },
       process.env.JWT_SECRET || "secret",
       {
         expiresIn: process.env.JWT_EXPIRE || "7d",
@@ -168,8 +330,14 @@ class AuthController {
         return sendError(res, 400, "Email invalido");
       }
 
-      if (normalizedPhone && (normalizedPhone.length < 10 || normalizedPhone.length > 11)) {
-        return sendError(res, 400, "Telefone invalido");
+      if (normalizedPhone) {
+        if (normalizedPhone.length < 10 || normalizedPhone.length > 11) {
+          return sendError(res, 400, "Telefone invalido");
+        }
+        const existingPhone = await User.findOne({ phone: normalizedPhone });
+        if (existingPhone) {
+          return sendError(res, 400, "Telefone já cadastrado em outra conta");
+        }
       }
 
       const existingUser = await User.findOne({ email: normalizedEmail });
@@ -469,13 +637,30 @@ class AuthController {
         vehicleType,
         vehicleInfo,
         gpsQuality,
+        // compliance
+        acceptedTerms,
+        // CPF/CNPJ & Company Details
+        cpf,
+        cnpj,
+        companyName,
+        companyEmail,
+        companyPhone,
       } = req.body || {};
 
       if (name !== undefined) user.name = String(name);
       if (phone !== undefined) {
         const normalizedPhone = normalizePhone(phone);
-        if (normalizedPhone && (normalizedPhone.length < 10 || normalizedPhone.length > 11)) {
-          return sendError(res, 400, "Telefone invalido");
+        if (normalizedPhone) {
+          if (normalizedPhone.length < 10 || normalizedPhone.length > 11) {
+            return sendError(res, 400, "Telefone invalido");
+          }
+          const existingPhoneUser = await User.findOne({
+            phone: normalizedPhone,
+            _id: { $ne: userId },
+          });
+          if (existingPhoneUser) {
+            return sendError(res, 400, "Telefone já cadastrado em outra conta");
+          }
         }
         user.phone = normalizedPhone || "";
       }
@@ -487,6 +672,73 @@ class AuthController {
           user.userType = userType;
         }
       }
+
+      if (cpf !== undefined) {
+        const cleanCPF = cpf ? String(cpf).replace(/\D/g, "") : "";
+        if (cleanCPF) {
+          const cpfValidationResult = await validateCPFWithFreeAPI(cleanCPF);
+          if (!cpfValidationResult.valid) {
+            return sendError(res, 400, "CPF inválido.");
+          }
+
+          user.isCpfVerified = true;
+          if (cpfValidationResult.name) {
+            user.officialCpfName = cpfValidationResult.name;
+            
+            const userNameToMatch = user.name || name || "";
+            const normalizedUserName = normalizeNameForCompare(userNameToMatch);
+            const normalizedOfficialName = normalizeNameForCompare(cpfValidationResult.name);
+
+            const userWords = normalizedUserName.split(" ");
+            const officialWords = normalizedOfficialName.split(" ");
+
+            const firstNameMatches = userWords[0] === officialWords[0];
+            const lastNameMatches = userWords.length > 1 
+              ? officialWords.includes(userWords[userWords.length - 1]) 
+              : true;
+
+            if (!firstNameMatches || !lastNameMatches) {
+              return sendError(
+                res, 
+                400, 
+                "O Nome Completo e o CPF informados não coincidem nos registros oficiais. Por favor, verifique a digitação."
+              );
+            }
+          }
+
+          const existingCPF = await User.findOne({ cpf: cleanCPF, _id: { $ne: userId } });
+          if (existingCPF) {
+            return sendError(res, 400, "Este CPF já está cadastrado em outra conta.");
+          }
+        }
+        user.cpf = cleanCPF;
+      }
+      if (cnpj !== undefined) {
+        const cleanCNPJ = cnpj ? String(cnpj).replace(/\D/g, "") : "";
+        if (cleanCNPJ) {
+          const cnpjValidationResult = await validateCNPJWithFreeAPI(cleanCNPJ);
+          if (!cnpjValidationResult.valid) {
+            return sendError(res, 400, "CNPJ inválido.");
+          }
+          const existingCNPJ = await User.findOne({ cnpj: cleanCNPJ, _id: { $ne: userId } });
+          if (existingCNPJ) {
+            return sendError(res, 400, "Este CNPJ já está cadastrado em outra conta.");
+          }
+
+          user.isCnpjVerified = true;
+          if (cnpjValidationResult.razaoSocial) {
+            user.officialCnpjRazaoSocial = cnpjValidationResult.razaoSocial;
+            user.officialCnpjNomeFantasia = cnpjValidationResult.nomeFantasia;
+            user.officialCnpjCity = cnpjValidationResult.city;
+            user.officialCnpjState = cnpjValidationResult.state;
+            user.officialCnpjStatus = cnpjValidationResult.status;
+          }
+        }
+        user.cnpj = cleanCNPJ;
+      }
+      if (companyName !== undefined) user.companyName = companyName ? String(companyName).trim() : "";
+      if (companyEmail !== undefined) user.companyEmail = companyEmail ? String(companyEmail).trim() : "";
+      if (companyPhone !== undefined) user.companyPhone = companyPhone ? String(companyPhone).trim() : "";
 
       if (preferredPayment !== undefined) {
         const normalized = normalizePreferredPayment(preferredPayment);
@@ -500,6 +752,13 @@ class AuthController {
       }
       if (enableMapAnimation !== undefined) {
         user.enableMapAnimation = !!enableMapAnimation;
+      }
+
+      if (acceptedTerms === true) {
+        user.acceptedTerms = true;
+        const now = new Date();
+        user.acceptedTermsAt = now;
+        user.acceptedPrivacyAt = now;
       }
       if (queueRedispatchInterval !== undefined) {
         user.queueRedispatchInterval = queueRedispatchInterval === null ? null : Number(queueRedispatchInterval);
@@ -1255,6 +1514,31 @@ class AuthController {
         return sendError(res, 400, "Telefone invalido");
       }
 
+      // Extrair e verificar token opcional para saber se é um update do próprio usuário
+      let currentUserId = null;
+      const authHeader = req.headers["authorization"];
+      if (authHeader) {
+        const [scheme, token] = authHeader.split(" ");
+        if (String(scheme || "").toLowerCase() === "bearer" && token) {
+          try {
+            const decoded = jwt.verify(token, process.env.JWT_SECRET || "secret");
+            currentUserId = decoded.id;
+          } catch (err) {
+            // Ignorar erro do JWT opcional
+          }
+        }
+      }
+
+      // Verificar se o telefone já está cadastrado em outra conta
+      const query = { phone: normalizedPhone };
+      if (currentUserId) {
+        query._id = { $ne: currentUserId };
+      }
+      const existingPhoneUser = await User.findOne(query);
+      if (existingPhoneUser) {
+        return sendError(res, 400, "Telefone já cadastrado em outra conta");
+      }
+
       const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
       const recentAttempts = await PhoneVerification.countDocuments({
         phone: normalizedPhone,
@@ -1494,6 +1778,9 @@ class AuthController {
         "vehicleInfo",
         "cpf",
         "cnpj",
+        "driverStatus",
+        "driverDocuments",
+        "vehicles",
       ];
 
       const payload = req.body || {};

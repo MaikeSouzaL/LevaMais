@@ -49,6 +49,7 @@ const DEFAULT_CONFIG = {
     privacyPolicyVersion: "2026-05-14",
     consentVersion: "2026-05-14",
   },
+  isDevelopmentMode: true,
 };
 
 const configController = {
@@ -229,6 +230,7 @@ const configController = {
         rideSettings: config?.rideSettings || DEFAULT_CONFIG.rideSettings,
         supportChannels: config?.supportChannels || DEFAULT_CONFIG.supportChannels,
         policyVersions: config?.policyVersions || DEFAULT_CONFIG.policyVersions,
+        isDevelopmentMode: config?.isDevelopmentMode !== undefined ? config.isDevelopmentMode : DEFAULT_CONFIG.isDevelopmentMode,
       };
 
       res.json({

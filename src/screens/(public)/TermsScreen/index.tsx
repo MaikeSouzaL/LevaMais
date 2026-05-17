@@ -7,7 +7,7 @@ import {
   Switch,
   ActivityIndicator,
 } from "react-native";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { NavigationContext, NavigationRouteContext } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import theme from "../../../theme";
@@ -17,9 +17,9 @@ import { useAuthStore } from "@/context/authStore";
 type TabType = "terms" | "privacy";
 
 export default function TermsScreen({ onAccept: propsOnAccept }: { onAccept?: () => void }) {
-  const navigation = useNavigation();
-  const route = useRoute();
-  const { onAccept: routeOnAccept } = (route.params as { onAccept?: () => void }) || {};
+  const navigation = React.useContext(NavigationContext);
+  const route = React.useContext(NavigationRouteContext) as any;
+  const { onAccept: routeOnAccept } = (route?.params as { onAccept?: () => void }) || {};
   const onAccept = propsOnAccept || routeOnAccept;
 
   const [activeTab, setActiveTab] = useState<TabType>("terms");
@@ -58,11 +58,13 @@ export default function TermsScreen({ onAccept: propsOnAccept }: { onAccept?: ()
           await Promise.resolve(onAccept());
         }
         
-        if (navigation.canGoBack()) {
-          navigation.goBack();
-        } else {
-          // Se for a tela inicial (AuthRoutes), avança para a intro
-          (navigation as any).navigate("IntroScreen");
+        if (navigation) {
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+          } else {
+            // Se for a tela inicial (AuthRoutes), avança para a intro
+            (navigation as any).navigate("IntroScreen");
+          }
         }
       } catch (error) {
         console.error("Erro ao salvar aceite:", error);
@@ -72,7 +74,7 @@ export default function TermsScreen({ onAccept: propsOnAccept }: { onAccept?: ()
     }
   }
   const { userType: storeUserType } = useAuthStore();
-  const { userType: routeUserType } = (route.params as { userType?: string }) || {};
+  const { userType: routeUserType } = (route?.params as { userType?: string }) || {};
   const userType = storeUserType || routeUserType || "client";
 
   return (
@@ -81,7 +83,7 @@ export default function TermsScreen({ onAccept: propsOnAccept }: { onAccept?: ()
       <View className="flex-row items-center justify-between px-6 py-4 border-b border-gray-700">
         {!onAccept ? (
           <TouchableOpacity
-            onPress={() => navigation.goBack()}
+            onPress={() => navigation?.goBack()}
             className="w-10 h-10 items-center justify-center"
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >

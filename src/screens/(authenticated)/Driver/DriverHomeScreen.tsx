@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { AppState, View, Text, TouchableOpacity, useColorScheme, Alert } from "react-native";
+import { AppState, View, Text, TouchableOpacity, useColorScheme, Alert, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import * as Location from "expo-location";
@@ -15,8 +15,6 @@ import { BalanceWidget } from "@/components/BalanceWidget";
 import { DriverDepositModal } from "@/components/DriverDepositModal";
 import { QueueTagYellowFloating } from "@/components/QueueTagYellow";
 import { MapActionButtons } from "@/components/MapActionButtons";
-
-
 import { useAuthStore } from "../../../context/authStore";
 import driverLocationService, {
   DriverStatus,
@@ -112,6 +110,8 @@ export default function DriverHomeScreen() {
   const [driverStats, setDriverStats] = useState<any>(null);
   const [onlineSessionStart, setOnlineSessionStart] = useState<string | null>(null);
   const [gpsQuality, setGpsQuality] = useState<"low" | "balanced" | "high">("high");
+  const [showTour, setShowTour] = useState(false);
+  const [tourStep, setTourStep] = useState(0);
   const watchRef = useRef<any>(null);
   const intervalRef = useRef<any>(null);
   const pendingSyncIntervalRef = useRef<any>(null);
@@ -426,6 +426,163 @@ export default function DriverHomeScreen() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 🎈 PREMIUM USER GUIDE TOUR SYSTEM
+  const tourSteps = [
+    {
+      title: "Menu Principal 🍔",
+      desc: "Aqui você gerencia seu perfil, preferências, consulta o suporte e altera configurações da sua conta.",
+      targetStyle: {
+        top: 48,
+        left: 16,
+        width: 58,
+        height: 58,
+        borderRadius: 16,
+      },
+      balloonStyle: {
+        top: 120,
+        left: 16,
+        right: 16,
+      },
+      arrowStyle: {
+        top: -8,
+        left: 36,
+        width: 0,
+        height: 0,
+        borderLeftWidth: 8,
+        borderRightWidth: 8,
+        borderBottomWidth: 8,
+        borderStyle: "solid" as const,
+        backgroundColor: "transparent",
+        borderLeftColor: "transparent",
+        borderRightColor: "transparent",
+        borderBottomColor: "#0B1E36",
+        position: "absolute" as const,
+      }
+    },
+    {
+      title: "Seu Faturamento & Alertas 📊",
+      desc: "Veja seus ganhos diários atualizados em tempo real e verifique notificações e chamadas pendentes.",
+      targetStyle: {
+        top: 48,
+        left: 86,
+        right: 16,
+        height: 58,
+        borderRadius: 16,
+      },
+      balloonStyle: {
+        top: 120,
+        left: 16,
+        right: 16,
+      },
+      arrowStyle: {
+        top: -8,
+        right: 48,
+        width: 0,
+        height: 0,
+        borderLeftWidth: 8,
+        borderRightWidth: 8,
+        borderBottomWidth: 8,
+        borderStyle: "solid" as const,
+        backgroundColor: "transparent",
+        borderLeftColor: "transparent",
+        borderRightColor: "transparent",
+        borderBottomColor: "#0B1E36",
+        position: "absolute" as const,
+      }
+    },
+    {
+      title: "Botão SOS de Pânico 🚨",
+      desc: "Sua segurança é nossa prioridade absoluta. Em qualquer situação de perigo, clique aqui para acionar a central Leva+ imediatamente.",
+      targetStyle: {
+        top: 150,
+        right: 16,
+        width: 48,
+        height: 48,
+        borderRadius: 12,
+      },
+      balloonStyle: {
+        top: 215,
+        left: 16,
+        right: 16,
+      },
+      arrowStyle: {
+        top: -8,
+        right: 32,
+        width: 0,
+        height: 0,
+        borderLeftWidth: 8,
+        borderRightWidth: 8,
+        borderBottomWidth: 8,
+        borderStyle: "solid" as const,
+        backgroundColor: "transparent",
+        borderLeftColor: "transparent",
+        borderRightColor: "transparent",
+        borderBottomColor: "#0B1E36",
+        position: "absolute" as const,
+      }
+    },
+    {
+      title: "Ficar Online & Começar 🚀",
+      desc: "Arraste ou clique no botão do painel inferior para ficar online! Quando estiver ativo, o aplicativo começará a buscar corridas e entregas na sua área.",
+      targetStyle: {
+        bottom: 20,
+        left: 16,
+        right: 16,
+        height: 80,
+        borderRadius: 24,
+      },
+      balloonStyle: {
+        bottom: 120,
+        left: 16,
+        right: 16,
+      },
+      arrowStyle: {
+        bottom: -8,
+        left: "50%",
+        marginLeft: -8,
+        width: 0,
+        height: 0,
+        borderLeftWidth: 8,
+        borderRightWidth: 8,
+        borderTopWidth: 8,
+        borderStyle: "solid" as const,
+        backgroundColor: "transparent",
+        borderLeftColor: "transparent",
+        borderRightColor: "transparent",
+        borderTopColor: "#0B1E36",
+        position: "absolute" as const,
+      }
+    }
+  ];
+
+  useEffect(() => {
+    const checkTour = async () => {
+      if (isApproved) {
+        const seen = await AsyncStorage.getItem("@leva_mais:driver_tour_seen");
+        if (!seen) {
+          setTimeout(() => {
+            setShowTour(true);
+          }, 1200);
+        }
+      }
+    };
+    checkTour();
+  }, [isApproved]);
+
+  const handleNextTourStep = async () => {
+    if (tourStep < tourSteps.length - 1) {
+      setTourStep(tourStep + 1);
+    } else {
+      setShowTour(false);
+      await AsyncStorage.setItem("@leva_mais:driver_tour_seen", "true");
+    }
+  };
+
+  const handleSkipTour = async () => {
+    setShowTour(false);
+    await AsyncStorage.setItem("@leva_mais:driver_tour_seen", "true");
+  };
 
   // 🛰️ Real-Time High-Definition Tracking for User Puck Marker
   useEffect(() => {
@@ -937,6 +1094,18 @@ export default function DriverHomeScreen() {
     }
   }, [isFocused, loadBalance]);
 
+  useEffect(() => {
+    if (isApproved && isFocused) {
+      AsyncStorage.getItem("@LevaMais:driver_tour_completed").then((val) => {
+        if (!val) {
+          setTimeout(() => {
+            setShowTour(true);
+          }, 3000);
+        }
+      });
+    }
+  }, [isApproved, isFocused]);
+
   const refreshTodayEarnings = async () => {
     try {
       const stats = await rideService.getDriverStats();
@@ -1318,6 +1487,95 @@ export default function DriverHomeScreen() {
 
           {!isApproved && (
             <DriverOnboardingDashboard />
+          )}
+
+          {showTour && (
+            <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "rgba(0,0,0,0.65)", zIndex: 9999999 }]}>
+              {/* Highlight Target */}
+              <View 
+                style={[
+                  {
+                    position: "absolute",
+                    borderWidth: 2.5,
+                    borderColor: "#02de95",
+                    backgroundColor: "rgba(2, 222, 149, 0.04)",
+                    shadowColor: "#02de95",
+                    shadowOffset: { width: 0, height: 0 },
+                    shadowOpacity: 0.8,
+                    shadowRadius: 12,
+                  },
+                  tourSteps[tourStep].targetStyle as any
+                ]} 
+              />
+
+              {/* Balloon */}
+              <MotiView
+                from={{ opacity: 0, scale: 0.9, translateY: 15 }}
+                animate={{ opacity: 1, scale: 1, translateY: 0 }}
+                transition={{ type: "spring", damping: 15 }}
+                style={[
+                  {
+                    position: "absolute",
+                    backgroundColor: "#0B1E36",
+                    borderRadius: 24,
+                    padding: 22,
+                    borderWidth: 1,
+                    borderColor: "rgba(255, 255, 255, 0.1)",
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 10 },
+                    shadowOpacity: 0.5,
+                    shadowRadius: 20,
+                  },
+                  tourSteps[tourStep].balloonStyle as any
+                ]}
+              >
+                {/* Arrow pointing to target */}
+                <View style={tourSteps[tourStep].arrowStyle as any} />
+
+                {/* Content */}
+                <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 10 }}>
+                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#02de95", marginRight: 8 }} />
+                  <Text style={{ color: "rgba(255, 255, 255, 0.5)", fontSize: 10, fontWeight: "900", letterSpacing: 1.5, textTransform: "uppercase" }}>
+                    Guia de Uso • Passo {tourStep + 1} de {tourSteps.length}
+                  </Text>
+                </View>
+
+                <Text style={{ color: "#fff", fontSize: 18, fontWeight: "900", marginBottom: 8 }}>
+                  {tourSteps[tourStep].title}
+                </Text>
+                <Text style={{ color: "rgba(255, 255, 255, 0.7)", fontSize: 13, lineHeight: 20, fontWeight: "500", marginBottom: 20 }}>
+                  {tourSteps[tourStep].desc}
+                </Text>
+
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                  <TouchableOpacity onPress={handleSkipTour} activeOpacity={0.7} style={{ paddingVertical: 8 }}>
+                    <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, fontWeight: "700" }}>
+                      Pular Guia
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    onPress={handleNextTourStep}
+                    activeOpacity={0.8}
+                    style={{
+                      backgroundColor: "#02de95",
+                      paddingHorizontal: 22,
+                      paddingVertical: 12,
+                      borderRadius: 14,
+                      shadowColor: "#02de95",
+                      shadowOffset: { width: 0, height: 4 },
+                      shadowOpacity: 0.3,
+                      shadowRadius: 8,
+                      elevation: 4,
+                    }}
+                  >
+                    <Text style={{ color: "#091A2F", fontSize: 13, fontWeight: "900" }}>
+                      {tourStep === tourSteps.length - 1 ? "Entendido!" : "Avançar →"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </MotiView>
+            </View>
           )}
         </View>
       </GestureHandlerRootView>

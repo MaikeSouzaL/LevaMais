@@ -115,27 +115,7 @@ export default function IntroScreen() {
             />
           </TouchableOpacity>
         </View>
-        <View style={{ position: "absolute", top: 54, left: 16, zIndex: 10 }}>
-          <TouchableOpacity
-            onPress={async () => {
-              await AsyncStorage.setItem("@leva_mais:intro_viewed", "true");
-              navigation.navigate("SignIn");
-            }}
-            activeOpacity={0.85}
-            style={{
-              paddingHorizontal: 14,
-              paddingVertical: 8,
-              borderRadius: 14,
-              backgroundColor: "rgba(0,0,0,0.35)",
-              borderWidth: 1,
-              borderColor: "rgba(255,255,255,0.20)",
-            }}
-          >
-            <Text style={{ color: theme.COLORS.BRAND_LIGHT, fontWeight: "700" }}>
-              Pular
-            </Text>
-          </TouchableOpacity>
-        </View>
+
 
         <LinearGradient
           colors={["transparent", theme.COLORS.BRAND_DARK]}
@@ -182,20 +162,28 @@ export default function IntroScreen() {
           </View>
 
           {/* Buttons Container */}
-          <View className="flex-row items-center justify-between w-full gap-4">
-            <TouchableOpacity
-              className={`
-                  flex-1 py-4 rounded-xl items-center border border-gray-500
-                  ${slideAtual === 0 ? "opacity-0" : "opacity-100"}
-                `}
-              onPress={handlePrev}
-              disabled={slideAtual === 0}
-            >
-              <Text className="text-gray-200 font-bold text-base">Voltar</Text>
-            </TouchableOpacity>
+          <View className="flex-row items-center justify-between w-full gap-3">
+            {slideAtual === 0 ? (
+              <TouchableOpacity
+                className="flex-1 py-4 rounded-xl items-center border border-gray-700 bg-white/5"
+                onPress={async () => {
+                  await AsyncStorage.setItem("@leva_mais:intro_viewed", "true");
+                  navigation.navigate("SignIn");
+                }}
+              >
+                <Text className="text-gray-400 font-bold text-base">Pular</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                className="flex-1 py-4 rounded-xl items-center border border-gray-700 bg-white/5"
+                onPress={handlePrev}
+              >
+                <Text className="text-gray-400 font-bold text-base">Voltar</Text>
+              </TouchableOpacity>
+            )}
 
             <TouchableOpacity
-              className="flex-1 py-4 rounded-xl items-center bg-brand-light shadow-lg shadow-brand-light/20"
+              className="flex-[2] py-4 rounded-xl items-center bg-brand-light shadow-lg shadow-brand-light/20"
               onPress={handleNext}
               activeOpacity={0.8}
             >

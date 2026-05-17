@@ -14,6 +14,7 @@ export interface UserData {
   cidade: string;
   city?: string;
   fotoPerfil?: string;
+  profilePhoto?: string;
   googleId?: string;
   aceitouTermos: boolean;
   acceptedTerms?: boolean;
@@ -22,6 +23,13 @@ export interface UserData {
   vehicleInfo?: unknown;
   driverStatus?: "none" | "pending" | "approved" | "rejected";
   enableMapAnimation?: boolean;
+  // CPF/CNPJ & Company Details
+  cpf?: string;
+  cnpj?: string;
+  companyName?: string;
+  companyEmail?: string;
+  companyPhone?: string;
+  paymentMethods?: Array<any>;
 }
 
 export interface AuthState {
@@ -44,13 +52,17 @@ export interface AuthState {
 
 function normalizeUserData(data: UserData): UserData {
   const resolvedName = data.name?.trim() || data.nome?.trim() || "";
+  const resolvedCity = data.cidade || data.city || "";
+  const resolvedPhone = data.telefone || data.phone || "";
 
   return {
     ...data,
     name: resolvedName,
     nome: resolvedName,
-    cidade: data.cidade || "",
-    telefone: data.telefone || "",
+    cidade: resolvedCity,
+    city: resolvedCity,
+    telefone: resolvedPhone,
+    phone: resolvedPhone,
     email: data.email?.trim().toLowerCase() || "",
     aceitouTermos: Boolean(data.aceitouTermos || data.acceptedTerms),
     acceptedTerms: Boolean(data.acceptedTerms || data.aceitouTermos),

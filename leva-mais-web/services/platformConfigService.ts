@@ -15,6 +15,7 @@ const api = axios.create({
 export interface PlatformConfig {
   _id?: string;
   appFeePercentage: number; // Taxa padrão (ex: 15)
+  isDevelopmentMode?: boolean;
   splitRules?: {
     representativeShare: number; // Padrão 50
   };

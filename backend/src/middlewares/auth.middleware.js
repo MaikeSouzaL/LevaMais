@@ -16,7 +16,14 @@ async function resolveUserFromToken(token) {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "secret");
     const user = await User.findById(decoded.id);
-    if (!user || !user.isActive) return null;
+    if (!user) {
+      console.log(`[AuthMiddleware] User NOT found for ID: ${decoded.id}`);
+      return null;
+    }
+    if (!user.isActive) {
+      console.log(`[AuthMiddleware] User FOUND but INACTIVE for ID: ${decoded.id}`);
+      return null;
+    }
     return user;
   } catch {
     return null;

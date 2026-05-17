@@ -50,6 +50,15 @@ const vehicleSchema = new mongoose.Schema(
     model: { type: String, required: [true, "Modelo é obrigatório"], trim: true },
     color: { type: String, trim: true },
     year: { type: Number },
+    renavam: { type: String, trim: true },
+    
+    // Campos Oficiais da API de Consulta de Placa
+    officialBrand: { type: String, trim: true },
+    officialChassis: { type: String, trim: true },
+    officialColor: { type: String, trim: true },
+    officialModel: { type: String, trim: true },
+    officialYear: { type: Number },
+    isVerifiedByAPI: { type: Boolean, default: false },
     
     // Documentação específica por veículo
     documents: {
@@ -77,28 +86,27 @@ const userSchema = new mongoose.Schema(
   {
     name: {
       type: String,
-      required: [true, "Nome Ã© obrigatÃ³rio"],
+      required: [true, "Nome é obrigatório"],
       trim: true,
     },
     email: {
       type: String,
-      required: [true, "Email Ã© obrigatÃ³rio"],
+      required: [true, "Email é obrigatório"],
       unique: true,
       lowercase: true,
       trim: true,
       match: [
         /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/,
-        "Por favor, informe um email vÃ¡lido",
+        "Por favor, informe um email válido",
       ],
     },
     password: {
       type: String,
       required: function () {
-        // Senha Ã© obrigatÃ³ria apenas se nÃ£o for login com Google
         return !this.googleId;
       },
-      minlength: [6, "Senha deve ter no mÃ­nimo 6 caracteres"],
-      select: false, // NÃ£o retornar senha por padrÃ£o
+      minlength: [6, "Senha deve ter no mínimo 6 caracteres"],
+      select: false,
     },
     phone: {
       type: String,
@@ -148,7 +156,19 @@ const userSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
-    // EndereÃ§o
+
+    // Campos de Auditoria e Validação via APIs Oficiais (CPF/CNPJ)
+    officialCpfName: { type: String, trim: true },
+    isCpfVerified: { type: Boolean, default: false },
+    
+    officialCnpjRazaoSocial: { type: String, trim: true },
+    officialCnpjNomeFantasia: { type: String, trim: true },
+    officialCnpjCity: { type: String, trim: true },
+    officialCnpjState: { type: String, trim: true },
+    officialCnpjStatus: { type: String, trim: true },
+    isCnpjVerified: { type: Boolean, default: false },
+
+    // Endereço
     address: {
       street: { type: String, trim: true },
       number: { type: String, trim: true },
@@ -161,16 +181,14 @@ const userSchema = new mongoose.Schema(
       latitude: { type: Number },
       longitude: { type: Number },
     },
-    // EndereÃ§os favoritos
+    // Endereços favoritos
     favoriteAddresses: [
       {
-        name: { type: String, required: true, trim: true }, // ex: "Casa", "Trabalho", "Academia"
-        icon: { type: String, default: "home" }, // home, work, favorite, shopping-cart, school, restaurant, gym
+        name: { type: String, required: true, trim: true },
+        icon: { type: String, default: "home" },
         
-        // EndereÃ§o completo formatado
         formattedAddress: { type: String, trim: true },
         
-        // Componentes do endereÃ§o
         street: { type: String, trim: true },
         streetNumber: { type: String, trim: true },
         address: { type: String, required: true, trim: true },
@@ -180,7 +198,6 @@ const userSchema = new mongoose.Schema(
         region: { type: String, trim: true }, 
         postalCode: { type: String, trim: true },
         
-        // Coordenadas
         latitude: { type: Number, required: true },
         longitude: { type: Number, required: true },
         
@@ -214,7 +231,6 @@ const userSchema = new mongoose.Schema(
         },
       ],
     },
-    // Saldo do Motorista (para trabalhar com o sistema de depósito)
     driverBalance: {
       balance: { type: Number, default: 0 },
       totalDeposits: { type: Number, default: 0 },
@@ -256,7 +272,6 @@ const userSchema = new mongoose.Schema(
         default: false,
       },
     },
-    // Preferências
     preferredPayment: {
       type: String,
       enum: ["pix", "cash", "card"],
@@ -271,14 +286,13 @@ const userSchema = new mongoose.Schema(
     },
     queueRedispatchInterval: {
       type: Number,
-      default: null // null significa usar o padrão do sistema (PlatformConfig)
+      default: null
     },
     userType: {
       type: String,
       enum: ["client", "driver", "admin"],
       default: "client",
     },
-    // Dados específicos do motorista
     vehicleType: {
       type: String,
       enum: ["motorcycle", "car", "van", "truck"],
@@ -328,7 +342,6 @@ const userSchema = new mongoose.Schema(
     consentRevokedAt: {
       type: Date,
     },
-    // Push Notifications
     pushToken: {
       type: String,
       trim: true,
@@ -355,13 +368,11 @@ const userSchema = new mongoose.Schema(
       enum: ["none", "requested", "completed"],
       default: "none",
     },
-    // Status do Fluxo do Motorista
     driverStatus: {
       type: String,
       enum: ["none", "pending", "approved", "rejected"],
       default: "none",
     },
-    // Fotos e Documentos físicos (armazenar caminho no servidor/bucket)
     driverDocuments: {
       cnhFront: { type: String },
       cnhBack: { type: String },
@@ -371,13 +382,11 @@ const userSchema = new mongoose.Schema(
       selfie: { type: String },
       submittedAt: { type: Date },
     },
-    // ConfiguraÃ§Ã£o de qualidade do GPS para economia de bateria
     gpsQuality: {
       type: String,
       enum: ["low", "balanced", "high"],
       default: "high",
     },
-    // MÃ©tricas exatas de tempo online acumulado
     onlineStats: {
       totalSecondsToday: { type: Number, default: 0 },
       lastHeartbeatAt: { type: Date, default: Date.now },
@@ -400,9 +409,7 @@ const userSchema = new mongoose.Schema(
   }
 );
 
-// Hash e Segurança antes de salvar
 userSchema.pre("save", async function (next) {
-  // 1. Hash da senha
   if (this.isModified("password") && this.password) {
     try {
       const salt = await bcrypt.genSalt(10);
@@ -412,7 +419,6 @@ userSchema.pre("save", async function (next) {
     }
   }
 
-  // 2. Gerar hashes de busca para CPF/CNPJ
   if (this.isModified("cpf") && this.cpf) {
     const rawCpf = this.cpf.includes(":") ? decrypt(this.cpf) : this.cpf;
     this.cpfHash = generateHash(rawCpf);
@@ -426,7 +432,6 @@ userSchema.pre("save", async function (next) {
   next();
 });
 
-// MÃ©todo para comparar senha
 userSchema.methods.comparePassword = async function (candidatePassword) {
   if (!this.password) {
     return false;

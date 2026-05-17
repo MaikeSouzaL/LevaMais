@@ -19,6 +19,7 @@ import { ClientScreenHeader } from "../../Shared/components";
 import { useClientCityStore } from "@/context/clientCityStore";
 import { useNavigation } from "@react-navigation/native";
 import userService from "@/services/user.service";
+import configService from "@/services/config.service";
 import { useAuthStore } from "@/context/authStore";
 import { ClientStackParamList } from "../../types/navigation";
 
@@ -55,6 +56,12 @@ export default function SettingsScreen() {
   const [selectedInterval, setSelectedInterval] = useState<number | null>(null);
   const [savingInterval, setSavingInterval] = useState(false);
 
+  const [isDevelopmentMode, setIsDevelopmentMode] = useState(true);
+  const [loadingConfig, setLoadingConfig] = useState(false);
+
+  const userType = useAuthStore((s) => s.userType);
+  const isAdmin = userType === "admin";
+
   useEffect(() => {
     let mounted = true;
 
@@ -80,6 +87,17 @@ export default function SettingsScreen() {
                 ? profile.enableMapAnimation
                 : prev.enableMapAnimation,
           }));
+        }
+
+        if (profile.userType === "admin") {
+          try {
+            const configData = await configService.getFullConfig();
+            if (mounted) {
+              setIsDevelopmentMode(!!configData.isDevelopmentMode);
+            }
+          } catch (configErr) {
+            console.warn("Erro ao buscar configuracoes da plataforma:", configErr);
+          }
         }
       } catch (err) {
               }
@@ -155,6 +173,26 @@ export default function SettingsScreen() {
         text2: err?.message || "Tente novamente",
       });
     }
+  const handleDevelopmentModeToggle = async (value: boolean) => {
+    setIsDevelopmentMode(value);
+    setLoadingConfig(true);
+    try {
+      await configService.updateConfig({ isDevelopmentMode: value });
+      Toast.show({
+        type: "success",
+        text1: value ? "Modo de Desenvolvimento Ativo! 🛠️" : "Modo de Produção Ativo! 🔒",
+        text2: value ? "APIs de validação de CPF, CNPJ e Placa estão ignoradas." : "APIs de validação estão estritamente ativas.",
+      });
+    } catch (err: any) {
+      setIsDevelopmentMode(!value);
+      Toast.show({
+        type: "error",
+        text1: "Erro ao salvar configuração",
+        text2: err?.message || "Tente novamente",
+      });
+    } finally {
+      setLoadingConfig(false);
+    }
   };
 
   return (
@@ -162,6 +200,31 @@ export default function SettingsScreen() {
       <ClientScreenHeader title="Configuracoes" subtitle="Preferencias do app e privacidade" />
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
+        {isAdmin && (
+          <>
+            <Text style={styles.sectionTitle}>PAINEL DO ADMINISTRADOR</Text>
+            <View style={styles.setting}>
+              <View style={{ flex: 1, paddingRight: spacing.md }}>
+                <Text style={styles.settingLabel}>🛠️ Modo de Desenvolvimento</Text>
+                <Text style={styles.settingSubtitle}>
+                  {isDevelopmentMode 
+                    ? "APIs de validação desligadas (qualquer valor CPF/CNPJ/Placa é aceito)" 
+                    : "APIs de validação ligadas (validação estrita ativa)"}
+                </Text>
+              </View>
+              {loadingConfig ? (
+                <ActivityIndicator size="small" color={colors.primary[500]} />
+              ) : (
+                <Switch
+                  value={isDevelopmentMode}
+                  onValueChange={handleDevelopmentModeToggle}
+                  trackColor={{ false: colors.background.tertiary, true: colors.primary[500] }}
+                />
+              )}
+            </View>
+          </>
+        )}
+
         <Text style={styles.sectionTitle}>PREFERENCIAS DO APP</Text>
 
         <SettingRow

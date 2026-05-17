@@ -6,19 +6,26 @@ import { platformConfigService } from "@/services/platformConfigService";
 import { useToast } from "@/components/ui/Toast";
 
 export default function GeneralSettingsPage() {
-  const [config, setConfig] = useState({ appFeePercentage: 15 });
+  const [config, setConfig] = useState({ appFeePercentage: 15, isDevelopmentMode: true });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const { showToast, ToastContainer } = useToast();
 
   useEffect(() => {
     loadConfig();
+    window.addEventListener("platform-config-updated", loadConfig);
+    return () => {
+      window.removeEventListener("platform-config-updated", loadConfig);
+    };
   }, []);
 
   const loadConfig = async () => {
     try {
       const data = await platformConfigService.get();
-      setConfig({ appFeePercentage: data.appFeePercentage });
+      setConfig({ 
+        appFeePercentage: data.appFeePercentage,
+        isDevelopmentMode: data.isDevelopmentMode !== undefined ? data.isDevelopmentMode : true
+      });
     } catch {
       showToast("Erro ao carregar configurações", "error");
     } finally {
@@ -84,6 +91,33 @@ export default function GeneralSettingsPage() {
           <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 text-sm text-blue-800">
             <strong>Nota sobre Representantes:</strong> <br/>
             Se uma cidade tiver um representante cadastrado, esta taxa retida será dividida (split) entre a Plataforma e o Representante (padrão 50/50).
+          </div>
+
+          <div className="border-t border-gray-100 pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <label className="block text-sm font-semibold text-gray-850">
+                  🛠️ Modo de Desenvolvimento
+                </label>
+                <p className="text-sm text-gray-500 max-w-xl mt-1">
+                  Ao ativar este modo, as consultas de validação (APIs externas) de CPF, CNPJ e Placa de Veículo são desabilitadas no backend. 
+                  Isso permite cadastrar qualquer dado fictício de testes de maneira imediata.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setConfig({ ...config, isDevelopmentMode: !config.isDevelopmentMode })}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                  config.isDevelopmentMode ? "bg-amber-500" : "bg-gray-200"
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    config.isDevelopmentMode ? "translate-x-6" : "translate-x-1"
+                  }`}
+                />
+              </button>
+            </div>
           </div>
         </div>
 

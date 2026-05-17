@@ -4,6 +4,10 @@ const mongoose = require("mongoose");
 // Substitui o antigo PricingConfig complexo
 const platformConfigSchema = new mongoose.Schema(
   {
+    isDevelopmentMode: {
+      type: Boolean,
+      default: true,
+    },
     // Taxa padrão do App (ex: 15 ou 20)
     appFeePercentage: {
       type: Number,

@@ -1,4 +1,5 @@
 const User = require("../models/User");
+const PlatformConfig = require("../models/PlatformConfig");
 
 function normalizeServiceTypes(raw) {
   if (raw === undefined || raw === null) return undefined;
@@ -18,6 +19,50 @@ function normalizeSelectedVehicles(raw) {
     .filter((item) => ["motorcycle", "car", "van", "truck"].includes(item));
 
   return normalized.length ? normalized : null;
+}
+
+async function fetchVehicleDataFromAPI(plate) {
+  try {
+    const config = await PlatformConfig.findOne().catch(() => null);
+    const isDev = config ? config.isDevelopmentMode : true;
+    if (isDev) {
+      console.log("[Vehicle API Consult] Development Mode is ACTIVE. Bypassing external API validation.");
+      return { valid: true, isFallback: true };
+    }
+
+    const cleanPlate = String(plate).toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const plateRegex = /^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/;
+    if (!plateRegex.test(cleanPlate)) {
+      return { valid: false, error: "Placa em formato inválido (ex: ABC-1234 ou ABC1D23)" };
+    }
+
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), 4000);
+
+    const response = await fetch(`https://wdapi2.com.br/api/v1/placa/${cleanPlate}/json`, {
+      signal: controller.signal
+    }).catch(() => null);
+
+    clearTimeout(id);
+
+    if (response && response.ok) {
+      const data = await response.json().catch(() => null);
+      if (data && !data.error && !data.erros) {
+        return {
+          valid: true,
+          model: data.modelo || data.model || null,
+          color: data.cor || data.color || null,
+          year: data.ano || data.anoModelo || null,
+          brand: data.marca || null,
+          chassis: data.chassi || null
+        };
+      }
+    }
+    return { valid: true, isFallback: true };
+  } catch (error) {
+    console.warn("[Vehicle API Consult] Erro ao consultar placa:", error.message);
+    return { valid: true, isFallback: true };
+  }
 }
 
 const driverController = {
@@ -497,11 +542,13 @@ const driverController = {
         return res.status(401).json({ error: "Usuário não autenticado" });
       }
 
-      const { type, plate, model, color, year, documents } = req.body;
+      const { type, plate, model, color, year, renavam, documents } = req.body;
 
       if (!type || !plate || !model) {
         return res.status(400).json({ error: "Campos obrigatórios faltando: tipo, placa e modelo" });
       }
+
+      const cleanPlate = String(plate).toUpperCase().replace(/[^A-Z0-9]/g, "");
 
       const user = await User.findById(userId);
       if (!user || user.userType !== "driver") {
@@ -509,19 +556,41 @@ const driverController = {
       }
 
       const exists = user.vehicles && user.vehicles.some(
-        (v) => String(v.plate).toUpperCase() === String(plate).trim().toUpperCase()
+        (v) => String(v.plate).toUpperCase() === cleanPlate
       );
 
       if (exists) {
         return res.status(400).json({ error: "Você já possui um veículo cadastrado com esta placa" });
       }
 
+      const apiResult = await fetchVehicleDataFromAPI(cleanPlate);
+      if (!apiResult.valid) {
+        return res.status(400).json({ error: apiResult.error || "Placa de veículo inválida." });
+      }
+
+      let finalModel = String(model).trim();
+      let finalColor = color ? String(color).trim() : undefined;
+      let finalYear = year ? Number(year) : undefined;
+
+      if (apiResult.model && !apiResult.isFallback) {
+        finalModel = `${apiResult.brand || ""} ${apiResult.model}`.trim();
+        if (apiResult.color) finalColor = apiResult.color;
+        if (apiResult.year) finalYear = Number(apiResult.year);
+      }
+
       const newVehicle = {
         type,
-        plate: String(plate).trim().toUpperCase(),
-        model: String(model).trim(),
-        color: color ? String(color).trim() : undefined,
-        year: year ? Number(year) : undefined,
+        plate: cleanPlate,
+        model: finalModel,
+        color: finalColor,
+        year: finalYear,
+        renavam: renavam ? String(renavam).trim() : undefined,
+        officialBrand: apiResult.brand ? String(apiResult.brand).trim() : undefined,
+        officialChassis: apiResult.chassis ? String(apiResult.chassis).trim() : undefined,
+        officialColor: apiResult.color ? String(apiResult.color).trim() : undefined,
+        officialModel: apiResult.model ? String(apiResult.model).trim() : undefined,
+        officialYear: apiResult.year ? Number(apiResult.year) : undefined,
+        isVerifiedByAPI: !apiResult.isFallback,
         documents: documents || {},
         status: "pending"
       };

@@ -22,7 +22,8 @@ class PlatformConfigController {
       
       let config = await PlatformConfig.findOne().sort({ createdAt: -1 });
       if (config) {
-        config.appFeePercentage = req.body.appFeePercentage;
+        if (req.body.appFeePercentage !== undefined) config.appFeePercentage = req.body.appFeePercentage;
+        if (req.body.isDevelopmentMode !== undefined) config.isDevelopmentMode = req.body.isDevelopmentMode;
         if (req.body.splitRules) config.splitRules = req.body.splitRules;
         await config.save();
       } else {
