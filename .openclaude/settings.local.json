@@ -2,7 +2,13 @@
   "permissions": {
     "allow": [
       "Bash(ls \"C:/Users/Administrator/Desktop/Leva_Mais/src/screens/\\(authenticated\\)/Client/\")",
-      "Bash(find \"C:/Users/Administrator/Desktop/Leva_Mais/src/screens/\\(authenticated\\)/Client\" -type f -name \"*.tsx\" -o -name \"*.ts\")"
+      "Bash(find \"C:/Users/Administrator/Desktop/Leva_Mais/src/screens/\\(authenticated\\)/Client\" -type f -name \"*.tsx\" -o -name \"*.ts\")",
+      "Bash(xargs grep:*)",
+      "Bash(ls:*)",
+      "Bash(find C:UsersAdministratorDesktopLeva_Maisbackend -path *config* -type f)",
+      "Bash(find C:UsersAdministratorDesktopLeva_Maisleva-mais-web -maxdepth 2 -name *.tsx -o -name *.ts)",
+      "Bash(find C:UsersAdministratorDesktopLeva_Maissrc -type f -name *.ts -o -name *.tsx -o -name *.js -o -name *.jsx)",
+      "Bash(grep -rn Request/Payment C:UsersAdministratorDesktopLeva_Maissrc --include=*.ts --include=*.tsx --include=*.js)"
     ]
   }
 }
