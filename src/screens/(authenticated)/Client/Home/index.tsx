@@ -322,7 +322,6 @@ export default function HomeScreen() {
         </MotiView>
       )}
 
-      {/* 🚁 Premium Background Queue Awareness Banner */}
       {waitingQueueCount > 0 && !negotiationRideId && (
         <MotiView
           from={{ opacity: 0, translateY: -20 }}
@@ -332,21 +331,34 @@ export default function HomeScreen() {
           <TouchableOpacity
             activeOpacity={0.9}
             onPress={() => navigation.navigate("ActiveOrders")}
-            className="bg-[#02de95] rounded-2xl p-4 flex-row items-center border border-white/10 shadow-xl"
+            style={{
+              backgroundColor: "#02de95",
+              borderRadius: 16,
+              padding: 16,
+              flexDirection: "row",
+              alignItems: "center",
+              borderWidth: 1,
+              borderColor: "rgba(255, 255, 255, 0.1)",
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.15,
+              shadowRadius: 6,
+              elevation: 5
+            }}
           >
-            <View className="bg-[#091A2F]/20 p-2 rounded-xl mr-3">
+            <View style={{ backgroundColor: "rgba(9, 26, 47, 0.2)", padding: 8, borderRadius: 12, marginRight: 12 }}>
                <Info size={20} color="#091A2F" />
             </View>
-            <View className="flex-1">
-               <Text className="text-[#091A2F] font-black text-sm uppercase">
+            <View style={{ flex: 1 }}>
+               <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 14, textTransform: "uppercase" }}>
                  {waitingQueueCount === 1 ? "1 Pedido em Fila" : `${waitingQueueCount} Pedidos em Fila`}
                </Text>
-               <Text className="text-[#091A2F]/80 font-bold text-xs">
+               <Text style={{ color: "rgba(9, 26, 47, 0.8)", fontWeight: "700", fontSize: 12 }}>
                  {waitingQueueCount === 1 ? "Toque para ver detalhes da busca" : "Toque para acompanhar todas as buscas"}
                </Text>
             </View>
-            <View className="bg-[#091A2F] rounded-xl px-3 py-2">
-               <Text className="text-white font-black text-[10px]">VER</Text>
+            <View style={{ backgroundColor: "#091A2F", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}>
+               <Text style={{ color: "#fff", fontWeight: "900", fontSize: 10 }}>VER</Text>
             </View>
           </TouchableOpacity>
         </MotiView>
