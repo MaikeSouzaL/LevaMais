@@ -43,7 +43,7 @@ export const RidePrioritySlider = ({ level, onChange }: RidePrioritySliderProps)
               onPress={() => onChange(idx as PriorityLevel)}
               activeOpacity={0.7}
             >
-              <Text className={`text-xs font-bold tracking-wide transition-colors ${isSelected ? 'text-white' : 'text-slate-500'}`}>
+              <Text className={`text-xs font-bold tracking-wide ${isSelected ? 'text-white' : 'text-slate-500'}`}>
                 {label}
               </Text>
             </TouchableOpacity>

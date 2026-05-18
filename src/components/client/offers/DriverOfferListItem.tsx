@@ -283,7 +283,7 @@ export function DriverOfferListItem({ offer, clientBudget, onSelect, onDecline, 
             onPress={() => onDecline(offer)}
             disabled={loading}
             activeOpacity={0.7}
-            className="w-full h-14 flex-row items-center justify-center rounded-2xl bg-red-500/10 border border-red-500/20 active:scale-[0.98]"
+            className="w-full h-14 flex-row items-center justify-center rounded-2xl bg-red-500/10 border border-red-500/20"
           >
             <Text className="text-red-400 font-black text-xs uppercase tracking-widest">Retirar Proposta e Recusar</Text>
           </TouchableOpacity>

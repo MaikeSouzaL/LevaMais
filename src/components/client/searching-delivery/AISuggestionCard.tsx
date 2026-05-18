@@ -38,7 +38,7 @@ export function AISuggestionCard({ onBoost }: AISuggestionCardProps) {
           <TouchableOpacity
             key={val}
             onPress={() => onBoost(val)}
-            className="bg-white/[0.04] border border-white/10 rounded-xl py-3 flex-1 items-center justify-center active:scale-95 active:bg-[#02de95]/10 active:border-[#02de95]/30"
+            className="bg-white/[0.04] border border-white/10 rounded-xl py-3 flex-1 items-center justify-center"
           >
             <Text className="text-white font-black text-xs tracking-wider">+ R$ {val}</Text>
           </TouchableOpacity>

@@ -235,7 +235,7 @@ export function DeliverySearchBottomSheet({
         <TouchableOpacity
           onPress={onCancel}
           disabled={cancelling}
-          className="bg-red-500/5 border border-red-500/20 rounded-2xl h-14 flex-row items-center justify-center active:scale-[0.98]"
+          className="bg-red-500/5 border border-red-500/20 rounded-2xl h-14 flex-row items-center justify-center"
         >
           {cancelling ? (
             <ActivityIndicator color="#EF4444" size="small" />
