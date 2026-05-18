@@ -8,6 +8,8 @@ import rideService from "../services/ride.service";
 import {
   getCurrentLocation,
   obterEnderecoPorCoordenadas,
+  checkLocationPermission,
+  requestLocationPermission,
 } from "../utils/location";
 import { resolveCityIdByNameAndState } from "../services/cityResolver.service";
 import { useClientCityStore } from "../context/clientCityStore";
@@ -16,130 +18,152 @@ import { useAuthStore } from "../context/authStore";
 import userService from "../services/user.service";
 import TermsScreen from "../screens/(public)/TermsScreen";
 import ClientOnboardingDashboard from "../components/client/home/ClientOnboardingDashboard";
+import LocationPermissionScreen from "../screens/(public)/LocationPermissionScreen";
 
 export default function ClientBoot() {
   const { userData, updateUserData } = useAuthStore();
   const setCity = useClientCityStore((s) => s.setCity);
   const [loading, setLoading] = useState(true);
+  const [showLocationPermission, setShowLocationPermission] = useState(false);
   const [initialRideId, setInitialRideId] = useState<string | null>(null);
+  const [activated, setActivated] = useState(false);
+
+  // Helper function to run the location detection and active ride fetch
+  async function runBootstrap(hasPermission: boolean, mounted: boolean) {
+    try {
+      if (hasPermission) {
+        logger.info("ClientBoot", "Iniciando detecção de cidade...");
+        const coords = await getCurrentLocation();
+
+        if (coords && mounted) {
+          logger.debug("ClientBoot", "GPS obtido", {
+            lat: coords.latitude,
+            lng: coords.longitude,
+          });
+
+          const addr = await obterEnderecoPorCoordenadas(
+            coords.latitude,
+            coords.longitude,
+          );
+          logger.debug("ClientBoot", "Reverse geocode", {
+            city: addr?.city,
+            region: addr?.region,
+            subregion: addr?.subregion,
+          });
+
+          // Mapa de estados para siglas (reverse geocode pode retornar nome completo)
+          const estadoParaSigla: Record<string, string> = {
+            Acre: "AC",
+            Alagoas: "AL",
+            Amapá: "AP",
+            Amazonas: "AM",
+            Bahia: "BA",
+            Ceará: "CE",
+            "Distrito Federal": "DF",
+            "Espírito Santo": "ES",
+            Goiás: "GO",
+            Maranhão: "MA",
+            "Mato Grosso": "MT",
+            "Mato Grosso do Sul": "MS",
+            "Minas Gerais": "MG",
+            Pará: "PA",
+            Paraíba: "PB",
+            Paraná: "PR",
+            Pernambuco: "PE",
+            Piauí: "PI",
+            "Rio de Janeiro": "RJ",
+            "Rio Grande do Norte": "RN",
+            "Rio Grande do Sul": "RS",
+            Rondônia: "RO",
+            Roraima: "RR",
+            "Santa Catarina": "SC",
+            "São Paulo": "SP",
+            Sergipe: "SE",
+            Tocantins: "TO",
+          };
+
+          // Converter estado para sigla
+          const stateCode =
+            addr?.region && addr.region.length > 2
+              ? estadoParaSigla[addr.region] || addr.region
+              : addr?.region;
+
+          const resolved = await resolveCityIdByNameAndState({
+            cityName: addr?.city || addr?.subregion,
+            stateCode,
+          });
+          logger.info(
+            "ClientBoot",
+            "Cidade resolvida pelo backend",
+            resolved,
+          );
+
+          if (resolved?.cityId) {
+            setCity({
+              cityId: resolved.cityId,
+              name: resolved.name,
+              state: resolved.state,
+              source: "gps",
+              updatedAt: Date.now(),
+            });
+            logger.info("ClientBoot", "Cidade salva no store", {
+              cityId: resolved.cityId,
+              name: resolved.name,
+            });
+          } else {
+            logger.warn(
+              "ClientBoot",
+              "Cidade não encontrada no backend. Cadastre via Leva Web!",
+            );
+          }
+        } else {
+          logger.warn("ClientBoot", "GPS não disponível ou não montado");
+        }
+      } else {
+        logger.info("ClientBoot", "Permissão de localização não concedida, pulando GPS");
+      }
+
+      // 2) Retomar corrida ativa (se existir)
+      const res = await rideService.getActive();
+      if (!mounted) return;
+
+      if (res?.active && res.ride?._id) {
+        const ride = res.ride;
+        // Só pula direto para o mapa de rastreio se já tiver um motorista aceito e em execução!
+        // Se ainda estiver na fila (requesting), deixa abrir na Home para exibir o banner inteligente!
+        const activeTrackingStatuses = ["accepted", "driver_arriving", "arrived", "in_progress"];
+        if (ride.driverId && activeTrackingStatuses.includes(ride.status)) {
+          setInitialRideId(res.ride._id);
+        }
+      }
+    } catch (e: any) {
+      logger.error("ClientBoot", "Erro no fluxo de bootstrap", e);
+    } finally {
+      if (mounted) setLoading(false);
+    }
+  }
 
   useEffect(() => {
     let mounted = true;
 
     (async () => {
       try {
-        // 1) Detectar cidade via GPS (se permitido) e mapear para cityId do backend.
-        // Se falhar, seguimos sem cityId (o app ainda funciona, mas sem precificação por cidade correta).
-        try {
-          logger.info("ClientBoot", "Iniciando detecção de cidade...");
-          const coords = await getCurrentLocation();
-
-          if (coords) {
-            logger.debug("ClientBoot", "GPS obtido", {
-              lat: coords.latitude,
-              lng: coords.longitude,
-            });
-
-            const addr = await obterEnderecoPorCoordenadas(
-              coords.latitude,
-              coords.longitude,
-            );
-            logger.debug("ClientBoot", "Reverse geocode", {
-              city: addr?.city,
-              region: addr?.region,
-              subregion: addr?.subregion,
-            });
-
-            // Mapa de estados para siglas (reverse geocode pode retornar nome completo)
-            const estadoParaSigla: Record<string, string> = {
-              Acre: "AC",
-              Alagoas: "AL",
-              Amapá: "AP",
-              Amazonas: "AM",
-              Bahia: "BA",
-              Ceará: "CE",
-              "Distrito Federal": "DF",
-              "Espírito Santo": "ES",
-              Goiás: "GO",
-              Maranhão: "MA",
-              "Mato Grosso": "MT",
-              "Mato Grosso do Sul": "MS",
-              "Minas Gerais": "MG",
-              Pará: "PA",
-              Paraíba: "PB",
-              Paraná: "PR",
-              Pernambuco: "PE",
-              Piauí: "PI",
-              "Rio de Janeiro": "RJ",
-              "Rio Grande do Norte": "RN",
-              "Rio Grande do Sul": "RS",
-              Rondônia: "RO",
-              Roraima: "RR",
-              "Santa Catarina": "SC",
-              "São Paulo": "SP",
-              Sergipe: "SE",
-              Tocantins: "TO",
-            };
-
-            // Converter estado para sigla
-            const stateCode =
-              addr?.region && addr.region.length > 2
-                ? estadoParaSigla[addr.region] || addr.region
-                : addr?.region;
-
-            
-            const resolved = await resolveCityIdByNameAndState({
-              cityName: addr?.city || addr?.subregion,
-              stateCode,
-            });
-            logger.info(
-              "ClientBoot",
-              "Cidade resolvida pelo backend",
-              resolved,
-            );
-
-            if (resolved?.cityId) {
-              setCity({
-                cityId: resolved.cityId,
-                name: resolved.name,
-                state: resolved.state,
-                source: "gps",
-                updatedAt: Date.now(),
-              });
-              logger.info("ClientBoot", "Cidade salva no store", {
-                cityId: resolved.cityId,
-                name: resolved.name,
-              });
-            } else {
-              logger.warn(
-                "ClientBoot",
-                "Cidade não encontrada no backend. Cadastre via Leva Web!",
-              );
-            }
-          } else {
-            logger.warn("ClientBoot", "GPS não disponível");
-          }
-        } catch (e: any) {
-          logger.error("ClientBoot", "Erro ao detectar cidade", e);
-        }
-
-        // 2) Retomar corrida ativa (se existir)
-        const res = await rideService.getActive();
+        const alreadyGranted = await checkLocationPermission();
         if (!mounted) return;
 
-        if (res?.active && res.ride?._id) {
-          const ride = res.ride;
-          // Só pula direto para o mapa de rastreio se já tiver um motorista aceito e em execução!
-          // Se ainda estiver na fila (requesting), deixa abrir na Home para exibir o banner inteligente!
-          const activeTrackingStatuses = ["accepted", "driver_arriving", "arrived", "in_progress"];
-          if (ride.driverId && activeTrackingStatuses.includes(ride.status)) {
-            setInitialRideId(res.ride._id);
-          }
+        if (alreadyGranted) {
+          await runBootstrap(true, mounted);
+        } else {
+          // Se não tiver permissão, exibe a tela de solicitação pré-permissão
+          setShowLocationPermission(true);
+          setLoading(false);
         }
-      } catch {
-        // silencioso
-      } finally {
-        if (mounted) setLoading(false);
+      } catch (err) {
+        logger.error("ClientBoot", "Erro ao verificar permissão inicial", err);
+        if (mounted) {
+          setShowLocationPermission(true);
+          setLoading(false);
+        }
       }
     })();
 
@@ -148,7 +172,23 @@ export default function ClientBoot() {
     };
   }, []);
 
-  const [activated, setActivated] = useState(false);
+  if (showLocationPermission) {
+    return (
+      <LocationPermissionScreen
+        onAllow={async () => {
+          setShowLocationPermission(false);
+          setLoading(true);
+          const granted = await requestLocationPermission();
+          await runBootstrap(granted, true);
+        }}
+        onSkip={async () => {
+          setShowLocationPermission(false);
+          setLoading(true);
+          await runBootstrap(false, true);
+        }}
+      />
+    );
+  }
 
   if (loading) {
     return (

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, TextInput, Modal, Alert, Image } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, TextInput, Modal, Alert, Image, KeyboardAvoidingView, Platform } from "react-native";
 import { MotiView, AnimatePresence } from "moti";
 import { NavigationContext } from "@react-navigation/native";
 import { CheckCircle2, Clock, ChevronRight, FileText, ShieldCheck, Car, MessageSquare, LogOut, AlertCircle, RefreshCw, Sparkles, TrendingUp, Compass, User } from "lucide-react-native";
@@ -916,7 +916,10 @@ export default function DriverOnboardingDashboard() {
         transparent={true}
         onRequestClose={() => setShowModal(false)}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalOverlay}
+        >
           <MotiView
             from={{ opacity: 0, scale: 0.95, translateY: 30 }}
             animate={{ opacity: 1, scale: 1, translateY: 0 }}
@@ -1077,7 +1080,7 @@ export default function DriverOnboardingDashboard() {
               </TouchableOpacity>
             </View>
           </MotiView>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Sleek Basic Data Display Modal */}
