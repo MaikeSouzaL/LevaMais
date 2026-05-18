@@ -36,7 +36,7 @@ export const PriceInputCard = ({ value, onChange }: PriceInputCardProps) => {
           <TouchableOpacity
             onPress={decrement}
             activeOpacity={0.7}
-            className="w-12 h-12 rounded-full bg-white/5 border border-white/10 items-center justify-center active:bg-white/10"
+            className="w-12 h-12 rounded-full bg-white/5 border border-white/10 items-center justify-center"
           >
             <Minus size={20} color="#fff" />
           </TouchableOpacity>
@@ -51,7 +51,7 @@ export const PriceInputCard = ({ value, onChange }: PriceInputCardProps) => {
           <TouchableOpacity
             onPress={increment}
             activeOpacity={0.7}
-            className="w-12 h-12 rounded-full bg-white/5 border border-white/10 items-center justify-center active:bg-white/10"
+            className="w-12 h-12 rounded-full bg-white/5 border border-white/10 items-center justify-center"
           >
             <Plus size={20} color="#fff" />
           </TouchableOpacity>

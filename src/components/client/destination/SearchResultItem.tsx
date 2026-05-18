@@ -25,7 +25,7 @@ export const SearchResultItem = ({
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.7}
-      className="flex-row items-center p-4 active:bg-white/5"
+      className="flex-row items-center p-4"
     >
       <View className="w-9 h-9 rounded-xl bg-white/5 items-center justify-center mr-3 border border-white/10">
         {isHistory ? (
@@ -38,7 +38,7 @@ export const SearchResultItem = ({
       <View className="flex-1 mr-2">
         <View className="flex-row justify-between items-center">
           <Text className="text-white text-sm font-bold flex-1" numberOfLines={1}>{mainText}</Text>
-          {distance && (
+          {!!distance && (
             <Text className="text-primary text-xs font-bold ml-1">{distance}</Text>
           )}
         </View>
@@ -50,7 +50,7 @@ export const SearchResultItem = ({
           {onEdit && (
             <TouchableOpacity 
               onPress={onEdit} 
-              className="p-2 bg-white/5 rounded-lg mr-1.5 active:bg-white/10 border border-white/5"
+              className="p-2 bg-white/5 rounded-lg mr-1.5 border border-white/5"
               hitSlop={10}
             >
               <Edit3 size={14} color="#38bdf8" />
@@ -59,7 +59,7 @@ export const SearchResultItem = ({
           {onDelete && (
             <TouchableOpacity 
               onPress={onDelete} 
-              className="p-2 bg-red-500/10 rounded-lg active:bg-red-500/20 border border-red-500/10"
+              className="p-2 bg-red-500/10 rounded-lg border border-red-500/10"
               hitSlop={10}
             >
               <Trash2 size={14} color="#f87171" />

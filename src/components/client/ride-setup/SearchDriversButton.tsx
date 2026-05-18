@@ -21,7 +21,7 @@ export const SearchDriversButton = ({ onPress, loading = false }: SearchDriversB
         onPress={onPress}
         disabled={loading}
         activeOpacity={0.9}
-        className="h-14 w-full rounded-2xl bg-primary overflow-hidden shadow-2xl elevation-8 active:scale-[0.99] relative items-center justify-center"
+        className="h-14 w-full rounded-2xl bg-primary overflow-hidden shadow-2xl elevation-8 relative items-center justify-center"
       >
         {/* Static Breathe Glow Ring underneath text */}
         {!loading && (

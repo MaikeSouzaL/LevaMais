@@ -280,7 +280,7 @@ export default function HomeScreen() {
       />
 
       {/* 🌟 Yellow Active Proposals Banner */}
-      {negotiationRideId && (
+      {!!negotiationRideId && (
         <MotiView
           from={{ opacity: 0, translateY: -20 }}
           animate={{ opacity: 1, translateY: 0 }}

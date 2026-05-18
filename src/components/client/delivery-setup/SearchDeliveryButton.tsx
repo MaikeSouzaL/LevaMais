@@ -21,7 +21,7 @@ export const SearchDeliveryButton = ({ onPress, loading = false }: SearchDeliver
         onPress={onPress}
         disabled={loading}
         activeOpacity={0.85}
-        className="h-14 w-full rounded-[20px] bg-primary overflow-hidden shadow-2xl shadow-primary/30 elevation-12 items-center justify-center active:scale-[0.97]"
+        className="h-14 w-full rounded-[20px] bg-primary overflow-hidden shadow-2xl shadow-primary/30 elevation-12 items-center justify-center"
       >
         {!loading && (
           <MotiView

@@ -71,6 +71,7 @@ export interface Ride {
   duration: DistanceDuration;
   details?: RideDetails;
   status: string;
+  cancellationFee?: number;
   requestedAt: string;
   acceptedAt?: string;
   arrivedAt?: string;
