@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform, TouchableOpacity } from "react-native";
-import { useNavigation, useRoute } from "@react-navigation/native";
 import Toast from "react-native-toast-message";
 
 import rideService, { CreateRideRequest } from "@/services/ride.service";
@@ -11,15 +10,15 @@ import { DeliverySetupHeader } from "@/components/client/delivery-setup/Delivery
 import { DeliverySummaryCard } from "@/components/client/delivery-setup/DeliverySummaryCard";
 import { VehicleSelector, LogisticsVehicleType } from "@/components/client/delivery-setup/VehicleSelector";
 import { DeliveryTypeSelector, DeliveryType } from "@/components/client/delivery-setup/DeliveryTypeSelector";
-import { CargoSizeSelector } from "@/components/client/delivery-setup/CargoSizeSelector";
 import { CargoDescriptionInput } from "@/components/client/delivery-setup/CargoDescriptionInput";
 import { DeliveryOfferCard } from "@/components/client/delivery-setup/DeliveryOfferCard";
 import { DeliveryPrioritySelector, DeliveryPriority } from "@/components/client/delivery-setup/DeliveryPrioritySelector";
 import { SearchDeliveryButton } from "@/components/client/delivery-setup/SearchDeliveryButton";
-import { PaymentMethodSelector, PaymentMethodType } from "@/components/client/delivery-setup/PaymentMethodSelector";
+import { Zap } from "lucide-react-native";
 
 // Visual Foundations 🗺️
-import { CargoSize } from "@/components/client/delivery-setup/CargoSizeSelector";
+export type CargoSize = "small" | "medium" | "large";
+export type PaymentMethodType = "cash" | "card" | "pix";
 
 interface DeliverySetupParams {
   vehicleType?: LogisticsVehicleType;
@@ -30,9 +29,7 @@ interface DeliverySetupParams {
   initialDurationMin?: number;
 }
 
-export default function DeliverySetupScreen() {
-  const navigation = useNavigation<any>();
-  const route = useRoute();
+export default function DeliverySetupScreen({ navigation, route }: any) {
   const params = (route.params as DeliverySetupParams) || {};
   const detectedCity = useClientCityStore((state) => state.city);
 
@@ -53,8 +50,13 @@ export default function DeliverySetupScreen() {
   const [priority, setPriority] = useState<DeliveryPriority>(0);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType>("cash");
   const [scheduledOffsetMin, setScheduledOffsetMin] = useState<number>(60);
-  const [helperAutoSuggested, setHelperAutoSuggested] = useState(false);
   const hasValidRoute = Boolean(params.pickup && params.dropoff);
+
+  const handleOfferValueChange = (nextValue: number) => {
+    const parsed = Number(nextValue);
+    if (!Number.isFinite(parsed)) return;
+    setOfferValue(Math.max(1, Math.round(parsed)));
+  };
 
 
   // Fetch automated server dynamic pricing guidance upon configuration shifts
@@ -202,8 +204,10 @@ export default function DeliverySetupScreen() {
   };
 
   // Leverage Smart Dynamic Backend Hint Ranges
-  const minHint = priceData?.smartPricing?.minimumPrice || 15;
-  const maxHint = priceData?.smartPricing?.priorityPrice || 35;
+  const minHintRaw = Number(priceData?.smartPricing?.minimumPrice);
+  const maxHintRaw = Number(priceData?.smartPricing?.priorityPrice);
+  const minHint = Number.isFinite(minHintRaw) ? minHintRaw : 15;
+  const maxHint = Number.isFinite(maxHintRaw) ? maxHintRaw : 35;
 
   return (
     <KeyboardAvoidingView 
@@ -213,7 +217,7 @@ export default function DeliverySetupScreen() {
       {/* Solid Dark Dashboard Substrate (Map background eradicated per user request) */}
       <View className="absolute inset-0 bg-[#091A2F]" />
 
-      <DeliverySetupHeader />
+      <DeliverySetupHeader onBack={navigation.goBack} />
 
       {/* The Operation Panel Scroll wrapper now breathes more and groups items elegantly */}
       <ScrollView 
@@ -287,21 +291,13 @@ export default function DeliverySetupScreen() {
           </View>
         )}
 
-        <CargoSizeSelector value={cargoSize} onChange={setCargoSize} />
-
-
-
         <CargoDescriptionInput value={cargoDescription} onChange={setCargoDescription} />
 
-
-        
         <View className="h-[1px] bg-white/[0.03] w-full mb-6 mt-2" />
 
         <DeliveryPrioritySelector value={priority} onChange={setPriority} />
 
         <View className="h-[1px] bg-white/[0.03] w-full mb-6 mt-2" />
-
-        <PaymentMethodSelector value={paymentMethod} onChange={setPaymentMethod} />
 
         {loadingPricing ? (
           <View className="h-32 items-center justify-center"><ActivityIndicator color="#02de95" /></View>
@@ -316,12 +312,24 @@ export default function DeliverySetupScreen() {
             </TouchableOpacity>
           </View>
         ) : (
-          <DeliveryOfferCard 
-            value={offerValue} 
-            suggestedMin={minHint} 
-            suggestedMax={maxHint} 
-            onChange={setOfferValue} 
-          />
+          <View>
+            <DeliveryOfferCard 
+              value={offerValue} 
+              suggestedMin={minHint} 
+              suggestedMax={maxHint} 
+              onChange={handleOfferValueChange} 
+            />
+
+            {/* Suggested price capsule underneath offer card */}
+            <View className="items-center mb-6">
+              <View className="flex-row items-center bg-[#1E2D3D] border border-white/5 px-4 py-2 rounded-full shadow-md">
+                <Zap size={11} color="#02de95" className="mr-1.5" />
+                <Text className="text-white/80 text-[11px] font-bold">
+                  Preço sugerido: R$ {Math.round(minHint)} - R$ {Math.round(maxHint)}
+                </Text>
+              </View>
+            </View>
+          </View>
         )}
       </ScrollView>
 

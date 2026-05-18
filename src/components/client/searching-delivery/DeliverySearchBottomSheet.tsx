@@ -39,7 +39,8 @@ export function DeliverySearchBottomSheet({
   drivers = [],
   onBoost
 }: DeliverySearchBottomSheetProps) {
-  
+  const safeOfferValue = Number.isFinite(Number(offerValue)) ? Number(offerValue) : 0;
+
   // Expanded height dynamic snap points for scrolling capability 🚀
   const snapPoints = useMemo(() => ["48%", "80%"], []);
 
@@ -184,7 +185,7 @@ export function DeliverySearchBottomSheet({
             <View className="flex-row items-center">
                <DollarSign size={14} color="#02de95" className="mr-0.5" />
                <Text className="text-[#02de95] font-black text-base">
-                 {offerValue.toFixed(0)}
+                 {safeOfferValue.toFixed(0)}
                </Text>
                <Text className="text-[#02de95]/70 font-bold text-[10px] ml-0.5 mt-0.5">,00</Text>
             </View>

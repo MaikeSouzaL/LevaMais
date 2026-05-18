@@ -1,7 +1,6 @@
 import React from "react";
 import { StyleSheet, View, TouchableOpacity, ActivityIndicator, ViewStyle } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
-import { ShieldAlert, Layers } from "lucide-react-native";
+import { ShieldAlert, Layers, Compass } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface MapActionButtonsProps {
@@ -73,7 +72,7 @@ export function MapActionButtons({
           {isCentering ? (
             <ActivityIndicator size="small" color="#02de95" />
           ) : (
-            <MaterialIcons name="my-location" size={24} color="#02de95" />
+            <Compass size={22} color="#02de95" />
           )}
         </TouchableOpacity>
       )}

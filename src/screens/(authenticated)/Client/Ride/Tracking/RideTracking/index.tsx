@@ -579,8 +579,8 @@ export default function RideTrackingScreen() {
 
   const cancellationFeePreview =
     ["accepted", "driver_arriving", "arrived", "in_progress"].includes(status) &&
-    ride?.pricing?.total != null
-      ? Number(ride.pricing.total) * 0.3
+    ride?.cancellationFee != null
+      ? Number(ride.cancellationFee)
       : 0;
 
   return (

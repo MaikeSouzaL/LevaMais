@@ -142,10 +142,10 @@ export default function DrawerClienteRoutes({
     >
       <Drawer.Screen
         name="ClientMain"
+        component={ClientStackRoutes}
         options={{ title: "Leva Mais" }}
-      >
-        {() => <ClientStackRoutes initialRideId={initialRideId} />}
-      </Drawer.Screen>
+        initialParams={{ initialRideId }}
+      />
     </Drawer.Navigator>
   );
 }

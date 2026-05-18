@@ -43,13 +43,16 @@ import SupportCenterScreen from "../screens/(authenticated)/Client/Profile/Suppo
 
 type ClientStackRoutesProps = {
   initialRideId?: string | null;
+  route?: any;
 };
 
 const Stack = createNativeStackNavigator();
 
 export default function ClientStackRoutes({
-  initialRideId,
+  initialRideId: propInitialRideId,
+  route,
 }: ClientStackRoutesProps) {
+  const initialRideId = propInitialRideId || route?.params?.initialRideId;
   const initialRouteName = initialRideId ? "RideTracking" : "Home";
 
   return (

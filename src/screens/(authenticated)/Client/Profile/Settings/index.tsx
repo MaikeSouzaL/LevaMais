@@ -57,7 +57,6 @@ export default function SettingsScreen() {
   const [savingInterval, setSavingInterval] = useState(false);
 
   const [isDevelopmentMode, setIsDevelopmentMode] = useState(true);
-  const [loadingConfig, setLoadingConfig] = useState(false);
 
   const userType = useAuthStore((s) => s.userType);
   const isAdmin = userType === "admin";
@@ -175,28 +174,6 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleDevelopmentModeToggle = async (value: boolean) => {
-    setIsDevelopmentMode(value);
-    setLoadingConfig(true);
-    try {
-      await configService.updateConfig({ isDevelopmentMode: value });
-      Toast.show({
-        type: "success",
-        text1: value ? "Modo de Desenvolvimento Ativo! 🛠️" : "Modo de Produção Ativo! 🔒",
-        text2: value ? "APIs de validação de CPF, CNPJ e Placa estão ignoradas." : "APIs de validação estão estritamente ativas.",
-      });
-    } catch (err: any) {
-      setIsDevelopmentMode(!value);
-      Toast.show({
-        type: "error",
-        text1: "Erro ao salvar configuração",
-        text2: err?.message || "Tente novamente",
-      });
-    } finally {
-      setLoadingConfig(false);
-    }
-  };
-
   return (
     <SafeAreaView style={styles.container}>
       <ClientScreenHeader title="Configuracoes" subtitle="Preferencias do app e privacidade" />
@@ -209,20 +186,27 @@ export default function SettingsScreen() {
               <View style={{ flex: 1, paddingRight: spacing.md }}>
                 <Text style={styles.settingLabel}>🛠️ Modo de Desenvolvimento</Text>
                 <Text style={styles.settingSubtitle}>
-                  {isDevelopmentMode 
-                    ? "APIs de validação desligadas (qualquer valor CPF/CNPJ/Placa é aceito)" 
-                    : "APIs de validação ligadas (validação estrita ativa)"}
+                  Status atual: {isDevelopmentMode ? "Ativado" : "Desativado"}
+                </Text>
+                <Text style={[styles.settingSubtitle, { marginTop: 4 }]}>
+                  Gerencie as configurações da plataforma pelo painel web.
                 </Text>
               </View>
-              {loadingConfig ? (
-                <ActivityIndicator size="small" color={colors.primary[500]} />
-              ) : (
-                <Switch
-                  value={isDevelopmentMode}
-                  onValueChange={handleDevelopmentModeToggle}
-                  trackColor={{ false: colors.background.tertiary, true: colors.primary[500] }}
-                />
-              )}
+              <View
+                style={[
+                  styles.statusBadge,
+                  { backgroundColor: isDevelopmentMode ? "rgba(2,222,149,0.16)" : "rgba(255,107,107,0.16)" },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.statusBadgeText,
+                    { color: isDevelopmentMode ? "#02de95" : "#ff6b6b" },
+                  ]}
+                >
+                  {isDevelopmentMode ? "ATIVO" : "INATIVO"}
+                </Text>
+              </View>
             </View>
           </>
         )}
@@ -423,6 +407,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border.light,
     padding: spacing.lg,
+  },
+  statusBadge: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.full,
+  },
+  statusBadgeText: {
+    fontSize: fontSize.xs,
+    fontWeight: fontWeight.bold,
+    letterSpacing: 0.5,
   },
   versionLabel: { color: colors.text.secondary, fontSize: fontSize.base },
   versionValue: { color: colors.text.primary, fontSize: fontSize.base, fontWeight: fontWeight.semibold },

@@ -197,7 +197,7 @@ export default function RideSetupScreen() {
 
       {/* 🛠️ UI FOREGROUND: Layout Scroll area above floating button container */}
       <View className="flex-1 pt-24">
-        <RideSetupHeader />
+        <RideSetupHeader onBack={navigation.goBack} />
 
         <ScrollView 
           showsVerticalScrollIndicator={false}

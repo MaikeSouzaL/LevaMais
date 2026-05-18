@@ -72,9 +72,7 @@ export default function CancelRideScreen() {
   const estimatedFee =
     typeof initialEstimatedFee === "number" && initialEstimatedFee > 0
       ? initialEstimatedFee
-      : feeStatusApplies && typeof rideTotal === "number"
-        ? rideTotal * 0.3
-        : 0;
+      : 0;
   const isDelivery =
     serviceType === "delivery" || serviceType === "frete";
 

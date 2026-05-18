@@ -9,9 +9,10 @@ interface PriceInputCardProps {
 }
 
 export const PriceInputCard = ({ value, onChange }: PriceInputCardProps) => {
-  const increment = () => onChange(value + 1);
+  const safeValue = Number.isFinite(Number(value)) ? Number(value) : 5;
+  const increment = () => onChange(safeValue + 1);
   const decrement = () => {
-    if (value > 5) onChange(value - 1);
+    if (safeValue > 5) onChange(safeValue - 1);
   };
 
   return (
@@ -43,7 +44,7 @@ export const PriceInputCard = ({ value, onChange }: PriceInputCardProps) => {
           <View className="items-center flex-row items-baseline">
             <Text className="text-slate-400 text-xl font-bold mr-1.5">R$</Text>
             <Text className="text-white text-5xl font-bold tracking-tighter">
-              {value.toFixed(2).replace(".", ",")}
+              {safeValue.toFixed(2).replace(".", ",")}
             </Text>
           </View>
 
