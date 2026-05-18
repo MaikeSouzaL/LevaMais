@@ -34,6 +34,7 @@ import { AuthHeader } from "../../../components/auth/AuthHeader";
 import { AuthInput } from "../../../components/auth/AuthInput";
 import { BackgroundMap } from "../../../components/visuals/BackgroundMap";
 import { Particles } from "../../../components/visuals/Particles";
+import { PhoneAlreadyRegisteredModal } from "../../../components/auth/PhoneAlreadyRegisteredModal";
 
 const schema = z.object({
   phone: z.string().min(14, "Informe um celular válido com DDD"),
@@ -46,6 +47,7 @@ export default function GooglePhonePromptScreen() {
   const route = useRoute<any>();
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
+  const [showRegisteredModal, setShowRegisteredModal] = useState(false);
 
   // Retrieve passed-through google payload context
   const { user, token } = (route.params || {}) as { user: any; token: string };
@@ -99,11 +101,15 @@ export default function GooglePhonePromptScreen() {
           },
         });
       } else {
-        Toast.show({
-          type: "error",
-          text1: "Falha ao enviar SMS",
-          text2: response.message || "Tente novamente",
-        });
+        if (response.message && (response.message.includes("já cadastrado") || response.message.includes("ja cadastrado"))) {
+          setShowRegisteredModal(true);
+        } else {
+          Toast.show({
+            type: "error",
+            text1: "Falha ao enviar SMS",
+            text2: response.message || "Tente novamente",
+          });
+        }
       }
     } catch (error: any) {
             Toast.show({
@@ -205,6 +211,16 @@ export default function GooglePhonePromptScreen() {
           </MotiView>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <PhoneAlreadyRegisteredModal
+        visible={showRegisteredModal}
+        phone={currentPhone}
+        onClose={() => setShowRegisteredModal(false)}
+        onLogin={() => {
+          setShowRegisteredModal(false);
+          navigation.navigate("SignIn");
+        }}
+      />
     </View>
   );
 }

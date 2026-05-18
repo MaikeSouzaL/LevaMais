@@ -136,7 +136,7 @@ function calculateSuggestedMinPrice(total) {
 function applyFinalPriceOnRide(ride, finalPrice, appFeePercentage) {
   const total = toMoney(finalPrice);
   const platformFee = toMoney(total * ((Number(appFeePercentage || 0) || 0) / 100));
-  const driverValue = toMoney(total - platformFee);
+  const driverValue = total;
 
   ride.pricing.total = total;
   ride.pricing.platformFee = platformFee;
@@ -982,7 +982,7 @@ class RideController {
       // 2. Calcula Taxa da Plataforma (Valor Bruto que sai do motorista)
       const total = finalTotal;
       const platformFee = total * (appFeePercentage / 100);
-      const driverValue = total - platformFee;
+      const driverValue = total;
 
       // 3. Verifica Split com Representante (Se houver)
       let platformShare = platformFee; // PadrÃ£o: 100% da taxa vai pra plataforma
@@ -2096,9 +2096,13 @@ class RideController {
         );
 
         try {
-          const rideValue = ride.pricing?.driverValue || ride.pricing?.total || 0;
-          const deductionPercentage = 0.2;
-          const deductAmount = toMoney(rideValue * deductionPercentage);
+          let deductAmount = toMoney(ride.pricing?.serviceFee || 0);
+          if (deductAmount <= 0) {
+            const PlatformConfig = require("../models/PlatformConfig");
+            const config = await PlatformConfig.findOne().sort({ createdAt: -1 });
+            const pct = config ? (config.appFeePercentage || 15) : 15;
+            deductAmount = toMoney((ride.pricing?.total || 0) * (pct / 100));
+          }
 
           if (deductAmount > 0) {
             const driver = await User.findById(driverId);
@@ -2122,7 +2126,7 @@ class RideController {
               driver.driverBalance.transactions.push({
                 type: "deduction",
                 amount: deductAmount,
-                description: `Dedução de 20% da corrida ${ride._id}`,
+                description: `Dedução de taxa da plataforma para a corrida ${ride._id}`,
                 rideId: ride._id,
                 status: "completed",
                 createdAt: new Date(),
@@ -2186,7 +2190,7 @@ class RideController {
       const isClient = ride.clientId?._id?.toString() === userIdStr;
       const isDriver = ride.driverId?._id?.toString() === userIdStr;
 
-      if (!isClient && !isDriver) {
+      if (!isClient && !isDriver && req.user.userType !== "admin") {
         return sendError(res, 403, "Voce nao tem permissao para ver esta corrida");
       }
 
@@ -2207,9 +2211,10 @@ class RideController {
 
       // Force cast to ObjectId for $or queries to ensure safety
       const userObjectId = new mongoose.Types.ObjectId(userId);
+      const isAdmin = req.user && req.user.userType === "admin";
 
       const query = {
-        $or: [{ clientId: userObjectId }, { driverId: userObjectId }],
+        ...(isAdmin ? (req.query.clientId ? { clientId: req.query.clientId } : req.query.driverId ? { driverId: req.query.driverId } : {}) : { $or: [{ clientId: userObjectId }, { driverId: userObjectId }] }),
       };
 
       if (status) {
@@ -2646,16 +2651,14 @@ class RideController {
         if (globalConfig) {
           const vPricing = globalConfig.vehiclePricing?.find(p => p.vehicleType === vehicleType && p.enabled);
 
-          if (vPricing && (vPricing.minimumFee > 0 || vPricing.pricePerKm > 0)) {
+          if (vPricing && (vPricing.minFee > 0 || vPricing.pricePerKm > 0)) {
             console.log("[calculatePrice] âœ… Usando PricingConfig para veÃ­culo:", vehicleType);
             rule = {
               name: `GLOBAL_CONFIG_${vehicleType.toUpperCase()}`,
               pricing: {
-                basePrice: vPricing.basePrice || 0,
                 pricePerKm: vPricing.pricePerKm,
-                pricePerMinute: vPricing.pricePerMinute || 0,
-                minimumKm: vPricing.minimumKm,
-                minimumFee: vPricing.minimumFee
+                minimumKm: vPricing.minKmThreshold,
+                minimumFee: vPricing.minFee
               }
             };
             if (purposeDoc) {
@@ -2682,7 +2685,7 @@ class RideController {
           // Inicializa rule fake para não quebrar o restante do código, permitindo fluxo seguir para injeção smart
           rule = {
             name: "SMART_ENGINE_AUTONOMOUS_DEFAULTS",
-            pricing: { minimumKm: 0, minimumFee: 0, pricePerKm: 0, basePrice: 0 }
+            pricing: { minimumKm: 0, minimumFee: 0, pricePerKm: 0 }
           };
         } else {
           console.log(
@@ -2713,8 +2716,6 @@ class RideController {
       const minimumKm = Number(rule.pricing.minimumKm || 0);
       const minimumFee = Number(rule.pricing.minimumFee || 0);
       const pricePerKm = Number(rule.pricing.pricePerKm || 0);
-      const basePrice = Number(rule.pricing.basePrice || 0); // Se existir campo basePrice separado
-
       // CÃ¡lculo
       // Regra comum: (Base) + (Km Excedente * PreÃ§oKm)
       // Mas a regra do usuÃ¡rio foi: "KM mÃ­nimo que irÃ¡ se basear na taxa mÃ­nima"
@@ -2767,12 +2768,11 @@ class RideController {
     const distanceExtraPrice = parseFloat((finalPrice - minimumFee).toFixed(2));
     
     // Arredondamento para nÃºmeros "limpos" (mÃºltiplos de 0.10)
-    const rawTotal = finalPrice + (finalPrice * (feePercentage / 100));
-    const finalTotal = Math.round(rawTotal * 10) / 10;
+
+    const finalTotal = Math.round(finalPrice * 10) / 10;
     
-    // Ajusta a taxa de serviÃ§o para que o total bata exatamente (Total - Base - DistÃ¢ncia)
     // Ajusta a taxa de serviço para que o total bata exatamente (Total - Base - Distância)
-    const adjustedServiceFee = parseFloat((finalTotal - baseRidePrice - distanceExtraPrice).toFixed(2));
+    const adjustedServiceFee = parseFloat((finalTotal * (feePercentage / 100)).toFixed(2));
 
     // ==============================================================================
     // SMART LOGISTICS ENGINE INJECTION ⚡
@@ -2786,17 +2786,21 @@ class RideController {
 
     if (serviceType === "delivery" || deliveryType || cargoSize) {
       const PricingEngine = require("../services/pricing-engine");
+      const PricingConfig = require("../models/PricingConfig");
+      const globalConfig = await PricingConfig.findOne().sort({ updatedAt: -1 });
+      const pEco = globalConfig?.platformSettings?.priorityMultiplierEconomic || 1.0;
+      const pFast = globalConfig?.platformSettings?.priorityMultiplierFast || 1.3;
+      const pUrg = globalConfig?.platformSettings?.priorityMultiplierUrgent || 1.8;
       
       const smartCalculation = PricingEngine.calculate({
-        basePriceRule: baseRidePrice > 0 ? baseRidePrice : 5.00,
         pricePerKmRule: pricePerKm > 0 ? pricePerKm : 1.50,
+        minFeeRule: minimumFee,
+        minKmRule: minimumKm,
         distanceKm,
-        vehicleType,
-        deliveryType,
-        cargoSize,
         priority: Number(priority || 0),
-        needsHelper: Boolean(needsHelper),
-        demandLevel: "medium"
+        priorityEconomic: pEco,
+        priorityFast: pFast,
+        priorityUrgent: pUrg
       });
 
       console.log(`[calculatePrice] ✅ Preço FINAL Smart Engine: R$ ${smartCalculation.suggestedPrice}`);

@@ -173,6 +173,8 @@ export default function SettingsScreen() {
         text2: err?.message || "Tente novamente",
       });
     }
+  };
+
   const handleDevelopmentModeToggle = async (value: boolean) => {
     setIsDevelopmentMode(value);
     setLoadingConfig(true);

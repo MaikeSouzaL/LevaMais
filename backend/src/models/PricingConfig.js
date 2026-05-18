@@ -7,11 +7,9 @@ const vehiclePricingSchema = new mongoose.Schema(
       enum: ["motorcycle", "car", "van", "truck"],
       required: true,
     },
-    basePrice: { type: Number, default: 0, min: 0 },
     pricePerKm: { type: Number, required: true, min: 0 },
-    pricePerMinute: { type: Number, default: 0, min: 0 },
-    minimumKm: { type: Number, required: true, min: 0 },
-    minimumFee: { type: Number, default: 0, min: 0 },
+    minKmThreshold: { type: Number, required: true, min: 0 },
+    minFee: { type: Number, default: 0, min: 0 },
     enabled: { type: Boolean, default: true },
   },
   { _id: false }
@@ -48,6 +46,9 @@ const platformSettingsSchema = new mongoose.Schema(
     driverTimeoutSeconds: { type: Number, default: 30, min: 10, max: 120 },
     maxDriversToNotify: { type: Number, default: 5, min: 1, max: 100 },
     autoAcceptRadius: { type: Number, default: 2, min: 0, max: 50 },
+    priorityMultiplierEconomic: { type: Number, default: 1.0, min: 0.5, max: 5.0 },
+    priorityMultiplierFast: { type: Number, default: 1.3, min: 0.5, max: 5.0 },
+    priorityMultiplierUrgent: { type: Number, default: 1.8, min: 0.5, max: 5.0 },
   },
   { _id: false }
 );

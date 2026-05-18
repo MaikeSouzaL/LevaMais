@@ -195,9 +195,53 @@ class PricingController {
   // Configuração agregada de preços (GET)
   async getConfig(req, res) {
     try {
-      const config = await PricingConfig.findOne().sort({ updatedAt: -1 });
+      let config = await PricingConfig.findOne().sort({ updatedAt: -1 });
       if (!config) {
-        return res.status(404).json({ error: "Configuração não encontrada" });
+        // [AUTO-SEEDING DEFAULT BASELINES TO DB]
+        const defaultConfig = {
+          vehiclePricing: [
+            {
+              vehicleType: "motorcycle",
+              minFee: 7.00,
+              pricePerKm: 0.99,
+              minKmThreshold: 10,
+              enabled: true
+            },
+            {
+              vehicleType: "car",
+              minFee: 18.00,
+              pricePerKm: 1.90,
+              minKmThreshold: 3,
+              enabled: true
+            },
+            {
+              vehicleType: "van",
+              minFee: 55.00,
+              pricePerKm: 2.80,
+              minKmThreshold: 5,
+              enabled: true
+            },
+            {
+              vehicleType: "truck",
+              minFee: 130.00,
+              pricePerKm: 4.80,
+              minKmThreshold: 8,
+              enabled: true
+            }
+          ],
+          platformSettings: {
+            platformFeePercentage: 15,
+            searchRadius: 10,
+            driverTimeoutSeconds: 30,
+            maxDriversToNotify: 5,
+            autoAcceptRadius: 2,
+            priorityMultiplierEconomic: 1.0,
+            priorityMultiplierFast: 1.3,
+            priorityMultiplierUrgent: 1.8
+          }
+        };
+        config = await PricingConfig.create(defaultConfig);
+        console.log("[PricingController] ✅ Pre-seeded Default operational baselines to DB");
       }
       return res.json({ config });
     } catch (error) {

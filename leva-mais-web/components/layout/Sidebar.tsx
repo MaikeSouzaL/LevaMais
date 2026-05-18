@@ -26,22 +26,20 @@ const MENU_ITEMS = [
     label: "Visão Geral",
     icon: LayoutDashboard,
     href: "/dashboard",
-    disabled: true,
+    active: true,
   },
-  { label: "Usuários", icon: Users, href: "/users", disabled: true },
-  { label: "Motoristas", icon: Car, href: "/drivers", active: true },
+  { label: "Usuários", icon: Users, href: "/users", active: true },
   {
-    label: "Verificação de Motoristas",
+    label: "Validação de Contas",
     icon: UserCheck,
     href: "/verification/drivers",
     active: true,
-    badge: 3, // Número de motoristas pendentes
+    badge: 3,
   },
-  { label: "Clientes", icon: Users, href: "/clients", active: true },
   { label: "Representantes", icon: UserCheck, href: "/representatives", active: true },
   { label: "Áreas de Atuação", icon: MapPin, href: "/cities", active: true },
-  { label: "Corridas", icon: Map, href: "/rides", disabled: true },
-  { label: "Ganhos", icon: DollarSign, href: "/earnings", disabled: true },
+  { label: "Corridas", icon: Map, href: "/rides", active: true },
+  { label: "Ganhos", icon: DollarSign, href: "/earnings", active: true },
 ];
 
 const CONFIG_ITEMS = [
@@ -55,6 +53,12 @@ const CONFIG_ITEMS = [
     label: "Tipos de Serviço",
     icon: Box,
     href: "/settings/purposes",
+    active: true,
+  },
+  {
+    label: "Tarifas & Preços",
+    icon: DollarSign,
+    href: "/settings/pricing",
     active: true,
   },
   {

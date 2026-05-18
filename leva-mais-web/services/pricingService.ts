@@ -57,6 +57,9 @@ export interface PlatformSettings {
   driverTimeoutSeconds: number; // Tempo de espera por motorista
   maxDriversToNotify: number; // Máximo de motoristas a notificar
   autoAcceptRadius: number; // Raio para aceitação automática (km)
+  priorityMultiplierEconomic: number; // Multiplicador Econômico
+  priorityMultiplierFast: number; // Multiplicador Rápido
+  priorityMultiplierUrgent: number; // Multiplicador Urgente
 }
 
 /**
@@ -95,10 +98,11 @@ class PricingService {
       // Normalizar vehiclePricing para garantir minimumKm definido
       if (Array.isArray(cfg.vehiclePricing)) {
         cfg.vehiclePricing = cfg.vehiclePricing.map(
-          (vp: Partial<VehiclePricing> & { minimumPrice?: number }) => {
+          (vp: any) => {
             const pricePerKm =
               typeof vp.pricePerKm === "number" ? vp.pricePerKm : 0;
-            let minimumKm = vp.minimumKm;
+            let minimumKm = typeof vp.minKmThreshold === "number" ? vp.minKmThreshold : vp.minimumKm;
+            const minimumFee = typeof vp.minFee === "number" ? vp.minFee : vp.minimumFee;
             if (typeof minimumKm !== "number" || Number.isNaN(minimumKm)) {
               // Se vier legado com minimumPrice, tenta converter para km mínimo aproximado
               if (typeof vp.minimumPrice === "number" && pricePerKm > 0) {
@@ -110,6 +114,7 @@ class PricingService {
             return {
               ...vp,
               minimumKm,
+              minimumFee,
             } as VehiclePricing;
           }
         );
@@ -139,7 +144,15 @@ class PricingService {
    */
   async updateConfig(config: Partial<PricingConfig>): Promise<PricingConfig> {
     try {
-      const response = await api.put("/pricing/config", config);
+      const mappedConfig = {
+        ...config,
+        vehiclePricing: config.vehiclePricing?.map((vp: any) => ({
+          ...vp,
+          minKmThreshold: vp.minimumKm,
+          minFee: vp.minimumFee,
+        }))
+      };
+      const response = await api.put("/pricing/config", mappedConfig);
       return response.data.config;
     } catch (error) {
       console.error("Erro ao atualizar configuração:", error);
@@ -266,6 +279,9 @@ class PricingService {
         driverTimeoutSeconds: 30,
         maxDriversToNotify: 5,
         autoAcceptRadius: 2,
+        priorityMultiplierEconomic: 1.0,
+        priorityMultiplierFast: 1.3,
+        priorityMultiplierUrgent: 1.8,
       },
       purposePricing: [],
     };

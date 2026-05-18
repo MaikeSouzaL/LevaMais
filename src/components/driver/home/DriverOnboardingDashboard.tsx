@@ -193,6 +193,7 @@ export default function DriverOnboardingDashboard() {
       ]);
 
       let vStatus: "none" | "pending" | "approved" | "rejected" = "none";
+      let isDocsSubmitted = false;
 
       if (profile) {
         updateUserData({
@@ -232,20 +233,27 @@ export default function DriverOnboardingDashboard() {
         const d = profile.driverDocuments || {};
         const hasCNH = Boolean(d.cnhFront && d.cnhBack);
         const hasSelfie = Boolean(d.selfie);
-        setHasPersonalDocs(hasCNH && hasSelfie);
+        isDocsSubmitted = hasCNH && hasSelfie;
+        setHasPersonalDocs(isDocsSubmitted);
         setDriverStatus(profile.driverStatus || "none");
       }
 
-      if (fleetData && fleetData.vehicles && fleetData.vehicles.length > 0) {
-        const list = fleetData.vehicles;
+      let isVehicleSubmitted = false;
+      const vehiclesList = (fleetData?.vehicles && fleetData.vehicles.length > 0)
+        ? fleetData.vehicles
+        : ((profile as any)?.vehicles || []);
+
+      if (vehiclesList && vehiclesList.length > 0) {
+        const list = vehiclesList;
         if (list.some((v: any) => v.status === "approved")) {
           vStatus = "approved";
-        } else if (list.some((v: any) => v.status === "pending")) {
+        } else if (list.some((v: any) => v.status === "pending" || v.status === "analyzing" || v.status === "in_analysis" || v.status === "em_analise")) {
           vStatus = "pending";
         } else if (list.every((v: any) => v.status === "rejected")) {
           vStatus = "rejected";
         }
         setHasVehicle(true);
+        isVehicleSubmitted = true;
       } else {
         setHasVehicle(false);
       }
@@ -256,15 +264,14 @@ export default function DriverOnboardingDashboard() {
       
       const hasCPFOrCNPJ = Boolean(profile?.cpf || profile?.cnpj);
       if (hasCPFOrCNPJ) completedSteps += 1;
-      if (hasPersonalDocs) completedSteps += 1;
-      if (hasVehicle) completedSteps += 1;
+      if (isDocsSubmitted) completedSteps += 1;
+      if (isVehicleSubmitted) completedSteps += 1;
       
       if (profile?.driverStatus === "approved" && vStatus === "approved" && hasCPFOrCNPJ) {
-        completedSteps += 1;
         setShowCongrats(true);
       }
 
-      setProgress(Math.round((completedSteps / 5) * 100));
+      setProgress(Math.round((completedSteps / 4) * 100));
     } catch (err) {
       console.warn("[Onboarding] Error compiling checklist status:", err);
     } finally {
@@ -332,26 +339,6 @@ export default function DriverOnboardingDashboard() {
         : "pending",
       icon: Car,
       action: () => navigation ? (navigation as any).navigate("DriverVehicle") : null,
-    },
-    {
-      id: "approval",
-      title: "Aprovação do Perfil",
-      desc: (driverStatus === "approved" && vehicleStatus === "approved")
-        ? "Perfil ativo e pronto para trabalhar"
-        : (driverStatus === "rejected" || vehicleStatus === "rejected")
-        ? "Revisão de documentos pendente"
-        : (driverStatus === "pending" || vehicleStatus === "pending")
-        ? "Em análise operacional final"
-        : "Aguardando envio de itens",
-      status: (driverStatus === "approved" && vehicleStatus === "approved")
-        ? "completed"
-        : (driverStatus === "rejected" || vehicleStatus === "rejected")
-        ? "rejected"
-        : (driverStatus === "pending" || vehicleStatus === "pending")
-        ? "processing"
-        : "locked",
-      icon: Clock,
-      action: null,
     },
   ];
 

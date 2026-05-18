@@ -22,9 +22,7 @@ class PlatformConfigController {
       
       let config = await PlatformConfig.findOne().sort({ createdAt: -1 });
       if (config) {
-        if (req.body.appFeePercentage !== undefined) config.appFeePercentage = req.body.appFeePercentage;
-        if (req.body.isDevelopmentMode !== undefined) config.isDevelopmentMode = req.body.isDevelopmentMode;
-        if (req.body.splitRules) config.splitRules = req.body.splitRules;
+        Object.assign(config, req.body);
         await config.save();
       } else {
         config = await PlatformConfig.create(req.body);

@@ -147,7 +147,12 @@ const configController = {
   getRideSettings: async (req, res) => {
     try {
       const config = await PlatformConfig.findOne();
-      const settings = config?.rideSettings || DEFAULT_CONFIG.rideSettings;
+      const rawDeduction = config?.appFeePercentage !== undefined ? config.appFeePercentage / 100 : (config?.rideSettings?.deductionPercentage || DEFAULT_CONFIG.rideSettings.deductionPercentage);
+      const settings = {
+        ...DEFAULT_CONFIG.rideSettings,
+        ...(config?.rideSettings || {}),
+        deductionPercentage: rawDeduction
+      };
 
       res.json({
         success: true,
@@ -165,7 +170,7 @@ const configController = {
   getDeductionPercentage: async (req, res) => {
     try {
       const config = await PlatformConfig.findOne();
-      const percentage = config?.rideSettings?.deductionPercentage || DEFAULT_CONFIG.rideSettings.deductionPercentage;
+      const percentage = config?.appFeePercentage !== undefined ? config.appFeePercentage / 100 : (config?.rideSettings?.deductionPercentage || DEFAULT_CONFIG.rideSettings.deductionPercentage);
 
       res.json({
         success: true,
