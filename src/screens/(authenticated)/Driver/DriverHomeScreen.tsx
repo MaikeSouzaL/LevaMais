@@ -41,7 +41,7 @@ import { Modal } from "../../../components/Modal";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
 import { MotiView } from "moti";
-import { MapPin, Menu, Target, Layers, ShieldAlert, Info } from "lucide-react-native";
+import { MapPin, Menu, Target, Layers, ShieldAlert, Info , AlertTriangle} from "lucide-react-native";
 import { DriverStatusHeader } from "@/components/driver/home/DriverStatusHeader";
 import { IncomingRideCard } from "@/components/driver/home/IncomingRideCard";
 import { PremiumMapMarker } from "@/components/maps/PremiumMapMarker";
@@ -911,16 +911,19 @@ export default function DriverHomeScreen() {
           return;
         }
 
-        // ✅ Verificar saldo antes de ficar online
+        // ✅ Verificar permissao para ficar online (driverStatus, docs, veiculo, saldo)
         try {
-          const balance = await walletService.getBalance();
-          if (balance.available <= 0) {
+          const goOnlineResult = await driverService.goOnline();
+          if (!goOnlineResult?.success) {
             setIsTogglingOnline(false);
-            setShowNoBalanceModal(true);
+            setError(goOnlineResult?.error || "Voce nao esta liberado para ficar online.");
             return;
           }
-        } catch {
-          // Se falhar ao consultar saldo, permite ir online (evita bloquear por erro de rede)
+        } catch (e: any) {
+          setIsTogglingOnline(false);
+          const msg = e?.response?.data?.error || e?.message || "Nao foi possivel validar sua conta para ficar online.";
+          setError(msg);
+          return;
         }
 
         await startSharing();
@@ -1485,7 +1488,23 @@ export default function DriverHomeScreen() {
             }}
           />
 
-          {!isApproved && (
+          {!loading && driverBalance != null && driverBalance <= 0 && online === false && (
+        <View style={{ marginHorizontal: 16, backgroundColor: 'rgba(239,68,68,0.08)', borderRadius: 16, borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)', padding: 16, marginBottom: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <AlertTriangle size={18} color="#ef4444" />
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: '#ef4444', fontWeight: '800', fontSize: 13 }}>Saldo insuficiente</Text>
+              <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11, marginTop: 2 }}>Voce precisa de saldo positivo para ficar online e aceitar corridas.</Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            onPress={() => { setShowDepositModal(true); }}
+            style={{ marginTop: 12, backgroundColor: '#02de95', borderRadius: 12, paddingVertical: 10, alignItems: 'center' }}>
+            <Text style={{ color: '#091A2F', fontWeight: '800', fontSize: 13 }}>Adicionar Saldo</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      {!isApproved && (
             <DriverOnboardingDashboard />
           )}
 

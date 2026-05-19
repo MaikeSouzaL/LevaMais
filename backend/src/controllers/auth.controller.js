@@ -92,7 +92,7 @@ async function validateCPFWithFreeAPI(cpf) {
     const isDev = config ? config.isDevelopmentMode : true;
     if (isDev) {
       console.log("[CPF API Validation] Development Mode is ACTIVE. Bypassing external API validation.");
-      return { valid: true, name: null };
+      return { valid: true, name: null, isFallback: true };
     }
 
     if (!validateCPFAlgorithm(cpf)) {
@@ -170,7 +170,7 @@ async function validateCNPJWithFreeAPI(cnpj) {
     const isDev = config ? config.isDevelopmentMode : true;
     if (isDev) {
       console.log("[CNPJ API Validation] Development Mode is ACTIVE. Bypassing external API validation.");
-      return { valid: true, razaoSocial: null };
+      return { valid: true, razaoSocial: null, isFallback: true };
     }
 
     if (!validateCNPJAlgorithm(cnpj)) {
@@ -682,6 +682,7 @@ class AuthController {
           }
 
           user.isCpfVerified = true;
+          user.cpfVerifiedByAPI = !cpfValidationResult.isFallback;
           if (cpfValidationResult.name) {
             user.officialCpfName = cpfValidationResult.name;
             
@@ -726,6 +727,7 @@ class AuthController {
           }
 
           user.isCnpjVerified = true;
+          user.cnpjVerifiedByAPI = !cnpjValidationResult.isFallback;
           if (cnpjValidationResult.razaoSocial) {
             user.officialCnpjRazaoSocial = cnpjValidationResult.razaoSocial;
             user.officialCnpjNomeFantasia = cnpjValidationResult.nomeFantasia;
@@ -1909,6 +1911,21 @@ class AuthController {
       const photoUrl = `${baseUrl}/${req.file.filename}`;
 
       user.profilePhoto = photoUrl;
+
+      // Se for cliente, atualizar selfie de verificacao
+      if (user.userType === "client") {
+        if (!user.clientVerification) {
+          user.clientVerification = {};
+        }
+        user.clientVerification.documents = user.clientVerification.documents || {};
+        user.clientVerification.documents.selfie = photoUrl;
+        user.clientVerification.selfieStatus = "pending";
+        user.clientVerification.submittedAt = new Date();
+        if (user.clientVerification.status === "none") {
+          user.clientVerification.status = "pending";
+        }
+      }
+
       await user.save();
 
       return res.json({
@@ -1918,12 +1935,69 @@ class AuthController {
           user: {
             _id: user._id,
             profilePhoto: user.profilePhoto,
+            clientVerification: user.clientVerification || undefined,
           },
         },
       });
     } catch (error) {
       console.error("Erro ao atualizar foto de perfil:", error);
       return sendError(res, 500, "Erro ao salvar foto de perfil", { details: error.message });
+    }
+  }
+
+  // Verificacao de documentos do cliente (selfie, RG)
+  async submitClientVerification(req, res) {
+    try {
+      const userId = req.user.id;
+      const user = await User.findById(userId);
+
+      if (!user) {
+        return sendError(res, 404, "Usuário não encontrado");
+      }
+
+      if (user.userType !== "client") {
+        return sendError(res, 400, "Verificação de cliente disponível apenas para usuários cliente");
+      }
+
+      if (!req.files || Object.keys(req.files).length === 0) {
+        return sendError(res, 400, "Nenhum documento foi enviado");
+      }
+
+      const protocol = req.headers["x-forwarded-proto"] || req.protocol;
+      const host = req.get("host");
+      const baseUrl = `${protocol}://${host}/uploads/drivers`;
+
+      if (!user.clientVerification) {
+        user.clientVerification = {};
+      }
+      user.clientVerification.documents = user.clientVerification.documents || {};
+
+      if (req.files.selfie && req.files.selfie[0]) {
+        user.clientVerification.documents.selfie = `${baseUrl}/${req.files.selfie[0].filename}`;
+        user.clientVerification.selfieStatus = "pending";
+      }
+      if (req.files.rgFront && req.files.rgFront[0]) {
+        user.clientVerification.documents.rgFront = `${baseUrl}/${req.files.rgFront[0].filename}`;
+      }
+      if (req.files.rgBack && req.files.rgBack[0]) {
+        user.clientVerification.documents.rgBack = `${baseUrl}/${req.files.rgBack[0].filename}`;
+      }
+
+      user.clientVerification.submittedAt = new Date();
+      user.clientVerification.status = "pending";
+
+      await user.save();
+
+      return res.json({
+        success: true,
+        message: "Documentos enviados com sucesso. Aguardando análise.",
+        data: {
+          clientVerification: user.clientVerification,
+        },
+      });
+    } catch (error) {
+      console.error("Erro ao enviar documentos do cliente:", error);
+      return sendError(res, 500, "Erro ao processar verificação", { details: error.message });
     }
   }
 }

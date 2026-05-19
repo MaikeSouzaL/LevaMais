@@ -1,16 +1,24 @@
 import axios from "axios";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001/api";
 const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || "dev-admin-key";
 
 // Criar instância do axios com configurações padrão
 const api = axios.create({
-  baseURL: API_URL,
+  baseURL: API_URL.endsWith("/") ? API_URL : `${API_URL}/`,
   timeout: 10000,
   headers: {
     "Content-Type": "application/json",
     ...(ADMIN_API_KEY ? { "x-admin-key": ADMIN_API_KEY } : {}),
   },
+});
+
+// Garantir que caminhos com barra inicial não quebrem a resolução da subpasta /api no Axios
+api.interceptors.request.use((config) => {
+  if (config.url && config.url.startsWith("/")) {
+    config.url = config.url.substring(1);
+  }
+  return config;
 });
 
 export interface Driver {
@@ -31,6 +39,11 @@ export interface Driver {
   profilePhoto?: string;
   isActive: boolean;
   acceptedTerms: boolean;
+  driverBalance?: {
+    balance: number;
+    totalDeposits: number;
+    totalDeductions: number;
+  };
   createdAt: string;
   updatedAt: string;
 }

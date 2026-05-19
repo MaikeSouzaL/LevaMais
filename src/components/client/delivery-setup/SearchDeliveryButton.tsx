@@ -7,9 +7,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 interface SearchDeliveryButtonProps {
   onPress: () => void;
   loading?: boolean;
+  label?: string;
 }
 
-export const SearchDeliveryButton = ({ onPress, loading = false }: SearchDeliveryButtonProps) => {
+export const SearchDeliveryButton = ({ onPress, loading = false, label = "Buscar Entregadores" }: SearchDeliveryButtonProps) => {
   const insets = useSafeAreaInsets();
 
   return (
@@ -38,7 +39,7 @@ export const SearchDeliveryButton = ({ onPress, loading = false }: SearchDeliver
           <View className="flex-row items-center gap-2.5">
             <PackageSearch size={20} color="#0f172a" strokeWidth={2.5} />
             <Text className="text-slate-900 text-base font-extrabold tracking-widest uppercase">
-              Buscar Entregadores
+              {label}
             </Text>
           </View>
         )}

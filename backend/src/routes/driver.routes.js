@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const driverController = require("../controllers/driver.controller");
 const { authenticateToken } = require("../middlewares/auth.middleware");
+const { uploadDriverBundle } = require("../middlewares/upload.middleware");
 
 // All driver routes require authentication
 router.use(authenticateToken);
@@ -25,5 +26,12 @@ router.put("/preferences", driverController.updateDriverPreferences);
 router.get("/vehicles", driverController.listVehicles);
 router.post("/vehicles", driverController.addVehicle);
 router.patch("/vehicles/:id/activate", driverController.activateVehicle);
+
+// Vehicle Document Upload (multipart) - corrige o problema de file:// URIs
+router.post(
+  "/vehicles/:vehicleId/documents",
+  uploadDriverBundle,
+  driverController.uploadVehicleDocuments
+);
 
 module.exports = router;

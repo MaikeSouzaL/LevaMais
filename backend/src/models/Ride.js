@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+﻿const mongoose = require("mongoose");
 
 const rideSchema = new mongoose.Schema(
   {
@@ -130,6 +130,18 @@ const rideSchema = new mongoose.Schema(
       representativeShare: Number, // Parte do rep (ex: R$ 1,50)
       representativeId: { type: mongoose.Schema.Types.ObjectId, ref: "Representative" }
     },
+    // Contabilidade completa da taxa da plataforma
+    platformFeeAccounting: {
+      percentage: Number, // % aplicada
+      amount: Number, // Valor em R$
+      chargedTo: { type: String, enum: ["driver_wallet", "client", "platform"], default: "driver_wallet" },
+      reserveTransactionId: String,
+      chargeTransactionId: String,
+      status: { type: String, enum: ["not_reserved", "reserved", "charged", "released", "failed"], default: "not_reserved" },
+      reservedAt: Date,
+      chargedAt: Date,
+      releasedAt: Date,
+    },
     // Distância e tempo estimado
     distance: {
       value: Number, // em metros
@@ -142,8 +154,20 @@ const rideSchema = new mongoose.Schema(
     // Detalhes adicionais
     details: {
       itemType: String, // Para entregas
+      cargoSize: {
+        type: String,
+        enum: ["small", "medium", "large"],
+      },
+      approximateWeightKg: Number,
+      isFragile: Boolean,
       needsHelper: Boolean, // Precisa de ajudante
       priority: Number, // 0=Econômico, 1=Rápido, 2=Urgente
+      pickupComplement: String,
+      dropoffComplement: String,
+      recipientName: String,
+      recipientPhone: String,
+      recipientInstructions: String,
+      deliveryPin: String,
       insurance: {
         type: String,
         enum: ["none", "basic", "standard", "premium"],
@@ -157,6 +181,8 @@ const rideSchema = new mongoose.Schema(
       enum: [
         "scheduled", // Pedido agendado
         "requesting", // Cliente solicitou, buscando motorista
+        "payment_pending", // Cliente escolheu oferta e precisa confirmar pagamento
+        "payment_failed", // Falha ao confirmar pagamento
         "driver_assigned", // Motorista atribuído, aguardando aceitação
         "accepted", // Motorista aceitou
         "driver_arriving", // Motorista a caminho do local de origem
@@ -187,6 +213,7 @@ const rideSchema = new mongoose.Schema(
     },
     acceptedAt: Date,
     arrivedAt: Date,
+    arrivedAtDropoff: Date,
     startedAt: Date,
     completedAt: Date,
     cancelledAt: Date,
@@ -280,11 +307,15 @@ const rideSchema = new mongoose.Schema(
       },
       status: {
         type: String,
-        enum: ["pending", "processing", "completed", "failed", "refunded"],
-        default: "pending",
+        enum: ["not_selected", "pending", "processing", "authorized", "completed", "failed", "refunded"],
+        default: "not_selected",
       },
       transactionId: String,
       paidAt: Date,
+      confirmedAt: Date,
+      selectedAt: Date,
+      provider: { type: String, trim: true },
+      failureReason: { type: String, trim: true },
     },
     // Taxa de cancelamento
     cancellationFee: {
@@ -353,11 +384,28 @@ rideSchema.methods.calculateTotal = function () {
   return this.pricing.total;
 };
 
+// Determina a fase de cancelamento com base no status atual
+rideSchema.methods.getCancellationPhase = function () {
+  const beforePickupStatuses = [
+    "scheduled", "requesting", "payment_pending", "driver_assigned", "accepted"
+  ];
+  const afterPickupStatuses = [
+    "driver_arriving", "arrived"
+  ];
+  // in_progress = during delivery
+
+  if (beforePickupStatuses.includes(this.status)) return "beforePickup";
+  if (afterPickupStatuses.includes(this.status)) return "afterPickup";
+  if (this.status === "in_progress") return "duringDelivery";
+  return null; // já cancelado ou completed
+};
+
 // Método para verificar se pode ser cancelada
 rideSchema.methods.canBeCancelled = function () {
   const cancellableStatuses = [
     "scheduled",
     "requesting",
+    "payment_pending",
     "driver_assigned",
     "accepted",
     "driver_arriving",
@@ -367,19 +415,43 @@ rideSchema.methods.canBeCancelled = function () {
   return cancellableStatuses.includes(this.status);
 };
 
-// Método para calcular taxa de cancelamento
-rideSchema.methods.calculateCancellationFee = function () {
-  // Se motorista já aceitou, cobra taxa
-  if (["accepted", "driver_arriving", "arrived"].includes(this.status)) {
-    return this.pricing.total * 0.3; // 30% do valor
-  }
-  return 0;
+// Método para calcular taxa de cancelamento usando regras do PlatformConfig
+// Aceita um objeto config opcional com as regras de cancelamento
+rideSchema.methods.calculateCancellationFee = function (platformConfig) {
+  const total = Number(this.pricing?.total || 0);
+  const phase = this.getCancellationPhase();
+  if (!phase) return 0;
+
+  // Fallback defaults caso nao tenha config
+  const defaults = {
+    beforePickup: { enabled: true, feePercentage: 10, minFee: 5, maxFee: 50 },
+    afterPickup: { enabled: true, feePercentage: 50, minFee: 20, maxFee: 200 },
+    duringDelivery: { enabled: false, feePercentage: 80, minFee: 30, maxFee: 500 },
+  };
+
+  const rules = (platformConfig?.cancellationRules?.[phase]) || defaults[phase];
+
+  if (rules.enabled === false) return 0;
+
+  const percentage = Number(rules.feePercentage || 10);
+  const minFee = Number(rules.minFee || 0);
+  const maxFee = Number(rules.maxFee || Infinity);
+
+  let fee = total * (percentage / 100);
+  fee = Math.max(fee, minFee);
+  fee = Math.min(fee, maxFee);
+
+  return Math.round(fee * 100) / 100;
+};
+
+// Verifica se cancelamento nesta fase exige suporte (devolução do pacote)
+rideSchema.methods.cancellationRequiresSupport = function (platformConfig) {
+  const phase = this.getCancellationPhase();
+  if (!phase) return false;
+  const rules = platformConfig?.cancellationRules?.[phase];
+  return rules?.requireSupport === true;
 };
 
 const Ride = mongoose.model("Ride", rideSchema);
 
 module.exports = Ride;
-
-
-
-

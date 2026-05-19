@@ -1,6 +1,7 @@
-const socketIo = require("socket.io");
+﻿const socketIo = require("socket.io");
 const jwt = require("jsonwebtoken");
 const Ride = require("../models/Ride");
+const RideTrackPoint = require("../models/RideTrackPoint");
 const DriverLocation = require("../models/DriverLocation");
 
 let io;
@@ -117,6 +118,11 @@ function initializeWebSocket(server) {
         const speed = Number.isFinite(Number(data?.speed))
           ? Number(data.speed)
           : undefined;
+        const accuracy = Number.isFinite(Number(data?.accuracy))
+          ? Number(data.accuracy)
+          : undefined;
+        const phase = data?.phase || "to_dropoff";
+        const capturedAt = data?.capturedAt ? new Date(data.capturedAt) : new Date();
 
         await DriverLocation.findOneAndUpdate(
           { driverId: socket.userId },
@@ -139,7 +145,7 @@ function initializeWebSocket(server) {
 
         if (driverLocation?.currentRideId) {
           const ride = await Ride.findById(driverLocation.currentRideId).select(
-            "clientId driverId",
+            "clientId driverId status",
           );
 
           if (ride && isSameId(ride.driverId, socket.userId)) {
@@ -148,7 +154,28 @@ function initializeWebSocket(server) {
               location: { latitude, longitude },
               heading,
               speed,
+              phase,
             });
+
+            // Persistir track point (a cada atualizacao com ride ativa)
+            const activeStatuses = ["driver_arriving", "arrived", "in_progress"];
+            if (activeStatuses.includes(ride.status)) {
+              try {
+                await RideTrackPoint.create({
+                  rideId: ride._id,
+                  driverId: socket.userId,
+                  latitude,
+                  longitude,
+                  heading,
+                  speed,
+                  accuracy,
+                  phase,
+                  capturedAt,
+                });
+              } catch (trackErr) {
+                // Silencioso - nao interrompe o fluxo principal
+              }
+            }
           }
         }
       } catch (error) {

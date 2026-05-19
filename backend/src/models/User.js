@@ -59,6 +59,8 @@ const vehicleSchema = new mongoose.Schema(
     officialModel: { type: String, trim: true },
     officialYear: { type: Number },
     isVerifiedByAPI: { type: Boolean, default: false },
+    plateVerifiedByAPI: { type: Boolean, default: false },
+    plateVerificationSource: { type: String, enum: ["api", "fallback", "manual", "unchecked"], default: "unchecked" },
     
     // Documentação específica por veículo
     documents: {
@@ -75,6 +77,11 @@ const vehicleSchema = new mongoose.Schema(
       default: "pending",
     },
     rejectionReason: { type: String, trim: true },
+    vehicleDocumentsStatus: {
+      crlvFront: { type: String, enum: ["none", "pending", "approved", "rejected"], default: "pending" },
+      crlvBack: { type: String, enum: ["none", "pending", "approved", "rejected"], default: "pending" },
+      vehiclePhoto: { type: String, enum: ["none", "pending", "approved", "rejected"], default: "pending" },
+    },
   },
   {
     timestamps: true,
@@ -160,13 +167,49 @@ const userSchema = new mongoose.Schema(
     // Campos de Auditoria e Validação via APIs Oficiais (CPF/CNPJ)
     officialCpfName: { type: String, trim: true },
     isCpfVerified: { type: Boolean, default: false },
-    
+    cpfVerifiedByAPI: { type: Boolean, default: false },
+
     officialCnpjRazaoSocial: { type: String, trim: true },
     officialCnpjNomeFantasia: { type: String, trim: true },
     officialCnpjCity: { type: String, trim: true },
     officialCnpjState: { type: String, trim: true },
     officialCnpjStatus: { type: String, trim: true },
     isCnpjVerified: { type: Boolean, default: false },
+    cnpjVerifiedByAPI: { type: Boolean, default: false },
+
+    // Verificacao do cliente (documentos, selfie, status)
+    clientVerification: {
+      status: {
+        type: String,
+        enum: ["none", "pending", "approved", "rejected"],
+        default: "none",
+      },
+      cpfStatus: {
+        type: String,
+        enum: ["unchecked", "valid", "invalid", "manual_review"],
+        default: "unchecked",
+      },
+      selfieStatus: {
+        type: String,
+        enum: ["none", "pending", "approved", "rejected"],
+        default: "none",
+      },
+      documents: {
+        selfie: { type: String },
+        rgFront: { type: String },
+        rgBack: { type: String },
+      },
+      rejectionReason: { type: String, trim: true },
+      submittedAt: { type: Date },
+      reviewedAt: { type: Date },
+      reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      reviewHistory: [{
+        action: { type: String, enum: ["approved", "rejected"] },
+        reason: { type: String, trim: true },
+        reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        reviewedAt: { type: Date, default: Date.now },
+      }],
+    },
 
     // Endereço
     address: {
@@ -235,11 +278,24 @@ const userSchema = new mongoose.Schema(
       balance: { type: Number, default: 0 },
       totalDeposits: { type: Number, default: 0 },
       totalDeductions: { type: Number, default: 0 },
+      operationalCredit: { type: Number, default: 0 },
+      pendingReceivables: { type: Number, default: 0 },
       transactions: [
         {
           type: {
             type: String,
-            enum: ["deposit", "deduction", "withdrawal"],
+            enum: [
+              "driver_topup",
+              "client_in_app_payment",
+              "app_fee_debit",
+              "withdrawal",
+              "refund",
+              "manual_adjustment",
+              "fee_reserve",
+              "fee_release",
+              "deposit",
+              "deduction",
+            ],
           },
           amount: { type: Number, required: true },
           description: { type: String, trim: true },
@@ -381,6 +437,19 @@ const userSchema = new mongoose.Schema(
       vehiclePhoto: { type: String },
       selfie: { type: String },
       submittedAt: { type: Date },
+      rejectionReason: { type: String, trim: true },
+      cnhFrontStatus: { type: String, enum: ["none", "pending", "approved", "rejected"], default: "pending" },
+      cnhBackStatus: { type: String, enum: ["none", "pending", "approved", "rejected"], default: "pending" },
+      selfieStatus: { type: String, enum: ["none", "pending", "approved", "rejected"], default: "pending" },
+      reviewedAt: { type: Date },
+      reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      reviewHistory: [{
+        documentType: { type: String },
+        action: { type: String, enum: ["approved", "rejected"] },
+        reason: { type: String, trim: true },
+        reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        reviewedAt: { type: Date, default: Date.now },
+      }],
     },
     gpsQuality: {
       type: String,

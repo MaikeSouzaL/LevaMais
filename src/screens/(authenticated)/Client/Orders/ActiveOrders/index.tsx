@@ -19,6 +19,7 @@ function rideTitle(ride: Ride) {
 function mapStatusLabel(status?: string) {
   const normalized = String(status || "").toLowerCase();
   if (normalized === "scheduled") return "agendada";
+  if (normalized === "payment_pending") return "aguardando pagamento";
   if (normalized === "driver_assigned") return "motorista selecionado";
   return normalized.replaceAll("_", " ");
 }
@@ -211,7 +212,7 @@ export default function ActiveOrdersScreen() {
               )}
 
               {/* 🚀 Fast Bid Adjustment Row inside Active List Card */}
-              {ride.negotiation?.enabled && ["requesting", "driver_assigned"].includes(String(ride.status || "")) && (
+              {ride.negotiation?.enabled && ["requesting", "payment_pending", "driver_assigned"].includes(String(ride.status || "")) && (
                 <View style={{ marginTop: 10, marginBottom: 4 }}>
                   <Text style={{ color: colors.text.tertiary, fontSize: 11, fontWeight: "700", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>
                      ⚡ Ajustar Oferta:
@@ -306,6 +307,13 @@ export default function ActiveOrdersScreen() {
                       </TouchableOpacity>
                     </View>
                   )
+                ) : String(ride.status || "") === "payment_pending" ? (
+                  <TouchableOpacity
+                    style={styles.trackBtn}
+                    onPress={() => navigation.navigate("DeliveryPaymentConfirm", { rideId: ride._id })}
+                  >
+                    <Text style={styles.trackBtnText}>Confirmar pagamento</Text>
+                  </TouchableOpacity>
                 ) : String(ride.status || "") === "scheduled" ? (
                   editingRideId === ride._id ? (
                     <View style={{ width: "100%", gap: 6 }}>

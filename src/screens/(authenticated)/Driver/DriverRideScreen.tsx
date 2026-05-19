@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, TouchableOpacity, AppState, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
@@ -100,7 +100,7 @@ export default function DriverRideScreen() {
   };
 
   const [actionLoading, setActionLoading] = useState<
-    null | "cancel" | "driver_arriving" | "arrived" | "in_progress" | "completed"
+    null | "cancel" | "driver_arriving" | "arrived" | "in_progress" | "completed" | "arrived_at_dropoff"
   >(null);
 
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
@@ -122,6 +122,7 @@ export default function DriverRideScreen() {
 
   const statusLabel = useMemo(() => {
     if (!status) return "-";
+    if (status === "payment_pending") return "Aguardando pagamento do cliente";
     if (status === "driver_arriving") return "A caminho da coleta";
     if (status === "driver_assigned") return "Entrega reservada";
     if (status === "accepted") return "Aceita";
@@ -132,20 +133,24 @@ export default function DriverRideScreen() {
     return status;
   }, [status]);
 
+  const isDelivery = ride?.serviceType === "delivery";
+  const isAwaitingPayment = status === "payment_pending";
+  const arrivedAtDropoff = Boolean(ride?.arrivedAtDropoff);
+
   const canArrive =
     status === "accepted" ||
     status === "driver_assigned" ||
     status === "driver_arriving";
   const canStart = status === "arrived";
-  const canComplete = status === "in_progress";
+  const canComplete = status === "in_progress" && (!isDelivery || arrivedAtDropoff);
+  const canArriveDropoff = isDelivery && status === "in_progress" && !arrivedAtDropoff;
   const canCancel =
+    status === "payment_pending" ||
     status === "accepted" ||
     status === "driver_assigned" ||
     status === "driver_arriving" ||
     status === "arrived" ||
     status === "in_progress";
-
-  const isDelivery = ride?.serviceType === "delivery";
 
   useEffect(() => {
     statusRef.current = status;
@@ -341,7 +346,7 @@ export default function DriverRideScreen() {
     const onStatusUpdated = (payload: any) => {
       if (!mounted) return;
       if (payload?.rideId !== rideId) return;
-      if (payload?.status) setStatus(String(payload.status));
+      if (payload?.status) { setStatus(String(payload.status)); if (payload.ride) setRide(payload.ride); }
     };
 
     const onRideCancelled = (payload: any) => {
@@ -478,6 +483,13 @@ export default function DriverRideScreen() {
             longitude: pos.coords.longitude,
             heading: pos.coords.heading ?? undefined,
             speed: pos.coords.speed ?? undefined,
+            accuracy: pos.coords.accuracy ?? undefined,
+            rideId: rideId || undefined,
+            phase: statusRef.current === "driver_arriving" ? "to_pickup"
+                 : statusRef.current === "arrived" ? "at_pickup"
+                 : statusRef.current === "in_progress" ? "to_dropoff"
+                 : "to_pickup",
+            capturedAt: new Date().toISOString(),
           });
 
           const now = Date.now();
@@ -510,6 +522,21 @@ export default function DriverRideScreen() {
     };
   }, []);
 
+
+  const handleArriveDropoff = async () => {
+    if (!rideId) return;
+    setActionLoading("arrived_at_dropoff");
+    try {
+      const r = await rideService.updateStatus(rideId, undefined as any, true);
+      setRide(r as any);
+      setStatus(r?.status || status);
+      Toast.show({ type: "success", text1: "Chegada no destino registrada" });
+    } catch (e: any) {
+      Toast.show({ type: "error", text1: "Erro", text2: e?.message || "Tente novamente" });
+    } finally {
+      setActionLoading(null);
+    }
+  };
   const update = async (
     nextStatus: "driver_arriving" | "arrived" | "in_progress" | "completed",
   ) => {
@@ -878,6 +905,11 @@ export default function DriverRideScreen() {
             onArrive={() => update("arrived")}
             onStart={() => update("in_progress")}
             onComplete={() => update("completed")}
+            isAwaitingPayment={isAwaitingPayment}
+            isDelivery={isDelivery}
+            arrivedAtDropoff={arrivedAtDropoff}
+            canArriveDropoff={canArriveDropoff}
+            onArriveDropoff={handleArriveDropoff}
             onChat={() => {
               if (!rideId) return;
               useChatStore.getState().clearUnread(rideId);

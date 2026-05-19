@@ -691,6 +691,11 @@ export default function DriverNegotiationScreen() {
 
         // 🎯 Client accepted this specific driver
         if (assignedDriver && driverId && assignedDriver === driverId) {
+           if (rideStatus === "payment_pending") {
+              setLoadingState("waiting");
+              setLiveStatusMessage("Cliente confirmando pagamento...");
+              return;
+           }
            if (["accepted", "driver_assigned", "driver_arriving", "arrived", "in_progress"].includes(rideStatus)) {
               navigateToActiveRide(ride._id);
               return;
@@ -817,6 +822,13 @@ export default function DriverNegotiationScreen() {
                     setLoadingState("sending");
                     await rideService.respondToOffer(offer._id, {
                       action: "accept"
+                    });
+                    setLoadingState("waiting");
+                    setLiveStatusMessage("Cliente confirmando pagamento...");
+                    Toast.show({
+                      type: "info",
+                      text1: "Aguardando pagamento do cliente",
+                      text2: "Voce foi selecionado. Aguarde a confirmacao para iniciar.",
                     });
                   } catch (e: any) {
                     setLoadingState("client_countered");

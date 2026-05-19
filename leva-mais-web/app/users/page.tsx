@@ -343,21 +343,21 @@ export default function UsersPage() {
                             className="p-1.5 hover:bg-emerald-50 text-emerald-600 rounded-lg transition-colors"
                             title="Ver detalhes"
                           >
-                            <Eye className="w-4.5 h-4.5" />
+                            <Eye className="w-[18px] h-[18px]" />
                           </button>
                           <button
                             onClick={() => handleToggleStatus(user)}
                             className={`p-1.5 rounded-lg transition-colors ${user.isActive ? "hover:bg-rose-50 text-rose-600" : "hover:bg-emerald-50 text-emerald-600"}`}
                             title={user.isActive ? "Bloquear usuário" : "Desbloquear usuário"}
                           >
-                            {user.isActive ? <UserX className="w-4.5 h-4.5" /> : <UserCheck className="w-4.5 h-4.5" />}
+                            {user.isActive ? <UserX className="w-[18px] h-[18px]" /> : <UserCheck className="w-[18px] h-[18px]" />}
                           </button>
                           <button
                             onClick={() => handleDeleteUser(user)}
                             className="p-1.5 hover:bg-rose-50 text-rose-600 rounded-lg transition-colors"
                             title="Excluir da base"
                           >
-                            <Trash2 className="w-4.5 h-4.5" />
+                            <Trash2 className="w-[18px] h-[18px]" />
                           </button>
                         </div>
                       </td>
@@ -467,7 +467,7 @@ export default function UsersPage() {
             </div>
 
             {/* Actions Footer */}
-            <div className="sticky bottom-0 bg-gray-50 border-t border-gray-150 p-4 z-10 space-y-2">
+            <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 p-4 z-10 space-y-2">
               <button
                 onClick={() => handleToggleStatus(selectedUser)}
                 className={`w-full py-2.5 rounded-xl font-bold text-xs transition-colors border ${selectedUser.isActive ? "bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100" : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"}`}

@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+﻿const mongoose = require("mongoose");
 
 // Configurações Globais da Plataforma
 // Substitui o antigo PricingConfig complexo
@@ -36,6 +36,29 @@ const platformConfigSchema = new mongoose.Schema(
     rideSearchTimeoutSeconds: {
       type: Number,
       default: 60 // tempo de busca padrao em segundos
+    },
+    // Regras de cancelamento por fase
+    cancellationRules: {
+      beforePickup: {
+        enabled: { type: Boolean, default: true },
+        feePercentage: { type: Number, default: 10 },
+        minFee: { type: Number, default: 5 },
+        maxFee: { type: Number, default: 50 },
+      },
+      afterPickup: {
+        enabled: { type: Boolean, default: true },
+        feePercentage: { type: Number, default: 50 },
+        minFee: { type: Number, default: 20 },
+        maxFee: { type: Number, default: 200 },
+        requireSupport: { type: Boolean, default: true },
+      },
+      duringDelivery: {
+        enabled: { type: Boolean, default: false },
+        feePercentage: { type: Number, default: 80 },
+        minFee: { type: Number, default: 30 },
+        maxFee: { type: Number, default: 500 },
+        requireSupport: { type: Boolean, default: true },
+      },
     },
     driverGoals: {
       dailyGoalRides: {

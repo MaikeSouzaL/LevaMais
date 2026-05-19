@@ -18,6 +18,8 @@ interface ClientBottomSheetProps {
     deliveryDrivers: number;
     totalNearby: number;
   };
+  availabilityLoading?: boolean;
+  availabilityError?: string | null;
 }
 
 export const ClientBottomSheet = ({
@@ -26,6 +28,8 @@ export const ClientBottomSheet = ({
   onSelectFavorite,
   onChangeSnap,
   availability,
+  availabilityLoading = false,
+  availabilityError = null,
 }: ClientBottomSheetProps) => {
   const bottomSheetRef = useRef<BottomSheet>(null);
   
@@ -52,8 +56,13 @@ export const ClientBottomSheet = ({
         {/* 🚀 Main Services (ALWAYS VISIBLE) */}
         <View style={styles.servicesGrid}>
           <TouchableOpacity 
-            style={[styles.serviceCard, styles.primaryCard]} 
+            style={[
+              styles.serviceCard, 
+              styles.primaryCard,
+              availability && availability.rideDrivers <= 0 && styles.serviceCardDisabled,
+            ]} 
             onPress={() => onSelectService("ride")}
+            disabled={Boolean(availability && availability.rideDrivers <= 0)}
             activeOpacity={0.85}
           >
             <View style={styles.glowOverlay} />
@@ -67,11 +76,20 @@ export const ClientBottomSheet = ({
                 {availability.rideDrivers} motoristas proximos
               </Text>
             )}
+            {!!availability && availability.rideDrivers <= 0 && (
+              <Text style={styles.unavailableText}>
+                Indisponivel agora nesta regiao
+              </Text>
+            )}
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={styles.serviceCard} 
+            style={[
+              styles.serviceCard,
+              availability && availability.deliveryDrivers <= 0 && styles.serviceCardDisabled,
+            ]} 
             onPress={() => onSelectService("delivery")}
+            disabled={Boolean(availability && availability.deliveryDrivers <= 0)}
             activeOpacity={0.85}
           >
             <View style={[styles.iconCircle, { backgroundColor: "rgba(56, 189, 248, 0.15)" }]}>
@@ -84,8 +102,29 @@ export const ClientBottomSheet = ({
                 {availability.deliveryDrivers} entregadores proximos
               </Text>
             )}
+            {!!availability && availability.deliveryDrivers <= 0 && (
+              <Text style={styles.unavailableText}>
+                Indisponivel agora nesta regiao
+              </Text>
+            )}
           </TouchableOpacity>
         </View>
+
+        {availabilityLoading && (
+          <View style={styles.availabilityBanner}>
+            <Text style={styles.availabilityBannerText}>
+              Verificando disponibilidade de motoristas...
+            </Text>
+          </View>
+        )}
+
+        {!!availabilityError && !availabilityLoading && (
+          <View style={styles.availabilityBanner}>
+            <Text style={styles.warningText}>
+              {availabilityError}
+            </Text>
+          </View>
+        )}
 
         {!!availability && (
           <View style={styles.availabilityBanner}>
@@ -204,6 +243,9 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     overflow: "hidden",
   },
+  serviceCardDisabled: {
+    opacity: 0.5,
+  },
   primaryCard: {
     borderColor: "rgba(2, 222, 149, 0.15)",
   },
@@ -240,6 +282,12 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "600",
     marginTop: 4,
+  },
+  unavailableText: {
+    color: "#fbbf24",
+    fontSize: 11,
+    fontWeight: "700",
+    marginTop: 3,
   },
   availabilityBanner: {
     marginTop: spacing.sm,

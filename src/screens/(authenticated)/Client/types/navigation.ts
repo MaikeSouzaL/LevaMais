@@ -138,6 +138,34 @@ export type ClientStackParamList = {
         initialDurationMin?: number | null;
       }
     | undefined;
+  DeliveryReview:
+    | {
+        pickup: { address: string; latitude: number; longitude: number };
+        dropoff: { address: string; latitude: number; longitude: number };
+        cityId?: string;
+        preferScheduled?: boolean;
+        scheduledOffsetMin?: number;
+        vehicleType?: string;
+        deliveryType?: string;
+        cargoSize?: "small" | "medium" | "large";
+        needsHelper?: boolean;
+        priority?: number;
+        cargoDescription?: string;
+        pickupComplement?: string;
+        dropoffComplement?: string;
+        recipientName?: string;
+        recipientPhone?: string;
+        recipientInstructions?: string;
+        deliveryPin?: string;
+        offerValue?: number;
+        pricingSnapshot?: any;
+      }
+    | undefined;
+  DeliveryPaymentConfirm:
+    | {
+        rideId: string;
+      }
+    | undefined;
   RideTracking: { rideId: string };
   Chat: { rideId: string; driverName?: string };
   RideCompleted: {

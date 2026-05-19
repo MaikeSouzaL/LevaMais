@@ -17,6 +17,9 @@ import {
   Eye,
   User,
   Clock,
+  DollarSign,
+  ArrowDownCircle,
+  ArrowUpCircle,
   LucideIcon,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -703,8 +706,30 @@ function DriverDetails({
             <InfoRow
               icon={CheckCircle2}
               label="Termos Aceitos"
-              value={driver.acceptedTerms ? "Sim" : "Não"}
+              value={driver.acceptedTerms ? "Sim" : "Nao"}
             />
+            {driver.driverBalance && (
+              <>
+                <div className="border-t border-gray-200 pt-3 mt-3">
+                  <p className="text-xs font-bold text-gray-400 uppercase mb-2">Financeiro</p>
+                  <InfoRow
+                    icon={DollarSign}
+                    label="Saldo em Carteira"
+                    value={`R$ ${Number(driver.driverBalance.balance || 0).toFixed(2)}`}
+                  />
+                  <InfoRow
+                    icon={ArrowDownCircle}
+                    label="Total Depositado"
+                    value={`R$ ${Number(driver.driverBalance.totalDeposits || 0).toFixed(2)}`}
+                  />
+                  <InfoRow
+                    icon={ArrowUpCircle}
+                    label="Total em Taxas"
+                    value={`R$ ${Number(driver.driverBalance.totalDeductions || 0).toFixed(2)}`}
+                  />
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>

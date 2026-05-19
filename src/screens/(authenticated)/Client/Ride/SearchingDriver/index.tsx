@@ -278,6 +278,14 @@ export default function SearchingDriverScreen() {
            return;
         }
 
+        if (String(ride.status || "") === "payment_pending") {
+          doneRef.current = true;
+          clearInterval(pollInterval);
+          cleanup();
+          navigation.replace("DeliveryPaymentConfirm", { rideId: ride._id });
+          return;
+        }
+
         if (
           ride.driverId &&
           ["accepted", "driver_arriving", "arrived", "in_progress"].includes(ride.status)

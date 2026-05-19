@@ -31,6 +31,7 @@ export default function HomeScreen() {
   const { userData: user } = useAuthStore();
   
   const [showHomeSuccessModal, setShowHomeSuccessModal] = useState(false);
+  const [showNoDriversModal, setShowNoDriversModal] = useState(false);
 
   useEffect(() => {
     if (route.params?.showSuccessQueueModal) {
@@ -64,6 +65,8 @@ export default function HomeScreen() {
     deliveryDrivers: 0,
     totalNearby: 0,
   });
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState<string | null>(null);
   
   // Map Operational Visual States 🎨
   const [useDarkMap, setUseDarkMap] = useState(true);
@@ -150,6 +153,8 @@ export default function HomeScreen() {
 
     const loadNearbyAvailability = async () => {
       try {
+        setAvailabilityLoading(true);
+        setAvailabilityError(null);
         const lat = userRegion?.latitude || region?.latitude;
         const lng = userRegion?.longitude || region?.longitude;
         if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
@@ -173,7 +178,11 @@ export default function HomeScreen() {
         });
       } catch {
         if (!mounted) return;
-        setAvailability((prev) => prev);
+        setAvailabilityError("Nao foi possivel validar disponibilidade local agora.");
+      } finally {
+        if (mounted) {
+          setAvailabilityLoading(false);
+        }
       }
     };
 
@@ -204,6 +213,10 @@ export default function HomeScreen() {
       type: "ride" | "delivery",
       options?: { preferScheduled?: boolean },
     ) => {
+    if (type === "delivery" && availability.deliveryDrivers <= 0) {
+      setShowNoDriversModal(true);
+      return;
+    }
     const defaultVehicle = type === "ride" ? "car" : "motorcycle";
     
     navigation.navigate("DestinationSearch", {
@@ -212,7 +225,7 @@ export default function HomeScreen() {
       serviceType: type,
       // REMOVED pre-filled pickup to force user verification
     });
-  }, [navigation, currentAddress, userRegion, region]);
+  }, [navigation, availability.deliveryDrivers]);
 
   const handleSearchPress = useCallback(() => {
     navigation.navigate("DestinationSearch", {
@@ -378,6 +391,8 @@ export default function HomeScreen() {
         onSelectService={handleServiceSelect}
         favorites={favorites}
         availability={availability}
+        availabilityLoading={availabilityLoading}
+        availabilityError={availabilityError}
         onSelectFavorite={(fav) => {
           // Emulates handling of legacy favorite flow triggers
           navigation.navigate("DestinationSearch", {
@@ -403,6 +418,14 @@ export default function HomeScreen() {
         type="success"
         confirmText="Entendido"
         onClose={() => setShowHomeSuccessModal(false)}
+      />
+      <Modal
+        visible={showNoDriversModal}
+        title="Entrega indisponível"
+        message="Não encontramos entregadores online na sua região agora. Tente novamente em alguns minutos."
+        type="warning"
+        confirmText="Entendido"
+        onClose={() => setShowNoDriversModal(false)}
       />
       
     </GestureHandlerRootView>

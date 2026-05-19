@@ -172,9 +172,9 @@ const driverController = {
       user.driverBalance.balance += amount;
       user.driverBalance.totalDeposits += amount;
       user.driverBalance.transactions.push({
-        type: "deposit",
+        type: "driver_topup",
         amount: amount,
-        description: `Depósito de R$ ${amount.toFixed(2)}`,
+        description: `Recarga de R$ ${amount.toFixed(2)}`,
         status: "completed",
         createdAt: new Date(),
       });
@@ -209,7 +209,14 @@ const driverController = {
         return res.status(401).json({ error: "Usuário não autenticado" });
       }
 
-      const { amount, rideId, deductionPercentage = 0.2 } = req.body;
+      const { amount, rideId, deductionPercentage } = req.body;
+
+      // Buscar percentual configurado se nao enviado no request
+      let effectiveDeductionPercentage = Number(deductionPercentage);
+      if (!Number.isFinite(effectiveDeductionPercentage) || effectiveDeductionPercentage <= 0) {
+        const config = await PlatformConfig.findOne().catch(() => null);
+        effectiveDeductionPercentage = config?.appFeePercentage ?? 15;
+      }
 
       if (!amount || amount <= 0) {
         return res.status(400).json({ error: "Valor de dedução inválido" });
@@ -230,7 +237,7 @@ const driverController = {
         };
       }
 
-      const deductAmount = amount * deductionPercentage;
+      const deductAmount = Number((amount * effectiveDeductionPercentage / 100).toFixed(2));
 
       // Check if has sufficient balance
       if (user.driverBalance.balance < deductAmount) {
@@ -245,9 +252,9 @@ const driverController = {
       user.driverBalance.balance -= deductAmount;
       user.driverBalance.totalDeductions += deductAmount;
       user.driverBalance.transactions.push({
-        type: "deduction",
+        type: "app_fee_debit",
         amount: deductAmount,
-        description: `Dedução de 20% da corrida (R$ ${amount.toFixed(2)})`,
+        description: `Taxa Leva Mais ${effectiveDeductionPercentage}% sobre R$ ${amount.toFixed(2)}`,
         rideId: rideId,
         status: "completed",
         createdAt: new Date(),
@@ -294,9 +301,12 @@ const driverController = {
         return res.status(403).json({ error: "Usuário não é um motorista" });
       }
 
+      // Buscar percentual de taxa configurado
+      const config = await PlatformConfig.findOne().catch(() => null);
+      const appFeePercentage = config?.appFeePercentage ?? 15;
+
       const balance = user.driverBalance?.balance || 0;
-      // Need to have at least the ride value as 20% will be deducted
-      const requiredBalance = rideValue * 0.2;
+      const requiredBalance = Number((rideValue * appFeePercentage / 100).toFixed(2));
       const canAccept = balance >= requiredBalance;
 
       res.json({
@@ -305,6 +315,7 @@ const driverController = {
         currentBalance: balance,
         requiredBalance: requiredBalance,
         rideValue: rideValue,
+        appFeePercentage,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -357,7 +368,7 @@ const driverController = {
       user.driverBalance.transactions.push({
         type: "withdrawal",
         amount: amount,
-        description: `Saque de R$ ${amount.toFixed(2)}`,
+        description: `Saque solicitado de R$ ${amount.toFixed(2)}`,
         pixKey: pixKey,
         status: "pending",
         createdAt: new Date(),
@@ -456,7 +467,7 @@ const driverController = {
     }
   },
 
-  // Go online (check if has balance)
+  // Go online (verifica driverStatus, documentos, veiculo aprovado, saldo e termos)
   goOnline: async (req, res) => {
     try {
       const userId = req.user?.id;
@@ -469,20 +480,69 @@ const driverController = {
         return res.status(403).json({ error: "Usuário não é um motorista" });
       }
 
-      const balance = user.driverBalance?.balance || 0;
+      // 1. Verificar driverStatus
+      if (user.driverStatus !== "approved") {
+        const statusMessages = {
+          none: "Seu cadastro ainda nao foi iniciado. Complete o onboarding.",
+          pending: "Seus documentos estao em analise. Aguarde a aprovacao.",
+          rejected: `Seu cadastro foi reprovado${user.driverDocuments?.rejectionReason ? ": " + user.driverDocuments.rejectionReason : ""}. Corrija e reenvie.`,
+        };
+        return res.status(400).json({
+          error: statusMessages[user.driverStatus] || "Cadastro nao aprovado",
+          driverStatus: user.driverStatus,
+        });
+      }
 
+      // 2. Verificar se documentos pessoais foram enviados
+      const docs = user.driverDocuments || {};
+      if (!docs.cnhFront || !docs.cnhBack || !docs.selfie) {
+        return res.status(400).json({
+          error: "Documentos pessoais incompletos. Envie CNH frente, CNH verso e selfie.",
+        });
+      }
+
+      // 3. Verificar veiculo ativo e aprovado
+      const activeVehicle = user.vehicles?.find(
+        (v) => String(v._id) === String(user.activeVehicleId)
+      );
+      if (!activeVehicle) {
+        return res.status(400).json({
+          error: "Nenhum veiculo ativo. Cadastre e ative um veiculo aprovado.",
+        });
+      }
+      if (activeVehicle.status !== "approved") {
+        return res.status(400).json({
+          error: `Seu veiculo ${activeVehicle.plate || activeVehicle.model || ""} ainda nao foi aprovado.`,
+          vehicleStatus: activeVehicle.status,
+        });
+      }
+
+      // 4. Verificar termos aceitos
+      if (!user.acceptedTerms) {
+        return res.status(400).json({
+          error: "Voce precisa aceitar os Termos de Uso antes de trabalhar.",
+        });
+      }
+
+      // 5. Verificar saldo
+      const balance = user.driverBalance?.balance || 0;
       if (balance <= 0) {
         return res.status(400).json({
           error: "Saldo insuficiente para trabalhar",
           currentBalance: balance,
-          message: "Você precisa ter um saldo positivo para ficar online",
+          message: "Voce precisa ter um saldo positivo para ficar online",
         });
       }
 
+      // Buscar appFeePercentage para informar ao motorista
+      const config = await PlatformConfig.findOne().catch(() => null);
+      const appFeePercentage = config?.appFeePercentage ?? 15;
+
       res.json({
         success: true,
-        message: "Motorista online com saldo suficiente",
+        message: "Motorista liberado para trabalhar",
         balance: balance,
+        appFeePercentage,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -591,7 +651,14 @@ const driverController = {
         officialModel: apiResult.model ? String(apiResult.model).trim() : undefined,
         officialYear: apiResult.year ? Number(apiResult.year) : undefined,
         isVerifiedByAPI: !apiResult.isFallback,
+        plateVerifiedByAPI: !apiResult.isFallback,
+        plateVerificationSource: apiResult.isFallback ? "fallback" : "api",
         documents: documents || {},
+        vehicleDocumentsStatus: {
+          crlvFront: (documents?.crlvFront && documents.crlvFront.length > 0) ? "pending" : "none",
+          crlvBack: (documents?.crlvBack && documents.crlvBack.length > 0) ? "pending" : "none",
+          vehiclePhoto: (documents?.vehiclePhoto && documents.vehiclePhoto.length > 0) ? "pending" : "none",
+        },
         status: "pending"
       };
 
@@ -679,6 +746,66 @@ const driverController = {
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
+    }
+  },
+
+  // 📸 Upload de documentos do veículo (multipart) - substitui o envio de file:// URIs
+  uploadVehicleDocuments: async (req, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Usuário não autenticado" });
+      }
+
+      const { vehicleId } = req.params;
+
+      const user = await User.findById(userId);
+      if (!user || user.userType !== "driver") {
+        return res.status(403).json({ error: "Usuário não é um motorista" });
+      }
+
+      const vehicle = user.vehicles?.id(vehicleId);
+      if (!vehicle) {
+        return res.status(404).json({ error: "Veículo não encontrado na sua frota" });
+      }
+
+      if (!req.files || Object.keys(req.files).length === 0) {
+        return res.status(400).json({ error: "Nenhum documento foi enviado" });
+      }
+
+      const protocol = req.headers["x-forwarded-proto"] || req.protocol;
+      const host = req.get("host");
+      const baseUrl = `${protocol}://${host}/uploads/drivers`;
+
+      const docKeys = ["crlvFront", "crlvBack", "vehiclePhoto"];
+      const updatedDocs = { ...(vehicle.documents || {}) };
+      const updatedDocStatus = { ...(vehicle.vehicleDocumentsStatus || {}) };
+
+      docKeys.forEach((key) => {
+        if (req.files[key] && req.files[key][0]) {
+          updatedDocs[key] = `${baseUrl}/${req.files[key][0].filename}`;
+          updatedDocStatus[key] = "pending";
+        }
+      });
+
+      vehicle.documents = updatedDocs;
+      vehicle.documents.submittedAt = new Date();
+      vehicle.vehicleDocumentsStatus = updatedDocStatus;
+      vehicle.status = "pending";
+
+      await user.save();
+
+      return res.json({
+        success: true,
+        message: "Documentos do veículo enviados com sucesso. Aguardando análise.",
+        data: {
+          documents: vehicle.documents,
+          vehicleDocumentsStatus: vehicle.vehicleDocumentsStatus,
+        },
+      });
+    } catch (error) {
+      console.error("Erro ao enviar documentos do veículo:", error);
+      return res.status(500).json({ error: error.message });
     }
   },
 };

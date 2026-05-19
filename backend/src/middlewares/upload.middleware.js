@@ -42,7 +42,7 @@ const upload = multer({
   fileFilter: fileFilter,
 });
 
-// Configuration for Driver Bundle
+// Configuration for Driver Bundle (tambem usada para veiculos e cliente)
 const uploadDriverBundle = upload.fields([
   { name: "cnhFront", maxCount: 1 },
   { name: "cnhBack", maxCount: 1 },
@@ -50,6 +50,8 @@ const uploadDriverBundle = upload.fields([
   { name: "crlvBack", maxCount: 1 },
   { name: "vehiclePhoto", maxCount: 1 },
   { name: "selfie", maxCount: 1 },
+  { name: "rgFront", maxCount: 1 },
+  { name: "rgBack", maxCount: 1 },
 ]);
 
 module.exports = {

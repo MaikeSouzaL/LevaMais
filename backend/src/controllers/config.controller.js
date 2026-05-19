@@ -33,7 +33,7 @@ const DEFAULT_CONFIG = {
     { amount: 100, label: "R$ 100" },
   ],
   rideSettings: {
-    deductionPercentage: 0.2,
+    deductionPercentage: 0.15,
     minimumBalance: 5,
     minRideValue: 10,
     maxRideDistance: 100,

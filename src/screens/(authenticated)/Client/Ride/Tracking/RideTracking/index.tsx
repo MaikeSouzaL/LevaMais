@@ -54,6 +54,12 @@ function getStatusMeta(status?: string, serviceType?: string) {
       color: "#fbbf24",
       bg: "rgba(251,191,36,0.16)",
     },
+    payment_pending: {
+      title: "Aguardando pagamento",
+      subtitle: "Confirme o pagamento para liberar a entrega.",
+      color: "#f59e0b",
+      bg: "rgba(245,158,11,0.18)",
+    },
     driver_assigned: {
       title: "Motorista encontrado",
       subtitle: "Aguardando confirmacao final do motorista.",
@@ -128,6 +134,76 @@ function getStatusMeta(status?: string, serviceType?: string) {
     color: colors.text.primary,
     bg: "rgba(255,255,255,0.12)",
   };
+}
+
+type DeliveryTimelineStep = {
+  key: string;
+  label: string;
+  done: boolean;
+  active: boolean;
+};
+
+function getDeliveryTimeline(status: string): DeliveryTimelineStep[] {
+  const isDone = (target: string) => {
+    if (target === "to_pickup") {
+      return ["driver_assigned", "accepted", "driver_arriving", "arrived", "in_progress", "completed"].includes(status);
+    }
+    if (target === "arrived_pickup") {
+      return ["arrived", "in_progress", "completed"].includes(status);
+    }
+    if (target === "picked_up") {
+      return ["in_progress", "completed"].includes(status);
+    }
+    if (target === "to_dropoff") {
+      return ["in_progress", "completed"].includes(status);
+    }
+    if (target === "arrived_dropoff") {
+      return ["completed"].includes(status);
+    }
+    if (target === "completed") {
+      return ["completed"].includes(status);
+    }
+    return false;
+  };
+
+  return [
+    {
+      key: "to_pickup",
+      label: "Motorista a caminho da coleta",
+      done: isDone("to_pickup"),
+      active: ["driver_assigned", "accepted", "driver_arriving"].includes(status),
+    },
+    {
+      key: "arrived_pickup",
+      label: "Motorista chegou na coleta",
+      done: isDone("arrived_pickup"),
+      active: status === "arrived",
+    },
+    {
+      key: "picked_up",
+      label: "Pacote coletado",
+      done: isDone("picked_up"),
+      active: status === "in_progress",
+    },
+    {
+      key: "to_dropoff",
+      label: "A caminho da entrega",
+      done: isDone("to_dropoff"),
+      active: status === "in_progress",
+    },
+    {
+      key: "arrived_dropoff",
+      label: "Chegou no destino",
+      done: isDone("arrived_dropoff"),
+      active: false,
+    },
+    {
+      key: "completed",
+      label: "Entrega concluida",
+      done: isDone("completed"),
+      active: status === "completed",
+    },
+  ];
 }
 
 export default function RideTrackingScreen() {
@@ -463,6 +539,10 @@ export default function RideTrackingScreen() {
     ride?.serviceType === "delivery" || ride?.serviceType === "frete"
       ? "Entrega"
       : "Corrida";
+  const deliveryTimeline = useMemo(
+    () => (isDeliveryFlow ? getDeliveryTimeline(status) : []),
+    [isDeliveryFlow, status],
+  );
 
   const routeMode: "toPickup" | "toDropoff" | "none" = useMemo(() => {
     if (!pickupCoord || !dropoffCoord) return "none";
@@ -683,6 +763,40 @@ export default function RideTrackingScreen() {
           {status === "in_progress" ? `${rideLabel} em andamento` : "Resumo do pedido"}
         </Text>
 
+        {isDeliveryFlow && (
+          <View style={styles.timelineCard}>
+            <Text style={styles.timelineTitle}>Fases da entrega</Text>
+            {deliveryTimeline.map((step, index) => (
+              <View key={step.key} style={styles.timelineRow}>
+                <View style={styles.timelineMarkerWrap}>
+                  <View
+                    style={[
+                      styles.timelineDot,
+                      step.done ? styles.timelineDotDone : step.active ? styles.timelineDotActive : styles.timelineDotIdle,
+                    ]}
+                  />
+                  {index < deliveryTimeline.length - 1 && (
+                    <View
+                      style={[
+                        styles.timelineLine,
+                        step.done ? styles.timelineLineDone : styles.timelineLineIdle,
+                      ]}
+                    />
+                  )}
+                </View>
+                <Text
+                  style={[
+                    styles.timelineLabel,
+                    step.done ? styles.timelineLabelDone : step.active ? styles.timelineLabelActive : styles.timelineLabelIdle,
+                  ]}
+                >
+                  {step.label}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+
         <Text style={styles.addressLine} numberOfLines={1}>
           Coleta: {ride?.pickup?.address || "-"}
         </Text>
@@ -836,6 +950,74 @@ const styles = StyleSheet.create({
     height: 36,
     backgroundColor: "rgba(255,255,255,0.12)",
   },
+  timelineCard: {
+    marginBottom: spacing.md,
+    padding: spacing.sm,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.10)",
+    backgroundColor: "rgba(255,255,255,0.03)",
+  },
+  timelineTitle: {
+    color: colors.text.primary,
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.bold,
+    marginBottom: spacing.sm,
+  },
+  timelineRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    minHeight: 28,
+  },
+  timelineMarkerWrap: {
+    width: 14,
+    alignItems: "center",
+  },
+  timelineDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginTop: 2,
+  },
+  timelineDotDone: {
+    backgroundColor: "#02de95",
+  },
+  timelineDotActive: {
+    backgroundColor: "#60a5fa",
+  },
+  timelineDotIdle: {
+    backgroundColor: "rgba(255,255,255,0.24)",
+  },
+  timelineLine: {
+    width: 2,
+    flex: 1,
+    marginTop: 2,
+    borderRadius: 1,
+  },
+  timelineLineDone: {
+    backgroundColor: "rgba(2,222,149,0.6)",
+  },
+  timelineLineIdle: {
+    backgroundColor: "rgba(255,255,255,0.14)",
+  },
+  timelineLabel: {
+    flex: 1,
+    fontSize: fontSize.xs,
+    lineHeight: 18,
+    paddingBottom: 8,
+  },
+  timelineLabelDone: {
+    color: colors.text.primary,
+    fontWeight: "700",
+  },
+  timelineLabelActive: {
+    color: "#93c5fd",
+    fontWeight: "700",
+  },
+  timelineLabelIdle: {
+    color: colors.text.tertiary,
+  },
   bottomCard: {
     position: "absolute",
     left: spacing.lg,
@@ -926,5 +1108,4 @@ const styles = StyleSheet.create({
   },
   actionBtnDisabled: { opacity: 0.45 },
 });
-
 

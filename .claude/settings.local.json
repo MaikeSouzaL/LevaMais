@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \"try { require\\('./backend/src/models/User.js'\\); console.log\\('OK User.js'\\); } catch\\(e\\) { console.log\\('ERROR User.js:', e.message\\); }\")",
+      "Bash(node -e ' *)",
+      "Bash(node -e \"const RideController = require\\('./backend/src/controllers/ride.controller'\\); console.log\\('confirmNegotiationPayment:', typeof RideController.confirmNegotiationPayment\\);\")",
+      "Bash(node -e \"const RideController = require\\('./backend/src/controllers/ride.controller'\\); console.log\\('saveTrackPoint:', typeof RideController.saveTrackPoint\\); console.log\\('getRouteAudit:', typeof RideController.getRouteAudit\\);\")",
+      "Bash(node *)"
+    ]
+  }
+}

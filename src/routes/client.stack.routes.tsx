@@ -15,6 +15,8 @@ import SelectVehicleScreen from "../screens/(authenticated)/Client/Ride/Request/
 import ServicePurposeScreen from "../screens/(authenticated)/Client/Ride/Request/ServicePurpose";
 import RideSetupScreen from "../screens/(authenticated)/Client/Ride/Request/RideSetup";
 import DeliverySetupScreen from "../screens/(authenticated)/Client/Ride/Request/DeliverySetup";
+import DeliveryReviewScreen from "../screens/(authenticated)/Client/Ride/Request/DeliveryReview";
+import DeliveryPaymentConfirmScreen from "../screens/(authenticated)/Client/Ride/Request/DeliveryPaymentConfirm";
 import OrderSummaryScreen from "../screens/(authenticated)/Client/Ride/Request/OrderSummary";
 import CancelFeeScreen from "../screens/(authenticated)/Client/Ride/Cancellation/CancelFee";
 import ChatScreen from "../screens/(authenticated)/Client/Ride/Tracking/Chat";
@@ -75,6 +77,8 @@ export default function ClientStackRoutes({
       <Stack.Screen name="SelectVehicle" component={SelectVehicleScreen} />
       <Stack.Screen name="RideSetup" component={RideSetupScreen} />
       <Stack.Screen name="DeliverySetup" component={DeliverySetupScreen} />
+      <Stack.Screen name="DeliveryReview" component={DeliveryReviewScreen} />
+      <Stack.Screen name="DeliveryPaymentConfirm" component={DeliveryPaymentConfirmScreen} />
       <Stack.Screen name="ServicePurpose" component={ServicePurposeScreen} />
       <Stack.Screen name="FinalOrderSummary" component={OrderSummaryScreen} />
        <Stack.Screen name="Payment" component={PaymentEnhancedScreen} />

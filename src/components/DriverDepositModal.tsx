@@ -180,7 +180,7 @@ export function DriverDepositModal({
               <Text className="text-[#0ea5e9] font-bold mb-1">Como funciona</Text>
               <Text className="text-[#0ea5e9]/80 text-xs leading-4">
                 Você precisa de um saldo mínimo para aceitar corridas. A cada corrida
-                completada, 20% do valor é descontado.
+                completada, a taxa da plataforma é descontada do seu saldo.
               </Text>
             </View>
           </View>
@@ -262,8 +262,8 @@ export function DriverDepositModal({
             <View className="flex-1">
               <Text className="text-[#f59e0b] font-bold mb-1">Importante</Text>
               <Text className="text-[#f59e0b]/80 text-xs leading-4">
-                Cada corrida consome 20% do valor. Por exemplo: numa corrida de R$ 50, você
-                perderá R$ 10 do seu saldo.
+                A taxa da plataforma e descontada do seu saldo a cada corrida. Exemplo: numa corrida de R$ 50 com taxa de 15%, voce
+                pagara R$ 7,50 do seu saldo.
               </Text>
             </View>
           </View>

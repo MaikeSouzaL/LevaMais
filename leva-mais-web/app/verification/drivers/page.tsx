@@ -51,6 +51,24 @@ interface PendingDriver {
     selfie?: string;
     submittedAt?: string;
     rejectionReason?: string;
+    cnhFrontStatus?: string;
+    cnhBackStatus?: string;
+    selfieStatus?: string;
+    reviewedAt?: string;
+    reviewedBy?: string;
+  };
+  clientVerification?: {
+    status?: string;
+    cpfStatus?: string;
+    selfieStatus?: string;
+    documents?: {
+      selfie?: string;
+      rgFront?: string;
+      rgBack?: string;
+    };
+    rejectionReason?: string;
+    submittedAt?: string;
+    reviewedAt?: string;
   };
   vehicleInfo?: {
     plate: string;
@@ -72,6 +90,13 @@ interface PendingDriver {
     officialModel?: string;
     officialYear?: number;
     isVerifiedByAPI?: boolean;
+    plateVerifiedByAPI?: boolean;
+    plateVerificationSource?: string;
+    vehicleDocumentsStatus?: {
+      crlvFront?: string;
+      crlvBack?: string;
+      vehiclePhoto?: string;
+    };
     documents?: {
       crlvFront?: string;
       crlvBack?: string;
@@ -100,7 +125,7 @@ const cleanDocUrl = (url?: string) => {
   if (url.startsWith("file:///")) {
     return url; // Keep local cache URIs, will be handled gracefully by UI
   }
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001/api";
   const backendBase = API_URL.replace("/api", "");
   if (url.startsWith("http://") || url.startsWith("https://")) {
     return url.replace(/^https?:\/\/[^\/]+/, backendBase);
@@ -141,10 +166,23 @@ export default function UnifiedVerificationPage() {
 
   const { showToast, ToastContainer } = useToast();
 
+  // Full-screen image viewer state
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [lightboxTitle, setLightboxTitle] = useState("");
+
+  const openLightbox = (url: string, title: string) => {
+    if (url.startsWith("file://")) {
+      showToast("Este documento foi enviado como arquivo local e nao esta disponivel no servidor. O motorista precisa reenviar.", "error");
+      return;
+    }
+    setLightboxTitle(title);
+    setLightboxImage(cleanDocUrl(url));
+  };
+
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001/api";
       const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || "dev-admin-key";
       
       const [driversRes, clientsRes] = await Promise.all([
@@ -215,7 +253,7 @@ export default function UnifiedVerificationPage() {
   const handleApproveUser = async (user: PendingDriver | PendingClient) => {
     setProcessing(true);
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001/api";
       const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || "dev-admin-key";
 
       const payload: {
@@ -238,24 +276,21 @@ export default function UnifiedVerificationPage() {
         };
 
         const driverUser = user as PendingDriver;
-        // Approve all pending vehicles automatically
+        // Na nova abordagem, cada veiculo mantem seu status individual.
+        // Apenas ativa o primeiro veiculo APROVADO se nenhum estiver ativo
         if (driverUser.vehicles && driverUser.vehicles.length > 0) {
-          const updatedVehicles = driverUser.vehicles.map(v => ({
-            ...v,
-            status: "approved" as const
-          }));
-          payload.vehicles = updatedVehicles;
-
-          // If no active vehicle is set, activate the first one
           if (!driverUser.activeVehicleId) {
-            payload.activeVehicleId = updatedVehicles[0]._id;
-            payload.vehicleType = updatedVehicles[0].type;
-            payload.vehicleInfo = {
-              plate: updatedVehicles[0].plate,
-              model: updatedVehicles[0].model,
-              color: updatedVehicles[0].color || "Não informada",
-              year: updatedVehicles[0].year || new Date().getFullYear()
-            };
+            const approvedVehicle = driverUser.vehicles.find(v => v.status === "approved");
+            if (approvedVehicle) {
+              payload.activeVehicleId = approvedVehicle._id;
+              payload.vehicleType = approvedVehicle.type;
+              payload.vehicleInfo = {
+                plate: approvedVehicle.plate,
+                model: approvedVehicle.model,
+                color: approvedVehicle.color || "Nao informada",
+                year: approvedVehicle.year || new Date().getFullYear()
+              };
+            }
           }
         }
       }
@@ -274,6 +309,34 @@ export default function UnifiedVerificationPage() {
     }
   };
 
+  // Approve or reject individual vehicle
+  const handleVehicleStatusUpdate = async (userId: string, vehicleId: string, newStatus: "approved" | "rejected", reason?: string) => {
+    setProcessing(true);
+    try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001/api";
+      const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || "dev-admin-key";
+
+      const driverUser = selectedUser as PendingDriver;
+      const updatedVehicles = (driverUser.vehicles || []).map(v => {
+        if (v._id === vehicleId) {
+          return { ...v, status: newStatus, rejectionReason: newStatus === "rejected" ? (reason || "Reprovado pelo admin") : "" };
+        }
+        return v;
+      });
+
+      await axios.patch(`${API_URL}/auth/users/${userId}`, {
+        vehicles: updatedVehicles,
+      }, { headers: { "x-admin-key": ADMIN_API_KEY } });
+
+      showToast(`Veiculo ${newStatus === "approved" ? "aprovado" : "reprovado"}!`, "success");
+      loadData();
+    } catch {
+      showToast("Erro ao atualizar status do veiculo", "error");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   // Reject Account Action
   const handleRejectUser = async () => {
     const finalReason = customReason.trim() || rejectionReason;
@@ -284,7 +347,7 @@ export default function UnifiedVerificationPage() {
 
     setProcessing(true);
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001/api";
       const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || "dev-admin-key";
 
       const payload: {
@@ -630,7 +693,7 @@ export default function UnifiedVerificationPage() {
         <>
           <div className="fixed inset-0 bg-black bg-opacity-40 z-40 transition-opacity" onClick={() => setIsDrawerOpen(false)} />
 
-          <div className="fixed right-0 top-0 h-full w-full max-w-2xl bg-white shadow-2xl z-50 overflow-y-auto flex flex-col justify-between animate-in slide-in-from-right duration-250">
+          <div className="fixed right-0 top-0 h-full w-full max-w-2xl bg-white shadow-2xl z-50 overflow-y-auto flex flex-col justify-between animate-in slide-in-from-right duration-200">
             
             {/* Header */}
             <div className="sticky top-0 bg-white border-b border-gray-100 p-5 flex items-center justify-between z-10">
@@ -686,7 +749,7 @@ export default function UnifiedVerificationPage() {
                     </h4>
 
                     {(selectedUser as PendingDriver).bankAccount ? (
-                      <div className="bg-gradient-to-br from-slate-900 to-slate-950 text-white rounded-2xl p-4.5 shadow-md border border-slate-800 space-y-3 relative overflow-hidden">
+                      <div className="bg-gradient-to-br from-slate-900 to-slate-950 text-white rounded-2xl p-4 shadow-md border border-slate-800 space-y-3 relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none"></div>
                         <div className="flex justify-between items-start">
                           <div>
@@ -740,7 +803,7 @@ export default function UnifiedVerificationPage() {
                             <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Chave PIX Padrão</p>
                             <p className="text-sm font-black text-emerald-400 mt-0.5">{selectedUser.cpf || "Não cadastrada"}</p>
                           </div>
-                          <span className="text-[8px] font-black tracking-widest text-slate-400 uppercase border border-slate-750 px-2 py-0.5 rounded bg-slate-800/30">CPF CHAVE</span>
+                          <span className="text-[8px] font-black tracking-widest text-slate-400 uppercase border border-slate-700 px-2 py-0.5 rounded bg-slate-800/30">CPF CHAVE</span>
                         </div>
                         <p className="text-[9px] text-slate-400 leading-tight">
                           O motorista não cadastrou dados de conta adicionais. Por padrão, a chave Pix associada ao CPF será utilizada para repasses semanais e saldos.
@@ -783,9 +846,25 @@ export default function UnifiedVerificationPage() {
                                     <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">{vehicle.type}</p>
                                   </div>
                                 </div>
-                                <span className={`px-2 py-0.5 rounded-full border text-[9px] font-bold ${statusColors[vehicle.status]}`}>
-                                  {statusLabels[vehicle.status]}
-                                </span>
+                                <div className="flex items-center gap-2">
+                                  <span className={`px-2 py-0.5 rounded-full border text-[9px] font-bold ${statusColors[vehicle.status]}`}>
+                                    {statusLabels[vehicle.status]}
+                                  </span>
+                                  {vehicle.status !== "approved" && (
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); handleVehicleStatusUpdate(selectedUser._id, vehicle._id, "approved"); }}
+                                      disabled={processing}
+                                      className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-lg text-[9px] font-bold hover:bg-emerald-200 disabled:opacity-50"
+                                    >✓ Aprovar</button>
+                                  )}
+                                  {vehicle.status !== "rejected" && (
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); handleVehicleStatusUpdate(selectedUser._id, vehicle._id, "rejected", "Reprovado manualmente pelo admin"); }}
+                                      disabled={processing}
+                                      className="px-2 py-0.5 bg-red-100 text-red-700 rounded-lg text-[9px] font-bold hover:bg-red-200 disabled:opacity-50"
+                                    >✕ Reprovar</button>
+                                  )}
+                                </div>
                               </div>
 
                               {/* Grid de Detalhes */}
@@ -837,15 +916,20 @@ export default function UnifiedVerificationPage() {
                               {/* API DETRAN Placa Consult Comparação */}
                               <div className="p-4 bg-slate-50 border-b border-gray-200/60 text-xs">
                                 <div className="flex items-center gap-2 mb-3">
-                                  {vehicle.isVerifiedByAPI ? (
+                                  {vehicle.plateVerifiedByAPI ? (
                                     <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-full text-[9px] font-black uppercase">
                                       <Shield className="w-3 h-3 text-emerald-600 shrink-0" />
                                       ✓ Validado DETRAN via API
                                     </span>
-                                  ) : (
+                                  ) : vehicle.plateVerificationSource === "fallback" ? (
                                     <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-full text-[9px] font-black uppercase">
                                       <AlertCircle className="w-3 h-3 text-amber-600 shrink-0" />
-                                      Pendente API Placas Oficial
+                                      ⚠ Placa aceita por fallback (API indisponivel)
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 bg-slate-50 text-slate-700 border border-slate-200 px-2 py-0.5 rounded-full text-[9px] font-black uppercase">
+                                      <AlertCircle className="w-3 h-3 text-slate-500 shrink-0" />
+                                      Nao verificado externamente
                                     </span>
                                   )}
                                 </div>
@@ -894,12 +978,18 @@ export default function UnifiedVerificationPage() {
                                           <span className="absolute bottom-1 left-1 right-1 bg-emerald-500 text-white font-extrabold text-[6px] py-0.5 rounded leading-none">Simulado</span>
                                         </div>
                                       ) : (
-                                        <div className="relative group overflow-hidden rounded-lg aspect-square border border-gray-200 bg-white">
+                                        <div
+                                          className="relative group overflow-hidden rounded-lg aspect-square border border-gray-200 bg-white cursor-pointer"
+                                          onClick={() => openLightbox(vehicle.documents!.vehiclePhoto!, "Foto do Veiculo - " + vehicle.plate)}
+                                        >
                                           <img
                                             src={cleanDocUrl(vehicle.documents.vehiclePhoto)}
-                                            alt="Veículo"
+                                            alt="Veiculo"
                                             className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                                           />
+                                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                                            <Eye className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                                          </div>
                                         </div>
                                       )
                                     ) : (
@@ -921,12 +1011,18 @@ export default function UnifiedVerificationPage() {
                                           <span className="absolute bottom-1 left-1 right-1 bg-emerald-500 text-white font-extrabold text-[6px] py-0.5 rounded leading-none">Simulado</span>
                                         </div>
                                       ) : (
-                                        <div className="relative group overflow-hidden rounded-lg aspect-square border border-gray-200 bg-white">
+                                        <div
+                                          className="relative group overflow-hidden rounded-lg aspect-square border border-gray-200 bg-white cursor-pointer"
+                                          onClick={() => openLightbox(vehicle.documents!.crlvFront!, "CRLV Frente - " + vehicle.plate)}
+                                        >
                                           <img
                                             src={cleanDocUrl(vehicle.documents.crlvFront)}
                                             alt="CRLV Frente"
                                             className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                                           />
+                                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                                            <Eye className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                                          </div>
                                         </div>
                                       )
                                     ) : (
@@ -948,12 +1044,18 @@ export default function UnifiedVerificationPage() {
                                           <span className="absolute bottom-1 left-1 right-1 bg-emerald-500 text-white font-extrabold text-[6px] py-0.5 rounded leading-none">Simulado</span>
                                         </div>
                                       ) : (
-                                        <div className="relative group overflow-hidden rounded-lg aspect-square border border-gray-200 bg-white">
+                                        <div
+                                          className="relative group overflow-hidden rounded-lg aspect-square border border-gray-200 bg-white cursor-pointer"
+                                          onClick={() => openLightbox(vehicle.documents!.crlvBack!, "CRLV Verso - " + vehicle.plate)}
+                                        >
                                           <img
                                             src={cleanDocUrl(vehicle.documents.crlvBack)}
                                             alt="CRLV Verso"
                                             className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                                           />
+                                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                                            <Eye className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                                          </div>
                                         </div>
                                       )
                                     ) : (
@@ -1022,12 +1124,18 @@ export default function UnifiedVerificationPage() {
                               <span className="absolute bottom-1 left-1 right-1 bg-emerald-500 text-white font-extrabold text-[6px] py-0.5 rounded leading-none">Simulado</span>
                             </div>
                           ) : (
-                            <div className="relative group overflow-hidden rounded-lg aspect-square border border-gray-200 bg-white">
+                            <div
+                              className="relative group overflow-hidden rounded-lg aspect-square border border-gray-200 bg-white cursor-pointer"
+                              onClick={() => openLightbox((selectedUser as PendingDriver).driverDocuments?.selfie ?? "", "Selfie - " + selectedUser.name)}
+                            >
                               <img
                                 src={cleanDocUrl((selectedUser as PendingDriver).driverDocuments?.selfie)}
                                 alt="Selfie"
                                 className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                               />
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                                <Eye className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                              </div>
                             </div>
                           )
                         ) : (
@@ -1049,12 +1157,18 @@ export default function UnifiedVerificationPage() {
                               <span className="absolute bottom-1 left-1 right-1 bg-emerald-500 text-white font-extrabold text-[6px] py-0.5 rounded leading-none">Simulado</span>
                             </div>
                           ) : (
-                            <div className="relative group overflow-hidden rounded-lg aspect-square border border-gray-200 bg-white">
+                            <div
+                              className="relative group overflow-hidden rounded-lg aspect-square border border-gray-200 bg-white cursor-pointer"
+                              onClick={() => openLightbox((selectedUser as PendingDriver).driverDocuments?.cnhFront ?? "", "CNH Frente - " + selectedUser.name)}
+                            >
                               <img
                                 src={cleanDocUrl((selectedUser as PendingDriver).driverDocuments?.cnhFront)}
                                 alt="CNH Frente"
                                 className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                               />
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                                <Eye className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                              </div>
                             </div>
                           )
                         ) : (
@@ -1076,12 +1190,18 @@ export default function UnifiedVerificationPage() {
                               <span className="absolute bottom-1 left-1 right-1 bg-emerald-500 text-white font-extrabold text-[6px] py-0.5 rounded leading-none">Simulado</span>
                             </div>
                           ) : (
-                            <div className="relative group overflow-hidden rounded-lg aspect-square border border-gray-200 bg-white">
+                            <div
+                              className="relative group overflow-hidden rounded-lg aspect-square border border-gray-200 bg-white cursor-pointer"
+                              onClick={() => openLightbox((selectedUser as PendingDriver).driverDocuments?.cnhBack ?? "", "CNH Verso - " + selectedUser.name)}
+                            >
                               <img
                                 src={cleanDocUrl((selectedUser as PendingDriver).driverDocuments?.cnhBack)}
                                 alt="CNH Verso"
                                 className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                               />
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                                <Eye className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                              </div>
                             </div>
                           )
                         ) : (
@@ -1099,7 +1219,7 @@ export default function UnifiedVerificationPage() {
             </div>
 
             {/* Actions footer */}
-            <div className="sticky bottom-0 bg-gray-50 border-t border-gray-150 p-4 z-10 flex gap-3">
+            <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 p-4 z-10 flex gap-3">
               <button
                 onClick={() => {
                   if (selectedUser.userType === "driver") {
@@ -1135,7 +1255,7 @@ export default function UnifiedVerificationPage() {
         <>
           <div className="fixed inset-0 bg-black bg-opacity-40 z-50 transition-opacity" onClick={() => setShowRejectModal(false)} />
           
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg bg-white rounded-2xl shadow-2xl z-55 overflow-hidden animate-in zoom-in-95 duration-200">
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg bg-white rounded-2xl shadow-2xl z-50 overflow-hidden animate-in zoom-in-95 duration-200">
             {/* Header */}
             <div className="bg-red-600 px-6 py-4 text-white">
               <h3 className="font-semibold text-lg flex items-center gap-2">
@@ -1175,7 +1295,7 @@ export default function UnifiedVerificationPage() {
             </div>
 
             {/* Footer */}
-            <div className="bg-gray-50 px-6 py-4 border-t border-gray-150 flex justify-end gap-3">
+            <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
               <button
                 onClick={() => setShowRejectModal(false)}
                 className="px-4 py-2 border border-gray-200 bg-white text-gray-700 rounded-xl text-xs font-bold hover:bg-gray-50"
@@ -1190,6 +1310,35 @@ export default function UnifiedVerificationPage() {
                 {processing ? "Reprovando..." : "Confirmar Reprovação"}
               </button>
             </div>
+          </div>
+        </>
+      )}
+
+      {/* Lightbox Modal - Full Screen Image Viewer */}
+      {lightboxImage && (
+        <>
+          <div
+            className="fixed inset-0 bg-black bg-opacity-90 z-[100] transition-opacity"
+            onClick={() => setLightboxImage(null)}
+          />
+          <div className="fixed inset-0 z-[110] flex flex-col items-center justify-center p-8" onClick={() => setLightboxImage(null)}>
+            <div className="absolute top-4 right-4 z-[120]">
+              <button
+                onClick={() => setLightboxImage(null)}
+                className="bg-white/10 hover:bg-white/20 text-white rounded-xl px-3 py-2 text-sm font-bold transition-colors"
+              >
+                ✕ Fechar
+              </button>
+            </div>
+            <div className="absolute top-4 left-4 z-[120]">
+              <p className="text-white/80 text-sm font-bold bg-black/50 px-3 py-1.5 rounded-lg">{lightboxTitle}</p>
+            </div>
+            <img
+              src={lightboxImage}
+              alt={lightboxTitle}
+              className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            />
           </div>
         </>
       )}

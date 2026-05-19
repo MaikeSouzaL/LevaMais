@@ -16,7 +16,9 @@ import {
   Star, 
   Navigation,
   Activity, 
-  AlertCircle
+  AlertCircle,
+  AlertTriangle,
+  Shield
 } from "lucide-react-native";
 import { formatBRL } from "../../../../utils/mappers";
 
@@ -24,13 +26,33 @@ export type DriverRequestCardItem = {
   rideId: string;
   pickup?: { address?: string };
   dropoff?: { address?: string };
-  pricing?: { total?: number };
+  pricing?: { total?: number; platformFee?: number; serviceFee?: number };
   distance?: { text?: string };
   serviceType?: string;
   vehicleType?: string;
+  payment?: {
+    method?: {
+      type?: string;
+    } | string;
+  };
+  financialRisk?: {
+    requiredBalance?: number;
+    estimatedPlatformFee?: number;
+  };
+  driverBalance?: number;
   details?: {
     itemType?: string;
     priority?: number;
+    cargoSize?: string;
+    approximateWeightKg?: number;
+    isFragile?: boolean;
+    needsHelper?: boolean;
+    pickupComplement?: string;
+    dropoffComplement?: string;
+    recipientName?: string;
+    recipientPhone?: string;
+    recipientInstructions?: string;
+    deliveryPin?: string;
     specialInstructions?: string;
   };
   negotiation?: {
@@ -66,6 +88,35 @@ export function DriverRequestCard({
 
   const finalPrice = item.negotiation?.clientOffer ?? item.pricing?.total ?? 0;
   const minPrice = item.negotiation?.suggestedMinPrice ?? (finalPrice * 0.8);
+  const estimatedPlatformFee =
+    Number(
+      item.financialRisk?.estimatedPlatformFee ??
+        item.pricing?.platformFee ??
+        item.pricing?.serviceFee ??
+        0,
+    ) || 0;
+  const requiredBalance =
+    Number(item.financialRisk?.requiredBalance) ||
+    Number(estimatedPlatformFee) ||
+    Number((finalPrice * 0.15).toFixed(2)) ||
+    0;
+  const currentBalance = Number(item.driverBalance || 0);
+  const hasEnoughBalance = currentBalance >= requiredBalance;
+  const rawPaymentType =
+    typeof item.payment?.method === "object"
+      ? item.payment?.method?.type
+      : item.payment?.method;
+  const paymentType = String(rawPaymentType || "cash").toLowerCase();
+  const paymentLabel =
+    paymentType === "pix"
+      ? "Pix"
+      : paymentType === "wallet"
+        ? "Carteira"
+        : paymentType === "card" ||
+            paymentType === "credit_card" ||
+            paymentType === "debit_card"
+          ? "Cartao"
+          : "Dinheiro";
 
   return (
     <MotiView
@@ -225,6 +276,123 @@ export function DriverRequestCard({
         </View>
       )}
 
+      {/* Cargo Details */}
+      {(item.details?.cargoSize || (item.details?.approximateWeightKg != null && item.details.approximateWeightKg > 0) || item.details?.isFragile || item.details?.needsHelper) && (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8, marginBottom: 20 }}>
+          {item.details?.cargoSize && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(168, 85, 247, 0.06)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(168, 85, 247, 0.1)' }}>
+              <Package size={12} color='#a855f7' />
+              <Text style={{ color: '#a855f7', fontSize: 11, fontWeight: '800', textTransform: 'uppercase' }}>
+                {item.details.cargoSize === 'large' ? 'Grande' : item.details.cargoSize === 'medium' ? 'Medio' : 'Pequeno'}
+              </Text>
+            </View>
+          )}
+          {item.details?.approximateWeightKg != null && item.details.approximateWeightKg > 0 && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(250, 204, 21, 0.06)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(250, 204, 21, 0.1)' }}>
+              <Package size={12} color='#facc15' />
+              <Text style={{ color: '#facc15', fontSize: 11, fontWeight: '800' }}>{item.details.approximateWeightKg}kg</Text>
+            </View>
+          )}
+          {item.details?.isFragile && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(239, 68, 68, 0.06)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.1)' }}>
+              <AlertTriangle size={12} color='#ef4444' />
+              <Text style={{ color: '#ef4444', fontSize: 11, fontWeight: '800' }}>Fragil</Text>
+            </View>
+          )}
+          {item.details?.needsHelper && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(34, 197, 94, 0.06)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(34, 197, 94, 0.1)' }}>
+              <Shield size={12} color='#22c55e' />
+              <Text style={{ color: '#22c55e', fontSize: 11, fontWeight: '800' }}>Ajudante</Text>
+            </View>
+          )}
+        </View>
+      )}
+
+      {item.serviceType === "delivery" && (
+        <View
+          style={{
+            backgroundColor: "rgba(59, 130, 246, 0.08)",
+            borderRadius: 16,
+            padding: 14,
+            marginBottom: 20,
+            borderWidth: 1,
+            borderColor: "rgba(59, 130, 246, 0.2)",
+            gap: 4,
+          }}
+        >
+          <Text style={{ color: "#60a5fa", fontSize: 10, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.5 }}>
+            Operacao da Entrega
+          </Text>
+          <Text style={{ color: "#fff", fontSize: 12, fontWeight: "600" }}>
+            Recebedor: {item.details?.recipientName || "-"}
+          </Text>
+          <Text style={{ color: "#fff", fontSize: 12, fontWeight: "600" }}>
+            Telefone: {item.details?.recipientPhone || "-"}
+          </Text>
+          {!!item.details?.pickupComplement && (
+            <Text style={{ color: "rgba(255,255,255,0.85)", fontSize: 12 }}>
+              Complemento coleta: {item.details.pickupComplement}
+            </Text>
+          )}
+          {!!item.details?.dropoffComplement && (
+            <Text style={{ color: "rgba(255,255,255,0.85)", fontSize: 12 }}>
+              Complemento destino: {item.details.dropoffComplement}
+            </Text>
+          )}
+          {!!item.details?.recipientInstructions && (
+            <Text style={{ color: "rgba(255,255,255,0.85)", fontSize: 12 }}>
+              Instrucao de entrega: {item.details.recipientInstructions}
+            </Text>
+          )}
+          {!!item.details?.deliveryPin && (
+            <Text style={{ color: "#F59E0B", fontSize: 12, fontWeight: "800" }}>
+              PIN: {item.details.deliveryPin}
+            </Text>
+          )}
+        </View>
+      )}
+
+      <View
+        style={{
+          backgroundColor: hasEnoughBalance ? "rgba(2, 222, 149, 0.08)" : "rgba(239, 68, 68, 0.12)",
+          borderRadius: 16,
+          padding: 14,
+          marginBottom: 20,
+          borderWidth: 1,
+          borderColor: hasEnoughBalance ? "rgba(2, 222, 149, 0.2)" : "rgba(239, 68, 68, 0.3)",
+          gap: 4,
+        }}
+      >
+        <Text
+          style={{
+            color: hasEnoughBalance ? "#02de95" : "#f87171",
+            fontSize: 10,
+            fontWeight: "900",
+            textTransform: "uppercase",
+            letterSpacing: 0.5,
+          }}
+        >
+          Risco Financeiro
+        </Text>
+        <Text style={{ color: "#fff", fontSize: 12, fontWeight: "600" }}>
+          Taxa estimada plataforma: {formatBRL(estimatedPlatformFee)}
+        </Text>
+        <Text style={{ color: "#fff", fontSize: 12, fontWeight: "600" }}>
+          Saldo necessario: {formatBRL(requiredBalance)}
+        </Text>
+        <Text style={{ color: hasEnoughBalance ? "#86efac" : "#fca5a5", fontSize: 12, fontWeight: "700" }}>
+          Saldo atual: {formatBRL(currentBalance)}
+        </Text>
+        <Text style={{ color: "rgba(255,255,255,0.85)", fontSize: 12 }}>
+          Pagamento previsto: {paymentLabel}
+        </Text>
+        {!hasEnoughBalance && (
+          <Text style={{ color: "#fca5a5", fontSize: 11, fontWeight: "700" }}>
+            Saldo insuficiente para aceitar com seguranca.
+          </Text>
+        )}
+      </View>
+
       {/* 📍 Connected Tactical Timeline */}
       <View style={{ backgroundColor: "rgba(255,255,255,0.02)", borderRadius: 20, padding: 16, borderWidth: 1, borderColor: "rgba(255,255,255,0.04)", marginBottom: 20 }}>
         {!isQueueItem || showDetails ? (
@@ -348,11 +516,12 @@ export function DriverRequestCard({
 
             <TouchableOpacity
               onPress={() => onAccept(item.rideId)}
+              disabled={!hasEnoughBalance}
               style={{
                 flex: 1.4,
                 height: 56,
                 borderRadius: 16,
-                backgroundColor: "#02de95",
+                backgroundColor: hasEnoughBalance ? "#02de95" : "rgba(2,222,149,0.28)",
                 alignItems: "center",
                 justifyContent: "center",
                 flexDirection: "row",
@@ -362,11 +531,16 @@ export function DriverRequestCard({
                 shadowOpacity: 0.3,
                 shadowRadius: 12,
                 elevation: 8,
+                opacity: hasEnoughBalance ? 1 : 0.7,
               }}
               activeOpacity={0.8}
             >
               <Check size={20} color="#091A2F" strokeWidth={3} />
-              <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 14, textTransform: "uppercase", letterSpacing: 0.5 }}>Aceitar R$ {item.negotiation.myOffer.amount.toFixed(2).replace('.', ',')}</Text>
+              <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 14, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                {hasEnoughBalance
+                  ? `Aceitar R$ ${item.negotiation.myOffer.amount.toFixed(2).replace(".", ",")}`
+                  : "Saldo insuficiente"}
+              </Text>
             </TouchableOpacity>
         </View>
       ) : item.negotiation?.myOffer ? (
@@ -411,11 +585,12 @@ export function DriverRequestCard({
 
             <TouchableOpacity
               onPress={() => onAccept(item.rideId)}
+              disabled={!hasEnoughBalance}
               style={{
                 flex: 1.4,
                 height: 56,
                 borderRadius: 16,
-                backgroundColor: "#02de95",
+                backgroundColor: hasEnoughBalance ? "#02de95" : "rgba(2,222,149,0.28)",
                 alignItems: "center",
                 justifyContent: "center",
                 flexDirection: "row",
@@ -424,12 +599,15 @@ export function DriverRequestCard({
                 shadowOffset: { width: 0, height: 6 },
                 shadowOpacity: 0.35,
                 shadowRadius: 12,
-                elevation: 5
+                elevation: 5,
+                opacity: hasEnoughBalance ? 1 : 0.7,
               }}
               activeOpacity={0.8}
             >
               <Check size={20} color="#091A2F" strokeWidth={3} />
-              <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 15, textTransform: "uppercase", letterSpacing: 0.5 }}>Aceitar</Text>
+              <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 15, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                {hasEnoughBalance ? "Aceitar" : "Saldo insuficiente"}
+              </Text>
             </TouchableOpacity>
           </View>
 
@@ -437,22 +615,26 @@ export function DriverRequestCard({
           {item.negotiation?.enabled && (
             <TouchableOpacity
               onPress={() => onCounterOffer?.(item.rideId)}
+              disabled={!hasEnoughBalance}
               style={{
                 marginTop: 12,
                 height: 56,
                 borderRadius: 16,
                 borderWidth: 1.5,
-                borderColor: "rgba(2, 222, 149, 0.3)",
-                backgroundColor: "rgba(2, 222, 149, 0.05)",
+                borderColor: hasEnoughBalance ? "rgba(2, 222, 149, 0.3)" : "rgba(239,68,68,0.35)",
+                backgroundColor: hasEnoughBalance ? "rgba(2, 222, 149, 0.05)" : "rgba(239,68,68,0.08)",
                 alignItems: "center",
                 justifyContent: "center",
                 flexDirection: "row",
                 gap: 8,
+                opacity: hasEnoughBalance ? 1 : 0.7,
               }}
               activeOpacity={0.85}
             >
-              <MessageCircle size={18} color="#02de95" />
-              <Text style={{ color: "#02de95", fontWeight: "900", fontSize: 14, textTransform: "uppercase", letterSpacing: 0.5 }}>Fazer Contraoferta</Text>
+              <MessageCircle size={18} color={hasEnoughBalance ? "#02de95" : "#fca5a5"} />
+              <Text style={{ color: hasEnoughBalance ? "#02de95" : "#fca5a5", fontWeight: "900", fontSize: 14, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                {hasEnoughBalance ? "Fazer Contraoferta" : "Saldo insuficiente"}
+              </Text>
             </TouchableOpacity>
           )}
         </>

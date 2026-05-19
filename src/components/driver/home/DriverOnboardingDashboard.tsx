@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, TextInput, Modal, Alert, Image, KeyboardAvoidingView, Platform } from "react-native";
 import { MotiView, AnimatePresence } from "moti";
 import { NavigationContext } from "@react-navigation/native";
-import { CheckCircle2, Clock, ChevronRight, FileText, ShieldCheck, Car, MessageSquare, LogOut, AlertCircle, RefreshCw, Sparkles, TrendingUp, Compass, User } from "lucide-react-native";
+import { CheckCircle2, Clock, ChevronRight, FileText, ShieldCheck, Car, MessageSquare, LogOut, AlertCircle, RefreshCw, Sparkles, TrendingUp, Compass, User, DollarSign } from "lucide-react-native";
 import { BlurView } from "expo-blur";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -26,6 +26,8 @@ export default function DriverOnboardingDashboard() {
   const [hasPersonalDocs, setHasPersonalDocs] = useState(false);
   const [driverStatus, setDriverStatus] = useState("none");
   const [progress, setProgress] = useState(0);
+  const [driverBalance, setDriverBalance] = useState(0);
+  const [hasBalance, setHasBalance] = useState(false);
 
   // Modal PF/PJ Registration States
   const [showModal, setShowModal] = useState(false);
@@ -261,17 +263,32 @@ export default function DriverOnboardingDashboard() {
 
       // Calculate custom completion scale
       let completedSteps = 1; // Step 1: Cadastro Básico is always done.
-      
+
       const hasCPFOrCNPJ = Boolean(profile?.cpf || profile?.cnpj);
       if (hasCPFOrCNPJ) completedSteps += 1;
       if (isDocsSubmitted) completedSteps += 1;
       if (isVehicleSubmitted) completedSteps += 1;
-      
-      if (profile?.driverStatus === "approved" && vStatus === "approved" && hasCPFOrCNPJ) {
+
+      // Verificar saldo
+      let hasBalance = false;
+      try {
+        const balanceData = await driverService.getBalance();
+        const bal = Number(balanceData?.balance || 0);
+        hasBalance = bal > 0;
+        setDriverBalance(bal);
+        setHasBalance(hasBalance);
+      } catch {
+        setHasBalance(false);
+      }
+      if (hasBalance) completedSteps += 1;
+
+      const ALL_STEPS = 5; // 1-Basic, 2-Cadastral, 3-Docs, 4-Vehicle, 5-Balance
+
+      if (profile?.driverStatus === "approved" && vStatus === "approved" && hasCPFOrCNPJ && hasBalance) {
         setShowCongrats(true);
       }
 
-      setProgress(Math.round((completedSteps / 4) * 100));
+      setProgress(Math.round((completedSteps / ALL_STEPS) * 100));
     } catch (err) {
       console.warn("[Onboarding] Error compiling checklist status:", err);
     } finally {
@@ -339,6 +356,18 @@ export default function DriverOnboardingDashboard() {
         : "pending",
       icon: Car,
       action: () => navigation ? (navigation as any).navigate("DriverVehicle") : null,
+    },
+    {
+      id: "balance",
+      title: "Saldo para Trabalhar",
+      desc: hasBalance
+        ? `Saldo para trabalhar: R$ ${Number(driverBalance || 0).toFixed(2)}`
+        : "Adicione saldo para trabalhar e pagar a taxa da plataforma",
+      status: hasBalance ? "completed" : (driverStatus === "approved" && vehicleStatus === "approved" ? "pending" : "locked"),
+      icon: DollarSign,
+      action: () => {
+        try { (navigation as any).navigate("DriverFinance", { screen: "DriverEarnings" }); } catch {}
+      },
     },
   ];
 

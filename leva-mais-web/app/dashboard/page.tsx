@@ -6,14 +6,10 @@ import {
   Users,
   Car,
   MapPin,
-  ShieldCheck,
-  TrendingUp,
   RefreshCw,
   Clock,
   Compass,
   AlertTriangle,
-  Play,
-  CheckCircle2,
   DollarSign
 } from "lucide-react";
 import { ridesService, Ride } from "@/services/ridesService";
@@ -58,7 +54,9 @@ export default function DashboardPage() {
     // Auto refresh every 10 seconds for real-time emulation
     const interval = setInterval(() => {
       setRefreshing(true);
+      setRadarPulse(true);
       loadData();
+      setTimeout(() => setRadarPulse(false), 3000);
     }, 10000);
     return () => clearInterval(interval);
   }, [loadData]);
@@ -77,7 +75,7 @@ export default function DashboardPage() {
     // Total Platform Earnings
     const earnings = rides
       .filter(r => r.status === "completed")
-      .reduce((sum, r) => sum + (r.pricing?.appFee || (r.pricing?.total ? r.pricing.total * 0.2 : 0)), 0);
+      .reduce((sum, r) => sum + (r.pricing?.platformFee || 0), 0);
 
     return {
       totalDeliveries,
@@ -94,8 +92,10 @@ export default function DashboardPage() {
 
   const handleManualRefresh = () => {
     setRefreshing(true);
+    setRadarPulse(true);
     loadData();
     showToast("Dados de telemetria sincronizados com sucesso!", "success");
+    setTimeout(() => setRadarPulse(false), 3000);
   };
 
   if (loading) {
@@ -148,7 +148,7 @@ export default function DashboardPage() {
           title="Motoristas Online"
           value={stats.onlineDrivers}
           icon={Car}
-          description={`${stats.availableDrivers} livres / ${stats.busyDrivers} ocupados`}
+          description={`${stats.availableDrivers} livres / ${stats.busyDrivers} ocupados (${driversCount} total)`}
           color="blue"
         />
         <MetricCard
@@ -178,7 +178,7 @@ export default function DashboardPage() {
               <h3 className="font-bold text-white text-base">Radar Operacional Leva+</h3>
             </div>
             <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+              <span className={`w-2 h-2 rounded-full bg-emerald-500 ${radarPulse ? "animate-ping" : ""}`}></span>
               <span className="text-xs text-emerald-400 font-semibold tracking-wider uppercase">Live Telemetry</span>
             </div>
           </div>

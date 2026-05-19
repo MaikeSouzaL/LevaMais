@@ -5,13 +5,8 @@ import {
   DollarSign,
   TrendingUp,
   ArrowDownCircle,
-  Clock,
   RefreshCw,
-  AlertTriangle,
-  Calendar,
-  CheckCircle,
-  FileText,
-  User
+  FileText
 } from "lucide-react";
 import axios from "axios";
 import { format } from "date-fns";
@@ -49,7 +44,7 @@ export default function EarningsPage() {
       setRides(ridesData);
 
       // Attempt to load withdrawal history from backend
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001/api";
       const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || "dev-admin-key";
       const res = await axios.get(`${API_URL}/withdraws/history`, {
         headers: {
@@ -65,7 +60,7 @@ export default function EarningsPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [showToast]);
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -80,13 +75,13 @@ export default function EarningsPage() {
   // Financial Metrics
   const metrics = useMemo(() => {
     const totalVolume = rides.reduce((sum, r) => sum + (r.pricing?.total || 0), 0);
-    const platformEarnings = rides.reduce((sum, r) => sum + (r.pricing?.appFee || (r.pricing?.total ? r.pricing.total * 0.2 : 0)), 0);
-    const driverEarnings = rides.reduce((sum, r) => sum + (r.pricing?.driverValue || (r.pricing?.total ? r.pricing.total * 0.8 : 0)), 0);
+    const platformEarnings = rides.reduce((sum, r) => sum + (r.pricing?.platformFee || 0), 0);
+    const driverEarnings = rides.reduce((sum, r) => sum + (r.pricing?.driverValue || 0), 0);
     const count = rides.length;
     const averageTicket = count > 0 ? totalVolume / count : 0;
 
-    // Split for local representative (10% of platform fee as estimation)
-    const representativeSplit = platformEarnings * 0.1;
+    // Split for local representative (uses configured percentage from platform settings)
+    const representativeSplit = 0; // Calculated from actual splitDetails in each ride, not a flat estimate
 
     return {
       totalVolume,
@@ -266,7 +261,7 @@ export default function EarningsPage() {
               </div>
               
               <div className="flex justify-between items-center text-xs font-semibold">
-                <span className="text-gray-500">Total Taxa Plataforma (20%):</span>
+                <span className="text-gray-500">Total Taxa Plataforma:</span>
                 <span className="font-extrabold text-gray-950 bg-slate-100 px-2.5 py-1 rounded-lg">R$ {metrics.platformEarnings.toFixed(2)}</span>
               </div>
 

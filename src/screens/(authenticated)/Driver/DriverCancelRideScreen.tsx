@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from "react";
-import { View, Text } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import Toast from "react-native-toast-message";
@@ -25,6 +25,9 @@ const REASONS: CancelReason[] = [
   { id: "other", label: "Outro" },
 ];
 
+// Status onde cancelamento direto pelo motorista nao e permitido
+const BLOCKED_CANCEL_STATUSES = ["in_progress", "completed"];
+
 export default function DriverCancelRideScreen() {
   const navigation = useNavigation();
   const route = useRoute<RouteProp<Params, "DriverCancelRide">>();
@@ -32,12 +35,35 @@ export default function DriverCancelRideScreen() {
 
   const [selected, setSelected] = useState<string>("other");
   const [loading, setLoading] = useState(false);
+  const [rideStatus, setRideStatus] = useState<string | null>(null);
+  const [loadingStatus, setLoadingStatus] = useState(true);
 
-  const canSubmit = useMemo(() => !!rideId && !!selected, [rideId, selected]);
+  // Verifica a fase atual da corrida para decidir se permite cancelamento
+  useEffect(() => {
+    if (!rideId) {
+      setLoadingStatus(false);
+      return;
+    }
+    rideService.getById(rideId)
+      .then((ride) => {
+        setRideStatus(ride?.status || null);
+      })
+      .catch(() => {
+        setRideStatus(null);
+      })
+      .finally(() => setLoadingStatus(false));
+  }, [rideId]);
+
+  const isBlocked = rideStatus ? BLOCKED_CANCEL_STATUSES.includes(rideStatus) : false;
+  const isDelivery = rideStatus !== null; // sempre true se carregou
+
+  const canSubmit = useMemo(
+    () => !!rideId && !!selected && !isBlocked,
+    [rideId, selected, isBlocked],
+  );
 
   async function submit() {
-    if (!rideId) return;
-    if (!canSubmit) return;
+    if (!rideId || !canSubmit) return;
 
     setLoading(true);
     try {
@@ -67,22 +93,74 @@ export default function DriverCancelRideScreen() {
           Cancelar corrida
         </Text>
         <Text style={{ color: "rgba(255,255,255,0.65)", marginTop: 4 }}>
-          Selecione um motivo.
+          {isBlocked
+            ? "Cancelamento bloqueado nesta fase."
+            : "Selecione um motivo."}
         </Text>
       </View>
 
-      <DriverCancelReasonModal
-        visible
-        title="Cancelar corrida"
-        subtitle="Selecione um motivo. O cliente será notificado."
-        reasons={REASONS}
-        selectedReasonId={selected}
-        onSelectReason={setSelected}
-        onClose={() => navigation.goBack()}
-        onConfirm={submit}
-        confirmDisabled={!canSubmit || loading}
-        confirmLabel={loading ? "Cancelando..." : "Confirmar cancelamento"}
-      />
+      {loadingStatus ? (
+        <View style={{ padding: 24, alignItems: "center" }}>
+          <ActivityIndicator color="#02de95" />
+          <Text style={{ color: "rgba(255,255,255,0.5)", marginTop: 8, fontSize: 12 }}>
+            Verificando fase da corrida...
+          </Text>
+        </View>
+      ) : isBlocked ? (
+        <View style={{ padding: 24 }}>
+          <View
+            style={{
+              backgroundColor: "rgba(251,191,36,0.1)",
+              borderWidth: 1,
+              borderColor: "rgba(251,191,36,0.3)",
+              borderRadius: 16,
+              padding: 24,
+              alignItems: "center",
+            }}
+          >
+            <Text style={{ color: "#fbbf24", fontWeight: "800", fontSize: 16, textAlign: "center", marginBottom: 12 }}>
+              Cancelamento bloqueado
+            </Text>
+            <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 13, textAlign: "center", lineHeight: 20, marginBottom: 20 }}>
+              {isDelivery
+                ? "O pacote ja foi coletado. Nao e possivel cancelar diretamente. Entre em contato com o suporte para tratar devolucao ou extravio."
+                : "A corrida esta em andamento. Entre em contato com o suporte se precisar cancelar."}
+            </Text>
+            <TouchableOpacity
+              onPress={() => {
+                try {
+                  (navigation as any).navigate("SupportCenter");
+                } catch {
+                  navigation.goBack();
+                }
+              }}
+              style={{
+                backgroundColor: "#fbbf24",
+                borderRadius: 12,
+                paddingHorizontal: 24,
+                paddingVertical: 12,
+              }}
+            >
+              <Text style={{ color: "#091A2F", fontWeight: "800", fontSize: 14 }}>
+                Falar com Suporte
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : (
+        <DriverCancelReasonModal
+          visible
+          title="Cancelar corrida"
+          subtitle="Selecione um motivo. O cliente será notificado."
+          reasons={REASONS}
+          selectedReasonId={selected}
+          onSelectReason={setSelected}
+          onClose={() => navigation.goBack()}
+          onConfirm={submit}
+          confirmDisabled={!canSubmit || loading}
+          confirmLabel={loading ? "Cancelando..." : "Confirmar cancelamento"}
+        />
+      )}
     </SafeAreaView>
   );
 }

@@ -180,7 +180,7 @@ export default function GeneralSettingsPage() {
                   <label className="block text-sm font-bold text-gray-700 mb-1">
                     Taxa da Plataforma (App Fee %)
                   </label>
-                  <p className="text-xs text-gray-400 mb-2">Porcentagem padrão retida sobre o valor de cada corrida.</p>
+                  <p className="text-xs text-gray-400 mb-2">Porcentagem debitada do saldo do motorista sobre o valor de cada corrida/entrega.</p>
                   <div className="relative w-full max-w-xs">
                     <input
                       type="number"
@@ -493,7 +493,7 @@ export default function GeneralSettingsPage() {
             <div className="p-6 space-y-6">
               <div className="flex items-center justify-between p-4 bg-amber-50 border border-amber-200/50 rounded-2xl">
                 <div>
-                  <label className="block text-sm font-bold text-gray-850">
+                  <label className="block text-sm font-bold text-gray-800">
                     🛠️ Modo de Desenvolvimento
                   </label>
                   <p className="text-xs text-amber-800 max-w-xl mt-1">

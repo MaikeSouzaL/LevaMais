@@ -158,7 +158,7 @@ export function BalanceWidget({
 
         {/* Total Deductions */}
         <View className="flex-1 bg-[#0f172a] border border-[#334155] rounded-lg p-4">
-          <Text className="text-[#94a3b8] text-xs mb-1">Total em Deduções (20%)</Text>
+          <Text className="text-[#94a3b8] text-xs mb-1">Total em Deduções (Taxa Leva+)</Text>
           <Text className="text-[#f87171] font-bold text-lg">R$ {balance.totalDeductions.toFixed(2)}</Text>
         </View>
       </View>
@@ -197,8 +197,8 @@ export function BalanceWidget({
           <View className="flex-1">
             <Text className="text-[#0ea5e9] font-bold text-sm mb-1">Como funciona</Text>
             <Text className="text-[#0ea5e9]/80 text-xs leading-4">
-              A cada corrida completada, 20% do valor é descontado automaticamente do seu saldo. Mantenha
-              sempre um saldo mínimo para não ficar offline.
+              A cada corrida completada, a taxa da plataforma (definida pela Leva+) e descontada automaticamente do seu saldo. Mantenha
+              sempre um saldo minimo para nao ficar offline.
             </Text>
           </View>
         </View>

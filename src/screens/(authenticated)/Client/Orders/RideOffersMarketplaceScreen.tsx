@@ -167,6 +167,12 @@ export default function RideOffersMarketplaceScreen() {
   }, [loadRideDetails]);
 
   useEffect(() => {
+    if (String(rideDetails?.status || "") === "payment_pending" && rideId) {
+      navigation.replace("DeliveryPaymentConfirm", { rideId });
+    }
+  }, [navigation, rideDetails?.status, rideId]);
+
+  useEffect(() => {
     let mounted = true;
     
     const init = async () => {
@@ -219,9 +225,14 @@ export default function RideOffersMarketplaceScreen() {
       Toast.show({
         type: "success",
         text1: "Proposta aceita!",
-        text2: "Aguardando a conexão com o entregador.",
+        text2: "Confirme o pagamento para liberar o motorista.",
       });
-      navigation.navigate("SearchingDriver", { rideId });
+      const refreshedRide = await rideService.getById(rideId);
+      if (String(refreshedRide?.status || "") === "payment_pending") {
+        navigation.replace("DeliveryPaymentConfirm", { rideId });
+      } else {
+        navigation.navigate("SearchingDriver", { rideId });
+      }
     } catch (e: any) {
       Toast.show({
         type: "error",
@@ -492,3 +503,4 @@ export default function RideOffersMarketplaceScreen() {
     </GestureHandlerRootView>
   );
 }
+

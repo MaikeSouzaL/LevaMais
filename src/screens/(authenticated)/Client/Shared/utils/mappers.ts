@@ -45,6 +45,8 @@ export function mapPaymentMethodToApi(method: string): string {
 export function mapRideStatusToText(status: string): string {
   const mapping: Record<string, string> = {
     requesting: 'Procurando motorista',
+    payment_pending: 'Aguardando pagamento',
+    payment_failed: 'Falha no pagamento',
     driver_assigned: 'Motorista selecionado',
     accepted: 'Aceita',
     driver_arriving: 'Motorista a caminho',
@@ -132,6 +134,8 @@ export function mapPaymentMethodToIcon(method: string): string {
 export function mapRideStatusToColor(status: string): string {
   const mapping: Record<string, string> = {
     requesting: '#f59e0b',
+    payment_pending: '#f59e0b',
+    payment_failed: '#ef4444',
     driver_assigned: '#3b82f6',
     accepted: '#3b82f6',
     driver_arriving: '#3b82f6',

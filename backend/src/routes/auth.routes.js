@@ -41,6 +41,14 @@ router.post(
   authController.submitDriverVerification.bind(authController),
 );
 
+// Verificacao de documentos do cliente
+router.post(
+  "/client-verification",
+  authenticateToken,
+  uploadDriverBundle,
+  authController.submitClientVerification.bind(authController),
+);
+
 // Rotas protegidas (requerem autenticacao)
 router.get(
   "/profile",

@@ -75,15 +75,37 @@ export default function CancelRideScreen() {
       : 0;
   const isDelivery =
     serviceType === "delivery" || serviceType === "frete";
+  const isPackageCollected = isDelivery && rideStatus === "in_progress";
+  const isBeforeDriverAccepted = ["requesting", "driver_assigned", "payment_pending"].includes(rideStatus);
+  const isDriverOnTheWay = ["accepted", "driver_arriving"].includes(rideStatus);
+  const isDriverAtPickup = rideStatus === "arrived";
+  const estimatedFeeFromRide = Number((initialEstimatedFee || 0) > 0 ? initialEstimatedFee : 0);
+  const effectiveEstimatedFee = feeStatusApplies ? estimatedFeeFromRide : 0;
+
+  const warningMessage = useMemo(() => {
+    if (isPackageCollected) {
+      return "O pacote ja foi coletado. Para cancelar nesta fase, fale com o suporte para avaliacao operacional.";
+    }
+    if (isDriverAtPickup) {
+      return "O motorista ja chegou ao ponto de coleta. O cancelamento pode gerar taxa.";
+    }
+    if (isDriverOnTheWay) {
+      return "O motorista ja aceitou e esta em deslocamento. O cancelamento pode gerar taxa.";
+    }
+    if (isBeforeDriverAccepted) {
+      return "Seu pedido ainda esta em fase inicial. O cancelamento sera aplicado sem etapa operacional avancada.";
+    }
+    return "Revise com atencao antes de confirmar o cancelamento.";
+  }, [isBeforeDriverAccepted, isDriverAtPickup, isDriverOnTheWay, isPackageCollected]);
 
   const handleCancel = async () => {
-    if (!canSubmit || !rideId) return;
+    if (!canSubmit || !rideId || isPackageCollected) return;
 
     setLoading(true);
     try {
       const response: any = await rideService.cancel(rideId, selectedReason);
       const chargedFee =
-        Number(response?.cancellationFee ?? response?.data?.cancellationFee ?? estimatedFee) || 0;
+        Number(response?.cancellationFee ?? response?.data?.cancellationFee ?? effectiveEstimatedFee) || 0;
       Toast.show({
         type: "success",
         text1: isDelivery ? "Entrega cancelada" : "Corrida cancelada",
@@ -123,19 +145,19 @@ export default function CancelRideScreen() {
         <View style={styles.warningCard}>
           <Text style={styles.warningTitle}>Atencao</Text>
           <Text style={styles.warningText}>
-            {estimatedFee > 0
-              ? "O motorista ja aceitou e esta se deslocando. Ao cancelar agora, sera aplicada uma taxa de cancelamento."
-              : "O cancelamento pode impactar seu tempo de espera em futuras solicitacoes."}
+          {estimatedFee > 0
+              ? warningMessage
+              : warningMessage}
           </Text>
           {typeof rideTotal === "number" && (
             <Text style={styles.warningText}>
               Valor do {isDelivery ? "pedido" : "corrida"} atual: {formatBRL(rideTotal)}
             </Text>
           )}
-          {estimatedFee > 0 && (
+          {effectiveEstimatedFee > 0 && (
             <View style={styles.feeBox}>
               <Text style={styles.feeLabel}>Taxa prevista</Text>
-              <Text style={styles.feeValue}>{formatBRL(estimatedFee)}</Text>
+              <Text style={styles.feeValue}>{formatBRL(effectiveEstimatedFee)}</Text>
               <Text style={styles.feeHint}>
                 Essa taxa ajuda a cobrir o deslocamento e o tempo do motorista.
               </Text>
@@ -143,32 +165,50 @@ export default function CancelRideScreen() {
           )}
         </View>
 
-        {CANCEL_REASONS.map((reason) => {
-          const selected = selectedReason === reason;
-          return (
+        {isPackageCollected ? (
+          <View style={styles.blockedCard}>
+            <Text style={styles.blockedTitle}>Cancelamento bloqueado nesta fase</Text>
+            <Text style={styles.blockedText}>
+              Como o pacote ja foi coletado, o cancelamento precisa de analise do suporte.
+            </Text>
             <TouchableOpacity
-              key={reason}
-              style={[styles.reason, selected && styles.reasonSelected]}
-              onPress={() => setSelectedReason(reason)}
+              style={styles.supportBtn}
+              onPress={() => navigation.navigate("SupportCenter")}
               activeOpacity={0.85}
             >
-              <Text style={[styles.reasonText, selected && styles.reasonTextSelected]}>{reason}</Text>
+              <Text style={styles.supportBtnText}>Falar com suporte</Text>
             </TouchableOpacity>
-          );
-        })}
+          </View>
+        ) : (
+          CANCEL_REASONS.map((reason) => {
+            const selected = selectedReason === reason;
+            return (
+              <TouchableOpacity
+                key={reason}
+                style={[styles.reason, selected && styles.reasonSelected]}
+                onPress={() => setSelectedReason(reason)}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.reasonText, selected && styles.reasonTextSelected]}>{reason}</Text>
+              </TouchableOpacity>
+            );
+          })
+        )}
       </ScrollView>
 
       <View style={styles.footer}>
         <LoadingButton
           title={
-            estimatedFee > 0
-              ? `Cancelar e pagar ${formatBRL(estimatedFee)}`
+            isPackageCollected
+              ? "Suporte necessario"
+              : effectiveEstimatedFee > 0
+              ? `Cancelar e pagar ${formatBRL(effectiveEstimatedFee)}`
               : "Confirmar cancelamento"
           }
           onPress={handleCancel}
           variant="danger"
           loading={loading}
-          disabled={!canSubmit || loading}
+          disabled={!canSubmit || loading || isPackageCollected}
         />
       </View>
     </SafeAreaView>
@@ -248,5 +288,39 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "rgba(255,255,255,0.06)",
     backgroundColor: "rgba(10,25,20,0.96)",
+  },
+  blockedCard: {
+    backgroundColor: "rgba(239,68,68,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(239,68,68,0.35)",
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  blockedTitle: {
+    color: "#fca5a5",
+    fontSize: fontSize.base,
+    fontWeight: fontWeight.bold,
+    marginBottom: spacing.xs,
+  },
+  blockedText: {
+    color: colors.text.secondary,
+    fontSize: fontSize.sm,
+    lineHeight: 18,
+  },
+  supportBtn: {
+    marginTop: spacing.md,
+    alignSelf: "flex-start",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.full,
+    backgroundColor: "rgba(239,68,68,0.2)",
+    borderWidth: 1,
+    borderColor: "rgba(239,68,68,0.5)",
+  },
+  supportBtnText: {
+    color: "#fecaca",
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.bold,
   },
 });

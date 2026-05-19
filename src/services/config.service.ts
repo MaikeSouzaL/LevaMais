@@ -102,7 +102,7 @@ class ConfigService {
       maxDeposit: 1000,
       presets: [5, 10, 15, 20, 50, 100],
       currency: 'BRL',
-      deductionPercentage: 20,
+      deductionPercentage: 15,
     },
     rideSettings: {
       searchTimeout: 300, // 5 minutes in seconds
@@ -268,7 +268,7 @@ class ConfigService {
         maxDeposit: 1000,
         presets: depositArray.map((item: any) => item.amount || item),
         currency: 'BRL',
-        deductionPercentage: 20,
+        deductionPercentage: 15,
       };
 
       this.setCachedData(cacheKey, config);
