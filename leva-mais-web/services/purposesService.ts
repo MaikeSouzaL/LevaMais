@@ -1,8 +1,8 @@
 import axios from "axios";
 import { PurposeItem, VehicleType } from "@/types";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001/api";
-const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || "dev-admin-key";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || '';
 
 // Criar instância do axios
 const api = axios.create({
@@ -139,11 +139,6 @@ export const purposesService = {
     }
   },
 
-  // Helper to sync seed data if DB is empty (optional utility)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  seedDatabase: async (_data: Record<string, unknown[]>) => {
-    // This would be a batch operation, implement if needed
-    console.log("Seeding not implemented in frontend service yet");
-  },
+
 };
 

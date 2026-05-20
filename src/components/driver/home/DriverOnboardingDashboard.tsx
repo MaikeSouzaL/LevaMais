@@ -208,6 +208,9 @@ export default function DriverOnboardingDashboard() {
           companyName: profile.companyName || "",
           companyEmail: profile.companyEmail || "",
           companyPhone: profile.companyPhone || "",
+          driverStatus: profile.driverStatus || "none",
+          vehicleType: profile.vehicleType || null,
+          vehicleInfo: profile.vehicleInfo || null,
         });
 
         // Seed fields
@@ -266,8 +269,8 @@ export default function DriverOnboardingDashboard() {
 
       const hasCPFOrCNPJ = Boolean(profile?.cpf || profile?.cnpj);
       if (hasCPFOrCNPJ) completedSteps += 1;
-      if (isDocsSubmitted) completedSteps += 1;
-      if (isVehicleSubmitted) completedSteps += 1;
+      if (isDocsSubmitted || profile?.driverStatus === "pending") completedSteps += 1;
+      if (isVehicleSubmitted || vStatus === "pending") completedSteps += 1;
 
       // Verificar saldo
       let hasBalance = false;
@@ -284,7 +287,7 @@ export default function DriverOnboardingDashboard() {
 
       const ALL_STEPS = 5; // 1-Basic, 2-Cadastral, 3-Docs, 4-Vehicle, 5-Balance
 
-      if (profile?.driverStatus === "approved" && vStatus === "approved" && hasCPFOrCNPJ && hasBalance) {
+      if (profile?.driverStatus === "approved" && vStatus === "approved" && hasCPFOrCNPJ) {
         setShowCongrats(true);
       }
 
@@ -321,7 +324,9 @@ export default function DriverOnboardingDashboard() {
             ? `Pessoa Física (CPF: ${userData?.cpf})` 
             : `Pessoa Jurídica (CNPJ: ${userData?.cnpj})`)
         : "Cadastre seu CPF ou CNPJ para segurança",
-      status: hasCPFOrCNPJ ? "completed" : "pending",
+      status: hasCPFOrCNPJ 
+        ? (driverStatus === "approved" ? "completed" : "analyzing") 
+        : "pending",
       icon: FileText,
       action: () => setShowModal(true),
     },
@@ -332,10 +337,10 @@ export default function DriverOnboardingDashboard() {
         ? "Documentos aprovados"
         : driverStatus === "rejected"
         ? "Documentos rejeitados - Clique para revisar"
-        : hasPersonalDocs
+        : (hasPersonalDocs || driverStatus === "pending")
         ? "Documentos em análise operacional"
         : "Habilitação (CNH) e Selfie facial",
-      status: hasPersonalDocs 
+      status: (hasPersonalDocs || driverStatus === "pending") 
         ? (driverStatus === "approved" ? "completed" : driverStatus === "rejected" ? "rejected" : "analyzing") 
         : "pending",
       icon: FileText,
@@ -348,10 +353,10 @@ export default function DriverOnboardingDashboard() {
         ? "Veículo aprovado e ativado"
         : vehicleStatus === "rejected"
         ? "Veículo rejeitado - Clique para revisar"
-        : vehicleStatus === "pending"
+        : (vehicleStatus === "pending" || hasVehicle)
         ? "Veículo em análise operacional"
         : "Cadastrar dados e documento do carro/moto",
-      status: hasVehicle
+      status: (hasVehicle || vehicleStatus === "pending")
         ? (vehicleStatus === "approved" ? "completed" : vehicleStatus === "rejected" ? "rejected" : "analyzing")
         : "pending",
       icon: Car,

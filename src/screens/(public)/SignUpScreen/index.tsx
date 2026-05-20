@@ -191,6 +191,11 @@ export default function SignUpScreen() {
       console.log("[GoogleSignUp] Verificando Play Services");
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
       
+      // Force account picker by signing out first
+      try {
+        await GoogleSignin.signOut();
+      } catch (e) {}
+
       console.log("[GoogleSignUp] Iniciando signIn()");
       const userInfo = await GoogleSignin.signIn();
       console.log("[GoogleSignUp] SignIn realizado com sucesso", userInfo);

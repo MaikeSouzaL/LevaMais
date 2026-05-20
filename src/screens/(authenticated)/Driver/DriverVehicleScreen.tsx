@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { View, Text, ScrollView, ActivityIndicator, TouchableOpacity, Alert, Image } from "react-native";
+import { View, Text, ScrollView, ActivityIndicator, TouchableOpacity, Alert, Image, Platform } from "react-native";
 import Toast from "react-native-toast-message";
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialIcons, FontAwesome5, Ionicons } from "@expo/vector-icons";
@@ -161,7 +161,7 @@ export default function DriverVehicleScreen() {
 
     setSubmitting(true);
     try {
-      await driverService.addVehicle({
+      const vehicle = await driverService.addVehicle({
         type: newVehicleType as any,
         plate: newPlate,
         model: newModel,
@@ -175,9 +175,48 @@ export default function DriverVehicleScreen() {
         }
       });
 
+      if (vehicle && vehicle._id) {
+        const formData = new FormData();
+        
+        if (crlvFront.uri) {
+          const filename = crlvFront.uri.split("/").pop() || "crlvFront.jpg";
+          const ext = filename.split(".").pop()?.toLowerCase() || "jpg";
+          const mimeType = ext === "png" ? "image/png" : "image/jpeg";
+          formData.append("crlvFront", {
+            uri: Platform.OS === "ios" ? crlvFront.uri.replace("file://", "") : crlvFront.uri,
+            name: filename,
+            type: mimeType,
+          } as any);
+        }
+
+        if (crlvBack.uri) {
+          const filename = crlvBack.uri.split("/").pop() || "crlvBack.jpg";
+          const ext = filename.split(".").pop()?.toLowerCase() || "jpg";
+          const mimeType = ext === "png" ? "image/png" : "image/jpeg";
+          formData.append("crlvBack", {
+            uri: Platform.OS === "ios" ? crlvBack.uri.replace("file://", "") : crlvBack.uri,
+            name: filename,
+            type: mimeType,
+          } as any);
+        }
+
+        if (vehiclePhoto.uri) {
+          const filename = vehiclePhoto.uri.split("/").pop() || "vehiclePhoto.jpg";
+          const ext = filename.split(".").pop()?.toLowerCase() || "jpg";
+          const mimeType = ext === "png" ? "image/png" : "image/jpeg";
+          formData.append("vehiclePhoto", {
+            uri: Platform.OS === "ios" ? vehiclePhoto.uri.replace("file://", "") : vehiclePhoto.uri,
+            name: filename,
+            type: mimeType,
+          } as any);
+        }
+
+        await driverService.uploadVehicleDocuments(vehicle._id, formData);
+      }
+
       Toast.show({
         type: "success",
-        text1: "Veículo enviado para análise!",
+        text1: "Veículo e documentos enviados!",
         text2: "Aguarde a liberação administrativa.",
       });
 

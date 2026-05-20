@@ -637,6 +637,7 @@ class AuthController {
         vehicleType,
         vehicleInfo,
         gpsQuality,
+        driverPreferences, // <-- Added driverPreferences
         // compliance
         acceptedTerms,
         // CPF/CNPJ & Company Details
@@ -767,6 +768,31 @@ class AuthController {
       }
 
       if (user.userType === "driver") {
+        if (driverPreferences !== undefined) {
+          user.driverPreferences = user.driverPreferences || {
+            serviceTypes: ["ride", "delivery"],
+            selectedVehicles: [],
+            searchRadiusKm: 15,
+            autoAccept: false,
+          };
+          if (driverPreferences.serviceTypes !== undefined) {
+            user.driverPreferences.serviceTypes = driverPreferences.serviceTypes;
+          }
+          if (driverPreferences.selectedVehicles !== undefined) {
+            user.driverPreferences.selectedVehicles = driverPreferences.selectedVehicles;
+          }
+          if (driverPreferences.searchRadiusKm !== undefined) {
+            user.driverPreferences.searchRadiusKm = Number(driverPreferences.searchRadiusKm);
+          }
+          if (driverPreferences.autoAccept !== undefined) {
+            user.driverPreferences.autoAccept = Boolean(driverPreferences.autoAccept);
+          }
+          user.driverPreferences.serviceTypes = getCompatibleServiceTypes(
+            user.vehicleType || vehicleType,
+            user.driverPreferences.serviceTypes,
+          );
+        }
+
         if (vehicleType !== undefined) {
           user.vehicleType = vehicleType;
           user.driverPreferences = user.driverPreferences || {

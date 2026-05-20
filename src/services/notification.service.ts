@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
@@ -39,35 +40,47 @@ class NotificationService {
         },
       });
 
-      // Registrar para notificações push
-      if (Device.isDevice) {
+      // Configure Android Notification Channels
+      if (Platform.OS === 'android') {
+        await Notifications.setNotificationChannelAsync('urgent_delivery', {
+          name: 'Chamados Urgentes',
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: '#FF231F7C',
+          sound: 'default',
+        });
+
+        await Notifications.setNotificationChannelAsync('messages', {
+          name: 'Mensagens de Chat',
+          importance: Notifications.AndroidImportance.HIGH,
+          vibrationPattern: [0, 250, 250, 250],
+          sound: 'default',
+        });
+
+        await Notifications.setNotificationChannelAsync('status_updates', {
+          name: 'Atualizações de Status',
+          importance: Notifications.AndroidImportance.HIGH,
+          sound: 'default',
+        });
+
+        await Notifications.setNotificationChannelAsync('default', {
+          name: 'Padrão',
+          importance: Notifications.AndroidImportance.DEFAULT,
+          sound: 'default',
+        });
+      }
+
+      // Solicitar permissão para exibir notificações locais
+      try {
         const permission = await Notifications.getPermissionsAsync();
         if (permission.status !== 'granted') {
           const newPermission = await Notifications.requestPermissionsAsync();
           if (newPermission.status !== 'granted') {
-            logger.warn('NotificationService', 'Permissão de notificação não concedida');
-            return;
+            logger.warn('NotificationService', 'Permissão de notificação local não concedida');
           }
         }
-
-        // Obter Expo Push Token
-        const projectId =
-          (Constants.expoConfig as any)?.extra?.eas?.projectId ||
-          (Constants.expoConfig as any)?.projectId;
-        if (projectId) {
-          const token = await Notifications.getExpoPushTokenAsync({
-            projectId,
-          });
-          this.expoPushToken = token.data;
-          logger.info(
-            'NotificationService',
-            'Expo Push Token obtido',
-            { token: token.data.substring(0, 20) + '...' }
-          );
-
-          // Enviar token para o backend
-          await this.registerPushToken(token.data);
-        }
+      } catch (permErr) {
+        logger.error('NotificationService', 'Erro ao solicitar permissão de notificações', permErr as Error);
       }
 
       // Listeners de notificações
@@ -118,6 +131,8 @@ class NotificationService {
           },
         },
       });
+      // 🚀 Dispara uma notificação nativa local no sistema imediatamente!
+      this.sendLocalNotification(data.title, data.body, data.data).catch(() => {});
     });
   }
 

@@ -5,7 +5,9 @@
       "Bash(node -e ' *)",
       "Bash(node -e \"const RideController = require\\('./backend/src/controllers/ride.controller'\\); console.log\\('confirmNegotiationPayment:', typeof RideController.confirmNegotiationPayment\\);\")",
       "Bash(node -e \"const RideController = require\\('./backend/src/controllers/ride.controller'\\); console.log\\('saveTrackPoint:', typeof RideController.saveTrackPoint\\); console.log\\('getRouteAudit:', typeof RideController.getRouteAudit\\);\")",
-      "Bash(node *)"
+      "Bash(node *)",
+      "Bash(npx tsc *)",
+      "Bash(echo \"EXIT: $?\")"
     ]
   }
 }

@@ -71,17 +71,17 @@ const MARKER_CONFIG: Record<
   },
 };
 
-export default function MapMarker({ type, size = 52 }: MapMarkerProps) {
+export default function MapMarker({ type, size = 24 }: MapMarkerProps) {
   const config = MARKER_CONFIG[type] || MARKER_CONFIG.pickup;
   const circleSize = size;
-  const iconSize = Math.round(circleSize * 0.5);
-  const triangleSize = Math.round(circleSize * 0.18);
+  const iconSize = Math.round(circleSize * 0.48);
+  const triangleSize = Math.round(circleSize * 0.16);
   const totalHeight = circleSize + triangleSize + 2;
 
   return (
     <View
       style={{
-        width: circleSize + 8,
+        width: circleSize + 6,
         height: totalHeight,
         alignItems: "center",
         justifyContent: "flex-start",
@@ -94,15 +94,15 @@ export default function MapMarker({ type, size = 52 }: MapMarkerProps) {
           height: circleSize,
           borderRadius: circleSize / 2,
           backgroundColor: config.bg,
-          borderWidth: 3.5,
+          borderWidth: 2.5,
           borderColor: config.border,
           alignItems: "center",
           justifyContent: "center",
           shadowColor: "#000",
-          shadowOffset: { width: 0, height: 3 },
-          shadowOpacity: 0.35,
-          shadowRadius: 5,
-          elevation: 6,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.3,
+          shadowRadius: 4,
+          elevation: 5,
         }}
       >
         {config.lib === "MaterialCommunityIcons" ? (

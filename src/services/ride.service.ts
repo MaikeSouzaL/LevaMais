@@ -1,4 +1,4 @@
-﻿import api from "./api";
+import api from "./api";
 
 export interface Location {
   address: string;
@@ -37,6 +37,7 @@ export interface RideDetails {
   recipientName?: string;
   recipientPhone?: string;
   recipientInstructions?: string;
+  pickupPin?: string;
   deliveryPin?: string;
   specialInstructions?: string;
 }
@@ -380,13 +381,17 @@ class RideService {
     await api.post(`/rides/${rideId}/reject`, { reason });
   }
 
-  /**
-   * Atualizar status da corrida (motorista)
-   */
-  async updateStatus(rideId: string, status?: string, arrivedAtDropoff?: boolean): Promise<Ride> {
+  async updateStatus(
+    rideId: string, 
+    status?: string, 
+    arrivedAtDropoff?: boolean, 
+    pins?: { pickupPin?: string; deliveryPin?: string }
+  ): Promise<Ride> {
     const body: any = {};
     if (status) body.status = status;
     if (arrivedAtDropoff) body.arrivedAtDropoff = true;
+    if (pins?.pickupPin) body.pickupPin = pins.pickupPin;
+    if (pins?.deliveryPin) body.deliveryPin = pins.deliveryPin;
     const response = await api.patch(`/rides/${rideId}/status`, body);
     return response.data.ride;
   }

@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useEffect } from "react";
+﻿import React, { useCallback, useState, useEffect } from "react";
 import { StyleSheet, StatusBar, Alert, View, Text, TouchableOpacity } from "react-native";
 import { NavigationProp, RouteProp, useNavigation, useFocusEffect, useRoute } from "@react-navigation/native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -6,17 +6,17 @@ import { MotiView } from "moti";
 import { Info } from "lucide-react-native";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
-// 📍 Custom Hooks / Global System
+// ðŸ“ Custom Hooks / Global System
 import { useAuthStore } from "@/context/authStore";
 import favoriteAddressService from "@/services/favoriteAddress.service";
 import rideService from "@/services/ride.service";
 import webSocketService from "@/services/websocket.service";
 import { LocationLoadingScreen } from "@/components/ui/LocationLoadingScreen";
 
-// 🛠️ Reused Domain Hooks from Original Flow
+// ðŸ› ï¸ Reused Domain Hooks from Original Flow
 import { useMapLocation } from "../Shared/hooks/useMapLocation";
 
-// 🎨 Premium Visual Shell Components
+// ðŸŽ¨ Premium Visual Shell Components
 import { ClientRealtimeMap } from "@/components/client/home/ClientRealtimeMap";
 import {Modal} from "@/components/Modal";
 import { ClientFloatingHeader } from "@/components/client/home/ClientFloatingHeader";
@@ -36,8 +36,12 @@ export default function HomeScreen() {
   useEffect(() => {
     if (route.params?.showSuccessQueueModal) {
        setShowHomeSuccessModal(true);
-       // Consumes the param so it doesn't retrigger on subsequent renders
        navigation.setParams({ showSuccessQueueModal: undefined });
+    }
+    // Immediate banner: rideId passed directly from OrderSentScreen
+    if (route.params?.activeRideId) {
+       setActiveRequestingRideId(route.params.activeRideId);
+       navigation.setParams({ activeRideId: undefined });
     }
   }, [route.params]);
   
@@ -56,6 +60,7 @@ export default function HomeScreen() {
   const [sheetSnapIndex, setSheetSnapIndex] = useState(0);
   const [waitingQueueCount, setWaitingQueueCount] = useState<number>(0);
   const [negotiationRideId, setNegotiationRideId] = useState<string | null>(null);
+  const [activeRequestingRideId, setActiveRequestingRideId] = useState<string | null>(null);
   const [availability, setAvailability] = useState<{
     rideDrivers: number;
     deliveryDrivers: number;
@@ -68,41 +73,44 @@ export default function HomeScreen() {
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
   const [availabilityError, setAvailabilityError] = useState<string | null>(null);
   
-  // Map Operational Visual States 🎨
+  // Map Operational Visual States ðŸŽ¨
   const [useDarkMap, setUseDarkMap] = useState(true);
   const [isSwitchingStyle, setIsSwitchingStyle] = useState(false);
   const [isCentering, setIsCentering] = useState(false);
 
-  // 🛰️ Background monitoring of active ride (Redirect if driver offers or accepts)
+  // ðŸ›°ï¸ Background monitoring of active ride (Redirect if driver offers or accepts)
   useEffect(() => {
     let isMounted = true;
     let pollInterval: any = null;
 
     const checkActiveRide = async () => {
       try {
-        // 1. Sincroniza a lista completa de corridas do cliente
         const res = await rideService.getActiveList();
         if (!isMounted) return;
         
         const activeRides = res?.rides || [];
+        console.log("[Home] getActiveList rides:", activeRides.length, activeRides.map((r: any) => ({ id: r._id, status: r.status, service: r.serviceType })));
         
         // Find if any ride has active negotiations/offers
-        const rideWithOffers = activeRides.find(ride => (ride.negotiation?.offers?.length || 0) > 0);
+        const rideWithOffers = activeRides.find((ride: any) => (ride.negotiation?.offers?.length || 0) > 0);
         if (rideWithOffers) {
            setNegotiationRideId(rideWithOffers._id);
+           setActiveRequestingRideId(null);
         } else {
            setNegotiationRideId(null);
+           // Show banner for any ride waiting for drivers (requesting status, any service type)
+           const requestingRide = activeRides.find((ride: any) =>
+             ride.status === "requesting" || ride.status === "payment_pending" || ride.status === "driver_assigned"
+           );
+           console.log("[Home] requestingRide:", requestingRide?._id, requestingRide?.status);
+           setActiveRequestingRideId(requestingRide?._id || null);
         }
 
-        // 2. Filtra Fila de Espera Geral (isWaitingInQueue)
-        const queuedRides = activeRides.filter(ride => ride.isWaitingInQueue === true && ride.status === "requesting");
+        const queuedRides = activeRides.filter((ride: any) => ride.isWaitingInQueue === true && ride.status === "requesting");
         setWaitingQueueCount(queuedRides.length);
 
-        // 3. Busca um pedido primário (que NÃO esteja em fila silenciosa)
-        const primaryRide = activeRides.find(ride => !ride.isWaitingInQueue);
-
+        const primaryRide = activeRides.find((ride: any) => !ride.isWaitingInQueue);
         if (primaryRide) {
-          // Motorista aceitou? VAI DIRETO AO TRACKING/MAPA DE CORRIDA!
           if (primaryRide.driverId && ["accepted", "driver_arriving", "arrived", "in_progress"].includes(primaryRide.status)) {
              navigation.reset({
                index: 0,
@@ -113,26 +121,61 @@ export default function HomeScreen() {
         }
         
       } catch (err) {
-        // Captura silenciosa de rede
+        console.warn("[Home] checkActiveRide error:", err);
       }
     };
 
-    // ⚡ Add Socket Listener to check instantaneously when backend notifies ANY update!
+    // âœ… Call immediately on mount â€” don't wait for WebSocket
+    checkActiveRide();
+
+    // WebSocket listeners for real-time updates
     webSocketService.connect().then(() => {
        webSocketService.on("ride-status-updated", checkActiveRide);
-       // Re-check on connect
-       checkActiveRide();
+       webSocketService.on("ride-offers-updated", checkActiveRide);
+       webSocketService.on("ride-cancelled", checkActiveRide);
     }).catch(() => {});
 
-    // Polling fallback every 8 seconds for perfect safety
-    pollInterval = setInterval(checkActiveRide, 8000);
+    // Polling fallback every 6 seconds
+    pollInterval = setInterval(checkActiveRide, 6000);
     
     return () => {
       isMounted = false;
       if (pollInterval) clearInterval(pollInterval);
       webSocketService.off("ride-status-updated", checkActiveRide);
+      webSocketService.off("ride-offers-updated", checkActiveRide);
+      webSocketService.off("ride-cancelled", checkActiveRide);
     };
   }, [navigation]);
+
+  // ðŸ” Re-check on every focus (catches rides from other screens)
+  useFocusEffect(
+    useCallback(() => {
+      let isMounted = true;
+      const recheckRides = async () => {
+        try {
+          const res = await rideService.getActiveList();
+          if (!isMounted) return;
+          const activeRides = res?.rides || [];
+          console.log("[Home:focus] getActiveList:", activeRides.length, activeRides.map((r: any) => r.status));
+          const rideWithOffers = activeRides.find((ride: any) => (ride.negotiation?.offers?.length || 0) > 0);
+          if (rideWithOffers) {
+            setNegotiationRideId(rideWithOffers._id);
+            setActiveRequestingRideId(null);
+          } else {
+            setNegotiationRideId(null);
+            const requestingRide = activeRides.find((ride: any) =>
+              ride.status === "requesting" || ride.status === "payment_pending" || ride.status === "driver_assigned"
+            );
+            setActiveRequestingRideId(requestingRide?._id || null);
+          }
+        } catch (err) {
+          console.warn("[Home:focus] error:", err);
+        }
+      };
+      recheckRides();
+      return () => { isMounted = false; };
+    }, [])
+  );
 
   // Load context on focus
   useFocusEffect(
@@ -203,7 +246,7 @@ export default function HomeScreen() {
     } else if ("openDrawer" in navigation && typeof navigation.openDrawer === "function") {
       navigation.openDrawer();
     } else {
-      Alert.alert("Menu", "Navegador Drawer não encontrado.");
+      Alert.alert("Menu", "Navegador Drawer nÃ£o encontrado.");
     }
   }, [navigation]);
 
@@ -213,7 +256,8 @@ export default function HomeScreen() {
       type: "ride" | "delivery",
       options?: { preferScheduled?: boolean },
     ) => {
-    if (type === "delivery" && availability.deliveryDrivers <= 0) {
+    const isScheduled = Boolean(options?.preferScheduled);
+    if (!isScheduled && type === "delivery" && availability.deliveryDrivers <= 0) {
       setShowNoDriversModal(true);
       return;
     }
@@ -221,7 +265,7 @@ export default function HomeScreen() {
     
     navigation.navigate("DestinationSearch", {
       initialVehicle: defaultVehicle,
-      preferScheduled: Boolean(options?.preferScheduled),
+      preferScheduled: isScheduled,
       serviceType: type,
       // REMOVED pre-filled pickup to force user verification
     });
@@ -235,7 +279,7 @@ export default function HomeScreen() {
 
   const handleWalletPress = useCallback(() => {
     // Example route - if specific wallet exists
-    Alert.alert("Carteira", `Olá ${user?.name || "Cliente"}! Seu saldo está disponível.`);
+    Alert.alert("Carteira", `OlÃ¡ ${user?.name || "Cliente"}! Seu saldo estÃ¡ disponÃ­vel.`);
   }, [user?.name]);
 
   const handleToggleMapStyle = useCallback(() => {
@@ -257,14 +301,14 @@ export default function HomeScreen() {
 
   const handleSOS = useCallback(() => {
     try {
-      // Navigates seamlessly to client-specific safety zone! 🛡️
+      // Navigates seamlessly to client-specific safety zone! ðŸ›¡ï¸
       navigation.navigate("SafetyCenter");
     } catch {
-      Alert.alert("SOS", "Ativando modo de emergência do passageiro...");
+      Alert.alert("SOS", "Ativando modo de emergÃªncia do passageiro...");
     }
   }, [navigation]);
 
-  // ⏳ Loading Guard while Map Logic warms up
+  // â³ Loading Guard while Map Logic warms up
   if (!region) {
     return <LocationLoadingScreen />;
   }
@@ -292,7 +336,50 @@ export default function HomeScreen() {
         currentAddress={currentAddress}
       />
 
-      {/* 🌟 Yellow Active Proposals Banner */}
+      {/* ðŸŸ¡ Active Requesting Ride Banner (awaiting drivers, no offers yet) */}
+      {!!activeRequestingRideId && !negotiationRideId && (
+        <MotiView
+          from={{ opacity: 0, translateY: -20 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          style={{ position: 'absolute', top: 135, left: 16, right: 16, zIndex: 50, elevation: 10 }}
+        >
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={() => navigation.navigate("ActiveOrders")}
+            style={{
+              backgroundColor: "#F59E0B",
+              borderRadius: 16,
+              padding: 16,
+              flexDirection: "row",
+              alignItems: "center",
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.2)",
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.2,
+              shadowRadius: 8,
+              elevation: 5,
+            }}
+          >
+            <View style={{ backgroundColor: "rgba(9, 26, 47, 0.2)", padding: 8, borderRadius: 12, marginRight: 12 }}>
+               <Info size={20} color="#091A2F" />
+            </View>
+            <View style={{ flex: 1 }}>
+               <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 14, textTransform: "uppercase" }}>
+                 Oferta Ativa
+               </Text>
+               <Text style={{ color: "rgba(9, 26, 47, 0.8)", fontWeight: "700", fontSize: 12 }}>
+                 Aguardando entregadores analisarem seu pedido
+               </Text>
+            </View>
+            <View style={{ backgroundColor: "#091A2F", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}>
+               <Text style={{ color: "#F59E0B", fontWeight: "900", fontSize: 10 }}>VER</Text>
+            </View>
+          </TouchableOpacity>
+        </MotiView>
+      )}
+
+      {/* ðŸŒŸ Yellow Active Proposals Banner */}
       {!!negotiationRideId && (
         <MotiView
           from={{ opacity: 0, translateY: -20 }}
@@ -335,7 +422,7 @@ export default function HomeScreen() {
         </MotiView>
       )}
 
-      {waitingQueueCount > 0 && !negotiationRideId && (
+      {waitingQueueCount > 0 && !negotiationRideId && !activeRequestingRideId && (
         <MotiView
           from={{ opacity: 0, translateY: -20 }}
           animate={{ opacity: 1, translateY: 0 }}
@@ -397,7 +484,7 @@ export default function HomeScreen() {
           // Emulates handling of legacy favorite flow triggers
           navigation.navigate("DestinationSearch", {
             pickup: { 
-              address: currentAddress || "Localização Atual",
+              address: currentAddress || "LocalizaÃ§Ã£o Atual",
               latitude: userRegion?.latitude || region.latitude,
               longitude: userRegion?.longitude || region.longitude,
             },
@@ -410,19 +497,19 @@ export default function HomeScreen() {
         }}
         onChangeSnap={(idx) => setSheetSnapIndex(idx)}
       />
-      {/* 🏆 Premium Dynamic Success Modal (Transferred Context) */}
+      {/* ðŸ† Premium Dynamic Success Modal (Transferred Context) */}
       <Modal
         visible={showHomeSuccessModal}
         title="Fila de Espera Ativada!"
-        message="Seu pedido foi para a fila pública. Assim que um motorista aceitar ou enviar uma proposta, você será informado na mesma hora sobre a contraproposta ou negociação para aceitar ou não!"
+        message="Seu pedido foi para a fila pÃºblica. Assim que um motorista aceitar ou enviar uma proposta, vocÃª serÃ¡ informado na mesma hora sobre a contraproposta ou negociaÃ§Ã£o para aceitar ou nÃ£o!"
         type="success"
         confirmText="Entendido"
         onClose={() => setShowHomeSuccessModal(false)}
       />
       <Modal
         visible={showNoDriversModal}
-        title="Entrega indisponível"
-        message="Não encontramos entregadores online na sua região agora. Tente novamente em alguns minutos."
+        title="Entrega indisponÃ­vel"
+        message="NÃ£o encontramos entregadores online na sua regiÃ£o agora. Tente novamente em alguns minutos."
         type="warning"
         confirmText="Entendido"
         onClose={() => setShowNoDriversModal(false)}

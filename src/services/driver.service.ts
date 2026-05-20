@@ -218,7 +218,15 @@ class DriverService {
         appFeePercentage: response.data?.appFeePercentage,
       };
     } catch (error: any) {
-      logger.error('DRIVER_SERVICE', 'Failed to go online', error);
+      const status = error.response?.status;
+      if (status === 400 || status === 403) {
+        logger.warn('DRIVER_SERVICE', 'Failed to go online due to validation error', {
+          status,
+          error: error.response?.data?.error || error.message
+        });
+      } else {
+        logger.error('DRIVER_SERVICE', 'Failed to go online due to system error', error);
+      }
       return {
         success: false,
         error: error.response?.data?.error || 'Voce precisa ter cadastro aprovado, documentos enviados e saldo positivo.',
@@ -350,6 +358,21 @@ class DriverService {
       return response.data?.vehicle;
     } catch (error) {
       logger.error('DRIVER_SERVICE', 'Failed to add vehicle', error);
+      throw error;
+    }
+  }
+
+  // 📸 Enviar documentos do veículo (CRLV Frente, Verso e Foto do Veículo)
+  async uploadVehicleDocuments(vehicleId: string, formData: FormData): Promise<any> {
+    try {
+      const response = await apiClient.post<any>(`/drivers/vehicles/${vehicleId}/documents`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    } catch (error) {
+      logger.error('DRIVER_SERVICE', 'Failed to upload vehicle documents', error);
       throw error;
     }
   }

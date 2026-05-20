@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
 import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
 import BottomSheet, { BottomSheetView, BottomSheetScrollView } from "@gorhom/bottom-sheet";
-import { Car, Package, Star, TrendingUp, Clock } from "lucide-react-native";
+import { Car, Package, Star, TrendingUp, Clock, AlertTriangle } from "lucide-react-native";
 import { OnlineOfflineToggle } from "../../../../components/driver/home/OnlineOfflineToggle";
 import { MotiView } from "moti";
 
@@ -25,6 +25,8 @@ interface DriverBottomSheetProps {
   snapPoints?: string[];
   vehicleType?: string;
   stats?: DriverStats;
+  driverBalance?: number | null;
+  onAddBalance?: () => void;
 }
 
 export function DriverBottomSheet({
@@ -36,8 +38,14 @@ export function DriverBottomSheet({
   snapPoints: userSnapPoints,
   vehicleType,
   stats,
+  driverBalance,
+  onAddBalance,
 }: DriverBottomSheetProps) {
-  const finalSnapPoints = useMemo(() => userSnapPoints || ["18%", "30%"], [userSnapPoints]);
+  const finalSnapPoints = useMemo(() => {
+    if (userSnapPoints) return userSnapPoints;
+    const hasNoBalance = driverBalance !== undefined && driverBalance !== null && driverBalance <= 0 && !online;
+    return hasNoBalance ? ["38%", "50%"] : ["18%", "30%"];
+  }, [userSnapPoints, driverBalance, online]);
 
   const canDoRides = vehicleType === "car" || vehicleType === "motorcycle";
 
@@ -68,6 +76,62 @@ export function DriverBottomSheet({
       <BottomSheetScrollView 
         contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 40 }}
       >
+        
+        {/* ⚠️ HIGH VISIBILITY BALANCE WARNING CARD */}
+        {driverBalance !== undefined && driverBalance !== null && driverBalance <= 0 && !online && (
+          <MotiView
+            from={{ opacity: 0, scale: 0.95, translateY: -10 }}
+            animate={{ opacity: 1, scale: 1, translateY: 0 }}
+            transition={{ type: "spring", damping: 15 }}
+            style={{
+              backgroundColor: "rgba(239, 68, 68, 0.06)",
+              borderRadius: 24,
+              borderWidth: 1.5,
+              borderColor: "rgba(239, 68, 68, 0.25)",
+              padding: 16,
+              marginBottom: 16,
+              shadowColor: "#ef4444",
+              shadowOffset: { width: 0, height: 6 },
+              shadowOpacity: 0.08,
+              shadowRadius: 16,
+            }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+              <View style={{ backgroundColor: "rgba(239, 68, 68, 0.12)", padding: 10, borderRadius: 14 }}>
+                <AlertTriangle size={20} color="#ef4444" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: "#ef4444", fontWeight: "900", fontSize: 13, textTransform: "uppercase", letterSpacing: 0.8 }}>
+                  Saldo Insuficiente
+                </Text>
+                <Text style={{ color: "rgba(255, 255, 255, 0.65)", fontSize: 11, fontWeight: "600", marginTop: 4, lineHeight: 15 }}>
+                  Você precisa de saldo positivo para ficar online e aceitar corridas.
+                </Text>
+              </View>
+            </View>
+            
+            <TouchableOpacity
+              onPress={onAddBalance}
+              activeOpacity={0.85}
+              style={{
+                marginTop: 14,
+                backgroundColor: "#02de95",
+                borderRadius: 16,
+                paddingVertical: 12,
+                alignItems: "center",
+                shadowColor: "#02de95",
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.25,
+                shadowRadius: 10,
+                elevation: 4,
+              }}
+            >
+              <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 13, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                Adicionar Saldo
+              </Text>
+            </TouchableOpacity>
+          </MotiView>
+        )}
         
         {/* 🛰️ REAL-TIME ONLINE SEARCHING STATUS CAPSULE */}
         {online && (

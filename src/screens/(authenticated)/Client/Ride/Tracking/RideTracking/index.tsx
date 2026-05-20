@@ -764,37 +764,51 @@ export default function RideTrackingScreen() {
         </Text>
 
         {isDeliveryFlow && (
-          <View style={styles.timelineCard}>
-            <Text style={styles.timelineTitle}>Fases da entrega</Text>
-            {deliveryTimeline.map((step, index) => (
-              <View key={step.key} style={styles.timelineRow}>
-                <View style={styles.timelineMarkerWrap}>
-                  <View
-                    style={[
-                      styles.timelineDot,
-                      step.done ? styles.timelineDotDone : step.active ? styles.timelineDotActive : styles.timelineDotIdle,
-                    ]}
-                  />
-                  {index < deliveryTimeline.length - 1 && (
+          <>
+            <View style={styles.timelineCard}>
+              <Text style={styles.timelineTitle}>Fases da entrega</Text>
+              {deliveryTimeline.map((step, index) => (
+                <View key={step.key} style={styles.timelineRow}>
+                  <View style={styles.timelineMarkerWrap}>
                     <View
                       style={[
-                        styles.timelineLine,
-                        step.done ? styles.timelineLineDone : styles.timelineLineIdle,
+                        styles.timelineDot,
+                        step.done ? styles.timelineDotDone : step.active ? styles.timelineDotActive : styles.timelineDotIdle,
                       ]}
                     />
-                  )}
+                    {index < deliveryTimeline.length - 1 && (
+                      <View
+                        style={[
+                          styles.timelineLine,
+                          step.done ? styles.timelineLineDone : styles.timelineLineIdle,
+                        ]}
+                      />
+                    )}
+                  </View>
+                  <Text
+                    style={[
+                      styles.timelineLabel,
+                      step.done ? styles.timelineLabelDone : step.active ? styles.timelineLabelActive : styles.timelineLabelIdle,
+                    ]}
+                  >
+                    {step.label}
+                  </Text>
                 </View>
-                <Text
-                  style={[
-                    styles.timelineLabel,
-                    step.done ? styles.timelineLabelDone : step.active ? styles.timelineLabelActive : styles.timelineLabelIdle,
-                  ]}
-                >
-                  {step.label}
-                </Text>
+              ))}
+            </View>
+
+            <View style={styles.pinsCard}>
+              <View style={styles.pinCol}>
+                <Text style={styles.pinLabel}>PIN Coleta (Remetente)</Text>
+                <Text style={styles.pinValue}>{ride?.details?.pickupPin || "---"}</Text>
               </View>
-            ))}
-          </View>
+              <View style={styles.pinDivider} />
+              <View style={styles.pinCol}>
+                <Text style={styles.pinLabel}>PIN Entrega (Recebedor)</Text>
+                <Text style={styles.pinValue}>{ride?.details?.deliveryPin || "---"}</Text>
+              </View>
+            </View>
+          </>
         )}
 
         <Text style={styles.addressLine} numberOfLines={1}>
@@ -949,6 +963,39 @@ const styles = StyleSheet.create({
     width: 1,
     height: 36,
     backgroundColor: "rgba(255,255,255,0.12)",
+  },
+  pinsCard: {
+    marginBottom: spacing.md,
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: "rgba(2,222,149,0.3)",
+    backgroundColor: "rgba(2,222,149,0.06)",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  pinCol: {
+    flex: 1,
+    alignItems: "center",
+  },
+  pinLabel: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 9,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    marginBottom: 4,
+  },
+  pinValue: {
+    color: "#02de95",
+    fontSize: 18,
+    fontWeight: "800",
+    letterSpacing: 1,
+  },
+  pinDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: "rgba(255,255,255,0.15)",
   },
   timelineCard: {
     marginBottom: spacing.md,

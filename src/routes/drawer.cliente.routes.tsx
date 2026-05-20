@@ -13,6 +13,7 @@ import { colors } from "@/theme";
 
 type DrawerClienteRoutesProps = {
   initialRideId?: string | null;
+  onActivated?: () => void;
 };
 
 const Drawer = createDrawerNavigator();
@@ -126,6 +127,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
 
 export default function DrawerClienteRoutes({
   initialRideId,
+  onActivated: _onActivated,
 }: DrawerClienteRoutesProps) {
   return (
     <Drawer.Navigator

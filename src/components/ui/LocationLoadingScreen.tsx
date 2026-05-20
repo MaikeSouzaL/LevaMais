@@ -62,10 +62,9 @@ export function LocationLoadingScreen({
       <View
         style={{
           alignItems: "center",
-          gap: 24, // increased gap
+          gap: 24,
         }}
       >
-        {/* Animated Logo Integration 💫 */}
         <View style={styles.logoWrapper}>
           <MotiView
             from={{ opacity: 0, scale: 1.5 }}
@@ -91,15 +90,14 @@ export function LocationLoadingScreen({
           </MotiView>
         </View>
 
-        <View style={{ height: 12 }} /> {/* Spacer */}
+        <View style={{ height: 12 }} />
 
-        {/* Ícone com círculo de fundo */}
         <View
           style={{
             width: 64,
             height: 64,
             borderRadius: 32,
-            backgroundColor: `${accentColor}1F`, // 12% opacity
+            backgroundColor: `${accentColor}1F`,
             alignItems: "center",
             justifyContent: "center",
           }}
@@ -108,7 +106,6 @@ export function LocationLoadingScreen({
         </View>
 
         <View style={{ alignItems: "center", gap: 8 }}>
-          {/* Título */}
           <Text
             style={{
               color: "#fff",
@@ -119,7 +116,6 @@ export function LocationLoadingScreen({
             {title}
           </Text>
 
-          {/* Subtítulo */}
           <Text
             style={{
               color: "rgba(255,255,255,0.6)",

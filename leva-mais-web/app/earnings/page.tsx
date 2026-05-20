@@ -44,8 +44,8 @@ export default function EarningsPage() {
       setRides(ridesData);
 
       // Attempt to load withdrawal history from backend
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001/api";
-      const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || "dev-admin-key";
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+      const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || '';
       const res = await axios.get(`${API_URL}/withdraws/history`, {
         headers: {
           "Content-Type": "application/json",

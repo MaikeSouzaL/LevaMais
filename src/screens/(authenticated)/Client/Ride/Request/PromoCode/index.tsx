@@ -91,7 +91,7 @@ export default function PromoCodeSheet({
         />
       </View>
 
-      {error && (
+      {!!error && (
         <View style={styles.errorRow}>
           <MaterialIcons name="error-outline" size={16} color="#ef4444" />
           <Text style={styles.errorText}>{error}</Text>

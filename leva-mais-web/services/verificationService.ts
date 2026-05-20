@@ -1,7 +1,9 @@
+// @deprecated Este servico nao esta em uso ativo. A pagina de verificacao usa axios direto.
+// Mantido para uso futuro quando a aprovacao granular por documento for implementada.
 import axios from "axios";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001/api";
-const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || "dev-admin-key";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || '';
 
 // Criar instância do axios
 const api = axios.create({

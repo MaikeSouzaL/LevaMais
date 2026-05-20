@@ -1,52 +1,35 @@
 import { Vibration } from "react-native";
-import { Audio } from "expo-av";
+import { createAudioPlayer } from "expo-audio";
 
-let sound: any = null;
+let soundPlayer: any = null;
 let vibTimer: any = null;
 let starting = false;
 let running = false;
 
 function getSoletoAsset() {
-  // path: src/services -> src/assets/sound/Soleto.mp3
   return require("../assets/sound/Soleto.mp3");
 }
 
-async function ensureSound() {
-  if (sound) return sound;
+function ensureSoundPlayer() {
+  if (soundPlayer) return soundPlayer;
 
-  await Audio.setAudioModeAsync({
-    allowsRecordingIOS: false,
-    playsInSilentModeIOS: true,
-    staysActiveInBackground: true,
-    shouldDuckAndroid: true,
-    playThroughEarpieceAndroid: false,
-  });
-
-  const created = await Audio.Sound.createAsync(getSoletoAsset(), {
-    shouldPlay: false,
-    isLooping: true,
-    volume: 1,
-  });
-
-  sound = created.sound;
-  return sound;
+  soundPlayer = createAudioPlayer(getSoletoAsset());
+  soundPlayer.loop = true;
+  soundPlayer.volume = 1.0;
+  return soundPlayer;
 }
 
 function startVibrationLoop() {
   if (vibTimer) return;
 
-  // Pattern: vibrate 500ms, pause 500ms (repeat)
-  // On Android, Vibration.vibrate(pattern, true) repeats. On iOS, repeat may be ignored,
-  // so we fallback to a timer.
   try {
     Vibration.vibrate([0, 500, 500], true);
-    // also keep a timer for safety
     vibTimer = setInterval(() => {
       try {
         Vibration.vibrate(500);
       } catch {}
     }, 1500);
-  } catch {
+  } catch (error) {
     vibTimer = setInterval(() => {
       try {
         Vibration.vibrate(500);
@@ -66,16 +49,17 @@ function stopVibrationLoop() {
   }
 }
 
-async function playOneShot(asset: any) {
+function playOneShot(asset: any) {
   try {
-    const { sound: shotSound } = await Audio.Sound.createAsync(asset, {
-      shouldPlay: true,
-      volume: 1,
-    });
-    // Auto-unload after playback to avoid memory leaks
-    shotSound.setOnPlaybackStatusUpdate((status: any) => {
+    const player = createAudioPlayer(asset);
+    player.volume = 1.0;
+    player.loop = false;
+    player.play();
+
+    const subscription = player.addListener("playbackStatusUpdate", (status) => {
       if (status.didJustFinish) {
-        shotSound.unloadAsync().catch(() => {});
+        subscription.remove();
+        player.release();
       }
     });
   } catch (error) {
@@ -85,15 +69,15 @@ async function playOneShot(asset: any) {
 
 class DriverAlertService {
   async playOnlineSound() {
-    await playOneShot(require("../assets/sound/pluckOn.mp3"));
+    playOneShot(require("../assets/sound/pluckOn.mp3"));
   }
 
   async playOfflineSound() {
-    await playOneShot(require("../assets/sound/pluckOff.mp3"));
+    playOneShot(require("../assets/sound/pluckOff.mp3"));
   }
 
   async playCounterProposalSound() {
-    await playOneShot(require("../assets/sound/pedidoAceito.mp3"));
+    playOneShot(require("../assets/sound/pedidoAceito.mp3"));
   }
 
   isRunning() {
@@ -108,11 +92,9 @@ class DriverAlertService {
       startVibrationLoop();
 
       try {
-        const s = await ensureSound();
-        await s.setIsLoopingAsync(true);
-        await s.playAsync();
+        const player = ensureSoundPlayer();
+        player.play();
       } catch (error) {
-        // Mantem somente vibracao quando o audio falha (ex.: modulo ausente, foco de audio indisponivel).
         console.log("[DriverAlert] Falha ao tocar som, mantendo vibracao:", error);
       }
 
@@ -125,13 +107,13 @@ class DriverAlertService {
   async stop() {
     stopVibrationLoop();
 
-    if (!sound) {
+    if (!soundPlayer) {
       running = false;
       return;
     }
 
     try {
-      await sound.stopAsync();
+      soundPlayer.pause();
     } catch {}
 
     running = false;
@@ -140,20 +122,17 @@ class DriverAlertService {
   async dispose() {
     stopVibrationLoop();
 
-    if (!sound) {
+    if (!soundPlayer) {
       running = false;
       return;
     }
 
     try {
-      await sound.stopAsync();
+      soundPlayer.pause();
+      soundPlayer.release();
     } catch {}
 
-    try {
-      await sound.unloadAsync();
-    } catch {}
-
-    sound = null;
+    soundPlayer = null;
     running = false;
   }
 }

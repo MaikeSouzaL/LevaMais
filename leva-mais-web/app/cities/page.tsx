@@ -613,7 +613,7 @@ function PricingForm({ rule, cityId, vehicleCategory, purposeId, onSave }: any) 
       if (rule?._id) {
         await pricingRulesService.update(rule._id, payload);
       } else {
-        await pricingRulesService.create(payload as any);
+        await pricingRulesService.create(payload);
       }
       showToast("Preço salvo!", "success");
       onSave();

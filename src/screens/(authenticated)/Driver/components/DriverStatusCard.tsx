@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
 
@@ -26,6 +26,7 @@ export type DriverStatusCardProps = {
   onComplete: () => void;
   onChat?: () => void;
   unreadCount?: number;
+  clientName?: string;
   details?: {
     itemType?: string;
     priority?: number;
@@ -64,6 +65,7 @@ export function DriverStatusCard({
   onComplete,
   onChat,
   unreadCount,
+  clientName,
   details,
   payment,
   isAwaitingPayment = false,
@@ -194,6 +196,27 @@ export function DriverStatusCard({
           </View>
         );
       })()}
+
+      {/* Dados do Solicitante / Remetente */}
+      {!!clientName && (
+        <View style={{
+          flexDirection: "row",
+          alignItems: "center",
+          backgroundColor: "rgba(255,255,255,0.03)",
+          paddingHorizontal: 12,
+          paddingVertical: 8,
+          borderRadius: 8,
+          marginTop: 8,
+          borderWidth: 1,
+          borderColor: "rgba(255,255,255,0.06)"
+        }}>
+          <MaterialIcons name="person-outline" size={14} color="#02de95" />
+          <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700", marginLeft: 8 }}>
+            {isDelivery ? "Remetente: " : "Passageiro: "}
+            <Text style={{ color: "rgba(255,255,255,0.8)", fontWeight: "500" }}>{clientName}</Text>
+          </Text>
+        </View>
+      )}
 
       {!!details?.specialInstructions && (
         <View style={{ 

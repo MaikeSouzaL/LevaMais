@@ -1,4 +1,4 @@
-﻿const mongoose = require("mongoose");
+const mongoose = require("mongoose");
 
 const rideSchema = new mongoose.Schema(
   {
@@ -167,6 +167,7 @@ const rideSchema = new mongoose.Schema(
       recipientName: String,
       recipientPhone: String,
       recipientInstructions: String,
+      pickupPin: String,
       deliveryPin: String,
       insurance: {
         type: String,
@@ -307,7 +308,7 @@ const rideSchema = new mongoose.Schema(
       },
       status: {
         type: String,
-        enum: ["not_selected", "pending", "processing", "authorized", "completed", "failed", "refunded"],
+        enum: ["not_selected", "pre_selected", "pending", "processing", "authorized", "completed", "failed", "refunded"],
         default: "not_selected",
       },
       transactionId: String,

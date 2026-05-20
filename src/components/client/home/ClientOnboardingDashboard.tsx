@@ -142,7 +142,18 @@ export default function ClientOnboardingDashboard({ onContinue }: { onContinue: 
           companyEmail: profile.companyEmail || "",
           companyPhone: profile.companyPhone || "",
           paymentMethods: profile.paymentMethods || [],
+          fotoPerfil: profile.profilePhoto || "",
         });
+
+        // Se o cliente ja preencheu CPF/CNPJ e fez a verificação facial, pula direto para o app!
+        const alreadyCompliant = Boolean(
+          (profile.cpf || profile.cnpj) && 
+          profile.profilePhoto
+        );
+        if (alreadyCompliant) {
+          onContinue();
+          return;
+        }
         
         // Seed fields
         setCpfInput(profile.cpf ? formatCPF(profile.cpf) : "");

@@ -614,7 +614,7 @@ export default function DriverNegotiationScreen() {
   // 🔄 REAL-TIME ACTIVE SYNC LOOP: WAITING CLIENT APPROVAL
   // =========================================================
   useEffect(() => {
-    if (loadingState !== "waiting" || !offer?._id) return;
+    if (!offer?._id) return;
 
     let active = true;
     const driverId = useAuthStore.getState().userData?.id;

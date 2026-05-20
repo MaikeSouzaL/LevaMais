@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, Image, StyleSheet } from "react-native";
 import { MotiView } from "moti";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 const LogoImg = require("../assets/Logo/logo.png");
 
 import DrawerClienteRoutes from "./drawer.cliente.routes";
@@ -26,7 +27,13 @@ export default function ClientBoot() {
   const [loading, setLoading] = useState(true);
   const [showLocationPermission, setShowLocationPermission] = useState(false);
   const [initialRideId, setInitialRideId] = useState<string | null>(null);
+  // Activated is persisted so hot-reloads/force-closes don't reset the onboarding gate
   const [activated, setActivated] = useState(false);
+
+  const persistActivated = async () => {
+    try { await AsyncStorage.setItem("client_onboarding_done", "1"); } catch {}
+    setActivated(true);
+  };
 
   // Helper function to run the location detection and active ride fetch
   async function runBootstrap(hasPermission: boolean, mounted: boolean) {
@@ -148,13 +155,18 @@ export default function ClientBoot() {
 
     (async () => {
       try {
+        // Fast path: if already completed onboarding, skip straight to app
+        const done = await AsyncStorage.getItem("client_onboarding_done").catch(() => null);
+        if (done === "1" && mounted) {
+          setActivated(true);
+        }
+
         const alreadyGranted = await checkLocationPermission();
         if (!mounted) return;
 
         if (alreadyGranted) {
           await runBootstrap(true, mounted);
         } else {
-          // Se não tiver permissão, exibe a tela de solicitação pré-permissão
           setShowLocationPermission(true);
           setLoading(false);
         }
@@ -235,10 +247,10 @@ export default function ClientBoot() {
 
   // Se não estiver ativado (onboarding inicial), mostra dashboard de ativação
   if (!activated) {
-    return <ClientOnboardingDashboard onContinue={() => setActivated(true)} />;
+    return <ClientOnboardingDashboard onContinue={persistActivated} />;
   }
 
-  return <DrawerClienteRoutes initialRideId={initialRideId} />;
+  return <DrawerClienteRoutes initialRideId={initialRideId} onActivated={persistActivated} />;
 }
 
 const styles = StyleSheet.create({

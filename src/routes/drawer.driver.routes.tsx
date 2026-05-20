@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import {
   createDrawerNavigator,
   DrawerContentComponentProps,
@@ -33,6 +33,7 @@ import DriverSupportCenterScreen from "../screens/(authenticated)/Driver/DriverS
 import DriverShiftOffersScreen from "../screens/(authenticated)/Driver/DriverShiftOffersScreen";
 import DeliveryOfferScreen from "../screens/(authenticated)/Driver/DeliveryOfferScreen";
 import DriverNegotiationScreen from "../screens/(authenticated)/Driver/DriverNegotiationScreen";
+import DeliveryOfferDetailScreen from "../screens/(authenticated)/Driver/DeliveryOfferDetailScreen";
 
 import { useAuthStore } from "../context/authStore";
 
@@ -58,19 +59,19 @@ function DriverFinanceStack() {
 
 const menuItems = [
   { name: "DriverHome", label: "Mapa", icon: "map" },
-  { name: "DriverRequests", label: "SolicitaÃ§Ãµes", icon: "car" },
+  { name: "DriverRequests", label: "Solicitações", icon: "car" },
   { name: "DriverFinance", label: "Ganhos e carteira", icon: "cash" },
-  { name: "DriverShiftOffers", label: "PlantÃµes", icon: "store-clock-outline" },
-  { name: "DriverRatings", label: "AvaliaÃ§Ãµes", icon: "star-circle" },
-  { name: "DriverHistory", label: "HistÃ³rico", icon: "history" },
-  { name: "DriverVehicle", label: "VeÃ­culo", icon: "car-info" },
+  { name: "DriverShiftOffers", label: "Plantões", icon: "store-clock-outline" },
+  { name: "DriverRatings", label: "Avaliações", icon: "star-circle" },
+  { name: "DriverHistory", label: "Histórico", icon: "history" },
+  { name: "DriverVehicle", label: "Veículo", icon: "car-info" },
   { name: "DriverDocuments", label: "Documentos", icon: "file-document-outline" },
-  { name: "DriverWorkPreferences", label: "PreferÃªncias", icon: "tune" },
+  { name: "DriverWorkPreferences", label: "Preferências", icon: "tune" },
   { name: "DriverProfile", label: "Perfil", icon: "account" },
-  { name: "DriverSafety", label: "SeguranÃ§a", icon: "shield" },
+  { name: "DriverSafety", label: "Segurança", icon: "shield" },
   { name: "DriverSupportCenter", label: "Suporte", icon: "lifebuoy" },
-  { name: "DriverHelp", label: "Ajuda rÃ¡pida", icon: "help-circle" },
-  { name: "DriverSettings", label: "ConfiguraÃ§Ãµes", icon: "cog" },
+  { name: "DriverHelp", label: "Ajuda rápida", icon: "help-circle" },
+  { name: "DriverSettings", label: "Configurações", icon: "cog" },
 ] as const;
 
 function CustomDrawerContent(props: DrawerContentComponentProps) {
@@ -211,20 +212,20 @@ export default function DrawerDriverRoutes({ initialRideId }: DrawerDriverRoutes
         overlayColor: "rgba(0, 0, 0, 0.5)",
       }}
     >
-      <Drawer.Screen name="DriverHome" component={DriverHomeScreen} options={{ title: "InÃ­cio", headerShown: false }} />
-      <Drawer.Screen name="DriverRequests" component={DriverRequestsScreen} options={{ title: "SolicitaÃ§Ãµes" }} />
+      <Drawer.Screen name="DriverHome" component={DriverHomeScreen} options={{ title: "Início", headerShown: false }} />
+      <Drawer.Screen name="DriverRequests" component={DriverRequestsScreen} options={{ title: "Solicitações" }} />
       <Drawer.Screen name="DriverFinance" component={DriverFinanceStack} options={{ title: "Ganhos e carteira" }} />
-      <Drawer.Screen name="DriverShiftOffers" component={DriverShiftOffersScreen} options={{ title: "PlantÃµes" }} />
-      <Drawer.Screen name="DriverHistory" component={DriverHistoryScreen} options={{ title: "HistÃ³rico" }} />
-      <Drawer.Screen name="DriverVehicle" component={DriverVehicleScreen} options={{ title: "VeÃ­culo" }} />
-      <Drawer.Screen name="DriverRatings" component={DriverRatingsScreen} options={{ title: "AvaliaÃ§Ãµes" }} />
+      <Drawer.Screen name="DriverShiftOffers" component={DriverShiftOffersScreen} options={{ title: "Plantões" }} />
+      <Drawer.Screen name="DriverHistory" component={DriverHistoryScreen} options={{ title: "Histórico" }} />
+      <Drawer.Screen name="DriverVehicle" component={DriverVehicleScreen} options={{ title: "Veículo" }} />
+      <Drawer.Screen name="DriverRatings" component={DriverRatingsScreen} options={{ title: "Avaliações" }} />
       <Drawer.Screen name="DriverDocuments" component={DriverDocumentsScreen} options={{ title: "Documentos" }} />
-      <Drawer.Screen name="DriverWorkPreferences" component={DriverWorkPreferencesScreen} options={{ title: "PreferÃªncias" }} />
+      <Drawer.Screen name="DriverWorkPreferences" component={DriverWorkPreferencesScreen} options={{ title: "Preferências" }} />
       <Drawer.Screen name="DriverProfile" component={DriverProfileScreen} options={{ title: "Perfil" }} />
-      <Drawer.Screen name="DriverSafety" component={DriverSafetyScreen} options={{ title: "SeguranÃ§a" }} />
+      <Drawer.Screen name="DriverSafety" component={DriverSafetyScreen} options={{ title: "Segurança" }} />
       <Drawer.Screen name="DriverSupportCenter" component={DriverSupportCenterScreen} options={{ title: "Suporte" }} />
       <Drawer.Screen name="DriverHelp" component={DriverHelpScreen} options={{ title: "Ajuda" }} />
-      <Drawer.Screen name="DriverSettings" component={DriverSettingsScreen} options={{ title: "ConfiguraÃ§Ãµes" }} />
+      <Drawer.Screen name="DriverSettings" component={DriverSettingsScreen} options={{ title: "Configurações" }} />
 
       <Drawer.Screen
         name="DriverRide"
@@ -237,6 +238,7 @@ export default function DrawerDriverRoutes({ initialRideId }: DrawerDriverRoutes
       <Drawer.Screen name="DriverChat" component={DriverChatScreen} options={HiddenScreenOptions} />
       <Drawer.Screen name="DriverNegotiation" component={DriverNegotiationScreen} options={HiddenScreenOptions} />
       <Drawer.Screen name="DeliveryOfferScreen" component={DeliveryOfferScreen} options={HiddenScreenOptions} />
+      <Drawer.Screen name="DeliveryOfferDetail" component={DeliveryOfferDetailScreen} options={HiddenScreenOptions} />
     </Drawer.Navigator>
   );
 }

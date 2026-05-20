@@ -55,6 +55,9 @@ export default function DeliveryReviewScreen({ navigation, route }: any) {
     if (submitting) return;
     if (!validatePayload()) return;
 
+    const paymentMethodMap: Record<string, string> = { cash: "cash", pix: "pix", card: "card" };
+    const backendPaymentMethod = paymentMethodMap[params.paymentMethod] || "cash";
+
     const backendPayload: CreateRideRequest = {
       serviceType: "delivery",
       vehicleType: params.vehicleType,
@@ -80,6 +83,9 @@ export default function DeliveryReviewScreen({ navigation, route }: any) {
         deliveryPin: params.deliveryPin,
         specialInstructions: `[Tamanho: ${params.cargoSize}] ${params.cargoDescription || ""}`.trim(),
       },
+      payment: {
+        method: { type: backendPaymentMethod as any },
+      },
       negotiation: {
         enabled: true,
         clientOffer: Number(params.offerValue),
@@ -103,9 +109,8 @@ export default function DeliveryReviewScreen({ navigation, route }: any) {
         return;
       }
 
-      navigation.replace("SearchingDriver", {
+      navigation.replace("OrderSent", {
         rideId: created._id,
-        serviceType: "delivery",
       });
     } catch (e: any) {
       Toast.show({
@@ -154,9 +159,17 @@ export default function DeliveryReviewScreen({ navigation, route }: any) {
         </View>
 
         <View className="mx-4 mt-3 rounded-2xl border border-white/10 bg-[#11253E] px-4 py-4">
-          <Text className="text-white font-bold text-base mb-3">Oferta</Text>
+          <Text className="text-white font-bold text-base mb-3">Oferta e Pagamento</Text>
           <Text className="text-white text-lg font-extrabold mb-1">{formatBRL(Number(params.offerValue || 0))}</Text>
-          <Text className="text-white/70 text-xs">Faixa sugerida: {formatBRL(Number.isFinite(suggestedMin) ? suggestedMin : 0)} - {formatBRL(Number.isFinite(suggestedMax) ? suggestedMax : 0)}</Text>
+          <Text className="text-white/70 text-xs mb-2">Faixa sugerida: {formatBRL(Number.isFinite(suggestedMin) ? suggestedMin : 0)} - {formatBRL(Number.isFinite(suggestedMax) ? suggestedMax : 0)}</Text>
+          <View className="flex-row items-center mt-1 bg-white/5 rounded-xl px-3 py-2">
+            <Text className="text-white/60 text-xs">Pagamento: </Text>
+            <Text className="text-[#02de95] font-bold text-xs">{{
+              cash: "Dinheiro",
+              pix: "PIX",
+              card: "Cart\u00e3o",
+            }[params.paymentMethod as string] || "Dinheiro"}</Text>
+          </View>
         </View>
 
         <TouchableOpacity onPress={() => navigation.goBack()} className="mx-4 mt-4 h-11 rounded-xl border border-white/20 items-center justify-center">

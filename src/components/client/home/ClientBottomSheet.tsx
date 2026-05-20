@@ -59,10 +59,8 @@ export const ClientBottomSheet = ({
             style={[
               styles.serviceCard, 
               styles.primaryCard,
-              availability && availability.rideDrivers <= 0 && styles.serviceCardDisabled,
             ]} 
             onPress={() => onSelectService("ride")}
-            disabled={Boolean(availability && availability.rideDrivers <= 0)}
             activeOpacity={0.85}
           >
             <View style={styles.glowOverlay} />
@@ -70,99 +68,31 @@ export const ClientBottomSheet = ({
               <Car size={32} color={colors.primary[500]} strokeWidth={1.5} />
             </View>
             <Text style={styles.serviceTitle}>Corrida</Text>
-            <Text style={styles.serviceDesc}>Viagens seguras e rapidas</Text>
+            <Text style={styles.serviceDesc} numberOfLines={1}>Rapidas e Seguras</Text>
             {!!availability && (
               <Text style={styles.availabilityText}>
                 {availability.rideDrivers} motoristas proximos
               </Text>
             )}
-            {!!availability && availability.rideDrivers <= 0 && (
-              <Text style={styles.unavailableText}>
-                Indisponivel agora nesta regiao
-              </Text>
-            )}
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={[
-              styles.serviceCard,
-              availability && availability.deliveryDrivers <= 0 && styles.serviceCardDisabled,
-            ]} 
+            style={styles.serviceCard} 
             onPress={() => onSelectService("delivery")}
-            disabled={Boolean(availability && availability.deliveryDrivers <= 0)}
             activeOpacity={0.85}
           >
             <View style={[styles.iconCircle, { backgroundColor: "rgba(56, 189, 248, 0.15)" }]}>
               <Package size={30} color="#38bdf8" strokeWidth={1.5} />
             </View>
             <Text style={styles.serviceTitle}>Entrega</Text>
-            <Text style={styles.serviceDesc}>Envie pacotes agora</Text>
+            <Text style={styles.serviceDesc} numberOfLines={1}>Envie pacotes agora</Text>
             {!!availability && (
               <Text style={styles.availabilityText}>
                 {availability.deliveryDrivers} entregadores proximos
               </Text>
             )}
-            {!!availability && availability.deliveryDrivers <= 0 && (
-              <Text style={styles.unavailableText}>
-                Indisponivel agora nesta regiao
-              </Text>
-            )}
           </TouchableOpacity>
         </View>
-
-        {availabilityLoading && (
-          <View style={styles.availabilityBanner}>
-            <Text style={styles.availabilityBannerText}>
-              Verificando disponibilidade de motoristas...
-            </Text>
-          </View>
-        )}
-
-        {!!availabilityError && !availabilityLoading && (
-          <View style={styles.availabilityBanner}>
-            <Text style={styles.warningText}>
-              {availabilityError}
-            </Text>
-          </View>
-        )}
-
-        {!!availability && (
-          <View style={styles.availabilityBanner}>
-            <Text style={styles.availabilityBannerText}>
-              Disponibilidade local agora: {availability.totalNearby} motoristas online
-            </Text>
-            {availability.rideDrivers === 0 && (
-              <View style={styles.warningRow}>
-                <Text style={styles.warningText}>
-                  Corrida com baixa oferta no momento.
-                </Text>
-                <TouchableOpacity
-                  style={styles.warningCta}
-                  activeOpacity={0.85}
-                  onPress={() => onSelectService("ride")}
-                >
-                  <Text style={styles.warningCtaText}>Tentar</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-            {availability.deliveryDrivers === 0 && (
-              <View style={styles.warningRow}>
-                <Text style={styles.warningText}>
-                  Entrega com baixa oferta no momento.
-                </Text>
-                <TouchableOpacity
-                  style={styles.warningCta}
-                  activeOpacity={0.85}
-                  onPress={() =>
-                    onSelectService("delivery", { preferScheduled: true })
-                  }
-                >
-                  <Text style={styles.warningCtaText}>Agendar</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
-        )}
 
         <View style={styles.divider} />
 
@@ -234,7 +164,7 @@ const styles = StyleSheet.create({
   },
   serviceCard: {
     flex: 1,
-    height: 140,
+    height: 148,
     backgroundColor: "#11253E", // Surface Primary
     borderRadius: 24,
     padding: spacing.md,

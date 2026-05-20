@@ -125,7 +125,7 @@ const cleanDocUrl = (url?: string) => {
   if (url.startsWith("file:///")) {
     return url; // Keep local cache URIs, will be handled gracefully by UI
   }
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001/api";
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
   const backendBase = API_URL.replace("/api", "");
   if (url.startsWith("http://") || url.startsWith("https://")) {
     return url.replace(/^https?:\/\/[^\/]+/, backendBase);
@@ -182,8 +182,8 @@ export default function UnifiedVerificationPage() {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001/api";
-      const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || "dev-admin-key";
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+      const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || '';
       
       const [driversRes, clientsRes] = await Promise.all([
         axios.get(`${API_URL}/auth/users?userType=driver`, {
@@ -253,8 +253,8 @@ export default function UnifiedVerificationPage() {
   const handleApproveUser = async (user: PendingDriver | PendingClient) => {
     setProcessing(true);
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001/api";
-      const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || "dev-admin-key";
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+      const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || '';
 
       const payload: {
         isActive: boolean;
@@ -313,8 +313,8 @@ export default function UnifiedVerificationPage() {
   const handleVehicleStatusUpdate = async (userId: string, vehicleId: string, newStatus: "approved" | "rejected", reason?: string) => {
     setProcessing(true);
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001/api";
-      const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || "dev-admin-key";
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+      const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || '';
 
       const driverUser = selectedUser as PendingDriver;
       const updatedVehicles = (driverUser.vehicles || []).map(v => {
@@ -347,8 +347,8 @@ export default function UnifiedVerificationPage() {
 
     setProcessing(true);
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001/api";
-      const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || "dev-admin-key";
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+      const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || '';
 
       const payload: {
         isActive: boolean;

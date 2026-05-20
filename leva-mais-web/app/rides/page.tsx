@@ -25,7 +25,7 @@ import { useToast } from "@/components/ui/Toast";
 const STATUS_LABELS = {
   requesting: "Buscando",
   accepted: "Aceito",
-  driver_assigned: "Motorista Atribuí­do",
+  driver_assigned: "Motorista Atribuído",
   driver_arriving: "Chegando",
   arrived: "No Local",
   in_progress: "Em Rota",
@@ -70,7 +70,7 @@ export default function RidesPage() {
       const data = await ridesService.getAll();
       setRides(data);
     } catch {
-      showToast("Erro ao carregar histÃ³rico de entregas", "error");
+      showToast("Erro ao carregar histórico de entregas", "error");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -84,7 +84,7 @@ export default function RidesPage() {
   const handleRefresh = () => {
     setRefreshing(true);
     loadData();
-    showToast("HistÃ³rico de corridas atualizado", "success");
+    showToast("Histórico de corridas atualizado", "success");
   };
 
   const filteredRides = useMemo(() => {
@@ -141,7 +141,7 @@ export default function RidesPage() {
             Central de Corridas & Entregas
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            SupervisÃ£o em tempo real de coletas, entregas, taxas cobradas, fotos de comprovaÃ§Ã£o de entrega e ocorrÃªncias.
+            Supervisão em tempo real de coletas, entregas, taxas cobradas, fotos de comprovação de entrega e ocorrências.
           </p>
         </div>
 
@@ -163,7 +163,7 @@ export default function RidesPage() {
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
               type="text"
-              placeholder="Buscar por cliente, motorista, endereÃ§o de coleta ou entrega..."
+              placeholder="Buscar por cliente, motorista, endereço de coleta ou entrega..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-11 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
@@ -181,7 +181,7 @@ export default function RidesPage() {
             <option value="payment_pending">Pagamento Pendente</option>
             <option value="accepted">Aceitos</option>
             <option value="in_progress">Em Rota</option>
-            <option value="completed">ConcluÃ­dos</option>
+            <option value="completed">Concluídos</option>
             <option value="cancelled">Cancelados</option>
             <option value="scheduled">Agendados</option>
           </select>
@@ -423,6 +423,22 @@ export default function RidesPage() {
                       <div className="flex justify-between"><span>Veículo:</span><span className="text-gray-900">{selectedRide.vehicleType}</span></div>
                     </div>
                   </div>
+
+                  {selectedRide.serviceType === "delivery" && (
+                    <div>
+                      <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Códigos de Segurança (PIN)</h4>
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 text-xs text-emerald-800 font-semibold space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span>PIN de Coleta (Remetente):</span>
+                          <span className="font-mono font-black text-emerald-950 text-sm bg-white border border-emerald-300 px-2 py-0.5 rounded shadow-sm">{selectedRide.details?.pickupPin || "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span>PIN de Entrega (Recebedor):</span>
+                          <span className="font-mono font-black text-emerald-950 text-sm bg-white border border-emerald-300 px-2 py-0.5 rounded shadow-sm">{selectedRide.details?.deliveryPin || "N/A"}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
 

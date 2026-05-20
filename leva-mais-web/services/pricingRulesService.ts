@@ -1,8 +1,8 @@
 import axios from "axios";
 import type { VehicleType, PurposeItem } from "@/types";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001/api";
-const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || "dev-admin-key";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || '';
 
 const api = axios.create({
   baseURL: API_URL.endsWith("/") ? API_URL : `${API_URL}/`,

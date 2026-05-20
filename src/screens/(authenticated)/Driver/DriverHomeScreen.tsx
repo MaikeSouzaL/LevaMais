@@ -43,7 +43,7 @@ import { StatusBar } from "expo-status-bar";
 import { MotiView } from "moti";
 import { MapPin, Menu, Target, Layers, ShieldAlert, Info , AlertTriangle} from "lucide-react-native";
 import { DriverStatusHeader } from "@/components/driver/home/DriverStatusHeader";
-import { IncomingRideCard } from "@/components/driver/home/IncomingRideCard";
+import { NewIncomingOfferSheet } from "@/components/driver/home/NewIncomingOfferSheet";
 import { PremiumMapMarker } from "@/components/maps/PremiumMapMarker";
 import { PremiumDottedRoute } from "@/components/routes/PremiumDottedRoute";
 import { VehicleMarker } from "@/components/maps/VehicleMarker";
@@ -79,11 +79,43 @@ export default function DriverHomeScreen() {
   const isApproved = userData?.driverStatus === "approved";
 
   const [online, setOnline] = useState(false);
-  const [services, setServices] = useState({
-    ride:
-      userData?.vehicleType === "car" || userData?.vehicleType === "motorcycle",
-    delivery: true,
+  const [services, setServices] = useState<{ ride: boolean; delivery: boolean }>(() => {
+    const serviceTypes = userData?.driverPreferences?.serviceTypes;
+    if (Array.isArray(serviceTypes)) {
+      return {
+        ride: serviceTypes.includes("ride"),
+        delivery: serviceTypes.includes("delivery"),
+      };
+    }
+    const canDoRides = userData?.vehicleType === "car" || userData?.vehicleType === "motorcycle";
+    return {
+      ride: canDoRides,
+      delivery: true,
+    };
   });
+
+  // Keep services preference state synchronized with latest profile / userData updates
+  useEffect(() => {
+    if (userData?.driverPreferences?.serviceTypes) {
+      const serviceTypes = userData.driverPreferences.serviceTypes;
+      setServices({
+        ride: serviceTypes.includes("ride"),
+        delivery: serviceTypes.includes("delivery"),
+      });
+    } else {
+      const canDoRides = userData?.vehicleType === "car" || userData?.vehicleType === "motorcycle";
+      setServices({
+        ride: canDoRides,
+        delivery: true,
+      });
+    }
+  }, [userData?.driverPreferences?.serviceTypes, userData?.vehicleType]);
+
+  const servicesRef = useRef(services);
+  useEffect(() => {
+    servicesRef.current = services;
+  }, [services]);
+
   const [error, setError] = useState<string | null>(null);
   const [region, setRegion] = useState<any>(null);
   const [isCentering, setIsCentering] = useState(false);
@@ -140,8 +172,8 @@ export default function DriverHomeScreen() {
 
   const currentServiceTypes = () => {
     const list: Array<"ride" | "delivery"> = [];
-    if (services.ride) list.push("ride");
-    if (services.delivery) list.push("delivery");
+    if (servicesRef.current.ride) list.push("ride");
+    if (servicesRef.current.delivery) list.push("delivery");
     return list;
   };
 
@@ -302,6 +334,20 @@ export default function DriverHomeScreen() {
     React.useCallback(() => {
       let active = true;
 
+      const loadProfile = async () => {
+        try {
+          const profile = await userService.getProfile();
+          if (!active) return;
+          if (profile) {
+            useAuthStore.getState().updateUserData(profile);
+          }
+        } catch (e) {
+          console.error("Failed to sync profile on home screen focus:", e);
+        }
+      };
+
+      loadProfile();
+
       (async () => {
         try {
           const response = await rideService.getActive();
@@ -376,7 +422,6 @@ export default function DriverHomeScreen() {
     } catch {}
 
     setOnline(false);
-    driverAlertService.playOfflineSound().catch(() => {});
   };
 
   // Região inicial do mapa deve ser sempre a localização do usuário.
@@ -526,14 +571,14 @@ export default function DriverHomeScreen() {
       title: "Ficar Online & Começar 🚀",
       desc: "Arraste ou clique no botão do painel inferior para ficar online! Quando estiver ativo, o aplicativo começará a buscar corridas e entregas na sua área.",
       targetStyle: {
-        bottom: 20,
+        bottom: 85,
         left: 16,
         right: 16,
-        height: 80,
+        height: 64,
         borderRadius: 24,
       },
       balloonStyle: {
-        bottom: 120,
+        bottom: 185,
         left: 16,
         right: 16,
       },
@@ -734,7 +779,6 @@ export default function DriverHomeScreen() {
     }, preset.pollMs);
 
     setOnline(true);
-    driverAlertService.playOnlineSound().catch(() => {});
   };
 
   // Badge de solicitacoes novas (new-ride-request)
@@ -896,6 +940,13 @@ export default function DriverHomeScreen() {
     const next = !online;
     setIsTogglingOnline(true);
 
+    // Play premium pluck sound immediately on tap for instant sensory feedback
+    if (next) {
+      driverAlertService.playOnlineSound().catch(() => {});
+    } else {
+      driverAlertService.playOfflineSound().catch(() => {});
+    }
+
     try {
       if (!next) {
         // indo para offline
@@ -912,6 +963,13 @@ export default function DriverHomeScreen() {
         }
 
         // ✅ Verificar permissao para ficar online (driverStatus, docs, veiculo, saldo)
+        // 1. Verificar saldo positivo client-side imediatamente para evitar requests desnecessários
+        if (driverBalance !== null && driverBalance <= 0) {
+          setIsTogglingOnline(false);
+          setError("⚠️ Saldo Insuficiente. Você precisa de saldo positivo para ficar online e aceitar corridas.");
+          return;
+        }
+
         try {
           const goOnlineResult = await driverService.goOnline();
           if (!goOnlineResult?.success) {
@@ -978,6 +1036,33 @@ export default function DriverHomeScreen() {
     const nextServices = { ...services, [key]: !services[key] };
     setServices(nextServices);
     setError(null); // Limpa erro se a operação foi bem sucedida
+
+    // Sincronizar persistentemente as preferências no perfil do motorista no backend e atualizar o cache local
+    try {
+      const selectedServices = currentServiceTypesFrom(nextServices);
+      const defaultVehicle = (userData?.vehicleType === "car" || userData?.vehicleType === "motorcycle" || userData?.vehicleType === "van" || userData?.vehicleType === "truck")
+        ? userData.vehicleType
+        : "motorcycle";
+      const selectedVehicles: Array<"motorcycle" | "car" | "van" | "truck"> = 
+        (userData?.driverPreferences?.selectedVehicles as any) || [defaultVehicle];
+
+      const updatedPrefs = {
+        serviceTypes: selectedServices,
+        selectedVehicles,
+        searchRadiusKm: userData?.driverPreferences?.searchRadiusKm || 8,
+        autoAccept: userData?.driverPreferences?.autoAccept || false,
+      };
+
+      await userService.updateProfile({
+        driverPreferences: updatedPrefs,
+      });
+
+      useAuthStore.getState().updateUserData({
+        driverPreferences: updatedPrefs,
+      });
+    } catch (profileErr) {
+      console.error("Erro ao salvar preferências no perfil persistentemente:", profileErr);
+    }
 
     // se já estiver online, atualizar preferências no backend
     if (online) {
@@ -1091,23 +1176,53 @@ export default function DriverHomeScreen() {
     }
   }, []);
 
+  const checkAndAutoActivateVehicle = async () => {
+    try {
+      const res = await driverService.listVehicles();
+      const vehicles = res?.vehicles || [];
+      const activeVehicleId = res?.activeVehicleId;
+
+      if (!activeVehicleId && vehicles.length > 0) {
+        const approvedVehicles = vehicles.filter((v: any) => v.status === "approved");
+        if (approvedVehicles.length > 0) {
+          const targetVehicle = approvedVehicles[0];
+          await driverService.activateVehicle(targetVehicle._id);
+
+          const updatedProfile = await userService.getProfile().catch(() => null);
+          if (updatedProfile) {
+            useAuthStore.getState().updateUserData({
+              vehicleType: updatedProfile.vehicleType || targetVehicle.type,
+              vehicleInfo: updatedProfile.vehicleInfo || {
+                plate: targetVehicle.plate,
+                model: targetVehicle.model,
+                color: targetVehicle.color,
+                year: targetVehicle.year,
+              }
+            });
+          }
+
+          Toast.show({
+            type: "success",
+            text1: "Veículo Ativado Automaticamente! 🚗",
+            text2: `${targetVehicle.model} (${targetVehicle.plate}) foi selecionado como seu veículo ativo.`,
+          });
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to auto-activate vehicle:", err);
+    }
+  };
+
   useEffect(() => {
     if (isFocused) {
       loadBalance();
+      if (isApproved) {
+        checkAndAutoActivateVehicle();
+      }
     }
-  }, [isFocused, loadBalance]);
+  }, [isFocused, isApproved, loadBalance]);
 
-  useEffect(() => {
-    if (isApproved && isFocused) {
-      AsyncStorage.getItem("@LevaMais:driver_tour_completed").then((val) => {
-        if (!val) {
-          setTimeout(() => {
-            setShowTour(true);
-          }, 3000);
-        }
-      });
-    }
-  }, [isApproved, isFocused]);
+
 
   const refreshTodayEarnings = async () => {
     try {
@@ -1302,6 +1417,7 @@ export default function DriverHomeScreen() {
                   if (!isCentering) setRegion(r);
                 }}
                 useDarkStyle={useDarkMap}
+                showsUserLocation={false}
               >
                 {/* 🎯 Real-Time User Puck Marker (HD) */}
                 {driverCoords && (
@@ -1428,16 +1544,22 @@ export default function DriverHomeScreen() {
             </>
           )}
 
-          {/* 🎁 MASTER DISPATCH INTERCEPTION NODE */}
+          {/* 📦 NEW COMPACT OFFER SHEET — Aceitar | Recusar | Ver Detalhes */}
           {isApproved && (
-            <IncomingRideCard 
+            <NewIncomingOfferSheet
               isVisible={!!incomingRequest?.rideId}
               request={incomingRequest}
               countdown={countdown}
               onAccept={acceptIncoming}
               onReject={rejectIncoming}
-              onClose={clearIncoming}
-              onCounterOffer={counterOfferIncoming}
+              onViewDetail={() => {
+                if (!incomingRequest) return;
+                (navigation as any).navigate("DeliveryOfferDetail", {
+                  offer: incomingRequest,
+                  onAccept: acceptIncoming,
+                  onReject: rejectIncoming,
+                });
+              }}
             />
           )}
 
@@ -1451,6 +1573,8 @@ export default function DriverHomeScreen() {
               onToggleService={toggleService}
               vehicleType={vehicleType}
               stats={driverStats}
+              driverBalance={driverBalance}
+              onAddBalance={() => setShowDepositModal(true)}
             />
           )}
 
@@ -1488,22 +1612,7 @@ export default function DriverHomeScreen() {
             }}
           />
 
-          {!loading && driverBalance != null && driverBalance <= 0 && online === false && (
-        <View style={{ marginHorizontal: 16, backgroundColor: 'rgba(239,68,68,0.08)', borderRadius: 16, borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)', padding: 16, marginBottom: 8 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <AlertTriangle size={18} color="#ef4444" />
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: '#ef4444', fontWeight: '800', fontSize: 13 }}>Saldo insuficiente</Text>
-              <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11, marginTop: 2 }}>Voce precisa de saldo positivo para ficar online e aceitar corridas.</Text>
-            </View>
-          </View>
-          <TouchableOpacity
-            onPress={() => { setShowDepositModal(true); }}
-            style={{ marginTop: 12, backgroundColor: '#02de95', borderRadius: 12, paddingVertical: 10, alignItems: 'center' }}>
-            <Text style={{ color: '#091A2F', fontWeight: '800', fontSize: 13 }}>Adicionar Saldo</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+
       {!isApproved && (
             <DriverOnboardingDashboard />
           )}

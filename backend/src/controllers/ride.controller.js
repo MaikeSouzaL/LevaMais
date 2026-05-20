@@ -1,4 +1,4 @@
-﻿const Ride = require("../models/Ride");
+const Ride = require("../models/Ride");
 const DriverLocation = require("../models/DriverLocation");
 const User = require("../models/User");
 const PricingConfig = require("../models/PricingConfig");
@@ -1075,6 +1075,16 @@ class RideController {
         representativeId: representativeId,
       };
 
+      const resolvedDetails = { ...(details || {}) };
+      if (serviceType === "delivery" || serviceType === "frete") {
+        if (!resolvedDetails.pickupPin) {
+          resolvedDetails.pickupPin = Math.floor(1000 + Math.random() * 9000).toString();
+        }
+        if (!resolvedDetails.deliveryPin) {
+          resolvedDetails.deliveryPin = Math.floor(1000 + Math.random() * 9000).toString();
+        }
+      }
+
       const ride = new Ride({
         clientId: req.user.id,
         serviceType,
@@ -1086,7 +1096,7 @@ class RideController {
         splitDetails,
         distance,
         duration,
-        details,
+        details: resolvedDetails,
         searchTimeoutSeconds: config.rideSearchTimeoutSeconds || 60,
         status: isScheduledForFuture(scheduledDate) ? "scheduled" : "requesting",
         requestedAt: new Date(),
@@ -1117,6 +1127,7 @@ class RideController {
         ride.payment = {
           ...(ride.payment || {}),
           method: paymentMethod,
+          status: "pre_selected", // Client chose payment before publishing — drivers will see the method
         };
       }
 
@@ -2015,34 +2026,12 @@ class RideController {
             cancellationFee,
           });
         } else if (isClient && !ride.driverId) {
-          // Broadcast cancel message to ALL notified drivers in the region
-          try {
-             let searchRadius = 15000;
-             if (ride.cityId) {
-               const city = await City.findById(ride.cityId).select("searchRadius");
-               if (city?.searchRadius) {
-                 searchRadius = city.searchRadius;
-               }
-             }
-             const nearbyDrivers = await DriverLocation.findNearby(
-                ride.pickup.latitude,
-                ride.pickup.longitude,
-                searchRadius,
-                ride.vehicleType,
-                50,
-                ride.serviceType
-             );
-             nearbyDrivers.forEach(drv => {
-                if (!drv.driverId) return;
-                io.to(`driver-${drv.driverId}`).emit("ride-cancelled", {
-                   rideId: ride._id,
-                   cancelledBy: "client",
-                   reason: "cancelamento_pre_aceite"
-                });
-             });
-          } catch (broadcastErr) {
-             console.error("Erro ao disparar broadcast de cancelamento:", broadcastErr);
-          }
+          // Broadcast cancel message to ALL connected drivers to guarantee popup is cleared instantly everywhere
+          io.emit("ride-cancelled", {
+            rideId: ride._id,
+            cancelledBy: "client",
+            reason: "cancelamento_pre_aceite"
+          });
         }
       }
 
@@ -2258,11 +2247,23 @@ class RideController {
         return sendError(res, 400, "Transicao de status invalida", { current: currentStatus, requested: nextStatus });
       }
 
-      if (ride.serviceType === "delivery") {
-        if (nextStatus === "in_progress" && !ride.proofs?.pickupPhoto) {
-          return sendError(res, 400, "Envie a foto da coleta antes de iniciar a entrega");
+      if (ride.serviceType === "delivery" || ride.serviceType === "frete") {
+        if (nextStatus === "in_progress") {
+          const reqPin = String(req.body.pickupPin || "").trim();
+          const expectedPin = String(ride.details?.pickupPin || "").trim();
+          if (expectedPin && reqPin !== expectedPin) {
+            return sendError(res, 400, "PIN de coleta incorreto. Verifique com o remetente.");
+          }
+          if (!ride.proofs?.pickupPhoto) {
+            return sendError(res, 400, "Envie a foto da coleta antes de iniciar a entrega");
+          }
         }
         if (nextStatus === "completed") {
+          const reqPin = String(req.body.deliveryPin || "").trim();
+          const expectedPin = String(ride.details?.deliveryPin || "").trim();
+          if (expectedPin && reqPin !== expectedPin) {
+            return sendError(res, 400, "PIN de entrega incorreto. Verifique com o recebedor.");
+          }
           if (!ride.proofs?.deliveryPhoto) {
             return sendError(res, 400, "Envie a foto da entrega antes de finalizar");
           }

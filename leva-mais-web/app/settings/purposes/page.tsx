@@ -326,7 +326,7 @@ function PurposesPageContent() {
     try {
       // Remove MongoDB-specific and timestamp fields before sending to API
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { _id, createdAt, updatedAt, ...itemWithoutMeta } = item;
+      const { ...itemWithoutMeta } = item;
 
       const cleanItem: Omit<PurposeItem, "createdAt" | "updatedAt" | "_id"> & {
         vehicleType: VehicleType;

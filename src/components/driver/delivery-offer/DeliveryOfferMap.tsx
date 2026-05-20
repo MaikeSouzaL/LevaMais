@@ -62,12 +62,12 @@ export function DeliveryOfferMap({ pickup, destination }: DeliveryOfferMapProps)
 
         {/* Pickup Node */}
         <Marker coordinate={pickup} anchor={{ x: 0.5, y: 1 }} tracksViewChanges={false}>
-          <MapMarker type="pickup" size={48} />
+          <MapMarker type="pickup" size={32} />
         </Marker>
 
         {/* Dropoff Node */}
         <Marker coordinate={destination} anchor={{ x: 0.5, y: 1 }} tracksViewChanges={false}>
-          <MapMarker type="dropoff" size={48} />
+          <MapMarker type="dropoff" size={32} />
         </Marker>
       </MapView>
     </View>

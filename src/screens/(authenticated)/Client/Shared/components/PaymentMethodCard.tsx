@@ -41,7 +41,7 @@ export default function PaymentMethodCard({
       {/* Info */}
       <View style={styles.info}>
         <Text style={styles.label}>{label}</Text>
-        {sublabel && <Text style={styles.sublabel}>{sublabel}</Text>}
+        {!!sublabel && <Text style={styles.sublabel}>{sublabel}</Text>}
       </View>
 
       {/* Radio Button */}

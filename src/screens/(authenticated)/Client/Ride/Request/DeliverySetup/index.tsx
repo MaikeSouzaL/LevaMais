@@ -15,7 +15,15 @@ import { CargoDescriptionInput } from "@/components/client/delivery-setup/CargoD
 import { DeliveryOfferCard } from "@/components/client/delivery-setup/DeliveryOfferCard";
 import { DeliveryPrioritySelector, DeliveryPriority } from "@/components/client/delivery-setup/DeliveryPrioritySelector";
 import { SearchDeliveryButton } from "@/components/client/delivery-setup/SearchDeliveryButton";
-import { Zap } from "lucide-react-native";
+import { Zap, DollarSign, CreditCard, QrCode } from "lucide-react-native";
+
+type PaymentMethod = "cash" | "pix" | "card";
+
+const PAYMENT_OPTIONS: Array<{ id: PaymentMethod; label: string; sub: string }> = [
+  { id: "cash", label: "Dinheiro", sub: "Pagamento físico na entrega" },
+  { id: "pix", label: "PIX", sub: "Transferência instantânea" },
+  { id: "card", label: "Cartão", sub: "Débito ou crédito no app" },
+];
 
 export type CargoSize = "small" | "medium" | "large";
 
@@ -40,19 +48,22 @@ export default function DeliverySetupScreen({ navigation, route }: any) {
   const [vehicleType, setVehicleType] = useState<LogisticsVehicleType>(params.vehicleType || "motorcycle");
   const [deliveryType, setDeliveryType] = useState<DeliveryType>("food");
   const [cargoDescription, setCargoDescription] = useState("");
-  const [cargoSize, setCargoSize] = useState<CargoSize>("medium");
+  const [cargoSize, setCargoSize] = useState<CargoSize>("small");
   const [needsHelper, setNeedsHelper] = useState(false);
   const [isFragile, setIsFragile] = useState(false);
   const [approximateWeightKg, setApproximateWeightKg] = useState("");
   const [offerValue, setOfferValue] = useState<number>(20.0);
   const [priority, setPriority] = useState<DeliveryPriority>(0);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [scheduledOffsetMin, setScheduledOffsetMin] = useState<number>(60);
   const [pickupComplement, setPickupComplement] = useState("");
   const [dropoffComplement, setDropoffComplement] = useState("");
   const [recipientName, setRecipientName] = useState("");
   const [recipientPhone, setRecipientPhone] = useState("");
   const [recipientInstructions, setRecipientInstructions] = useState("");
-  const [deliveryPin, setDeliveryPin] = useState("");
+  const [deliveryPin, setDeliveryPin] = useState(() => {
+    return String(Math.floor(1000 + Math.random() * 9000));
+  });
   const hasValidRoute = Boolean(params.pickup && params.dropoff);
 
   const handleOfferValueChange = (nextValue: number) => {
@@ -165,6 +176,7 @@ export default function DeliverySetupScreen({ navigation, route }: any) {
       recipientInstructions,
       deliveryPin,
       offerValue,
+      paymentMethod,
       pricingSnapshot: priceData,
     });
   };
@@ -268,6 +280,35 @@ export default function DeliverySetupScreen({ navigation, route }: any) {
         <View className="h-[1px] bg-white/[0.03] w-full mb-6 mt-2" />
 
         <DeliveryPrioritySelector value={priority} onChange={setPriority} />
+
+        <View className="h-[1px] bg-white/[0.03] w-full mb-6 mt-2" />
+
+        {/* Payment Method Selector */}
+        <View className="mx-6 mb-6 rounded-2xl border border-white/10 bg-[#11253E] p-4">
+          <Text className="text-white/90 text-xs font-bold uppercase mb-3">Forma de Pagamento</Text>
+          {PAYMENT_OPTIONS.map((opt) => {
+            const isSelected = paymentMethod === opt.id;
+            return (
+              <TouchableOpacity
+                key={opt.id}
+                onPress={() => setPaymentMethod(opt.id)}
+                className={`flex-row items-center rounded-xl border px-4 py-3 mb-2 ${
+                  isSelected ? "border-[#02de95] bg-[#02de95]/10" : "border-white/10 bg-[#0E1D31]"
+                }`}
+              >
+                <View className={`w-4 h-4 rounded-full border-2 mr-3 items-center justify-center ${
+                  isSelected ? "border-[#02de95] bg-[#02de95]" : "border-white/30"
+                }`}>
+                  {isSelected && <View className="w-1.5 h-1.5 rounded-full bg-[#091A2F]" />}
+                </View>
+                <View className="flex-1">
+                  <Text className={`text-xs font-bold ${isSelected ? "text-[#02de95]" : "text-white/85"}`}>{opt.label}</Text>
+                  <Text className="text-white/40 text-[10px] mt-0.5">{opt.sub}</Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
         <View className="h-[1px] bg-white/[0.03] w-full mb-6 mt-2" />
 

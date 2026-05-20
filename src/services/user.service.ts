@@ -73,6 +73,7 @@ export type UpdateProfilePayload = Partial<
     | "companyName"
     | "companyEmail"
     | "companyPhone"
+    | "driverPreferences"
   >
 >;
 

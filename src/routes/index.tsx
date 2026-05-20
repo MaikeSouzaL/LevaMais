@@ -7,6 +7,7 @@ import { useAuthStore } from "../context/authStore";
 import { getProfile } from "../services/auth.service";
 import userService from "../services/user.service";
 import TermsScreen from "../screens/(public)/TermsScreen";
+import notificationService from "../services/notification.service";
 
 function RouteFallbackLoader() {
   return (
@@ -105,6 +106,14 @@ export default function Routes() {
       logout();
     }
   }, [hasHydrated, isAuthenticated, token, logout]);
+
+  useEffect(() => {
+    if (isAuthenticated && token && userData?.id) {
+      notificationService.initialize().catch((err) => {
+        console.error("Erro ao inicializar serviço de notificações:", err);
+      });
+    }
+  }, [isAuthenticated, token, userData?.id]);
 
   if (!hasHydrated) {
     return <RouteFallbackLoader />;

@@ -33,8 +33,8 @@ export default function EmptyState({
         style={styles.icon}
       />
       <Text style={styles.title}>{title}</Text>
-      {description && <Text style={styles.description}>{description}</Text>}
-      {actionLabel && onAction && (
+      {!!description && <Text style={styles.description}>{description}</Text>}
+      {!!actionLabel && !!onAction && (
         <LoadingButton
           title={actionLabel}
           onPress={onAction}

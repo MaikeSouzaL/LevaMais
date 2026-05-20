@@ -12,6 +12,7 @@ import { DeliveryOfferCard } from "@/components/driver/delivery-offer/DeliveryOf
 
 // Services
 import rideService from "@/services/ride.service";
+import webSocketService from "@/services/websocket.service";
 import Toast from "react-native-toast-message";
 
 export default function DeliveryOfferScreen() {
@@ -46,6 +47,65 @@ export default function DeliveryOfferScreen() {
     fetchOffer();
   }, [offerId]);
 
+  // 🛰️ Real-time Cancellation Sync
+  useEffect(() => {
+    if (!offer?._id) return;
+
+    let active = true;
+
+    const handleRideCancelled = (payload: any) => {
+      if (!active) return;
+      if (payload?.rideId === offer._id) {
+        active = false;
+        Toast.show({
+          type: "error",
+          text1: "Corrida Cancelada",
+          text2: "Esta solicitação foi cancelada pelo solicitante."
+        });
+        navigation.goBack();
+      }
+    };
+
+    webSocketService.on("ride-cancelled", handleRideCancelled);
+    webSocketService.connect().catch(() => {});
+
+    // Polling backup
+    const checkStatus = setInterval(async () => {
+      try {
+        const fresh = await rideService.getById(offer._id);
+        if (!active) return;
+        if (["cancelled", "cancelled_by_client", "cancelled_by_driver", "cancelled_no_driver", "expired"].includes(fresh.status)) {
+          active = false;
+          clearInterval(checkStatus);
+          Toast.show({
+            type: "error",
+            text1: "Corrida Cancelada",
+            text2: "Esta solicitação foi cancelada pelo solicitante."
+          });
+          navigation.goBack();
+        }
+      } catch (err: any) {
+        // Se der 404 (corrida apagada ou não encontrada), cancela também
+        if (err?.response?.status === 404) {
+          active = false;
+          clearInterval(checkStatus);
+          Toast.show({
+            type: "error",
+            text1: "Corrida Cancelada",
+            text2: "Esta solicitação foi cancelada pelo solicitante."
+          });
+          navigation.goBack();
+        }
+      }
+    }, 3500);
+
+    return () => {
+      active = false;
+      clearInterval(checkStatus);
+      webSocketService.off("ride-cancelled", handleRideCancelled);
+    };
+  }, [offer?._id]);
+
   // ⏱️ Continuous Realtime Decay Engine
   useEffect(() => {
     timerRef.current = setInterval(() => {
@@ -70,6 +130,29 @@ export default function DeliveryOfferScreen() {
   const handleAccept = async () => {
     try {
       if (!offer?._id) return;
+
+      if (offer.negotiation?.enabled) {
+        await rideService.respondToOffer(offer._id, {
+          action: "accept",
+          amount: offer.negotiation?.clientOffer || offer.pricing?.total || 20,
+          message: "Aceito pelo valor sugerido",
+        });
+
+        if (timerRef.current) clearInterval(timerRef.current);
+
+        navigation.replace("DriverNegotiation", {
+          offerId: offer._id,
+          initialOffer: offer,
+        });
+
+        Toast.show({
+          type: "success",
+          text1: "Interesse enviado! 🚀",
+          text2: "Aguardando confirmação de pagamento do cliente.",
+        });
+        return;
+      }
+
       await rideService.accept(offer._id);
       Toast.show({ type: "success", text1: "Sucesso!", text2: "Corrida aceita. Dirija com cuidado!" });
       if (timerRef.current) clearInterval(timerRef.current);

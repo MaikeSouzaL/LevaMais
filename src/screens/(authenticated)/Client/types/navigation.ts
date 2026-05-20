@@ -61,6 +61,7 @@ export type ClientStackParamList = {
         initialVehicle?: string;
         initialService?: string;
         resumeDriverFound?: boolean;
+        activeRideId?: string;
       }
     | undefined;
   LocationPicker:
@@ -158,6 +159,7 @@ export type ClientStackParamList = {
         recipientInstructions?: string;
         deliveryPin?: string;
         offerValue?: number;
+        paymentMethod?: string;
         pricingSnapshot?: any;
       }
     | undefined;
@@ -213,6 +215,7 @@ export type ClientStackParamList = {
   PrivacyData: undefined;
   InviteFriends: undefined;
   SupportCenter: undefined;
+  OrderSent: { rideId?: string };
 };
 
 export type HomeScreenNavigationProp = any;

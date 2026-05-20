@@ -2,6 +2,8 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+import { GoogleSignin } from "@react-native-google-signin/google-signin";
+
 export type UserType = "client" | "driver" | "admin" | null | undefined;
 
 export interface UserData {
@@ -23,6 +25,12 @@ export interface UserData {
   vehicleInfo?: unknown;
   driverStatus?: "none" | "pending" | "approved" | "rejected";
   enableMapAnimation?: boolean;
+  driverPreferences?: {
+    serviceTypes?: Array<"ride" | "delivery">;
+    selectedVehicles?: Array<"motorcycle" | "car" | "van" | "truck">;
+    searchRadiusKm?: number;
+    autoAccept?: boolean;
+  };
   // CPF/CNPJ & Company Details
   cpf?: string;
   cnpj?: string;
@@ -87,14 +95,18 @@ export const useAuthStore = create<AuthState>()(
           token: token ?? null,
         }),
 
-      logout: () =>
+      logout: () => {
+        // Clear cached Google Sign-in session to enable picking other emails
+        GoogleSignin.signOut().catch(() => {});
+        
         set({
           isAuthenticated: false,
           userType: null,
           userData: null,
           token: null,
           walletBalance: 0,
-        }),
+        });
+      },
 
       updateUserData: (data) =>
         set((state) => {

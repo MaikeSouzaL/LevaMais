@@ -236,7 +236,7 @@ export function Sidebar({
         {/* User Profile */}
         <div className="p-4 border-t border-slate-100">
           {!isCollapsed ? (
-            <button className="flex items-center gap-3 w-full p-2 rounded-xl hover:bg-slate-50 transition-colors group">
+            <div className="flex items-center gap-3 w-full p-2 rounded-xl hover:bg-slate-50 transition-colors group">
               <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600 ring-2 ring-white group-hover:ring-emerald-100 transition-all">
                 AD
               </div>
@@ -271,7 +271,7 @@ export function Sidebar({
                   />
                 </button>
               </div>
-            </button>
+            </div>
           ) : (
             <button 
               className="w-full flex flex-col items-center justify-center p-2 rounded-xl hover:bg-slate-50 transition-colors group relative"

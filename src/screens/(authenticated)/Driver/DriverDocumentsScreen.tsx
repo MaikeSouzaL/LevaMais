@@ -46,6 +46,10 @@ export default function DriverDocumentsScreen() {
     };
   }, [profile]);
 
+  const isApproved = useMemo(() => {
+    return profile?.driverStatus === "approved";
+  }, [profile]);
+
   const completedCount = Object.values(docs).filter(Boolean).length;
   const totalCount = 3;
   const progress = Math.round((completedCount / totalCount) * 100);
@@ -177,7 +181,7 @@ export default function DriverDocumentsScreen() {
           backgroundColor: "rgba(255, 255, 255, 0.04)",
           borderRadius: 18,
           borderWidth: 1,
-          borderColor: isUploading ? "#02de95" : url ? "rgba(2, 222, 149, 0.25)" : "rgba(255,255,255,0.08)",
+          borderColor: isUploading ? "#02de95" : url ? (isApproved ? "rgba(2, 222, 149, 0.25)" : "rgba(245, 158, 11, 0.25)") : "rgba(255,255,255,0.08)",
           borderStyle: url ? "solid" : "dashed",
           overflow: "hidden",
           padding: 6,
@@ -219,8 +223,10 @@ export default function DriverDocumentsScreen() {
             <Text style={{ color: "#02de95", fontSize: 9, fontWeight: "700", marginTop: 2 }}>Enviando...</Text>
           ) : url ? (
             <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2, gap: 2 }}>
-              <MaterialIcons name="check-circle" size={10} color="#02de95" />
-              <Text style={{ color: "#02de95", fontSize: 9, fontWeight: "900" }}>ENVIADO</Text>
+              <MaterialIcons name="check-circle" size={10} color={isApproved ? "#02de95" : "#f59e0b"} />
+              <Text style={{ color: isApproved ? "#02de95" : "#f59e0b", fontSize: 9, fontWeight: "900" }}>
+                {isApproved ? "APROVADO" : "EM ANÁLISE"}
+              </Text>
             </View>
           ) : (
             <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, marginTop: 2 }}>Pendente</Text>
