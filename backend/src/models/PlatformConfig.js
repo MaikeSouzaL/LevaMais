@@ -1,4 +1,4 @@
-﻿const mongoose = require("mongoose");
+const mongoose = require("mongoose");
 
 // Configurações Globais da Plataforma
 // Substitui o antigo PricingConfig complexo
