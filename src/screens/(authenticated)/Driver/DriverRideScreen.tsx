@@ -807,6 +807,7 @@ export default function DriverRideScreen() {
         >
           {!!driverCoords && (
              <Marker
+               key={`driver-puck-${vehicleType}`}
                coordinate={{
                  latitude: driverCoords.latitude,
                  longitude: driverCoords.longitude,

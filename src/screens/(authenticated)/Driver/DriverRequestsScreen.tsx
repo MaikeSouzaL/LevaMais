@@ -380,6 +380,21 @@ export default function DriverRequestsScreen() {
       setRequests((prev) => prev.filter((r) => r.rideId !== cancelledId));
     };
 
+    const onRideOfferIncreased = async (payload: any) => {
+      if (!mounted) return;
+      const increasedId = payload?.rideId;
+      if (!increasedId) return;
+
+      await syncAvailableRequests().catch(() => {});
+      setActiveTab("realtime");
+
+      try {
+        await driverAlertService.start();
+      } catch (e) {
+        console.error("Error playing driver alert:", e);
+      }
+    };
+
     const onSocketConnected = () => {
       syncAvailableRequests().catch(() => {});
     };
@@ -392,6 +407,7 @@ export default function DriverRequestsScreen() {
         webSocketService.on("ride-taken", onRideTaken);
         webSocketService.on("ride-expired", onRideExpired);
         webSocketService.on("ride-cancelled", onRideCancelled);
+        webSocketService.on("queue-ride-offer-increased", onRideOfferIncreased);
        } catch (e) {
         console.error("Error connecting to websocket:", e);
       }
@@ -410,6 +426,7 @@ export default function DriverRequestsScreen() {
       webSocketService.off("ride-taken", onRideTaken);
       webSocketService.off("ride-expired", onRideExpired);
       webSocketService.off("ride-cancelled", onRideCancelled);
+      webSocketService.off("queue-ride-offer-increased", onRideOfferIncreased);
       webSocketService.off("connect", onSocketConnected);
       driverAlertService.stop().catch(() => {});
     };

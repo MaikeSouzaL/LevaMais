@@ -1426,6 +1426,7 @@ export default function DriverHomeScreen() {
                 {/* 🎯 Real-Time User Puck Marker (HD) */}
                 {driverCoords && (
                   <Marker 
+                    key={`driver-puck-${vehicleType}-${online}`}
                     coordinate={{
                       latitude: driverCoords.latitude,
                       longitude: driverCoords.longitude
@@ -1437,6 +1438,7 @@ export default function DriverHomeScreen() {
                     <VehicleMarker 
                       type={vehicleType as any} 
                       isOnline={online} 
+                      avatarUrl={userData?.fotoPerfil || userData?.profilePhoto || undefined}
                     />
                   </Marker>
                 )}
@@ -1448,9 +1450,9 @@ export default function DriverHomeScreen() {
                     <Marker 
                       coordinate={routeCoords[0]} 
                       title="Partida"
-                      anchor={{ x: 0.5, y: 0.5 }}
+                      anchor={{ x: 0.5, y: 1 }}
                     >
-                      <View className="bg-[#02de95] w-4 h-4 rounded-full border-2 border-white shadow-lg" />
+                      <MapMarker type="pickup" />
                     </Marker>
                     <Marker 
                       coordinate={routeCoords[routeCoords.length - 1]} 
@@ -1473,7 +1475,7 @@ export default function DriverHomeScreen() {
 
                  <View className="flex-1">
                     <DriverStatusHeader 
-                      todayEarnings={todayEarnings}
+                      driverBalance={driverBalance ?? 0}
                       pendingRequests={pendingRequests}
                       scheduledCount={scheduledCount}
                       waitingQueueCount={waitingQueueCount}

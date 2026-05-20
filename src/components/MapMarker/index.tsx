@@ -1,5 +1,5 @@
 import React from "react";
-import { View } from "react-native";
+import { View, Text } from "react-native";
 import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
 
 type MarkerType =
@@ -78,6 +78,9 @@ export default function MapMarker({ type, size = 24 }: MapMarkerProps) {
   const triangleSize = Math.round(circleSize * 0.16);
   const totalHeight = circleSize + triangleSize + 2;
 
+  const isLetterType = type === "pickup" || type === "dropoff";
+  const letter = type === "pickup" ? "A" : "B";
+
   return (
     <View
       style={{
@@ -105,7 +108,20 @@ export default function MapMarker({ type, size = 24 }: MapMarkerProps) {
           elevation: 5,
         }}
       >
-        {config.lib === "MaterialCommunityIcons" ? (
+        {isLetterType ? (
+          <Text
+            style={{
+              color: "#fff",
+              fontSize: Math.round(circleSize * 0.52),
+              fontWeight: "900",
+              textAlign: "center",
+              includeFontPadding: false,
+              textAlignVertical: "center",
+            }}
+          >
+            {letter}
+          </Text>
+        ) : config.lib === "MaterialCommunityIcons" ? (
           <MaterialCommunityIcons name={config.icon as any} size={iconSize} color="#fff" />
         ) : (
           <MaterialIcons name={config.icon as any} size={iconSize} color="#fff" />

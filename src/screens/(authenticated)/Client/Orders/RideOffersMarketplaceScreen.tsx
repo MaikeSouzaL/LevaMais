@@ -82,6 +82,7 @@ export default function RideOffersMarketplaceScreen() {
   
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [showExpiredModal, setShowExpiredModal] = useState(false);
 
   const [rideDetails, setRideDetails] = useState<any>(null);
   const [negotiation, setNegotiation] = useState<any>(null);
@@ -217,7 +218,24 @@ export default function RideOffersMarketplaceScreen() {
   }, [navigation, rideDetails?.status, rideId]);
 
   useEffect(() => {
+    if (route.params?.autoOpenIncrease) {
+      setShowIncreaseModal(true);
+      navigation.setParams({ autoOpenIncrease: undefined });
+    }
+  }, [route.params?.autoOpenIncrease, navigation]);
+
+  useEffect(() => {
+    const status = rideDetails?.status;
+    if (["expired", "cancelled_no_driver", "no_drivers_available"].includes(status)) {
+      setShowExpiredModal(true);
+    } else {
+      setShowExpiredModal(false);
+    }
+  }, [rideDetails?.status]);
+
+  useEffect(() => {
     let mounted = true;
+    let prevOfferCount = 0;
     
     const init = async () => {
       try {
@@ -233,12 +251,35 @@ export default function RideOffersMarketplaceScreen() {
     
     init();
 
-    const onOffersUpdated = (data: any) => {
+    const onOffersUpdated = async (data: any) => {
       if (mounted && data?.rideId === rideId) {
-        loadOffers().catch(() => {});
-        loadRideDetails().catch(() => {});
+        // Capture count before reload
+        const countBefore = prevOfferCount;
+        await loadOffers().catch(() => {});
+        await loadRideDetails().catch(() => {});
+        // After reload, we compare via state setter callback
+        setOffers((current) => {
+          const countAfter = current.length;
+          if (countAfter < countBefore && countBefore > 0) {
+            // A driver declined/withdrew their offer
+            Toast.show({
+              type: "info",
+              text1: "Um entregador recusou sua oferta ⚠️",
+              text2: "Outros parceiros ainda podem aceitar. Tente aumentar o valor para atrair mais interessados!",
+              visibilityTime: 5000,
+            });
+          }
+          prevOfferCount = countAfter;
+          return current;
+        });
       }
     };
+
+    // Also init prevOfferCount after first load
+    setOffers((current) => {
+      prevOfferCount = current.length;
+      return current;
+    });
 
     const onStatusChanged = (data: any) => {
       if (mounted && data?.rideId === rideId) {
@@ -535,16 +576,126 @@ export default function RideOffersMarketplaceScreen() {
             <MotiView 
               from={{ opacity: 0, scale: 0.95 }} 
               animate={{ opacity: 1, scale: 1 }}
-              className="bg-white/[0.02] border border-white/5 rounded-3xl p-8 items-center justify-center mt-6"
+              transition={{ type: "spring", duration: 800 }}
+              style={{
+                backgroundColor: "rgba(255,255,255,0.02)",
+                borderWidth: 1,
+                borderColor: "rgba(255,255,255,0.06)",
+                borderRadius: 24,
+                padding: 32,
+                alignItems: "center",
+                justifyContent: "center",
+                marginTop: 24,
+                overflow: "hidden",
+              }}
             >
-              <View className="w-16 h-16 bg-amber-500/10 border border-amber-500/10 rounded-full items-center justify-center mb-5">
-                 <AlertCircle size={28} color="#FBBF24" />
+              {/* 📡 Radar Sonar Animation (Hologram Neon Effect) */}
+              <View style={{ width: 80, height: 80, alignItems: "center", justifyContent: "center", position: "relative", marginBottom: 20 }}>
+                {/* Outer expanding ripple 1 */}
+                <MotiView
+                  from={{ scale: 0.6, opacity: 0.8 }}
+                  animate={{ scale: 2.0, opacity: 0 }}
+                  transition={{
+                    loop: true,
+                    type: "timing",
+                    duration: 2000,
+                  }}
+                  style={{
+                    position: "absolute",
+                    width: 70,
+                    height: 70,
+                    borderRadius: 35,
+                    borderWidth: 1.5,
+                    borderColor: "rgba(2, 222, 149, 0.4)",
+                    backgroundColor: "rgba(2, 222, 149, 0.05)",
+                  }}
+                />
+                
+                {/* Outer expanding ripple 2 */}
+                <MotiView
+                  from={{ scale: 0.6, opacity: 0.8 }}
+                  animate={{ scale: 2.0, opacity: 0 }}
+                  transition={{
+                    loop: true,
+                    type: "timing",
+                    duration: 2000,
+                    delay: 1000,
+                  }}
+                  style={{
+                    position: "absolute",
+                    width: 70,
+                    height: 70,
+                    borderRadius: 35,
+                    borderWidth: 1.5,
+                    borderColor: "rgba(2, 222, 149, 0.4)",
+                    backgroundColor: "rgba(2, 222, 149, 0.05)",
+                  }}
+                />
+                
+                {/* Rotating holographic scanner line */}
+                <MotiView
+                  from={{ rotate: "0deg" }}
+                  animate={{ rotate: "360deg" }}
+                  transition={{
+                    loop: true,
+                    type: "timing",
+                    duration: 3000,
+                  }}
+                  style={{
+                    position: "absolute",
+                    width: 70,
+                    height: 70,
+                    borderRadius: 35,
+                    borderWidth: 1,
+                    borderColor: "rgba(255,255,255,0.05)",
+                    justifyContent: "flex-start",
+                    alignItems: "center",
+                  }}
+                >
+                  <View style={{ width: 1.5, height: 35, backgroundColor: "#02de95", opacity: 0.5 }} />
+                </MotiView>
+
+                {/* Inner active core */}
+                <View 
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 24,
+                    backgroundColor: "#091A2F",
+                    borderWidth: 2,
+                    borderColor: "#02de95",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    shadowColor: "#02de95",
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.4,
+                    shadowRadius: 6,
+                    elevation: 6,
+                    zIndex: 10,
+                    position: "absolute",
+                  }}
+                >
+                  <MotiView
+                    animate={{
+                      scale: [1, 1.15, 1],
+                    }}
+                    transition={{
+                      loop: true,
+                      type: "timing",
+                      duration: 1500,
+                    }}
+                  >
+                    <Zap size={20} color="#02de95" />
+                  </MotiView>
+                </View>
               </View>
-              <Text className="text-white font-black text-xl mb-2">
-                Aguardando Propostas
+              
+              <Text style={{ color: "#fff", fontWeight: "900", fontSize: 18, marginBottom: 8, textAlign: "center" }}>
+                Aguardando Propostas...
               </Text>
-              <Text className="text-white/40 text-center text-sm leading-relaxed">
-                Os motoristas da região receberam seu chamado e estão preparando as ofertas. Em breve as propostas aparecerão abaixo.
+              
+              <Text style={{ color: "rgba(255,255,255,0.4)", textAlign: "center", fontSize: 13, lineHeight: 20, maxWidth: 280 }}>
+                Os entregadores parceiros mais próximos da sua região já receberam o alerta. Em breve as propostas aparecerão abaixo!
               </Text>
             </MotiView>
           ) : (
@@ -729,6 +880,20 @@ export default function RideOffersMarketplaceScreen() {
             </Text>
          </View>
       </Modal>
+
+      {/* ⚠️ Pedido Expirado Local Modal */}
+      <Modal
+        visible={showExpiredModal}
+        title="Pedido Expirado"
+        message="Nenhum entregador aceitou sua oferta dentro do prazo de 10 minutos. Tente novamente com uma oferta mais atrativa ou em outro horario."
+        type="warning"
+        confirmText="Entendido"
+        onClose={() => setShowExpiredModal(false)}
+        onConfirm={() => {
+          setShowExpiredModal(false);
+          setShowIncreaseModal(true);
+        }}
+      />
 
       {/* 🛑 Discreet Root-Level Cancel Action */}
       <View

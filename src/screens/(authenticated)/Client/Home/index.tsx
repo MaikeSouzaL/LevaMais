@@ -141,7 +141,7 @@ export default function HomeScreen() {
        console.log("[Home] ride-cancelled received:", data);
        const rId = data?.rideId || data?.ride?._id || data?._id;
        if (rId) setExpiredRideId(rId);
-       setShowCancelledModal(true);
+       if (navigation.isFocused()) { setShowCancelledModal(true); }
        setActiveRequestingRideId(null);
        setNegotiationRideId(null);
        setWaitingQueueCount(0);
@@ -341,7 +341,7 @@ export default function HomeScreen() {
   const handleExpiredConfirm = useCallback(() => {
     setShowCancelledModal(false);
     if (expiredRideId) {
-      navigation.navigate("RideOffersMarketplace", { rideId: expiredRideId });
+      navigation.navigate("RideOffersMarketplace", { rideId: expiredRideId, autoOpenIncrease: true });
       setExpiredRideId(null);
     }
   }, [navigation, expiredRideId]);
@@ -364,6 +364,7 @@ export default function HomeScreen() {
         userRegion={userRegion}
         onRegionChangeComplete={handleRegionChangeComplete}
         useDarkStyle={useDarkMap}
+        avatarUrl={user?.fotoPerfil || user?.profilePhoto || undefined}
       />
 
       {/* 2. Floating Controls Layer */}

@@ -676,9 +676,24 @@ export default function DriverNegotiationScreen() {
       }
     };
 
+    const onOfferIncreasedSocket = (payload: any) => {
+      if (payload?.rideId === offer?._id) {
+        if (!active) return;
+        active = false;
+        setLoadingState("idle");
+        Toast.show({
+          type: "info",
+          text1: "Oferta Aumentada pelo Cliente! 📈",
+          text2: "O cliente aumentou o valor sugerido. Faça uma nova proposta!"
+        });
+        navigation.popToTop();
+      }
+    };
+
     webSocketService.on("new-ride-request", onNewRideReqSocket);
     webSocketService.on("ride-offer-rejected-by-client", onRejectedSocket);
     webSocketService.on("ride-cancelled", onCancelledSocket);
+    webSocketService.on("queue-ride-offer-increased", onOfferIncreasedSocket);
 
     // 🔁 High-Availability Rest Polling (Every 3.5 seconds)
     const syncStatusRest = async () => {
@@ -740,6 +755,7 @@ export default function DriverNegotiationScreen() {
       webSocketService.off("new-ride-request", onNewRideReqSocket);
       webSocketService.off("ride-offer-rejected-by-client", onRejectedSocket);
       webSocketService.off("ride-cancelled", onCancelledSocket);
+      webSocketService.off("queue-ride-offer-increased", onOfferIncreasedSocket);
     };
   }, [loadingState, offer?._id]);
 

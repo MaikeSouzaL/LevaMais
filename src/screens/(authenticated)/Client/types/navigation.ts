@@ -208,7 +208,7 @@ export type ClientStackParamList = {
   SearchingDriver: { rideId: string; serviceType?: string };
   ActiveOrders: undefined;
   ShiftOffersClient: undefined;
-  RideOffersMarketplace: { rideId: string };
+  RideOffersMarketplace: { rideId: string; autoOpenIncrease?: boolean };
   PaymentsCenter: undefined;
   Coupons: undefined;
   Receipts: undefined;

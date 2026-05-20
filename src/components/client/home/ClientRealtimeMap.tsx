@@ -1,7 +1,7 @@
 import React, { memo, useEffect, useState } from "react";
-import { StyleSheet, View, Platform } from "react-native";
+import { StyleSheet, View, Platform, Image } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
-import { Car, Bike } from "lucide-react-native";
+import { Car, Bike, User } from "lucide-react-native";
 import { MotiView } from "moti";
 import { colors } from "@/theme";
 
@@ -33,6 +33,7 @@ interface ClientRealtimeMapProps {
   userRegion: any;
   onRegionChangeComplete: (r: any) => void;
   useDarkStyle?: boolean;
+  avatarUrl?: string;
 }
 
 export const ClientRealtimeMap = memo(({
@@ -41,7 +42,10 @@ export const ClientRealtimeMap = memo(({
   userRegion,
   onRegionChangeComplete,
   useDarkStyle = true,
+  avatarUrl,
 }: ClientRealtimeMapProps) => {
+  const [imageError, setImageError] = useState(false);
+  const showAvatar = !!avatarUrl && !imageError;
 
   const [vehicles, setVehicles] = useState<RealtimeVehicle[]>([]);
 
@@ -87,16 +91,28 @@ export const ClientRealtimeMap = memo(({
         showsIndoors={false}
         onRegionChangeComplete={onRegionChangeComplete}
       >
-        {/* 📍 Custom User Location Marker (Premium Glow) */}
+        {/* 📍 Custom User Location Marker (with photo or icon) */}
         {userRegion && (
           <Marker coordinate={userRegion} anchor={{ x: 0.5, y: 0.5 }}>
+            {/* Neon pulse ring */}
             <MotiView
-              from={{ scale: 0.8, opacity: 0.5 }}
-              animate={{ scale: 1.6, opacity: 0 }}
-              transition={{ loop: true, duration: 2000, type: "timing" }}
+              from={{ scale: 0.7, opacity: 0.9 }}
+              animate={{ scale: 2.2, opacity: 0 }}
+              transition={{ loop: true, duration: 1800, type: "timing" }}
               style={styles.userPulse}
             />
-            <View style={styles.userDot} />
+            {/* Photo or person icon puck */}
+            <View style={[styles.userPuck, showAvatar && styles.userPuckPhoto]}>
+              {showAvatar ? (
+                <Image
+                  source={{ uri: avatarUrl }}
+                  style={styles.userAvatar}
+                  onError={() => setImageError(true)}
+                />
+              ) : (
+                <User size={11} color="#091A2F" />
+              )}
+            </View>
           </Marker>
         )}
 
@@ -134,24 +150,38 @@ export const ClientRealtimeMap = memo(({
 
 const styles = StyleSheet.create({
   userPulse: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     backgroundColor: colors.primary[500],
     position: "absolute",
+    opacity: 0.4,
   },
-  userDot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
+  userPuck: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     backgroundColor: colors.primary[500],
-    borderWidth: 3,
+    borderWidth: 2,
     borderColor: "#FFFFFF",
-    elevation: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 6,
     shadowColor: colors.primary[500],
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 10,
+    shadowOpacity: 0.6,
+    shadowRadius: 6,
+    overflow: "hidden",
+  },
+  userPuckPhoto: {
+    backgroundColor: "#091A2F",
+    borderColor: colors.primary[500],
+  },
+  userAvatar: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 11,
+    resizeMode: "cover",
   },
   vehicleMarkerWrapper: {
     alignItems: "center",
