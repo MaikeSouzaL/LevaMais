@@ -5,10 +5,12 @@ import { ArrowLeft } from "lucide-react-native";
 import { BlurView } from "expo-blur";
 
 interface DeliverySetupHeaderProps {
+  title?: string;
+  subtitle?: string;
   onBack: () => void;
 }
 
-export const DeliverySetupHeader = ({ onBack }: DeliverySetupHeaderProps) => {
+export const DeliverySetupHeader = ({ onBack, title = 'Definir entrega', subtitle }: DeliverySetupHeaderProps) => {
   const insets = useSafeAreaInsets();
 
   return (
@@ -25,13 +27,14 @@ export const DeliverySetupHeader = ({ onBack }: DeliverySetupHeaderProps) => {
           <ArrowLeft size={22} color="#fff" />
         </TouchableOpacity>
         
-        <View>
-          <Text className="text-white text-xl font-bold tracking-wide">Definir entrega</Text>
-          <Text className="text-slate-400 text-[11px] font-medium mt-0.5">
-            Escolha o veículo ideal para sua entrega.
+        <View className="flex-1">
+          <Text className="text-white text-xl font-bold tracking-wide">{title}</Text>
+          <Text className="text-slate-400 text-[11px] font-medium mt-0.5" numberOfLines={1}>
+            {subtitle || "Escolha o veículo ideal para sua entrega."}
           </Text>
         </View>
       </View>
     </View>
   );
 };
+

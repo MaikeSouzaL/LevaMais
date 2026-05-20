@@ -1,23 +1,29 @@
 import React, { useEffect, useRef } from "react";
 import { View, StyleSheet, Dimensions } from "react-native";
-import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
+import { Marker } from "react-native-maps";
+import MapView from "react-native-maps";
+import { GlobalMap } from "@/components/GlobalMap";
+import { PremiumMapMarker } from "@/components/maps/PremiumMapMarker";
 import MapViewDirections from "react-native-maps-directions";
-import { darkMapStyle } from "@/utils/mapStyle";
-import MapMarker from "@/components/MapMarker";
 import Constants from "expo-constants";
 
 interface DeliveryOfferMapProps {
   pickup: { latitude: number; longitude: number; address?: string };
   destination: { latitude: number; longitude: number; address?: string };
+  isSmall?: boolean;
 }
 
 const GOOGLE_MAPS_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || "";
 
-export function DeliveryOfferMap({ pickup, destination }: DeliveryOfferMapProps) {
+export function DeliveryOfferMap({ pickup, destination, isSmall }: DeliveryOfferMapProps) {
   const mapRef = useRef<MapView>(null);
 
   useEffect(() => {
     if (mapRef.current) {
+      const padding = isSmall 
+        ? { top: 35, right: 35, bottom: 35, left: 35 }
+        : { top: 120, right: 50, bottom: 400, left: 50 };
+
       setTimeout(() => {
         mapRef.current?.fitToCoordinates(
           [
@@ -25,21 +31,20 @@ export function DeliveryOfferMap({ pickup, destination }: DeliveryOfferMapProps)
             { latitude: destination.latitude, longitude: destination.longitude },
           ],
           {
-            edgePadding: { top: 120, right: 50, bottom: 400, left: 50 },
+            edgePadding: padding,
             animated: true,
           }
         );
       }, 800);
     }
-  }, [pickup, destination]);
+  }, [pickup, destination, isSmall]);
 
   return (
-    <View className="flex-1 bg-[#091A2F]">
-      <MapView
+    <View style={{ flex: 1, backgroundColor: "#091A2F", width: "100%", height: "100%" }}>
+      <GlobalMap
         ref={mapRef}
-        provider={PROVIDER_GOOGLE}
-        customMapStyle={darkMapStyle}
-        className="w-full h-full"
+        showsUserLocation={false}
+        useDarkStyle={true}
         initialRegion={{
           latitude: (pickup.latitude + destination.latitude) / 2,
           longitude: (pickup.longitude + destination.longitude) / 2,
@@ -61,15 +66,15 @@ export function DeliveryOfferMap({ pickup, destination }: DeliveryOfferMapProps)
         )}
 
         {/* Pickup Node */}
-        <Marker coordinate={pickup} anchor={{ x: 0.5, y: 1 }} tracksViewChanges={false}>
-          <MapMarker type="pickup" size={32} />
+        <Marker coordinate={pickup} anchor={{ x: 0.5, y: 0.5 }}>
+          <PremiumMapMarker type="origin" />
         </Marker>
 
         {/* Dropoff Node */}
-        <Marker coordinate={destination} anchor={{ x: 0.5, y: 1 }} tracksViewChanges={false}>
-          <MapMarker type="dropoff" size={32} />
+        <Marker coordinate={destination} anchor={{ x: 0.5, y: 0.5 }}>
+          <PremiumMapMarker type="destination" />
         </Marker>
-      </MapView>
+      </GlobalMap>
     </View>
   );
 }

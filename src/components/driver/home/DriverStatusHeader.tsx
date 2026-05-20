@@ -54,16 +54,18 @@ export function DriverStatusHeader({
         <TouchableOpacity
           onPress={onPressNotifications}
           activeOpacity={0.8}
-          className="h-[58px] w-[58px] rounded-2xl overflow-hidden border border-white/10 items-center justify-center"
+          className={`h-[58px] w-[58px] rounded-2xl border items-center justify-center ${
+            totalAlerts > 0 ? "border-amber-500/50" : "border-white/10"
+          }`}
         >
-          <View className="w-full h-full items-center justify-center bg-[#091A2F]">
-            <Bell size={20} color="rgba(255,255,255,0.8)" />
+          <View className="w-full h-full items-center justify-center bg-[#091A2F] rounded-2xl">
+            <Bell size={20} color={totalAlerts > 0 ? "#FBBF24" : "rgba(255,255,255,0.8)"} />
             
             {totalAlerts > 0 && (
               <MotiView
                 from={{ scale: 0 }}
                 animate={{ scale: 1 }}
-                className="absolute -top-1 -right-1 bg-red-500 h-5 min-w-[20px] rounded-full items-center justify-center px-1 border-2 border-[#091A2F]"
+                className="absolute -top-2 -right-2 bg-red-500 h-5 min-w-[20px] rounded-full items-center justify-center px-1 border-2 border-[#091A2F]"
               >
                 <Text className="text-white text-[10px] font-black">
                   {totalAlerts}

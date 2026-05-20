@@ -1,4 +1,4 @@
-﻿const express = require("express");
+const express = require("express");
 const router = express.Router();
 const rideController = require("../controllers/ride.controller");
 const { authenticateToken } = require("../middlewares/auth.middleware");
@@ -31,16 +31,16 @@ router.post("/:rideId/payment/cancel-selection", rideController.cancelPaymentSel
 // Cancelar corrida
 router.post("/:rideId/cancel", rideController.cancel);
 
+// Promover corrida para agendada
+router.post("/:rideId/promote-to-scheduled", rideController.promoteToScheduled);
+
 // Reiniciar busca da corrida ðŸš€
 router.post("/:rideId/retry", rideController.retryRide);
 
 // Atualizar status da corrida
 router.patch("/:rideId/status", rideController.updateStatus);
 
-// Colocar corrida na fila de espera
-router.post("/:rideId/queue", rideController.enterWaitingQueue);
-
-// AvaliaÃ§Ãµes
+// Avaliações
 router.post("/:rideId/rate-client", rideController.rateClientToDriver);
 router.post("/:rideId/rate-driver", rideController.rateDriverToClient);
 router.post("/:rideId/tip", rideController.addTip);

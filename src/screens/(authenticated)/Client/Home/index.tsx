@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useState, useEffect } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import { StyleSheet, StatusBar, Alert, View, Text, TouchableOpacity } from "react-native";
 import { NavigationProp, RouteProp, useNavigation, useFocusEffect, useRoute } from "@react-navigation/native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -32,6 +32,8 @@ export default function HomeScreen() {
   
   const [showHomeSuccessModal, setShowHomeSuccessModal] = useState(false);
   const [showNoDriversModal, setShowNoDriversModal] = useState(false);
+  const [showCancelledModal, setShowCancelledModal] = useState(false);
+  const [expiredRideId, setExpiredRideId] = useState<string | null>(null);
 
   useEffect(() => {
     if (route.params?.showSuccessQueueModal) {
@@ -78,7 +80,7 @@ export default function HomeScreen() {
   const [isSwitchingStyle, setIsSwitchingStyle] = useState(false);
   const [isCentering, setIsCentering] = useState(false);
 
-  // ðŸ›°ï¸ Background monitoring of active ride (Redirect if driver offers or accepts)
+  //Background monitoring of active ride (Redirect if driver offers or accepts)
   useEffect(() => {
     let isMounted = true;
     let pollInterval: any = null;
@@ -89,10 +91,13 @@ export default function HomeScreen() {
         if (!isMounted) return;
         
         const activeRides = res?.rides || [];
-        console.log("[Home] getActiveList rides:", activeRides.length, activeRides.map((r: any) => ({ id: r._id, status: r.status, service: r.serviceType })));
+        console.log("[Home] getActiveList response:", JSON.stringify({ active: res?.active, count: res?.count, rides: res?.rides?.map((r: any) => ({ id: r._id, status: r.status, service: r.serviceType })) }));
         
-        // Find if any ride has active negotiations/offers
-        const rideWithOffers = activeRides.find((ride: any) => (ride.negotiation?.offers?.length || 0) > 0);
+        // Find if any ride has active negotiations/offers (status !== 'rejected')
+        const rideWithOffers = activeRides.find((ride: any) => {
+          const offers = Array.isArray(ride.negotiation?.offers) ? ride.negotiation.offers : [];
+          return offers.some((o: any) => o.status !== "rejected");
+        });
         if (rideWithOffers) {
            setNegotiationRideId(rideWithOffers._id);
            setActiveRequestingRideId(null);
@@ -121,7 +126,7 @@ export default function HomeScreen() {
         }
         
       } catch (err) {
-        console.warn("[Home] checkActiveRide error:", err);
+        console.warn("[Home] checkActiveRide ERROR:", (err as any)?.message, (err as any)?.response?.status, JSON.stringify((err as any)?.response?.data));
       }
     };
 
@@ -132,7 +137,15 @@ export default function HomeScreen() {
     webSocketService.connect().then(() => {
        webSocketService.on("ride-status-updated", checkActiveRide);
        webSocketService.on("ride-offers-updated", checkActiveRide);
-       webSocketService.on("ride-cancelled", checkActiveRide);
+       webSocketService.on("ride-cancelled", (data: any) => {
+       console.log("[Home] ride-cancelled received:", data);
+       const rId = data?.rideId || data?.ride?._id || data?._id;
+       if (rId) setExpiredRideId(rId);
+       setShowCancelledModal(true);
+       setActiveRequestingRideId(null);
+       setNegotiationRideId(null);
+       setWaitingQueueCount(0);
+     });
     }).catch(() => {});
 
     // Polling fallback every 6 seconds
@@ -157,7 +170,11 @@ export default function HomeScreen() {
           if (!isMounted) return;
           const activeRides = res?.rides || [];
           console.log("[Home:focus] getActiveList:", activeRides.length, activeRides.map((r: any) => r.status));
-          const rideWithOffers = activeRides.find((ride: any) => (ride.negotiation?.offers?.length || 0) > 0);
+          // Find if any ride has active negotiations/offers (status !== 'rejected')
+          const rideWithOffers = activeRides.find((ride: any) => {
+            const offers = Array.isArray(ride.negotiation?.offers) ? ride.negotiation.offers : [];
+            return offers.some((o: any) => o.status !== "rejected");
+          });
           if (rideWithOffers) {
             setNegotiationRideId(rideWithOffers._id);
             setActiveRequestingRideId(null);
@@ -169,7 +186,7 @@ export default function HomeScreen() {
             setActiveRequestingRideId(requestingRide?._id || null);
           }
         } catch (err) {
-          console.warn("[Home:focus] error:", err);
+          console.warn("[Home:focus] error:", (err as any)?.message || err);
         }
       };
       recheckRides();
@@ -271,6 +288,19 @@ export default function HomeScreen() {
     });
   }, [navigation, availability.deliveryDrivers]);
 
+    // Quick Links handlers
+  const handleActiveOrders = useCallback(() => {
+    navigation.navigate("ActiveOrders");
+  }, [navigation]);
+
+  const handleWallet = useCallback(() => {
+    navigation.navigate("Wallet");
+  }, [navigation]);
+
+  const handleSupport = useCallback(() => {
+    navigation.navigate("SupportCenter");
+  }, [navigation]);
+
   const handleSearchPress = useCallback(() => {
     navigation.navigate("DestinationSearch", {
       // REMOVED pre-filled pickup to force user verification
@@ -307,6 +337,14 @@ export default function HomeScreen() {
       Alert.alert("SOS", "Ativando modo de emergÃªncia do passageiro...");
     }
   }, [navigation]);
+
+  const handleExpiredConfirm = useCallback(() => {
+    setShowCancelledModal(false);
+    if (expiredRideId) {
+      navigation.navigate("RideOffersMarketplace", { rideId: expiredRideId });
+      setExpiredRideId(null);
+    }
+  }, [navigation, expiredRideId]);
 
   // â³ Loading Guard while Map Logic warms up
   if (!region) {
@@ -476,6 +514,10 @@ export default function HomeScreen() {
       {/* 3. Bottom User-Action Sheet */}
       <ClientBottomSheet 
         onSelectService={handleServiceSelect}
+        onActiveOrdersPress={handleActiveOrders}
+        onWalletPress={handleWallet}
+        onSupportPress={handleSupport}
+        activeOrdersCount={activeRequestingRideId ? 1 : 0}
         favorites={favorites}
         availability={availability}
         availabilityLoading={availabilityLoading}
@@ -507,6 +549,15 @@ export default function HomeScreen() {
         onClose={() => setShowHomeSuccessModal(false)}
       />
       <Modal
+        visible={showCancelledModal}
+        title="Pedido Expirado"
+        message="Nenhum entregador aceitou sua oferta dentro do prazo de 10 minutos. Tente novamente com uma oferta mais atrativa ou em outro horario."
+        type="warning"
+        confirmText="Entendido"
+        onClose={handleExpiredConfirm}
+        onConfirm={handleExpiredConfirm}
+      />
+      <Modal
         visible={showNoDriversModal}
         title="Entrega indisponÃ­vel"
         message="NÃ£o encontramos entregadores online na sua regiÃ£o agora. Tente novamente em alguns minutos."
@@ -526,3 +577,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background.primary,
   }
 });
+
+
+
+
+
+
+
+
+

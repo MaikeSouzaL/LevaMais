@@ -200,8 +200,8 @@ export const VehicleSelector = ({ selected, onSelect, pickupLocation }: VehicleS
                 </Text>
 
                 <View className={`px-2 py-1 rounded-lg w-full items-start justify-center ${isSelected ? 'bg-primary/15 border border-primary/20' : !isAvailable ? 'bg-slate-800/40 border border-white/5' : 'bg-white/5 border border-white/[0.03]'}`}>
-                  <Text 
-                    className={`text-[1px] font-black text-left opacity-85 tracking-[0.5px] ${isSelected ? 'text-primary' : !isAvailable ? 'text-slate-500' : 'text-slate-400'}`}
+                  <Text
+                    className={`text-[9px] font-black text-left opacity-85 tracking-[0.5px] ${isSelected ? 'text-primary' : !isAvailable ? 'text-slate-500' : 'text-slate-400'}`}
                   >
                     Até
                   </Text>

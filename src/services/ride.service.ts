@@ -359,6 +359,14 @@ class RideService {
   }
 
   /**
+   * Promover corrida ativa para agendada
+   */
+  async promoteToScheduled(rideId: string, scheduledFor: string): Promise<any> {
+    const response = await api.post(`/rides/${rideId}/promote-to-scheduled`, { scheduledFor });
+    return response.data;
+  }
+
+  /**
    * Reiniciar busca da corrida (tentar novamente)
    */
   async retry(rideId: string): Promise<any> {

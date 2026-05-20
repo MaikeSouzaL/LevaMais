@@ -613,7 +613,16 @@ class RideController {
       const statuses = NON_TERMINAL_STATUSES;
 
       if (userType === "client") {
-        const clientStatuses = [...NON_TERMINAL_STATUSES, "scheduled"];
+        const clientStatuses = [
+          ...NON_TERMINAL_STATUSES,
+          "scheduled",
+          "cancelled",
+          "cancelled_by_client",
+          "cancelled_by_driver",
+          "cancelled_no_driver",
+          "no_drivers_available",
+          "completed",
+        ];
         const rides = await Ride.find({
           clientId: userId,
           status: { $in: clientStatuses },
@@ -738,7 +747,7 @@ class RideController {
         return res.json({ count: 0, requests: [], waitingQueueCount: 0, pendingNegotiationsCount, clientCounteredCount });
       }
 
-      const requestedAfter = new Date(Date.now() - 2 * 60 * 1000);
+      const requestedAfter = new Date(Date.now() - 12 * 60 * 60 * 1000); // Exibe ofertas de ate 12 horas atras para manter ativas visiveis
       const rides = await Ride.find({
         status: { $in: ["requesting", "driver_assigned"] },
         vehicleType: driverLocation.vehicleType,
@@ -848,24 +857,69 @@ class RideController {
       const driverId = String(req.user.id);
 
       const rides = await Ride.find({
-        status: { $in: ["requesting", "driver_assigned"] },
-        "negotiation.enabled": true,
-        "negotiation.finalAgreedPrice": null,
-        "negotiation.offers": {
-          $elemMatch: {
-            driverId: new mongoose.Types.ObjectId(driverId),
-            status: { $in: ["accepted", "countered", "client_countered"] },
+        $or: [
+          // Negociações pendentes ativas
+          {
+            status: { $in: ["requesting", "driver_assigned"] },
+            "negotiation.enabled": true,
+            "negotiation.finalAgreedPrice": null,
+            "negotiation.offers": {
+              $elemMatch: {
+                driverId: new mongoose.Types.ObjectId(driverId),
+                status: { $in: ["accepted", "countered", "client_countered"] },
+              },
+            },
           },
-        },
+          // Corridas concluídas por mim
+          {
+            status: "completed",
+            driverId: new mongoose.Types.ObjectId(driverId),
+          },
+          // Corridas canceladas pelo motorista (eu)
+          {
+            status: "cancelled_by_driver",
+            driverId: new mongoose.Types.ObjectId(driverId),
+          },
+          // Corridas canceladas pelo cliente que o motorista interagiu
+          {
+            status: "cancelled_by_client",
+            $or: [
+              {
+                "negotiation.offers.driverId": new mongoose.Types.ObjectId(driverId),
+              },
+              {
+                "rejectedBy.driverId": new mongoose.Types.ObjectId(driverId),
+              },
+            ],
+          },
+          // Corridas onde recusei e foram finalizadas/canceladas
+          {
+            status: { $in: ["cancelled", "cancelled_by_driver", "cancelled_no_driver", "no_drivers_available"] },
+            "rejectedBy.driverId": new mongoose.Types.ObjectId(driverId),
+          }
+        ],
       })
         .populate("clientId", "name phone profilePhoto rating")
         .sort({ updatedAt: -1 });
 
       const pending = rides.map((ride) => {
         const offers = Array.isArray(ride.negotiation?.offers) ? ride.negotiation.offers : [];
-        const myOffer = offers.find(
+        let myOffer = offers.find(
           (offer) => String(offer.driverId?._id || offer.driverId) === driverId,
         );
+
+        // Se o motorista não fez proposta mas rejeitou a corrida (está em rejectedBy)
+        const isRejectedByMe = Array.isArray(ride.rejectedBy) && ride.rejectedBy.some(
+          (r) => String(r.driverId?._id || r.driverId) === driverId
+        );
+
+        if (!myOffer && isRejectedByMe) {
+          myOffer = {
+            amount: ride.pricing?.total || ride.negotiation?.clientOffer || 0,
+            status: "rejected",
+            createdAt: new Date(),
+          };
+        }
 
         return {
           rideId: String(ride._id),
@@ -1347,6 +1401,17 @@ class RideController {
         });
       }
 
+      // 🚀 EXCLUSIVE: If the driver cancels/rejects the request, mark their active proposal as rejected!
+      if (ride.negotiation && Array.isArray(ride.negotiation.offers)) {
+        const targetIndex = ride.negotiation.offers.findIndex(
+          (o) => String(o.driverId) === String(driverId) && o.status !== "rejected"
+        );
+        if (targetIndex >= 0) {
+          ride.negotiation.offers[targetIndex].status = "rejected";
+          ride.negotiation.offers[targetIndex].updatedAt = new Date();
+        }
+      }
+
       // Se a corrida estava reservada para este motorista, libera e tenta o prÃ³ximo
       const isAssignedToMe =
         ride.status === "driver_assigned" &&
@@ -1360,8 +1425,16 @@ class RideController {
 
       await ride.save();
 
+      // Notifica o cliente de que as ofertas foram atualizadas (removendo a proposta retirada em tempo real)
+      const io = req.app.get("io") || req.app.get("socketio");
+      if (io) {
+        const resolvedClientId = ride.clientId?._id || ride.clientId;
+        if (resolvedClientId) {
+          io.to(`client-${resolvedClientId}`).emit("ride-offers-updated", { rideId: ride._id });
+        }
+      }
+
       // Tenta oferecer para o prÃ³ximo motorista (Ignorado se jÃ¡ estiver na fila de espera pÃºblica!)
-      const io = req.app.get("io");
       if (io && ["requesting", "driver_assigned"].includes(ride.status) && !ride.isWaitingInQueue) {
         const searchRadius = 15000; // Buscar motoristas num raio de 15km
         const nearbyDrivers = await DriverLocation.findNearby(
@@ -3264,6 +3337,11 @@ class RideController {
 
       ride.negotiation.clientOffer = newOffer;
       ride.pricing.total = newOffer;
+
+      if (["cancelled_no_driver", "no_drivers_available"].includes(ride.status)) {
+        ride.status = "requesting";
+        ride.rejectedBy = [];
+      }
       
       await ride.save();
 
@@ -3426,6 +3504,56 @@ class RideController {
     } catch (error) {
       console.error("Erro ao consultar auditoria de rota:", error);
       return sendError(res, 500, "Erro ao consultar auditoria de rota", { details: error.message });
+    }
+  }
+
+  async promoteToScheduled(req, res) {
+    try {
+      const { rideId } = req.params;
+      const { scheduledFor } = req.body;
+
+      if (!scheduledFor) {
+        return sendError(res, 400, "Horario de agendamento e obrigatorio.");
+      }
+
+      const ride = await Ride.findById(rideId);
+      if (!ride) {
+        return sendError(res, 404, "Corrida nao encontrada.");
+      }
+
+      // Valida se a corrida pode ser promovida (so se nao tiver motorista aceito ainda)
+      const allowedStatuses = ["requesting", "searching_driver", "offers_received", "payment_pending", "no_drivers_available"];
+      if (!allowedStatuses.includes(ride.status)) {
+        return sendError(res, 400, "Nao e possivel agendar uma corrida ja aceita ou em andamento.");
+      }
+
+      ride.status = "scheduled";
+      ride.scheduledFor = new Date(scheduledFor);
+      
+      // Limpa ofertas ativas e limpa motoristas que recusaram para que o agendamento fique limpo
+      ride.rejectedBy = [];
+      if (ride.negotiation) {
+        ride.negotiation.offers = [];
+        ride.negotiation.finalAgreedPrice = null;
+      }
+
+      await ride.save();
+
+      // Envia atualizacoes via websocket
+      const io = req.app.get("io");
+      if (io) {
+        io.emit("ride-status-changed", { rideId: String(ride._id), status: "scheduled" });
+        io.emit("ride-offers-updated", { rideId: String(ride._id) });
+      }
+
+      return res.json({
+        success: true,
+        message: "Corrida promovida para agendada com sucesso.",
+        ride
+      });
+    } catch (error) {
+      console.error("Erro ao promover corrida para agendada:", error);
+      return sendError(res, 500, "Erro ao promover corrida para agendada", { details: error.message });
     }
   }
 }

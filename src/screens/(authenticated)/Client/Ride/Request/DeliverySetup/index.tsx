@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from "react";
-import { View, Text, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform, TouchableOpacity, TextInput } from "react-native";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { View, Text, ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity } from "react-native";
 import Toast from "react-native-toast-message";
 
 import rideService from "@/services/ride.service";
 import { useClientCityStore } from "@/context/clientCityStore";
+import { useDebounce } from "@/hooks/useDebounce";
 
 import { DeliverySetupHeader } from "@/components/client/delivery-setup/DeliverySetupHeader";
 import { DeliverySummaryCard } from "@/components/client/delivery-setup/DeliverySummaryCard";
@@ -15,15 +16,11 @@ import { CargoDescriptionInput } from "@/components/client/delivery-setup/CargoD
 import { DeliveryOfferCard } from "@/components/client/delivery-setup/DeliveryOfferCard";
 import { DeliveryPrioritySelector, DeliveryPriority } from "@/components/client/delivery-setup/DeliveryPrioritySelector";
 import { SearchDeliveryButton } from "@/components/client/delivery-setup/SearchDeliveryButton";
-import { Zap, DollarSign, CreditCard, QrCode } from "lucide-react-native";
-
-type PaymentMethod = "cash" | "pix" | "card";
-
-const PAYMENT_OPTIONS: Array<{ id: PaymentMethod; label: string; sub: string }> = [
-  { id: "cash", label: "Dinheiro", sub: "Pagamento físico na entrega" },
-  { id: "pix", label: "PIX", sub: "Transferência instantânea" },
-  { id: "card", label: "Cartão", sub: "Débito ou crédito no app" },
-];
+import { FragileSwitch } from "@/components/client/delivery-setup/FragileSwitch";
+import { WeightInput } from "@/components/client/delivery-setup/WeightInput";
+import { DeliveryDataForm } from "@/components/client/delivery-setup/DeliveryDataForm";
+import { DeliveryOfferSkeleton } from "@/components/client/delivery-setup/DeliveryOfferSkeleton";
+import { Zap } from "lucide-react-native";
 
 export type CargoSize = "small" | "medium" | "large";
 
@@ -54,23 +51,44 @@ export default function DeliverySetupScreen({ navigation, route }: any) {
   const [approximateWeightKg, setApproximateWeightKg] = useState("");
   const [offerValue, setOfferValue] = useState<number>(20.0);
   const [priority, setPriority] = useState<DeliveryPriority>(0);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [scheduledOffsetMin, setScheduledOffsetMin] = useState<number>(60);
   const [pickupComplement, setPickupComplement] = useState("");
   const [dropoffComplement, setDropoffComplement] = useState("");
   const [recipientName, setRecipientName] = useState("");
   const [recipientPhone, setRecipientPhone] = useState("");
   const [recipientInstructions, setRecipientInstructions] = useState("");
-  const [deliveryPin, setDeliveryPin] = useState(() => {
-    return String(Math.floor(1000 + Math.random() * 9000));
-  });
+  const [deliveryPin, setDeliveryPin] = useState(() =>
+    String(Math.floor(1000 + Math.random() * 9000))
+  );
+
   const hasValidRoute = Boolean(params.pickup && params.dropoff);
 
-  const handleOfferValueChange = (nextValue: number) => {
+  // Debounce text inputs that trigger pricing
+  const debouncedCargoDescription = useDebounce(cargoDescription, 500);
+  const debouncedWeight = useDebounce(approximateWeightKg, 500);
+
+  const handleRegeneratePin = useCallback(() => {
+    setDeliveryPin(String(Math.floor(1000 + Math.random() * 9000)));
+  }, []);
+
+  const handleOfferValueChange = useCallback((nextValue: number) => {
     const parsed = Number(nextValue);
     if (!Number.isFinite(parsed)) return;
     setOfferValue(Math.max(1, Math.round(parsed)));
-  };
+  }, []);
+
+  // Inline validation
+  const nameError = useMemo(() => {
+    if (!recipientName) return undefined;
+    return recipientName.trim().length < 2 ? "Nome muito curto" : undefined;
+  }, [recipientName]);
+
+  const phoneError = useMemo(() => {
+    if (!recipientPhone) return undefined;
+    const digits = recipientPhone.replace(/\D/g, "");
+    if (digits.length < 10) return "Telefone incompleto";
+    return undefined;
+  }, [recipientPhone]);
 
   useEffect(() => {
     const refreshPricing = async () => {
@@ -82,6 +100,7 @@ export default function DeliverySetupScreen({ navigation, route }: any) {
       try {
         setPricingError(null);
         setLoadingPricing(true);
+        const parsedWeight = parseFloat(debouncedWeight);
         const res = await rideService.calculatePrice({
           pickup: params.pickup,
           dropoff: params.dropoff,
@@ -90,6 +109,8 @@ export default function DeliverySetupScreen({ navigation, route }: any) {
           cargoSize,
           priority,
           needsHelper,
+          isFragile,
+          approximateWeightKg: Number.isFinite(parsedWeight) ? parsedWeight : undefined,
           serviceType: "delivery",
           cityId: detectedCity?.cityId || undefined,
           distance: params.initialDistanceKm ? Math.round(params.initialDistanceKm * 1000) : undefined,
@@ -113,8 +134,9 @@ export default function DeliverySetupScreen({ navigation, route }: any) {
     cargoSize,
     needsHelper,
     isFragile,
-    approximateWeightKg,
     priority,
+    debouncedWeight,
+    debouncedCargoDescription,
     params.pickup?.latitude,
     params.dropoff?.latitude,
     params.initialDistanceKm,
@@ -148,14 +170,15 @@ export default function DeliverySetupScreen({ navigation, route }: any) {
       });
       return;
     }
-    if (!recipientName.trim() || !recipientPhone.trim()) {
+    if (!recipientName.trim() || !recipientPhone.trim() || nameError || phoneError) {
       Toast.show({
         type: "error",
-        text1: "Recebedor obrigatorio",
-        text2: "Informe nome e telefone do recebedor.",
+        text1: "Dados do recebedor invalidos",
+        text2: nameError || phoneError || "Informe nome e telefone do recebedor.",
       });
       return;
     }
+
 
     navigation.navigate("DeliveryReview", {
       pickup: params.pickup,
@@ -167,6 +190,8 @@ export default function DeliverySetupScreen({ navigation, route }: any) {
       deliveryType,
       cargoSize,
       needsHelper,
+      isFragile,
+      approximateWeightKg,
       priority,
       cargoDescription,
       pickupComplement,
@@ -176,7 +201,6 @@ export default function DeliverySetupScreen({ navigation, route }: any) {
       recipientInstructions,
       deliveryPin,
       offerValue,
-      paymentMethod,
       pricingSnapshot: priceData,
     });
   };
@@ -192,7 +216,13 @@ export default function DeliverySetupScreen({ navigation, route }: any) {
 
       <DeliverySetupHeader onBack={navigation.goBack} />
 
-      <ScrollView className="flex-1 pt-28" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 180, paddingTop: 16 }}>
+      <ScrollView
+        className="flex-1 pt-28"
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        contentContainerStyle={{ paddingBottom: 180, paddingTop: 16 }}
+      >
         <DeliverySummaryCard
           originAddress={params.pickup?.address || "Origem nao informada"}
           dropoffAddress={params.dropoff?.address || "Destino nao informado"}
@@ -253,29 +283,9 @@ export default function DeliverySetupScreen({ navigation, route }: any) {
 
         <HelperSwitch enabled={needsHelper} onToggle={setNeedsHelper} />
 
-        {/* Fragile Switch */}
-        <View className="mx-6 mb-4 flex-row items-center justify-between rounded-xl border border-white/10 bg-[#11253E] px-4 py-3">
-          <Text className="text-white/85 text-xs font-bold">Carga fragil</Text>
-          <TouchableOpacity
-            onPress={() => setIsFragile(!isFragile)}
-            className={`w-12 h-6 rounded-full transition ${isFragile ? "bg-[#f59e0b]" : "bg-white/20"}`}
-          >
-            <View className={`w-5 h-5 rounded-full bg-white shadow-sm mt-0.5 transition ${isFragile ? "ml-6" : "ml-0.5"}`} />
-          </TouchableOpacity>
-        </View>
+        <FragileSwitch enabled={isFragile} onToggle={setIsFragile} />
 
-        {/* Peso aproximado */}
-        <View className="mx-6 mb-4 rounded-xl border border-white/10 bg-[#11253E] px-4 py-3">
-          <Text className="text-white/85 text-xs font-bold mb-2">Peso aproximado (kg)</Text>
-          <TextInput
-            value={approximateWeightKg}
-            onChangeText={setApproximateWeightKg}
-            placeholder="Ex: 5"
-            placeholderTextColor="rgba(255,255,255,0.35)"
-            keyboardType="numeric"
-            className="h-11 rounded-xl border border-white/10 bg-[#0E1D31] px-3 text-white text-xs"
-          />
-        </View>
+        <WeightInput value={approximateWeightKg} onChange={setApproximateWeightKg} />
 
         <View className="h-[1px] bg-white/[0.03] w-full mb-6 mt-2" />
 
@@ -283,86 +293,26 @@ export default function DeliverySetupScreen({ navigation, route }: any) {
 
         <View className="h-[1px] bg-white/[0.03] w-full mb-6 mt-2" />
 
-        {/* Payment Method Selector */}
-        <View className="mx-6 mb-6 rounded-2xl border border-white/10 bg-[#11253E] p-4">
-          <Text className="text-white/90 text-xs font-bold uppercase mb-3">Forma de Pagamento</Text>
-          {PAYMENT_OPTIONS.map((opt) => {
-            const isSelected = paymentMethod === opt.id;
-            return (
-              <TouchableOpacity
-                key={opt.id}
-                onPress={() => setPaymentMethod(opt.id)}
-                className={`flex-row items-center rounded-xl border px-4 py-3 mb-2 ${
-                  isSelected ? "border-[#02de95] bg-[#02de95]/10" : "border-white/10 bg-[#0E1D31]"
-                }`}
-              >
-                <View className={`w-4 h-4 rounded-full border-2 mr-3 items-center justify-center ${
-                  isSelected ? "border-[#02de95] bg-[#02de95]" : "border-white/30"
-                }`}>
-                  {isSelected && <View className="w-1.5 h-1.5 rounded-full bg-[#091A2F]" />}
-                </View>
-                <View className="flex-1">
-                  <Text className={`text-xs font-bold ${isSelected ? "text-[#02de95]" : "text-white/85"}`}>{opt.label}</Text>
-                  <Text className="text-white/40 text-[10px] mt-0.5">{opt.sub}</Text>
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        <View className="h-[1px] bg-white/[0.03] w-full mb-6 mt-2" />
-
-        <View className="mx-6 mb-6 rounded-2xl border border-white/10 bg-[#11253E] p-4">
-          <Text className="text-white/90 text-xs font-bold uppercase mb-3">Dados da entrega</Text>
-          <TextInput
-            value={pickupComplement}
-            onChangeText={setPickupComplement}
-            placeholder="Complemento da coleta (opcional)"
-            placeholderTextColor="rgba(255,255,255,0.35)"
-            className="h-11 rounded-xl border border-white/10 bg-[#0E1D31] px-3 text-white text-xs mb-2"
-          />
-          <TextInput
-            value={dropoffComplement}
-            onChangeText={setDropoffComplement}
-            placeholder="Complemento da entrega (opcional)"
-            placeholderTextColor="rgba(255,255,255,0.35)"
-            className="h-11 rounded-xl border border-white/10 bg-[#0E1D31] px-3 text-white text-xs mb-2"
-          />
-          <TextInput
-            value={recipientName}
-            onChangeText={setRecipientName}
-            placeholder="Nome do recebedor *"
-            placeholderTextColor="rgba(255,255,255,0.35)"
-            className="h-11 rounded-xl border border-white/10 bg-[#0E1D31] px-3 text-white text-xs mb-2"
-          />
-          <TextInput
-            value={recipientPhone}
-            onChangeText={setRecipientPhone}
-            placeholder="Telefone do recebedor *"
-            placeholderTextColor="rgba(255,255,255,0.35)"
-            keyboardType="phone-pad"
-            className="h-11 rounded-xl border border-white/10 bg-[#0E1D31] px-3 text-white text-xs mb-2"
-          />
-          <TextInput
-            value={recipientInstructions}
-            onChangeText={setRecipientInstructions}
-            placeholder="Instrucoes para entrega (opcional)"
-            placeholderTextColor="rgba(255,255,255,0.35)"
-            className="h-11 rounded-xl border border-white/10 bg-[#0E1D31] px-3 text-white text-xs mb-2"
-          />
-          <TextInput
-            value={deliveryPin}
-            onChangeText={setDeliveryPin}
-            placeholder="PIN de entrega (opcional)"
-            placeholderTextColor="rgba(255,255,255,0.35)"
-            className="h-11 rounded-xl border border-white/10 bg-[#0E1D31] px-3 text-white text-xs"
-          />
-        </View>
+        <DeliveryDataForm
+          pickupComplement={pickupComplement}
+          dropoffComplement={dropoffComplement}
+          recipientName={recipientName}
+          recipientPhone={recipientPhone}
+          recipientInstructions={recipientInstructions}
+          deliveryPin={deliveryPin}
+          onPickupComplementChange={setPickupComplement}
+          onDropoffComplementChange={setDropoffComplement}
+          onRecipientNameChange={setRecipientName}
+          onRecipientPhoneChange={setRecipientPhone}
+          onRecipientInstructionsChange={setRecipientInstructions}
+          onDeliveryPinChange={setDeliveryPin}
+          onRegeneratePin={handleRegeneratePin}
+          nameError={nameError}
+          phoneError={phoneError}
+        />
 
         {loadingPricing ? (
-          <View className="h-32 items-center justify-center">
-            <ActivityIndicator color="#02de95" />
-          </View>
+          <DeliveryOfferSkeleton />
         ) : pricingError ? (
           <View className="mx-4 mb-4 rounded-xl border border-amber-300/40 bg-amber-500/10 px-3 py-3">
             <Text className="text-amber-200 text-[12px] font-semibold">{pricingError}</Text>

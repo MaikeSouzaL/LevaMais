@@ -1,8 +1,8 @@
-import React, { useMemo, useRef, useCallback } from "react";
+﻿import React, { useMemo, useRef, useCallback } from "react";
 import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Dimensions } from "react-native";
 import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import { MotiView } from "moti";
-import { Car, Package, Star, Clock, Home, Briefcase, ChevronRight } from "lucide-react-native";
+import { Car, Package, Star, Clock, Home, Briefcase, ChevronRight, Wallet, HelpCircle } from "lucide-react-native";
 import { colors, spacing, borderRadius, fontSize } from "@/theme";
 
 interface ClientBottomSheetProps {
@@ -10,6 +10,10 @@ interface ClientBottomSheetProps {
     service: "ride" | "delivery",
     options?: { preferScheduled?: boolean },
   ) => void;
+  onActiveOrdersPress?: () => void;
+  onWalletPress?: () => void;
+  onSupportPress?: () => void;
+  activeOrdersCount?: number;
   favorites: any[];
   onSelectFavorite: (fav: any) => void;
   onChangeSnap: (index: number) => void;
@@ -24,6 +28,10 @@ interface ClientBottomSheetProps {
 
 export const ClientBottomSheet = ({
   onSelectService,
+  onActiveOrdersPress,
+  onWalletPress,
+  onSupportPress,
+  activeOrdersCount = 0,
   favorites = [],
   onSelectFavorite,
   onChangeSnap,
@@ -33,7 +41,6 @@ export const ClientBottomSheet = ({
 }: ClientBottomSheetProps) => {
   const bottomSheetRef = useRef<BottomSheet>(null);
   
-  // Snaps de 30% (inicial/fechado) e 75% (expandido)
   const snapPoints = useMemo(() => ["32%", "80%"], []);
 
   const renderHandle = useCallback(() => (
@@ -53,7 +60,7 @@ export const ClientBottomSheet = ({
     >
       <BottomSheetScrollView contentContainerStyle={styles.container}>
         
-        {/* 🚀 Main Services (ALWAYS VISIBLE) */}
+        {/* Main Services */}
         <View style={styles.servicesGrid}>
           <TouchableOpacity 
             style={[
@@ -96,13 +103,47 @@ export const ClientBottomSheet = ({
 
         <View style={styles.divider} />
 
-        {/* 🕒 Recent Searches / Detailed Favorites */}
+        {/* Quick Links */}
+        {(onActiveOrdersPress || onWalletPress || onSupportPress) && (
+          <View style={styles.quickLinksContainer}>
+            {onActiveOrdersPress && (
+              <TouchableOpacity style={styles.quickLinkItem} onPress={onActiveOrdersPress} activeOpacity={0.7}>
+                <View style={styles.quickLinkIcon}>
+                  <Clock size={18} color="#02de95" />
+                  {activeOrdersCount > 0 && (
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>{activeOrdersCount}</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.quickLinkLabel}>Pedidos Ativos</Text>
+              </TouchableOpacity>
+            )}
+            {onWalletPress && (
+              <TouchableOpacity style={styles.quickLinkItem} onPress={onWalletPress} activeOpacity={0.7}>
+                <View style={styles.quickLinkIcon}>
+                  <Wallet size={18} color="#02de95" />
+                </View>
+                <Text style={styles.quickLinkLabel}>Carteira</Text>
+              </TouchableOpacity>
+            )}
+            {onSupportPress && (
+              <TouchableOpacity style={styles.quickLinkItem} onPress={onSupportPress} activeOpacity={0.7}>
+                <View style={styles.quickLinkIcon}>
+                  <HelpCircle size={18} color="#02de95" />
+                </View>
+                <Text style={styles.quickLinkLabel}>Suporte</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {/* Recent Searches / Detailed Favorites */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionLabel}>Locais recentes</Text>
         </View>
 
         <View style={styles.listContainer}>
-          {/* Example item - will load from favorites if present */}
           {favorites.length > 0 ? favorites.map((item, idx) => (
             <TouchableOpacity 
               key={item._id || idx} 
@@ -134,7 +175,7 @@ export const ClientBottomSheet = ({
 
 const styles = StyleSheet.create({
   sheetBackground: {
-    backgroundColor: "#091A2F", // Brand Dark Core
+    backgroundColor: "#091A2F",
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
     shadowColor: "#000",
@@ -165,7 +206,7 @@ const styles = StyleSheet.create({
   serviceCard: {
     flex: 1,
     height: 148,
-    backgroundColor: "#11253E", // Surface Primary
+    backgroundColor: "#11253E",
     borderRadius: 24,
     padding: spacing.md,
     borderWidth: 1,
@@ -213,58 +254,47 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginTop: 4,
   },
-  unavailableText: {
-    color: "#fbbf24",
+  quickLinksContainer: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    marginBottom: spacing.md,
+    gap: spacing.sm,
+  },
+  quickLinkItem: {
+    flex: 1,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 16,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.05)",
+  },
+  quickLinkIcon: {
+    position: "relative",
+    marginBottom: 6,
+  },
+  quickLinkLabel: {
+    color: colors.text.secondary,
     fontSize: 11,
     fontWeight: "700",
-    marginTop: 3,
   },
-  availabilityBanner: {
-    marginTop: spacing.sm,
-    marginBottom: spacing.sm,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-    backgroundColor: "rgba(255,255,255,0.04)",
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  availabilityBannerText: {
-    color: "rgba(255,255,255,0.75)",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  warningRow: {
-    marginTop: spacing.sm,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: spacing.sm,
-    backgroundColor: "rgba(251,191,36,0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(251,191,36,0.28)",
-    borderRadius: 10,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 8,
-  },
-  warningText: {
-    flex: 1,
-    color: "#fbbf24",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  warningCta: {
-    backgroundColor: "rgba(2,222,149,0.2)",
-    borderWidth: 1,
-    borderColor: "rgba(2,222,149,0.45)",
+  badge: {
+    position: "absolute",
+    top: -6,
+    right: -10,
+    backgroundColor: "#F59E0B",
     borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    minWidth: 16,
+    height: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
   },
-  warningCtaText: {
-    color: "#02de95",
-    fontSize: 11,
-    fontWeight: "800",
+  badgeText: {
+    color: "#091A2F",
+    fontSize: 9,
+    fontWeight: "900",
   },
   divider: {
     height: 1,
@@ -279,25 +309,6 @@ const styles = StyleSheet.create({
     fontSize: fontSize.base,
     fontWeight: "700",
     letterSpacing: 0.3,
-  },
-  shortcutsContainer: {
-    gap: spacing.sm,
-  },
-  pillShortcut: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-    backgroundColor: "rgba(255,255,255,0.05)",
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-  },
-  pillText: {
-    color: colors.text.secondary,
-    fontSize: fontSize.sm,
-    fontWeight: "600",
   },
   listContainer: {
     gap: spacing.xs,

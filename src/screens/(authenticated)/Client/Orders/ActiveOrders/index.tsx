@@ -1,626 +1,898 @@
-﻿import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, RefreshControl, TextInput, ActivityIndicator } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { NavigationProp, useNavigation } from "@react-navigation/native";
-import { MaterialIcons } from "@expo/vector-icons";
-import Toast from "react-native-toast-message";
+import React, { useState, useCallback } from "react";
+import { View, Text, TouchableOpacity, StatusBar, ScrollView, ActivityIndicator, RefreshControl, Alert } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MotiView } from "moti";
-
-import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
-import rideService, { Ride } from "@/services/ride.service";
+import { ArrowLeft, Package, Clock, MapPin, DollarSign, ChevronRight, Inbox, Plus, Calendar, Trash2, Route } from "lucide-react-native";
+import Toast from "react-native-toast-message";
+import rideService from "@/services/ride.service";
 import { formatBRL } from "@/utils/mappers";
 import { Modal } from "@/components/Modal";
-import { Zap, Coins, TrendingDown, Eye, Users, Clock, CheckCircle, AlertCircle } from "lucide-react-native";
-import { ClientStackParamList } from "../../types/navigation";
 
-function rideTitle(ride: Ride) {
-  return ride.serviceType === "delivery" ? "Entrega" : "Corrida";
-}
+const STATUS_LABELS: Record<string, string> = {
+  searching_driver: "Buscando entregadores",
+  requesting: "Análise de entregadores",
+  offers_received: "Propostas recebidas",
+  payment_pending: "Aguardando pagamento",
+  driver_assigned: "Entregador confirmado",
+  accepted: "Entregador a caminho",
+  driver_arriving: "Entregador chegando",
+  arrived: "Entregador no local",
+  in_progress: "Em andamento",
+  scheduled: "Agendada",
+  no_drivers_available: "Sem entregadores disponíveis",
+  completed: "Entregue com sucesso",
+  cancelled: "Cancelado",
+  cancelled_by_client: "Cancelado por você",
+  cancelled_by_driver: "Cancelado pelo entregador",
+  cancelled_no_driver: "Sem entregadores disponíveis",
+};
 
-function mapStatusLabel(status?: string) {
-  const normalized = String(status || "").toLowerCase();
-  if (normalized === "scheduled") return "agendada";
-  if (normalized === "payment_pending") return "aguardando pagamento";
-  if (normalized === "driver_assigned") return "motorista selecionado";
-  if (normalized === "requesting") return "buscando motoristas";
-  return normalized.replaceAll("_", " ");
-}
+const STATUS_THEMES: Record<string, { color: string; bg: string }> = {
+  requesting: { color: "#fbbf24", bg: "bg-amber-500/10" },
+  searching_driver: { color: "#fbbf24", bg: "bg-amber-500/10" },
+  offers_received: { color: "#38bdf8", bg: "bg-sky-500/10" },
+  payment_pending: { color: "#f43f5e", bg: "bg-rose-500/10" },
+  driver_assigned: { color: "#02de95", bg: "bg-[#02de95]/10" },
+  accepted: { color: "#02de95", bg: "bg-[#02de95]/10" },
+  driver_arriving: { color: "#02de95", bg: "bg-[#02de95]/10" },
+  arrived: { color: "#02de95", bg: "bg-[#02de95]/10" },
+  in_progress: { color: "#a855f7", bg: "bg-purple-500/10" },
+  scheduled: { color: "#6366f1", bg: "bg-indigo-500/10" },
+  no_drivers_available: { color: "#f43f5e", bg: "bg-rose-500/10" },
+  completed: { color: "#02de95", bg: "bg-[#02de95]/10" },
+  cancelled: { color: "#f43f5e", bg: "bg-[#f43f5e]/10" },
+  cancelled_by_client: { color: "#ef4444", bg: "bg-red-500/10" },
+  cancelled_by_driver: { color: "#ef4444", bg: "bg-red-500/10" },
+  cancelled_no_driver: { color: "#f59e0b", bg: "bg-amber-500/10" },
+};
 
-function getStatusColor(status?: string) {
-  const normalized = String(status || "").toLowerCase();
-  if (normalized === "requesting") return "#F59E0B"; // Amber
-  if (normalized === "payment_pending") return "#3B82F6"; // Blue
-  if (normalized === "driver_assigned") return "#10B981"; // Green
-  return "#6B7280"; // Gray
-}
-
-function getStatusIcon(status?: string) {
-  const normalized = String(status || "").toLowerCase();
-  if (normalized === "requesting") return Clock;
-  if (normalized === "payment_pending") return AlertCircle;
-  if (normalized === "driver_assigned") return CheckCircle;
-  return Clock;
-}
+const VEHICLE_LABELS: Record<string, string> = {
+  motorcycle: "Moto",
+  car: "Carro",
+  van: "Van",
+  truck: "Caminhão",
+};
 
 export default function ActiveOrdersScreen() {
-  const navigation = useNavigation<NavigationProp<ClientStackParamList>>();
+  const navigation = useNavigation<any>();
+  const insets = useSafeAreaInsets();
+  const [rides, setRides] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [rides, setRides] = useState<Ride[]>([]);
-  const [editingRideId, setEditingRideId] = useState<string | null>(null);
-  const [cancellingRideId, setCancellingRideId] = useState<string | null>(null);
 
-  const [adjustingRide, setAdjustingRide] = useState<Ride | null>(null);
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [pendingIncrement, setPendingIncrement] = useState("5");
-  const [isSubtractMode, setIsSubtractMode] = useState(false);
-  const [isIncreasing, setIsIncreasing] = useState(false);
+  // States for Scheduled Ride Detail Modal
+  const [selectedScheduledRide, setSelectedScheduledRide] = useState<any>(null);
+  const [showScheduledModal, setShowScheduledModal] = useState(false);
 
-  const load = useCallback(async () => {
-    const res = await rideService.getActiveList();
-    setRides(res?.rides || []);
+  // States for Promoting/Rescheduling to Scheduled
+  const [promotingRide, setPromotingRide] = useState<any>(null);
+  const [showPromotionModal, setShowPromotionModal] = useState(false);
+  const [selectedDayOffset, setSelectedDayOffset] = useState<number>(0);
+  const [selectedTime, setSelectedTime] = useState<string>("");
+
+  // Segment Tab for Client Screen ("Em Andamento", "Negociações", "Agendados")
+  const [activeTab, setActiveTab] = useState<"active" | "scheduled" | "negotiation">("active");
+
+  const loadRides = useCallback(async () => {
+    try {
+      const res = await rideService.getActiveList();
+      const list = res?.rides || [];
+      list.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setRides(list);
+    } catch {}
+    setLoading(false);
+    setRefreshing(false);
   }, []);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        await load();
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [load]);
+  useFocusEffect(
+    useCallback(() => {
+      setLoading(true);
+      loadRides();
+    }, [loadRides])
+  );
 
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      await load();
-    } finally {
-      setRefreshing(false);
+  const handleRidePress = (ride: any) => {
+    const status = String(ride.status || "");
+    if (status === "scheduled") {
+      setSelectedScheduledRide(ride);
+      setShowScheduledModal(true);
+    } else if (["requesting", "searching_driver", "payment_pending", "offers_received", "no_drivers_available", "cancelled_no_driver"].includes(status)) {
+      navigation.navigate("RideOffersMarketplace", { rideId: ride._id });
+    } else {
+      navigation.navigate("RideTracking", { rideId: ride._id });
     }
-  }, [load]);
-
-  const openConfirmModal = (ride: Ride, val: number) => {
-    setAdjustingRide(ride);
-    setPendingIncrement(val > 0 ? String(val) : "");
-    setIsSubtractMode(false);
-    setShowConfirmModal(true);
   };
 
-  const handleConfirmIncrease = async () => {
-    if (!adjustingRide) return;
-    const cleanVal = pendingIncrement.replace(",", ".");
-    let numVal = parseFloat(cleanVal);
-    
-    if (isNaN(numVal) || numVal <= 0) {
-      Toast.show({ type: "error", text1: "Valor inválido", text2: "Informe um valor maior que zero." });
-      return;
-    }
+  const confirmCancelRide = (rideId: string) => {
+    Alert.alert(
+      "Cancelar Entrega? ⚠️",
+      "Tem certeza que deseja cancelar esta entrega? Esta ação não pode ser desfeita.",
+      [
+        { text: "Não, manter", style: "cancel" },
+        { 
+          text: "Sim, cancelar", 
+          style: "destructive",
+          onPress: () => handleCancelRide(rideId)
+        }
+      ]
+    );
+  };
 
-    if (isSubtractMode) {
-       numVal = -numVal;
-    }
-
-    const currentBase = Number(adjustingRide.negotiation?.clientOffer || adjustingRide.pricing?.total || 0);
-    const minFloor = Number(adjustingRide.negotiation?.suggestedMinPrice || adjustingRide.pricing?.subtotal || 5.0);
-    const finalPredict = currentBase + numVal;
-
-    if (finalPredict < minFloor) {
-      Toast.show({
-        type: "error",
-        text1: "Limite Mínimo Atingido",
-        text2: `Sua proposta não pode ser menor que o valor inicial de ${formatBRL(minFloor)}.`,
-      });
-      return;
-    }
-
-    setShowConfirmModal(false);
-    if (isIncreasing) return;
-    setIsIncreasing(true);
+  const handleCancelRide = async (rideId: string) => {
     try {
-      const res = await rideService.increaseOffer(adjustingRide._id, numVal);
-      if (res.success) {
-        Toast.show({
-          type: "success",
-          text1: isSubtractMode ? "Oferta Reduzida! 📉" : "Oferta Aumentada! 🚀",
-          text2: `Sua nova oferta agora é ${formatBRL(res.newOffer)}!`,
-        });
-        await load();
-      }
+      setLoading(true);
+      await rideService.cancel(rideId, "Cancelado pelo cliente.");
+      Toast.show({
+        type: "success",
+        text1: "Pedido Cancelado! 🛑",
+        text2: "A entrega foi cancelada com sucesso.",
+        position: "top"
+      });
+      setShowScheduledModal(false);
+      setSelectedScheduledRide(null);
+      loadRides();
     } catch (e: any) {
       Toast.show({
         type: "error",
-        text1: "Falha ao ajustar",
-        text2: e?.response?.data?.error || e?.message || "Tente novamente.",
+        text1: "Erro ao cancelar",
+        text2: e?.message || "Não foi possível cancelar o pedido no momento.",
+        position: "top"
       });
-    } finally {
-      setIsIncreasing(false);
-      setAdjustingRide(null);
+      setLoading(false);
     }
   };
 
-  // Group rides by status
-  const requestingRides = rides.filter(r => r.status === "requesting" && (!r.negotiation?.offers || r.negotiation.offers.length === 0));
-  const negotiatingRides = rides.filter(r => r.status === "requesting" && r.negotiation?.offers && r.negotiation.offers.length > 0);
-  const paymentPendingRides = rides.filter(r => r.status === "payment_pending");
-  const otherRides = rides.filter(r => !["requesting", "payment_pending"].includes(r.status || ""));
+  const handlePromoteToScheduled = async () => {
+    if (!promotingRide || !selectedTime) return;
 
-  const renderRideCard = (ride: Ride) => {
-    const offersCount = ride.negotiation?.offers?.length || 0;
-    const hasOffers = offersCount > 0;
-    const StatusIcon = getStatusIcon(ride.status);
-    const statusColor = getStatusColor(ride.status);
-    const isRequesting = ride.status === "requesting";
-    const isPaymentPending = ride.status === "payment_pending";
+    try {
+      setLoading(true);
+      const now = new Date();
+      const targetDate = new Date();
+      targetDate.setDate(now.getDate() + selectedDayOffset);
+      
+      const [hours, minutes] = selectedTime.split(":").map(Number);
+      targetDate.setHours(hours, minutes, 0, 0);
 
-    return (
-      <MotiView
-        key={ride._id}
-        from={{ opacity: 0, translateY: 20 }}
-        animate={{ opacity: 1, translateY: 0 }}
-        transition={{ type: "timing", duration: 300 }}
-        style={styles.rideCard}
-      >
-        {/* Header with status */}
-        <View style={styles.cardTop}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.rideType}>{rideTitle(ride)}</Text>
-            <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}>
-              <StatusIcon size={12} color={statusColor} style={{ marginRight: 4 }} />
-              <Text style={[styles.rideStatus, { color: statusColor }]}>
-                {mapStatusLabel(ride.status)}
-              </Text>
-            </View>
-          </View>
-          <View style={{ alignItems: "flex-end" }}>
-            <Text style={{ color: colors.primary[500], fontSize: fontSize.xl, fontWeight: fontWeight.black }}>
-              {formatBRL(Number(ride.negotiation?.clientOffer || ride.pricing?.total || 0))}
-            </Text>
-            <Text style={{ color: colors.text.tertiary, fontSize: fontSize.xs }}>
-              sua oferta
-            </Text>
-          </View>
-        </View>
+      await rideService.promoteToScheduled(promotingRide._id, targetDate.toISOString());
 
-        {/* Negotiation status indicator */}
-        {isRequesting && (
-          <View style={{
-            marginTop: spacing.sm,
-            padding: spacing.sm,
-            backgroundColor: hasOffers ? "rgba(16, 185, 129, 0.1)" : "rgba(245, 158, 11, 0.1)",
-            borderRadius: borderRadius.md,
-            borderWidth: 1,
-            borderColor: hasOffers ? "rgba(16, 185, 129, 0.3)" : "rgba(245, 158, 11, 0.3)",
-          }}>
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-              <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
-                {hasOffers ? (
-                  <>
-                    <Users size={16} color="#10B981" style={{ marginRight: 6 }} />
-                    <Text style={{ color: "#10B981", fontSize: fontSize.sm, fontWeight: fontWeight.bold }}>
-                      {offersCount} {offersCount === 1 ? "motorista interessado" : "motoristas interessados"}
-                    </Text>
-                  </>
-                ) : (
-                  <>
-                    <Eye size={16} color="#F59E0B" style={{ marginRight: 6 }} />
-                    <Text style={{ color: "#F59E0B", fontSize: fontSize.sm, fontWeight: fontWeight.bold }}>
-                      Aguardando motoristas...
-                    </Text>
-                  </>
-                )}
-              </View>
-              {hasOffers && (
-                <View style={{
-                  backgroundColor: "#10B981",
-                  paddingHorizontal: 8,
-                  paddingVertical: 4,
-                  borderRadius: 12,
-                }}>
-                  <Text style={{ color: "#fff", fontSize: 10, fontWeight: "900" }}>
-                    {offersCount} NOVA{offersCount > 1 ? "S" : ""}
-                  </Text>
-                </View>
-              )}
-            </View>
-          </View>
-        )}
+      Toast.show({
+        type: "success",
+        text1: "Entrega Agendada! 📅",
+        text2: `Promovida para agendada com sucesso para ${selectedTime}.`,
+        position: "top"
+      });
 
-        {/* Addresses */}
-        <View style={{ marginTop: spacing.sm }}>
-          <Text style={styles.address}>
-            <Text style={{ fontWeight: fontWeight.bold }}>Coleta: </Text>
-            {ride.pickup?.address || "Não informado"}
-          </Text>
-          <Text style={styles.address}>
-            <Text style={{ fontWeight: fontWeight.bold }}>Entrega: </Text>
-            {ride.dropoff?.address || "Não informado"}
-          </Text>
-        </View>
-
-        {/* Actions */}
-        <View style={styles.cardActions}>
-          {hasOffers && isRequesting && (
-            <TouchableOpacity
-              style={[styles.primaryBtn, { backgroundColor: "#10B981" }]}
-              onPress={() => navigation.navigate("RideOffersMarketplace", { rideId: ride._id })}
-            >
-              <Text style={[styles.primaryBtnText, { color: "#fff" }]}>
-                🎯 Ver {offersCount} Proposta{offersCount > 1 ? "s" : ""}
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          {isPaymentPending && (
-            <TouchableOpacity
-              style={[styles.primaryBtn, { backgroundColor: "#3B82F6" }]}
-              onPress={() => navigation.navigate("DeliveryPaymentConfirm", { rideId: ride._id })}
-            >
-              <Text style={[styles.primaryBtnText, { color: "#fff" }]}>
-                💳 Confirmar Pagamento
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          {!hasOffers && isRequesting && (
-            <TouchableOpacity
-              style={styles.secondaryBtn}
-              onPress={() => openConfirmModal(ride, 5)}
-            >
-              <Zap size={16} color={colors.primary[500]} style={{ marginRight: 6 }} />
-              <Text style={styles.secondaryBtnText}>Aumentar Oferta</Text>
-            </TouchableOpacity>
-          )}
-
-          {ride.driverId && !isRequesting && !isPaymentPending && (
-            <TouchableOpacity
-              style={styles.trackBtn}
-              onPress={() => navigation.navigate("RideTracking", { rideId: ride._id })}
-            >
-              <MaterialIcons name="location-on" size={18} color={colors.text.primary} style={{ marginRight: 6 }} />
-              <Text style={styles.trackBtnText}>Rastrear Entrega</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </MotiView>
-    );
+      setShowPromotionModal(false);
+      setPromotingRide(null);
+      setSelectedTime("");
+      setSelectedDayOffset(0);
+      
+      // Muda a aba ativa para visualizar o agendamento
+      setActiveTab("scheduled");
+      loadRides();
+    } catch (e: any) {
+      Toast.show({
+        type: "error",
+        text1: "Não foi possível agendar",
+        text2: e?.message || "Ocorreu um erro ao promover a entrega.",
+        position: "top"
+      });
+      setLoading(false);
+    }
   };
 
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <MaterialIcons name="arrow-back" size={22} color="#fff" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Pedidos ativos</Text>
-          <View style={{ width: 42 }} />
-        </View>
-        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-          <ActivityIndicator size="large" color={colors.primary[500]} />
-          <Text style={{ color: colors.text.tertiary, marginTop: spacing.md }}>
-            Carregando pedidos...
-          </Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return "";
+    try {
+      const d = new Date(dateString);
+      return d.toLocaleDateString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    } catch {
+      return "";
+    }
+  };
+
+  const formatScheduledDate = (scheduledString?: string) => {
+    if (!scheduledString) return "";
+    try {
+      const d = new Date(scheduledString);
+      const formatted = d.toLocaleDateString("pt-BR", { 
+        weekday: "long",
+        day: "2-digit", 
+        month: "2-digit", 
+        hour: "2-digit", 
+        minute: "2-digit" 
+      });
+      return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+    } catch {
+      return "";
+    }
+  };
+
+  const getDayLabel = (offset: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() + offset);
+    const day = String(d.getDate()).padStart(2, "0");
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    if (offset === 0) return `Hoje (${day}/${month})`;
+    if (offset === 1) return `Amanhã (${day}/${month})`;
+    const weekday = d.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "");
+    const capitalized = weekday.charAt(0).toUpperCase() + weekday.slice(1);
+    return `${capitalized} (${day}/${month})`;
+  };
+
+  const generateAvailableTimes = (offset: number) => {
+    const times = [];
+    const startHour = 6;
+    const endHour = 23;
+    
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+
+    for (let h = startHour; h <= endHour; h++) {
+      for (let m = 0; m < 60; m += 30) {
+        if (h === endHour && m > 0) continue;
+        
+        const timeString = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+        
+        if (offset === 0) {
+          // Hoje: apenas horários com pelo menos 30 minutos de antecedência
+          const timeMinutes = h * 60 + m;
+          const currentMinutes = currentHour * 60 + currentMinute + 30;
+          if (timeMinutes > currentMinutes) {
+            times.push(timeString);
+          }
+        } else {
+          times.push(timeString);
+        }
+      }
+    }
+    return times;
+  };
+
+  // Filter rides based on active tab
+  const activeRides = rides.filter(
+    (r) => 
+      r.status !== "scheduled" && 
+      !["completed", "cancelled", "cancelled_by_client", "cancelled_by_driver", "cancelled_no_driver", "no_drivers_available"].includes(r.status)
+  );
+  const scheduledRides = rides.filter((r) => r.status === "scheduled");
+  const negotiationRides = rides.filter(
+    (r) => 
+      ["completed", "cancelled", "cancelled_by_client", "cancelled_by_driver", "cancelled_no_driver", "no_drivers_available", "requesting", "searching_driver", "offers_received"].includes(r.status)
+  );
+  
+  const currentList = activeTab === "active" 
+    ? activeRides 
+    : activeTab === "scheduled" 
+      ? scheduledRides 
+      : negotiationRides;
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <MaterialIcons name="arrow-back" size={22} color="#fff" />
+    <View style={{ flex: 1, backgroundColor: "#091A2F" }}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+
+      {/* Header Premium */}
+      <View
+        className="border-b border-white/[0.04] bg-[#091A2F]"
+        style={{
+          paddingTop: insets.top + 8,
+          paddingHorizontal: 24,
+          paddingBottom: 16,
+          flexDirection: "row",
+          alignItems: "center",
+        }}
+      >
+        <TouchableOpacity
+          onPress={() => navigation.navigate("Home")}
+          activeOpacity={0.7}
+          className="w-10 h-10 rounded-xl bg-slate-800/70 border border-white/10 items-center justify-center mr-4"
+        >
+          <ArrowLeft size={22} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Pedidos ativos</Text>
-        <View style={{ width: 42 }} />
+        <View className="flex-1">
+          <Text className="text-white text-xl font-bold tracking-wide">Meus Pedidos</Text>
+          <Text className="text-slate-400 text-[11px] font-medium mt-0.5">
+            {rides.length === 0 
+              ? "Nenhum chamado ativo no momento" 
+              : `${rides.length} chamado${rides.length !== 1 ? "s ativos" : " ativo"}`}
+          </Text>
+        </View>
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary[500]} />}
-      >
-        {rides.length === 0 ? (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>Nenhum pedido ativo</Text>
-            <Text style={styles.emptyText}>
-              Você não tem pedidos em andamento no momento.
-            </Text>
-          </View>
-        ) : (
-          <>
-            {/* Section: Em Negociação */}
-            {negotiatingRides.length > 0 && (
-              <View style={{ marginBottom: spacing.lg }}>
-                <View style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  marginBottom: spacing.md,
-                  paddingHorizontal: spacing.xs,
-                }}>
-                  <Users size={18} color="#10B981" style={{ marginRight: 8 }} />
-                  <Text style={{
-                    color: "#10B981",
-                    fontSize: fontSize.base,
-                    fontWeight: fontWeight.bold,
-                    textTransform: "uppercase",
-                    letterSpacing: 0.5,
-                  }}>
-                    Em Negociação ({negotiatingRides.length})
-                  </Text>
-                </View>
-                <Text style={[styles.subtitle, { marginBottom: spacing.md, paddingHorizontal: spacing.xs }]}>
-                  Motoristas estão analisando e fazendo propostas
-                </Text>
-                {negotiatingRides.map(renderRideCard)}
-              </View>
-            )}
-
-            {/* Section: Aguardando Motoristas */}
-            {requestingRides.length > 0 && (
-              <View style={{ marginBottom: spacing.lg }}>
-                <View style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  marginBottom: spacing.md,
-                  paddingHorizontal: spacing.xs,
-                }}>
-                  <Clock size={18} color="#F59E0B" style={{ marginRight: 8 }} />
-                  <Text style={{
-                    color: "#F59E0B",
-                    fontSize: fontSize.base,
-                    fontWeight: fontWeight.bold,
-                    textTransform: "uppercase",
-                    letterSpacing: 0.5,
-                  }}>
-                    Aguardando Motoristas ({requestingRides.length})
-                  </Text>
-                </View>
-                <Text style={[styles.subtitle, { marginBottom: spacing.md, paddingHorizontal: spacing.xs }]}>
-                  Seu pedido foi publicado e está sendo enviado para motoristas próximos
-                </Text>
-                {requestingRides.map(renderRideCard)}
-              </View>
-            )}
-
-            {/* Section: Aguardando Pagamento */}
-            {paymentPendingRides.length > 0 && (
-              <View style={{ marginBottom: spacing.lg }}>
-                <View style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  marginBottom: spacing.md,
-                  paddingHorizontal: spacing.xs,
-                }}>
-                  <AlertCircle size={18} color="#3B82F6" style={{ marginRight: 8 }} />
-                  <Text style={{
-                    color: "#3B82F6",
-                    fontSize: fontSize.base,
-                    fontWeight: fontWeight.bold,
-                    textTransform: "uppercase",
-                    letterSpacing: 0.5,
-                  }}>
-                    Aguardando Pagamento ({paymentPendingRides.length})
-                  </Text>
-                </View>
-                <Text style={[styles.subtitle, { marginBottom: spacing.md, paddingHorizontal: spacing.xs }]}>
-                  Confirme o pagamento para o motorista iniciar a entrega
-                </Text>
-                {paymentPendingRides.map(renderRideCard)}
-              </View>
-            )}
-
-            {/* Section: Outros */}
-            {otherRides.length > 0 && (
-              <View style={{ marginBottom: spacing.lg }}>
-                <View style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  marginBottom: spacing.md,
-                  paddingHorizontal: spacing.xs,
-                }}>
-                  <CheckCircle size={18} color="#10B981" style={{ marginRight: 8 }} />
-                  <Text style={{
-                    color: colors.text.primary,
-                    fontSize: fontSize.base,
-                    fontWeight: fontWeight.bold,
-                    textTransform: "uppercase",
-                    letterSpacing: 0.5,
-                  }}>
-                    Em Andamento ({otherRides.length})
-                  </Text>
-                </View>
-                {otherRides.map(renderRideCard)}
-              </View>
-            )}
-          </>
-        )}
-      </ScrollView>
-
-      {/* Modal for adjusting offer */}
-      <Modal
-        visible={showConfirmModal}
-        onClose={() => setShowConfirmModal(false)}
-        title={isSubtractMode ? "Reduzir Oferta" : "Aumentar Oferta"}
-      >
-        <View style={{ gap: spacing.md }}>
-          <Text style={{ color: colors.text.secondary, fontSize: fontSize.sm, lineHeight: 20 }}>
-            {isSubtractMode
-              ? "Reduza sua oferta se achar que está muito alta. Atenção: isso pode diminuir o interesse dos motoristas."
-              : "Aumente sua oferta para atrair mais motoristas rapidamente."}
-          </Text>
-
-          <View style={{ flexDirection: "row", gap: spacing.sm }}>
-            <TouchableOpacity
-              onPress={() => setIsSubtractMode(false)}
-              activeOpacity={0.8}
-              style={{
-                flex: 1,
-                height: 40,
-                borderRadius: 8,
-                backgroundColor: !isSubtractMode ? colors.primary[500] : "transparent",
-                alignItems: "center",
-                justifyContent: "center",
-                flexDirection: "row",
-              }}
-            >
-              <Zap size={14} color={!isSubtractMode ? "#052013" : "rgba(255,255,255,0.5)"} style={{ marginRight: 6 }} />
-              <Text style={{ color: !isSubtractMode ? "#052013" : "rgba(255,255,255,0.5)", fontSize: 13, fontWeight: "bold" }}>
-                Adicionar (+)
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => setIsSubtractMode(true)}
-              activeOpacity={0.8}
-              style={{
-                flex: 1,
-                height: 40,
-                borderRadius: 8,
-                backgroundColor: isSubtractMode ? "#ef4444" : "transparent",
-                alignItems: "center",
-                justifyContent: "center",
-                flexDirection: "row",
-              }}
-            >
-              <TrendingDown size={14} color={isSubtractMode ? "#fff" : "rgba(255,255,255,0.5)"} style={{ marginRight: 6 }} />
-              <Text style={{ color: isSubtractMode ? "#fff" : "rgba(255,255,255,0.5)", fontSize: 13, fontWeight: "bold" }}>
-                Subtrair (-)
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={{
-            width: "100%",
-            flexDirection: "row",
-            alignItems: "center",
-            backgroundColor: "rgba(255,255,255,0.05)",
-            borderWidth: 1,
-            borderColor: "rgba(255, 255, 255, 0.1)",
-            borderRadius: 16,
-            paddingHorizontal: 16,
-            height: 56,
-          }}>
-            <Text style={{
-              color: !isSubtractMode ? "#02de95" : "#ef4444",
-              fontSize: 18,
-              fontWeight: "bold",
-              marginRight: 8,
-            }}>
-              {isSubtractMode ? "- R$" : "R$"}
-            </Text>
-            <TextInput
-              value={pendingIncrement}
-              onChangeText={setPendingIncrement}
-              keyboardType="decimal-pad"
-              autoFocus
-              style={{
-                flex: 1,
-                color: "#fff",
-                fontSize: 18,
-                fontWeight: "bold",
-              }}
-              placeholder="0,00"
-              placeholderTextColor="rgba(255,255,255,0.3)"
-            />
-          </View>
-
-          <TouchableOpacity
-            onPress={handleConfirmIncrease}
-            disabled={isIncreasing}
+      {/* Segmented Tabs (ATIVOS, NEGOCIAÇÕES, AGENDADOS) */}
+      {!loading && rides.length > 0 && (
+        <View style={{ paddingHorizontal: 16, marginTop: 16, marginBottom: 8, zIndex: 98 }}>
+          <View
             style={{
-              backgroundColor: isSubtractMode ? "#ef4444" : colors.primary[500],
-              borderRadius: borderRadius.md,
-              paddingVertical: spacing.md,
-              alignItems: "center",
-              opacity: isIncreasing ? 0.6 : 1,
+              flexDirection: "row",
+              backgroundColor: "rgba(11, 26, 42, 0.5)",
+              borderRadius: 20,
+              padding: 4,
+              borderWidth: 1,
+              borderColor: "rgba(255, 255, 255, 0.05)",
+              width: "100%",
             }}
           >
-            {isIncreasing ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={{ color: isSubtractMode ? "#fff" : "#052013", fontSize: fontSize.base, fontWeight: fontWeight.bold }}>
-                {isSubtractMode ? "Confirmar Redução" : "Confirmar Aumento"}
-              </Text>
-            )}
-          </TouchableOpacity>
+            {([
+              { id: "active", label: "Ativos", count: activeRides.length },
+              { id: "negotiation", label: "Negociações", count: negotiationRides.length },
+              { id: "scheduled", label: "Agendados", count: scheduledRides.length }
+            ] as const).map((tab) => {
+              const isActive = activeTab === tab.id;
+              
+              return (
+                <TouchableOpacity
+                  key={tab.id}
+                  onPress={() => setActiveTab(tab.id)}
+                  style={{
+                    flex: 1,
+                    height: 42,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderRadius: 16,
+                    position: "relative",
+                    flexDirection: "row",
+                    gap: 6,
+                  }}
+                  activeOpacity={0.85}
+                >
+                  {isActive && (
+                    <MotiView
+                      from={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        backgroundColor: "#02de95",
+                        borderRadius: 16,
+                        shadowColor: "#02de95",
+                        shadowOffset: { width: 0, height: 4 },
+                        shadowOpacity: 0.2,
+                        shadowRadius: 6,
+                        elevation: 4,
+                        zIndex: -1
+                      }}
+                    />
+                  )}
+                  
+                  <Text
+                    style={{
+                      color: isActive ? "#091A2F" : "rgba(255, 255, 255, 0.45)",
+                      fontWeight: "900",
+                      fontSize: 9,
+                      textTransform: "uppercase",
+                      letterSpacing: 0.2
+                    }}
+                  >
+                    {tab.label}
+                  </Text>
+
+                  {tab.count > 0 && (
+                    <View 
+                      style={{
+                        backgroundColor: isActive ? "rgba(9, 26, 47, 0.15)" : "rgba(255, 255, 255, 0.08)",
+                        paddingHorizontal: 6,
+                        paddingVertical: 2,
+                        borderRadius: 99,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Text 
+                        style={{ 
+                          color: isActive ? "#091A2F" : "rgba(255,255,255,0.5)", 
+                          fontSize: 8.5, 
+                          fontWeight: "900" 
+                        }}
+                      >
+                        {tab.count}
+                      </Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </View>
+      )}
+
+      {loading ? (
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator color="#02de95" size="large" />
+          <Text className="text-slate-400 text-xs mt-3 font-semibold uppercase tracking-wider">Carregando pedidos...</Text>
+        </View>
+      ) : currentList.length === 0 ? (
+        <MotiView 
+          from={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="flex-1 items-center justify-center px-8"
+        >
+          <View className="w-20 h-20 bg-[#11253E] border border-white/[0.05] rounded-full items-center justify-center mb-6 shadow-xl">
+            <Inbox size={36} color="rgba(255,255,255,0.2)" />
+          </View>
+          <Text className="text-white text-lg font-black text-center">
+            {activeTab === "active" 
+              ? "Nenhum pedido ativo" 
+              : activeTab === "scheduled"
+                ? "Nenhum agendamento"
+                : "Nenhuma negociação"}
+          </Text>
+          <Text className="text-slate-400 text-xs text-center mt-2 max-w-[260px] leading-relaxed">
+            {activeTab === "active" 
+              ? "Suas encomendas em andamento, aguardando pagamento ou em análise aparecerão aqui."
+              : activeTab === "scheduled"
+                ? "Seus pedidos agendados para horários futuros aparecerão aqui."
+                : "Seu histórico de propostas, entregas recusadas e canceladas aparecerão aqui."}
+          </Text>
+          
+          <TouchableOpacity
+            onPress={() => navigation.navigate("Home")}
+            activeOpacity={0.8}
+            className="mt-8 bg-primary hover:bg-[#00b87c] px-6 py-3.5 rounded-xl flex-row items-center gap-2 shadow-lg shadow-primary/20"
+          >
+            <Plus size={16} color="#091A2F" strokeWidth={3} />
+            <Text className="text-[#091A2F] font-black text-xs uppercase tracking-widest">
+              {activeTab === "active" ? "Solicitar Entrega" : "Agendar Entrega"}
+            </Text>
+          </TouchableOpacity>
+        </MotiView>
+      ) : (
+        <ScrollView
+          contentContainerStyle={{ padding: 20, paddingBottom: 60 }}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl 
+              refreshing={refreshing} 
+              onRefresh={() => { setRefreshing(true); loadRides(); }} 
+              tintColor="#02de95" 
+              colors={["#02de95"]}
+            />
+          }
+        >
+          {currentList.map((ride, idx) => {
+            const theme = STATUS_THEMES[ride.status] || { color: "#94a3b8", bg: "bg-slate-500/10" };
+            const statusLabel = STATUS_LABELS[ride.status] || ride.status;
+            
+            // Corrida elegível para ser promovida a agendada (não iniciada, sem motorista ativo)
+            const canBePromoted = ["requesting", "searching_driver", "offers_received", "payment_pending", "no_drivers_available"].includes(ride.status);
+            
+            return (
+              <MotiView
+                key={ride._id || idx}
+                from={{ opacity: 0, scale: 0.97 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ type: "timing", duration: 300, delay: idx * 50 }}
+              >
+                <TouchableOpacity
+                  onPress={() => handleRidePress(ride)}
+                  activeOpacity={0.85}
+                  style={{
+                    backgroundColor: "#11253E",
+                    borderRadius: 20,
+                    padding: 14,
+                    borderWidth: 1,
+                    borderColor: "rgba(2, 222, 149, 0.15)",
+                    marginBottom: 14,
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 6 },
+                    shadowOpacity: 0.25,
+                    shadowRadius: 10,
+                    elevation: 6,
+                    overflow: "hidden",
+                  }}
+                >
+                  {/* Status Strip (Identical to Driver style) */}
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: theme.color }} />
+                    <Text style={{ color: "rgba(255, 255, 255, 0.4)", fontSize: 9.5, fontWeight: "900", letterSpacing: 0.3, textTransform: "uppercase" }}>
+                      {statusLabel}
+                    </Text>
+                  </View>
+
+                  {/* Informações do Trajeto compactas (Identical to Driver style) */}
+                  <View style={{ gap: 6, marginBottom: 10 }}>
+                    {/* Partida */}
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: "#02de95" }} />
+                      <Text style={{ color: "rgba(255,255,255,0.45)", fontSize: 9.5, fontWeight: "800", width: 45 }}>COLETA</Text>
+                      <Text style={{ color: "#fff", fontSize: 11.5, fontWeight: "600", flex: 1 }} numberOfLines={1}>
+                        {ride.pickup?.address || "Definido no mapa"}
+                      </Text>
+                    </View>
+                    
+                    {/* Destino */}
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: "#ef4444" }} />
+                      <Text style={{ color: "rgba(255,255,255,0.45)", fontSize: 9.5, fontWeight: "800", width: 45 }}>ENTREGA</Text>
+                      <Text style={{ color: "#fff", fontSize: 11.5, fontWeight: "600", flex: 1 }} numberOfLines={1}>
+                        {ride.dropoff?.address || "Definido no mapa"}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Tags e Preço em uma única linha horizontal elegante (Identical to Driver style) */}
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6, marginBottom: 12 }}>
+                    {/* Tag Veículo */}
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "rgba(255, 255, 255, 0.04)", paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 }}>
+                      <Text style={{ fontSize: 10.5 }}>{ride.vehicleType === "motorcycle" ? "🛵" : "🚗"}</Text>
+                      <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 9.5, fontWeight: "800", textTransform: "uppercase" }}>
+                        {VEHICLE_LABELS[ride.vehicleType] || ride.vehicleType || "Geral"}
+                      </Text>
+                    </View>
+
+                    {/* Tag Carga */}
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "rgba(2, 222, 149, 0.05)", paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 }}>
+                      <Package size={10} color="#02de95" />
+                      <Text style={{ color: "#02de95", fontSize: 9.5, fontWeight: "800", textTransform: "uppercase" }}>
+                        {ride.serviceType === "delivery" ? "Encomenda" : "Viagem"}
+                      </Text>
+                    </View>
+
+                    {/* Tag Distância */}
+                    {ride.distance?.text && (
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "rgba(59, 130, 246, 0.05)", paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 }}>
+                        <Route size={10} color="#60a5fa" />
+                        <Text style={{ color: "#60a5fa", fontSize: 9.5, fontWeight: "800" }}>
+                          {ride.distance.text}
+                        </Text>
+                      </View>
+                    )}
+
+                    {/* Preço em Destaque no final (Identical to Driver style) */}
+                    <View style={{ flex: 1 }} />
+                    <View style={{ flexDirection: "row", alignItems: "baseline", backgroundColor: "rgba(245, 158, 11, 0.08)", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: "rgba(245, 158, 11, 0.2)" }}>
+                      <Text style={{ color: "#F59E0B", fontSize: 10, fontWeight: "800", marginRight: 2 }}>R$</Text>
+                      <Text style={{ color: "#F59E0B", fontSize: 14.5, fontWeight: "900" }}>
+                        {formatBRL(Number(ride.pricing?.total || ride.negotiation?.clientOffer || 0)).replace("R$", "").trim()}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* ⚡ Botões de Ação no Rodapé (Idêntico esteticamente ao motorista: CANCELAR e AGENDAR) */}
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    {/* Botão Cancelar */}
+                    {["scheduled", "requesting", "searching_driver", "offers_received", "payment_pending", "driver_assigned", "accepted", "driver_arriving", "arrived", "no_drivers_available"].includes(ride.status) && (
+                      <TouchableOpacity
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          confirmCancelRide(ride._id);
+                        }}
+                        style={{
+                          flex: 1,
+                          height: 38,
+                          borderRadius: 10,
+                          borderWidth: 1.5,
+                          borderColor: "rgba(239, 68, 68, 0.3)",
+                          backgroundColor: "rgba(239, 68, 68, 0.02)",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexDirection: "row",
+                          gap: 4
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <Trash2 size={14} color="#ef4444" />
+                        <Text style={{ color: "#ef4444", fontWeight: "900", fontSize: 11.5, textTransform: "uppercase" }}>Cancelar</Text>
+                      </TouchableOpacity>
+                    )}
+
+                    {/* Botão Promover para Agendar */}
+                    {canBePromoted && (
+                      <TouchableOpacity
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          setPromotingRide(ride);
+                          setShowPromotionModal(true);
+                        }}
+                        style={{
+                          flex: 1.3,
+                          height: 38,
+                          borderRadius: 10,
+                          backgroundColor: "#F59E0B",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexDirection: "row",
+                          gap: 6
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <Calendar size={14} color="#091A2F" />
+                        <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 11.5, textTransform: "uppercase" }}>Agendar</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              </MotiView>
+            );
+          })}
+        </ScrollView>
+      )}
+
+      {/* Premium Scheduled Ride Detail Modal */}
+      <Modal
+        visible={showScheduledModal}
+        title="Detalhes do Agendamento"
+        type="warning"
+        confirmText="Voltar"
+        onClose={() => {
+          setShowScheduledModal(false);
+          setSelectedScheduledRide(null);
+        }}
+      >
+        {selectedScheduledRide && (
+          <View style={{ width: "100%", marginTop: 12 }}>
+            {/* Status Badge */}
+            <View style={{ alignItems: "center", marginBottom: 16 }}>
+              <View 
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  backgroundColor: "rgba(99, 102, 241, 0.1)",
+                  borderWidth: 1,
+                  borderColor: "rgba(99, 102, 241, 0.2)",
+                  paddingHorizontal: 14,
+                  paddingVertical: 6,
+                  borderRadius: 12,
+                }}
+              >
+                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: "#6366f1", marginRight: 6 }} />
+                <Text style={{ color: "#6366f1", fontSize: 10, fontWeight: "900", letterSpacing: 0.5, textTransform: "uppercase" }}>
+                  Agendada
+                </Text>
+              </View>
+            </View>
+
+            {/* Scheduled Date/Time Box */}
+            <View 
+              style={{
+                backgroundColor: "#0E1D31",
+                borderWidth: 1,
+                borderColor: "rgba(255,255,255,0.04)",
+                padding: 16,
+                borderRadius: 16,
+                alignItems: "center",
+                marginBottom: 16,
+              }}
+            >
+              <Calendar size={20} color="#6366f1" style={{ marginBottom: 6 }} />
+              <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.3 }}>
+                Horário Programado
+              </Text>
+              <Text style={{ color: "#ffffff", fontSize: 13.5, fontWeight: "900", marginTop: 4, textAlign: "center" }}>
+                {formatScheduledDate(selectedScheduledRide.scheduledFor)}
+              </Text>
+            </View>
+
+            {/* Route Box */}
+            <View 
+              style={{
+                backgroundColor: "#0E1D31",
+                borderWidth: 1,
+                borderColor: "rgba(255,255,255,0.04)",
+                padding: 16,
+                borderRadius: 16,
+                marginBottom: 16,
+              }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "start" }}>
+                <View style={{ marginRight: 12, alignItems: "center", paddingTop: 4 }}>
+                  <MapPin size={14} color="#02de95" />
+                  <View style={{ width: 1, height: 20, backgroundColor: "rgba(255,255,255,0.08)", marginVertical: 4 }} />
+                  <MapPin size={14} color="#ef4444" />
+                </View>
+                <View style={{ flex: 1, gap: 10 }}>
+                  <View>
+                    <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 8.5, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.3 }}>
+                      Coleta
+                    </Text>
+                    <Text style={{ color: "#ffffff", fontSize: 12, fontWeight: "600" }} numberOfLines={1}>
+                      {selectedScheduledRide.pickup?.address}
+                    </Text>
+                  </View>
+                  <View>
+                    <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 8.5, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.3 }}>
+                      Entrega
+                    </Text>
+                    <Text style={{ color: "#ffffff", fontSize: 12, fontWeight: "600" }} numberOfLines={1}>
+                      {selectedScheduledRide.dropoff?.address}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+
+            {/* Details Box */}
+            <View 
+              style={{
+                backgroundColor: "#0E1D31",
+                borderWidth: 1,
+                borderColor: "rgba(255,255,255,0.04)",
+                padding: 16,
+                borderRadius: 16,
+                gap: 10,
+                marginBottom: 20,
+              }}
+            >
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.3 }}>
+                  Veículo
+                </Text>
+                <Text style={{ color: "#ffffff", fontSize: 12, fontWeight: "900" }}>
+                  {VEHICLE_LABELS[selectedScheduledRide.vehicleType] || selectedScheduledRide.vehicleType}
+                </Text>
+              </View>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.04)", paddingTop: 10 }}>
+                <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.3 }}>
+                  Valor Oferecido
+                </Text>
+                <Text style={{ color: "#02de95", fontSize: 12, fontWeight: "900" }}>
+                  {formatBRL(Number(selectedScheduledRide.pricing?.total || selectedScheduledRide.negotiation?.clientOffer || 0))}
+                </Text>
+              </View>
+            </View>
+
+            {/* Cancel Button */}
+            <TouchableOpacity
+              onPress={() => {
+                confirmCancelRide(selectedScheduledRide._id);
+              }}
+              activeOpacity={0.8}
+              style={{
+                width: "100%",
+                height: 48,
+                backgroundColor: "rgba(239, 68, 68, 0.08)",
+                borderWidth: 1,
+                borderColor: "rgba(239, 68, 68, 0.2)",
+                borderRadius: 12,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+              }}
+            >
+              <Trash2 size={14} color="#ef4444" />
+              <Text style={{ color: "#ef4444", fontSize: 11, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.3 }}>
+                Cancelar Entrega Agendada
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </Modal>
-    </SafeAreaView>
+
+      {/* Premium Promote to Scheduled Modal */}
+      <Modal
+        visible={showPromotionModal}
+        title="Promover para Agendada 📅"
+        type="warning"
+        confirmText="Confirmar Agendamento"
+        onClose={() => {
+          setShowPromotionModal(false);
+          setPromotingRide(null);
+          setSelectedTime("");
+          setSelectedDayOffset(0);
+        }}
+        onConfirm={selectedTime ? handlePromoteToScheduled : undefined}
+      >
+        {promotingRide && (
+          <View style={{ width: "100%", marginTop: 12 }}>
+            <Text className="text-slate-400 text-xs text-center mb-6 leading-relaxed">
+              Você está alterando este chamado ativo para um agendamento futuro. Ele ficará reservado na aba de agendados para os motoristas.
+            </Text>
+
+            {/* Day Selector Chips */}
+            <Text className="text-white text-[10px] font-black uppercase tracking-widest mb-3">Selecione o Dia</Text>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 8, paddingBottom: 5 }}
+              style={{ marginBottom: 20 }}
+            >
+              {[0, 1, 2, 3, 4, 5, 6].map((offset) => {
+                const isSelected = selectedDayOffset === offset;
+                const labelParts = getDayLabel(offset).split(" ");
+                const titlePart = labelParts[0];
+                const datePart = labelParts[1]?.replace(/[()]/g, "") || "";
+                
+                return (
+                  <TouchableOpacity
+                    key={offset}
+                    onPress={() => {
+                      setSelectedDayOffset(offset);
+                      setSelectedTime("");
+                    }}
+                    activeOpacity={0.8}
+                    style={{
+                      width: 95,
+                      height: 44,
+                      borderRadius: 12,
+                      backgroundColor: isSelected ? "#fbbf24" : "rgba(255,255,255,0.04)",
+                      borderWidth: 1.5,
+                      borderColor: isSelected ? "#fbbf24" : "rgba(255,255,255,0.06)",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: isSelected ? "#091A2F" : "rgba(255,255,255,0.8)",
+                        fontSize: 10,
+                        fontWeight: "900",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      {titlePart}
+                    </Text>
+                    <Text
+                      style={{
+                        color: isSelected ? "rgba(9,26,47,0.6)" : "rgba(255,255,255,0.45)",
+                        fontSize: 8.5,
+                        fontWeight: "700",
+                        marginTop: 1,
+                      }}
+                    >
+                      {datePart}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            {/* Time Seeker Grid */}
+            <Text className="text-white text-[10px] font-black uppercase tracking-widest mb-3">Selecione o Horário</Text>
+            <ScrollView 
+              style={{ maxHeight: 180 }}
+              showsVerticalScrollIndicator={true}
+              nestedScrollEnabled={true}
+            >
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, paddingBottom: 10 }}>
+                {generateAvailableTimes(selectedDayOffset).map((time) => {
+                  const isSelected = selectedTime === time;
+                  return (
+                    <TouchableOpacity
+                      key={time}
+                      onPress={() => setSelectedTime(time)}
+                      activeOpacity={0.8}
+                      style={{
+                        width: "22%",
+                        height: 36,
+                        borderRadius: 10,
+                        backgroundColor: isSelected ? "#02de95" : "rgba(255,255,255,0.03)",
+                        borderWidth: 1,
+                        borderColor: isSelected ? "#02de95" : "rgba(255,255,255,0.05)",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: isSelected ? "#091A2F" : "#ffffff",
+                          fontSize: 11,
+                          fontWeight: "900",
+                        }}
+                      >
+                        {time}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+                {generateAvailableTimes(selectedDayOffset).length === 0 && (
+                  <View style={{ width: "100%", paddingVertical: 20, alignItems: "center" }}>
+                    <Text className="text-red-400 text-xs font-semibold text-center">Nenhum horário disponível para hoje.</Text>
+                    <Text className="text-slate-500 text-[10px] text-center mt-1">Selecione o dia de amanhã para programar.</Text>
+                  </View>
+                )}
+              </View>
+            </ScrollView>
+          </View>
+        )}
+      </Modal>
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background.primary },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-  },
-  backBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerTitle: { color: colors.text.primary, fontSize: fontSize.xl, fontWeight: fontWeight.bold },
-  content: { padding: spacing.lg, paddingBottom: spacing["3xl"], gap: spacing.md },
-  subtitle: { color: colors.text.tertiary, fontSize: fontSize.sm, lineHeight: 20 },
-  emptyCard: {
-    backgroundColor: colors.background.secondary,
-    borderWidth: 1,
-    borderColor: colors.border.light,
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-    gap: spacing.sm,
-  },
-  emptyTitle: { color: colors.text.primary, fontSize: fontSize.lg, fontWeight: fontWeight.bold },
-  emptyText: { color: colors.text.tertiary, fontSize: fontSize.sm },
-  rideCard: {
-    backgroundColor: colors.background.secondary,
-    borderWidth: 1,
-    borderColor: colors.border.light,
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-    marginBottom: spacing.md,
-  },
-  cardTop: { flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.sm },
-  rideType: { color: colors.text.primary, fontSize: fontSize.base, fontWeight: fontWeight.bold },
-  rideStatus: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, textTransform: "uppercase" },
-  address: { color: colors.text.secondary, fontSize: fontSize.sm, marginBottom: 4 },
-  cardActions: { marginTop: spacing.sm, gap: spacing.sm },
-  trackBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
-    backgroundColor: "rgba(2,222,149,0.16)",
-    borderWidth: 1,
-    borderColor: "rgba(2,222,149,0.4)",
-  },
-  trackBtnText: { color: colors.text.primary, fontSize: fontSize.sm, fontWeight: fontWeight.bold },
-  primaryBtn: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.primary[500],
-  },
-  primaryBtnText: { color: "#052013", fontSize: fontSize.sm, fontWeight: fontWeight.bold },
-  secondaryBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: "rgba(2,222,149,0.35)",
-    backgroundColor: "rgba(2,222,149,0.08)",
-  },
-  secondaryBtnText: { color: colors.primary[500], fontSize: fontSize.sm, fontWeight: fontWeight.bold },
-});

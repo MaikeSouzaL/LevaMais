@@ -130,6 +130,7 @@ export default function DriverHomeScreen() {
   const [scheduledCount, setScheduledCount] = useState(0);
   const [todayEarnings, setTodayEarnings] = useState(0);
   const [incomingRequest, setIncomingRequest] = useState<any>(null);
+  const [isIncomingRequestDismissed, setIsIncomingRequestDismissed] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelModalReason, setCancelModalReason] = useState<string | null>(null);
@@ -267,6 +268,7 @@ export default function DriverHomeScreen() {
 
     const alreadyShowing = incomingRequest?.rideId === payload.rideId;
     setIncomingRequest(payload);
+    setIsIncomingRequestDismissed(false);
     hasIncomingRequestRef.current = true;
     setPendingRequests((prev) => {
       if (typeof totalCount === "number") return Math.max(totalCount, 1);
@@ -1158,6 +1160,7 @@ export default function DriverHomeScreen() {
 
   const clearIncoming = async () => {
     setIncomingRequest(null);
+    setIsIncomingRequestDismissed(false);
     hasIncomingRequestRef.current = false;
     setRouteCoords([]);
     setPendingRequests(0);
@@ -1385,6 +1388,7 @@ export default function DriverHomeScreen() {
     hasIncomingRequestRef.current = Boolean(incomingRequest?.rideId);
 
     if (
+      !isIncomingRequestDismissed &&
       pickup?.latitude &&
       pickup?.longitude &&
       dropoff?.latitude &&
@@ -1398,7 +1402,7 @@ export default function DriverHomeScreen() {
       setRouteCoords([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [incomingRequest?.rideId]);
+  }, [incomingRequest?.rideId, isIncomingRequestDismissed]);
 
 
 
@@ -1438,7 +1442,7 @@ export default function DriverHomeScreen() {
                 )}
 
                 {/* 🛣️ Route visualization when request is active */}
-                {incomingRequest?.rideId && routeCoords.length > 0 && (
+                {incomingRequest?.rideId && !isIncomingRequestDismissed && routeCoords.length > 0 && (
                   <>
                     <PremiumDottedRoute coordinates={routeCoords} />
                     <Marker 
@@ -1489,6 +1493,53 @@ export default function DriverHomeScreen() {
                 isCentering={isCentering}
                 isSwitchingStyle={isSwitchingMapStyle}
               />
+
+              {/* ⚠️ ACTIVE OFFER PENDING BANNER */}
+              {isIncomingRequestDismissed && incomingRequest?.rideId && (
+                <MotiView
+                  from={{ opacity: 0, translateY: -20 }}
+                  animate={{ opacity: 1, translateY: 0 }}
+                  style={{
+                    position: "absolute",
+                    top: 120,
+                    left: 16,
+                    right: 16,
+                    zIndex: 40,
+                    backgroundColor: "#FBBF24",
+                    borderRadius: 16,
+                    padding: 14,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    borderWidth: 1,
+                    borderColor: "rgba(255,255,255,0.2)",
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.2,
+                    shadowRadius: 8,
+                    elevation: 10,
+                  }}
+                >
+                  <View style={{ flex: 1, marginRight: 8 }}>
+                    <Text style={{ color: "#091A2F", fontSize: 13, fontWeight: "900" }}>
+                      Chamado Ativo Pendente! 🔔
+                    </Text>
+                    <Text style={{ color: "rgba(9, 26, 47, 0.8)", fontSize: 11, fontWeight: "700", marginTop: 2 }}>
+                      Você tem 1 oferta ativa aguardando.
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={handleNotifications}
+                    style={{
+                      backgroundColor: "#091A2F",
+                      paddingHorizontal: 12,
+                      paddingVertical: 8,
+                      borderRadius: 10,
+                    }}
+                  >
+                    <Text style={{ color: "#02de95", fontSize: 11, fontWeight: "900" }}>VER DETALHES</Text>
+                  </TouchableOpacity>
+                </MotiView>
+              )}
 
               {/* ⚠️ URGENT QUEUE BANNER */}
               {!!waitingQueueCount && pendingNegotiationsCount === 0 && pendingRequests === 0 && (
@@ -1547,11 +1598,15 @@ export default function DriverHomeScreen() {
           {/* 📦 NEW COMPACT OFFER SHEET — Aceitar | Recusar | Ver Detalhes */}
           {isApproved && (
             <NewIncomingOfferSheet
-              isVisible={!!incomingRequest?.rideId}
+              isVisible={!!incomingRequest?.rideId && !isIncomingRequestDismissed}
               request={incomingRequest}
               countdown={countdown}
               onAccept={acceptIncoming}
               onReject={rejectIncoming}
+              onClose={() => {
+                setIsIncomingRequestDismissed(true);
+                driverAlertService.stop().catch(() => {});
+              }}
               onViewDetail={() => {
                 if (!incomingRequest) return;
                 (navigation as any).navigate("DeliveryOfferDetail", {
@@ -1564,7 +1619,7 @@ export default function DriverHomeScreen() {
           )}
 
           {/* 📊 INTELLIGENT OPERATIONAL BASE CAMP */}
-          {!incomingRequest?.rideId && (
+          {(!incomingRequest?.rideId || isIncomingRequestDismissed) && (
             <DriverBottomSheet
               online={online}
               services={services}

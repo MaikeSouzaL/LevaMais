@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+﻿import React, { useMemo } from "react";
 import { View, Text, TouchableOpacity, ActivityIndicator, ScrollView, Image } from "react-native";
 import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import { XCircle, Radar, MapPin, Package, DollarSign, Clock, Route, User, Star } from "lucide-react-native";
@@ -22,6 +22,8 @@ interface DeliverySearchBottomSheetProps {
   durationText?: string;
   drivers?: NearbyDriver[];
   onBoost: (amount: number) => void;
+  onViewOffers?: () => void;
+  offersCount?: number;
 }
 
 export function DeliverySearchBottomSheet({
@@ -37,16 +39,18 @@ export function DeliverySearchBottomSheet({
   distanceText,
   durationText,
   drivers = [],
-  onBoost
+  onBoost,
+  onViewOffers,
+  offersCount = 0,
 }: DeliverySearchBottomSheetProps) {
   const safeOfferValue = Number.isFinite(Number(offerValue)) ? Number(offerValue) : 0;
 
-  // Expanded height dynamic snap points for scrolling capability 🚀
+  // Expanded height dynamic snap points for scrolling capability ðŸš€
   const snapPoints = useMemo(() => ["48%", "80%"], []);
 
   const vehicleLabel = useMemo(() => {
     const map: Record<string, string> = {
-      motorcycle: "Motoboy", car: "Carro", van: "Van de Carga", truck: "Caminhão"
+      motorcycle: "Motoboy", car: "Carro", van: "Van de Carga", truck: "CaminhÃ£o"
     };
     return map[vehicleType] || "Entregador";
   }, [vehicleType]);
@@ -64,17 +68,17 @@ export function DeliverySearchBottomSheet({
       <BottomSheetScrollView 
         contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 8, paddingBottom: 32 }}
       >
-        {/* 1. Real-Time Expansion Metrics 🛰️ */}
+        {/* 1. Real-Time Expansion Metrics ðŸ›°ï¸ */}
         <SearchStageIndicator 
           stageLabel={searchState.label} 
           radius={searchState.radius} 
         />
 
-        {/* 2 & 6. CONSOLIDATED ACTIVE NETWORK ROSTER 📡🏍️ */}
+        {/* 2 & 6. CONSOLIDATED ACTIVE NETWORK ROSTER ðŸ“¡ðŸï¸ */}
         <View className="mb-5">
           <View className="mb-1.5">
             <Text className="text-white/40 text-[10px] font-black uppercase tracking-widest">
-              {vehicleType === "motorcycle" ? "Entregadores no Perímetro" : "Motoristas no Perímetro"}
+              {vehicleType === "motorcycle" ? "Entregadores no PerÃ­metro" : "Motoristas no PerÃ­metro"}
             </Text>
           </View>
 
@@ -146,7 +150,7 @@ export function DeliverySearchBottomSheet({
                         className="text-[9px] font-black uppercase tracking-widest"
                         style={{ color: driver.isUnavailable ? "#FBBF24" : "#02de95" }}
                       >
-                        {driver.isUnavailable ? "Indisponível" : "Disponível"}
+                        {driver.isUnavailable ? "IndisponÃ­vel" : "DisponÃ­vel"}
                       </Text>
                     </View>
                   </View>
@@ -157,13 +161,13 @@ export function DeliverySearchBottomSheet({
             <View className="bg-white/[0.015] border border-dashed border-white/10 rounded-3xl p-6 items-center justify-center mb-2">
               <Radar size={22} color="#02de95" opacity={0.4} />
               <Text className="text-white/30 text-xs font-semibold mt-3 text-center">
-                Buscando conexões próximas...
+                Buscando conexÃµes prÃ³ximas...
               </Text>
             </View>
           )}
         </View>
 
-        {/* 3. Conditional AI Persuasion Engine 🤖💡 */}
+        {/* 3. Conditional AI Persuasion Engine ðŸ¤–ðŸ’¡ */}
         <AnimatePresence>
            {showAISuggestion && (
              <AISuggestionCard onBoost={onBoost} />
@@ -173,7 +177,7 @@ export function DeliverySearchBottomSheet({
         {/* 4. Core Information Grid */}
         <View className="flex-row gap-3 mb-5 items-stretch h-[64px]">
           <View className="flex-1 bg-white/[0.03] border border-white/10 rounded-2xl p-3 justify-between">
-            <Text className="text-white/40 text-[9px] font-bold uppercase">Veículo</Text>
+            <Text className="text-white/40 text-[9px] font-bold uppercase">VeÃ­culo</Text>
             <View className="flex-row items-center">
                <Package size={13} color="#FFF" className="mr-1.5 opacity-70" />
                <Text className="text-white font-bold text-sm" numberOfLines={1}>{vehicleLabel}</Text>
@@ -192,7 +196,7 @@ export function DeliverySearchBottomSheet({
           </View>
         </View>
 
-        {/* 5. Compact Route Snapshot 🛣️ */}
+        {/* 5. Compact Route Snapshot ðŸ›£ï¸ */}
         <View className="bg-white/[0.03] rounded-2xl border border-white/10 p-4 mb-6 justify-center">
           <View className="flex-row items-center mb-3">
              <MapPin size={14} color="#02de95" className="mr-3" />
@@ -230,8 +234,18 @@ export function DeliverySearchBottomSheet({
 
       </BottomSheetScrollView>
 
-      {/* 🛡️ FIXED ACTION BAR: Always visible button, no scrolling required */}
+      {/* ðŸ›¡ï¸ FIXED ACTION BAR: Always visible button, no scrolling required */}
       <View className="px-6 pt-2 pb-8 border-t border-white/[0.05] bg-[#0B1523]">
+        {offersCount > 0 && onViewOffers && (
+          <TouchableOpacity
+            onPress={onViewOffers}
+            className="bg-amber-500/10 border border-amber-500/30 rounded-2xl h-14 flex-row items-center justify-center mb-3"
+          >
+            <Text className="text-amber-400 font-black text-base uppercase tracking-wider">
+              Ver Propostas ({offersCount})
+            </Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity
           onPress={onCancel}
           disabled={cancelling}
@@ -252,3 +266,4 @@ export function DeliverySearchBottomSheet({
     </BottomSheet>
   );
 }
+

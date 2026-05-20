@@ -87,6 +87,11 @@ export default function RideOffersMarketplaceScreen() {
   const [negotiation, setNegotiation] = useState<any>(null);
   const [offers, setOffers] = useState<RideOffer[]>([]);
 
+  // States for General Increase Offer Flow (when all driver reject)
+  const [showIncreaseModal, setShowIncreaseModal] = useState(false);
+  const [customIncreaseAmount, setCustomIncreaseAmount] = useState("5");
+  const [isSubmittingIncrease, setIsSubmittingIncrease] = useState(false);
+
   const handleOpenCounterModal = (offer: RideOffer) => {
     setTargetOfferForCounter(offer);
     setPendingIncrement(String(offer.amount));
@@ -162,13 +167,52 @@ export default function RideOffersMarketplaceScreen() {
     } catch (e) {}
   }, [rideId]);
 
+  // Handle Quick & Custom Increment actions
+  const handleIncreaseOffer = async (amount: number) => {
+    if (isSubmittingIncrease) return;
+    setIsSubmittingIncrease(true);
+    try {
+      await rideService.increaseOffer(rideId, amount);
+      Toast.show({
+        type: "success",
+        text1: "Oferta Aumentada! 🚀",
+        text2: `A proposta base foi aumentada em +${formatBRL(amount)} com sucesso!`,
+      });
+      setShowIncreaseModal(false);
+      await loadRideDetails();
+      await loadOffers();
+    } catch (e: any) {
+      Toast.show({
+        type: "error",
+        text1: "Erro ao aumentar",
+        text2: e?.response?.data?.error || e?.message || "Não foi possível aumentar a oferta.",
+      });
+    } finally {
+      setIsSubmittingIncrease(false);
+    }
+  };
+
+  const handleCustomIncrease = async () => {
+    const cleanVal = customIncreaseAmount.replace(",", ".");
+    const numVal = parseFloat(cleanVal);
+    if (isNaN(numVal) || numVal <= 0) {
+      Toast.show({
+        type: "error",
+        text1: "Valor inválido",
+        text2: "Por favor, digite um valor de aumento maior que zero.",
+      });
+      return;
+    }
+    await handleIncreaseOffer(numVal);
+  };
+
   useEffect(() => {
     loadRideDetails();
   }, [loadRideDetails]);
 
   useEffect(() => {
     if (String(rideDetails?.status || "") === "driver_assigned" && rideId) {
-      navigation.replace("RideTracking", { rideId });
+      navigation.replace("DeliveryPaymentConfirm", { rideId });
     }
   }, [navigation, rideDetails?.status, rideId]);
 
@@ -192,21 +236,32 @@ export default function RideOffersMarketplaceScreen() {
     const onOffersUpdated = (data: any) => {
       if (mounted && data?.rideId === rideId) {
         loadOffers().catch(() => {});
+        loadRideDetails().catch(() => {});
+      }
+    };
+
+    const onStatusChanged = (data: any) => {
+      if (mounted && data?.rideId === rideId) {
+        loadRideDetails().catch(() => {});
+        loadOffers().catch(() => {});
       }
     };
 
     webSocketService.on("ride-offers-updated", onOffersUpdated);
+    webSocketService.on("ride-status-changed", onStatusChanged);
 
     const interval = setInterval(() => {
       loadOffers().catch(() => {});
+      loadRideDetails().catch(() => {});
     }, 6000);
 
     return () => {
       mounted = false;
       clearInterval(interval);
       webSocketService.off("ride-offers-updated", onOffersUpdated);
+      webSocketService.off("ride-status-changed", onStatusChanged);
     };
-  }, [loadOffers]);
+  }, [loadOffers, loadRideDetails]);
 
   const sortedOffers = useMemo(() => {
     return [...offers].sort((a, b) => Number(a.amount || 0) - Number(b.amount || 0));
@@ -225,9 +280,9 @@ export default function RideOffersMarketplaceScreen() {
       Toast.show({
         type: "success",
         text1: "Proposta aceita! 🎉",
-        text2: "Seu entregador foi confirmado. Acompanhe a entrega!",
+        text2: "Entregador selecionado! Confirme a forma de pagamento.",
       });
-      navigation.replace("RideTracking", { rideId });
+      navigation.replace("DeliveryPaymentConfirm", { rideId });
     } catch (e: any) {
       Toast.show({
         type: "error",
@@ -294,7 +349,7 @@ export default function RideOffersMarketplaceScreen() {
       {/* 📡 Operational Blurred Tactical Background */}
       <TacticalBackground pickup={rideDetails?.pickup} />
 
-      {/* 🏷️ Premium Top Inset & HUD Header */}
+      {/* 👑 Premium Top Inset & HUD Header */}
       <View style={{ height: insets.top + 80, backgroundColor: "transparent", zIndex: 10 }}>
         <MarketplaceHeader 
           onBack={() => navigation.navigate("Home")} 
@@ -304,17 +359,26 @@ export default function RideOffersMarketplaceScreen() {
       </View>
 
       {/* 💰 Sua Proposta Base with Semi-Translucence */}
-      <View style={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)", backgroundColor: "rgba(11, 26, 42, 0.7)", zIndex: 10 }}>
-        <View className="flex-row items-center justify-between">
-          <View>
-            <Text className="text-white/40 text-[10px] font-black uppercase tracking-wider mb-0.5">
-              Sua Proposta Base
-            </Text>
-            <Text className="text-white font-black text-3xl">
-              {formatBRL(Number(negotiation?.clientOffer || 0))}
-            </Text>
-          </View>
+      <View style={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)", backgroundColor: "rgba(11, 26, 42, 0.7)", zIndex: 10, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+        <View>
+          <Text className="text-white/40 text-[10px] font-black uppercase tracking-wider mb-0.5">
+            Sua Proposta Base
+          </Text>
+          <Text className="text-white font-black text-3xl">
+            {formatBRL(Number(negotiation?.clientOffer || rideDetails?.pricing?.total || 0))}
+          </Text>
         </View>
+
+        {!["no_drivers_available", "cancelled_no_driver"].includes(rideDetails?.status || "") && (
+          <TouchableOpacity
+            onPress={() => setShowIncreaseModal(true)}
+            className="flex-row items-center gap-2 bg-amber-500/10 border border-amber-500/30 px-4 py-2.5 rounded-xl"
+            activeOpacity={0.8}
+          >
+            <TrendingUp size={14} color="#FBBF24" />
+            <Text className="text-amber-400 font-black text-xs uppercase tracking-wider">Aumentar</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* 🧬 Scrollable Vertical Matrix of Counter-Offers */}
@@ -323,7 +387,7 @@ export default function RideOffersMarketplaceScreen() {
         contentContainerStyle={{ padding: 24, paddingBottom: 150 }}
       >
         {/* 💡 Accelerate Advice Indicator */}
-        {!loading && sortedOffers.length === 0 && (
+        {!loading && sortedOffers.length === 0 && !["no_drivers_available", "cancelled_no_driver"].includes(rideDetails?.status || "") && (
           <MotiView 
             from={{ opacity: 0, translateY: -10 }} 
             animate={{ opacity: 1, translateY: 0 }}
@@ -350,6 +414,122 @@ export default function RideOffersMarketplaceScreen() {
               <Text className="text-white/60 text-sm font-semibold mt-5">
                 Sincronizando propostas...
               </Text>
+            </MotiView>
+          ) : ["no_drivers_available", "cancelled_no_driver"].includes(rideDetails?.status || "") ? (
+            <MotiView 
+              from={{ opacity: 0, scale: 0.95 }} 
+              animate={{ opacity: 1, scale: 1 }}
+              style={{
+                backgroundColor: "rgba(17, 37, 62, 0.94)",
+                borderWidth: 1.5,
+                borderColor: "rgba(239, 68, 68, 0.35)",
+                borderRadius: 24,
+                padding: 24,
+                alignItems: "center",
+                justifyContent: "center",
+                marginTop: 16,
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 8 },
+                shadowOpacity: 0.4,
+                shadowRadius: 16,
+                elevation: 10,
+              }}
+            >
+              <View style={{
+                width: 56,
+                height: 56,
+                backgroundColor: "rgba(239, 68, 68, 0.12)",
+                borderWidth: 1,
+                borderColor: "rgba(239, 68, 68, 0.3)",
+                borderRadius: 28,
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: 16,
+              }}>
+                <AlertCircle size={26} color="#EF4444" />
+              </View>
+              <Text style={{
+                color: "#fff",
+                fontWeight: "900",
+                fontSize: 20,
+                marginBottom: 10,
+                textAlign: "center",
+                letterSpacing: -0.3,
+              }}>
+                Sem Entregadores Disponíveis
+              </Text>
+              <Text style={{
+                color: "rgba(255, 255, 255, 0.65)",
+                textAlign: "center",
+                fontSize: 13.5,
+                lineHeight: 20,
+                marginBottom: 20,
+              }}>
+                Todos os motoristas online e ativos recusaram o valor de <Text style={{ color: "#FBBF24", fontWeight: "900" }}>{formatBRL(Number(negotiation?.clientOffer || rideDetails?.pricing?.total || 0))}</Text>. Para reativar a busca por motoristas, melhore o valor da sua proposta:
+              </Text>
+
+              {/* Quick Increment Chips */}
+              <View style={{ flexDirection: "row", justifyContent: "space-between", width: "100%", gap: 10, marginBottom: 20 }}>
+                {[2, 5, 10].map((val) => (
+                  <TouchableOpacity
+                    key={val}
+                    onPress={() => handleIncreaseOffer(val)}
+                    style={{
+                      flex: 1,
+                      backgroundColor: "#FBBF24",
+                      paddingVertical: 14,
+                      borderRadius: 16,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      shadowColor: "#FBBF24",
+                      shadowOffset: { width: 0, height: 4 },
+                      shadowOpacity: 0.3,
+                      shadowRadius: 6,
+                      elevation: 4,
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 13.5 }}>+{formatBRL(val)}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Action Buttons Grid */}
+              <View style={{ flexDirection: "row", gap: 12, width: "100%" }}>
+                <TouchableOpacity
+                  onPress={() => setShowIncreaseModal(true)}
+                  style={{
+                    flex: 1,
+                    backgroundColor: "rgba(255, 255, 255, 0.08)",
+                    borderWidth: 1,
+                    borderColor: "rgba(255, 255, 255, 0.15)",
+                    paddingVertical: 13,
+                    borderRadius: 16,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={{ color: "#fff", fontWeight: "900", fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 }}>Outro Valor</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => setShowCancelModal(true)}
+                  style={{
+                    flex: 1,
+                    backgroundColor: "rgba(239, 68, 68, 0.15)",
+                    borderWidth: 1,
+                    borderColor: "rgba(239, 68, 68, 0.3)",
+                    paddingVertical: 13,
+                    borderRadius: 16,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={{ color: "#ff6b6b", fontWeight: "900", fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 }}>Cancelar</Text>
+                </TouchableOpacity>
+              </View>
             </MotiView>
           ) : sortedOffers.length === 0 ? (
             <MotiView 
@@ -443,6 +623,97 @@ export default function RideOffersMarketplaceScreen() {
          </View>
       </Modal>
 
+      {/* 💸 Aumentar Oferta Base Modal */}
+      <Modal
+        visible={showIncreaseModal}
+        title="Melhorar Oferta"
+        type="warning"
+        confirmText={isSubmittingIncrease ? "Ajustando..." : "Confirmar Aumento"}
+        onClose={() => !isSubmittingIncrease && setShowIncreaseModal(false)}
+        onConfirm={handleCustomIncrease}
+      >
+         <View style={{ width: "100%", marginTop: 12, alignItems: "center" }}>
+            <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 13, marginBottom: 16, textAlign: "center", lineHeight: 18 }}>
+               Melhore o valor da sua proposta base. Ao aumentar a sua oferta, todos os motoristas ativos na cidade receberão seu chamado novamente!
+            </Text>
+
+            <View style={{
+               width: "100%",
+               flexDirection: "row",
+               alignItems: "center",
+               backgroundColor: "rgba(255,255,255,0.05)",
+               borderWidth: 1,
+               borderColor: "rgba(255, 255, 255, 0.1)",
+               borderRadius: 16,
+               paddingHorizontal: 16,
+               height: 64,
+               marginBottom: 8
+            }}>
+               <Text style={{ 
+                  color: "#fbbf24", 
+                  fontSize: 22, 
+                  fontWeight: "900", 
+                  marginRight: 8 
+               }}>
+                  + R$
+               </Text>
+               <TextInput
+                  value={customIncreaseAmount}
+                  onChangeText={setCustomIncreaseAmount}
+                  keyboardType="decimal-pad"
+                  autoFocus
+                  style={{
+                     flex: 1,
+                     color: "#fff",
+                     fontSize: 24,
+                     fontWeight: "900",
+                  }}
+                  placeholder="0,00"
+                  placeholderTextColor="rgba(255,255,255,0.3)"
+               />
+            </View>
+
+            {/* 💰 Live Financial Calculation Panel */}
+            <View style={{
+               width: "100%",
+               backgroundColor: "rgba(255, 255, 255, 0.03)",
+               borderWidth: 1,
+               borderColor: "rgba(255, 255, 255, 0.06)",
+               borderRadius: 16,
+               padding: 14,
+               marginTop: 12,
+               gap: 8
+            }}>
+               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                  <Text style={{ color: "rgba(255, 255, 255, 0.4)", fontSize: 12, fontWeight: "600" }}>Valor Atual</Text>
+                  <Text style={{ color: "#fff", fontSize: 13, fontWeight: "700" }}>
+                     {formatBRL(Number(negotiation?.clientOffer || rideDetails?.pricing?.total || 0))}
+                  </Text>
+               </View>
+
+               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                  <Text style={{ color: "rgba(255, 255, 255, 0.4)", fontSize: 12, fontWeight: "600" }}>Aumento Proposto</Text>
+                  <Text style={{ color: "#fbbf24", fontSize: 13, fontWeight: "900" }}>
+                     + {formatBRL(Number(customIncreaseAmount.replace(",", ".")) || 0)}
+                  </Text>
+               </View>
+
+               {/* Divider */}
+               <View style={{ height: 1, backgroundColor: "rgba(255, 255, 255, 0.08)", marginVertical: 4 }} />
+
+               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                  <Text style={{ color: "rgba(255, 255, 255, 0.6)", fontSize: 13, fontWeight: "700" }}>Novo Total da Proposta</Text>
+                  <Text style={{ color: "#02de95", fontSize: 16, fontWeight: "900" }}>
+                     {formatBRL(
+                        Number(negotiation?.clientOffer || rideDetails?.pricing?.total || 0) +
+                        (Number(customIncreaseAmount.replace(",", ".")) || 0)
+                     )}
+                  </Text>
+               </View>
+            </View>
+         </View>
+      </Modal>
+
       {/* 🛑 Luxury Cancel Modal */}
       <Modal
         visible={showCancelModal}
@@ -498,4 +769,3 @@ export default function RideOffersMarketplaceScreen() {
     </GestureHandlerRootView>
   );
 }
-

@@ -22,6 +22,7 @@ interface NewIncomingOfferSheetProps {
   onViewDetail: () => void;
   acceptLoading?: boolean;
   rejectLoading?: boolean;
+  onClose?: () => void;
 }
 
 function CountdownRing({ value, max }: { value: number; max: number }) {
@@ -56,6 +57,7 @@ export function NewIncomingOfferSheet({
   onViewDetail,
   acceptLoading,
   rejectLoading,
+  onClose,
 }: NewIncomingOfferSheetProps) {
   const offer = request;
   const baseValue = Number(offer?.negotiation?.clientOffer ?? offer?.pricing?.total ?? 0);
@@ -114,7 +116,22 @@ export function NewIncomingOfferSheet({
                   {formatBRL(baseValue)}
                 </Text>
               </View>
-              <CountdownRing value={countdown ?? maxCountdown} max={maxCountdown} />
+              <TouchableOpacity
+                onPress={onClose}
+                activeOpacity={0.8}
+                style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: 21,
+                  backgroundColor: "rgba(255, 255, 255, 0.05)",
+                  borderWidth: 1.5,
+                  borderColor: "rgba(255, 255, 255, 0.15)",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <X size={18} color="rgba(255, 255, 255, 0.85)" strokeWidth={2.5} />
+              </TouchableOpacity>
             </View>
 
             {/* Addresses */}

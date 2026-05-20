@@ -7,8 +7,12 @@ import {
   Animated,
   Dimensions,
   StyleSheet,
+  Keyboard,
+  Platform,
+  TouchableWithoutFeedback,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
+import { X } from "lucide-react-native";
 
 interface ModalProps {
   visible: boolean;
@@ -35,6 +39,36 @@ export function Modal({
 }: ModalProps) {
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
+  const keyboardOffset = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener(
+      Platform.OS === "android" ? "keyboardDidShow" : "keyboardWillShow",
+      (e) => {
+        const targetValue = Platform.OS === "android" ? 145 : e.endCoordinates.height - 40;
+        Animated.timing(keyboardOffset, {
+          toValue: targetValue,
+          duration: 220,
+          useNativeDriver: true,
+        }).start();
+      }
+    );
+    const hideSubscription = Keyboard.addListener(
+      Platform.OS === "android" ? "keyboardDidHide" : "keyboardWillHide",
+      () => {
+        Animated.timing(keyboardOffset, {
+          toValue: 0,
+          duration: 180,
+          useNativeDriver: true,
+        }).start();
+      }
+    );
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
 
   useEffect(() => {
     if (visible) {
@@ -92,18 +126,44 @@ export function Modal({
 
   return (
     <RNModal transparent visible={visible} animationType="none">
-      <View style={styles.overlay}>
-        <Animated.View style={[styles.backdrop, { opacity: opacityAnim }]} />
-        
-        <Animated.View
-          style={[
-            styles.container,
-            {
-              transform: [{ scale: scaleAnim }],
-              opacity: opacityAnim,
-            },
-          ]}
-        >
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <View style={styles.overlay}>
+          <Animated.View style={[styles.backdrop, { opacity: opacityAnim }]} />
+          
+          <Animated.View
+            style={[
+              styles.container,
+              {
+                transform: [
+                  { scale: scaleAnim },
+                  { translateY: Animated.multiply(keyboardOffset, -1) }
+                ],
+                opacity: opacityAnim,
+              },
+            ]}
+          >
+          {onClose && (
+            <TouchableOpacity
+              onPress={onClose}
+              activeOpacity={0.7}
+              style={{
+                position: "absolute",
+                top: 10,
+                right: 10,
+                width: 30,
+                height: 30,
+                borderRadius: 15,
+                backgroundColor: "rgba(255, 255, 255, 0.15)",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 9999,
+                borderWidth: 1.5,
+                borderColor: "rgba(255, 255, 255, 0.25)",
+              }}
+            >
+              <X size={15} color="#ffffff" strokeWidth={3.5} />
+            </TouchableOpacity>
+          )}
           <View style={styles.content}>
             {!children && (
               <View
@@ -157,6 +217,7 @@ export function Modal({
           </View>
         </Animated.View>
       </View>
+      </TouchableWithoutFeedback>
     </RNModal>
   );
 }
@@ -204,6 +265,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     textAlign: "center",
     marginBottom: 8,
+    paddingHorizontal: 28,
   },
   message: {
     color: "#9db9b9",

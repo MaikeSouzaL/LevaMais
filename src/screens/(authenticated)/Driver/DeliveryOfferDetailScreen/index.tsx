@@ -33,6 +33,7 @@ import rideService from "@/services/ride.service";
 import walletService from "@/services/wallet.service";
 import { useAuthStore } from "@/context/authStore";
 import { formatBRL } from "@/utils/mappers";
+import { DeliveryOfferMap } from "@/components/driver/delivery-offer/DeliveryOfferMap";
 
 // ─── Payment display helper ───────────────────────────────────────────────────
 function getPaymentDisplay(method: string, isNegotiating = false) {
@@ -79,6 +80,9 @@ export default function DeliveryOfferDetailScreen() {
   const offer = route.params?.offer as any;
   const onAccept = route.params?.onAccept as (() => void) | undefined;
   const onReject = route.params?.onReject as (() => void) | undefined;
+
+  const pickup = useMemo(() => offer?.pickup || { latitude: 0, longitude: 0, address: "" }, [offer]);
+  const destination = useMemo(() => offer?.dropoff || offer?.destination || { latitude: 0, longitude: 0, address: "" }, [offer]);
 
   const baseValue = Number(offer?.negotiation?.clientOffer ?? offer?.pricing?.total ?? 0);
 
@@ -196,6 +200,24 @@ export default function DeliveryOfferDetailScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20, paddingBottom: 180 }}>
+
+        {/* Mini Mapa de Rota Integrado no Topo */}
+        {pickup.latitude && destination.latitude ? (
+          <View 
+            style={{ 
+              height: 165, 
+              width: "100%", 
+              borderRadius: 16, 
+              overflow: "hidden", 
+              marginBottom: 14, 
+              borderWidth: 1.5, 
+              borderColor: "rgba(255,255,255,0.08)",
+              backgroundColor: "#11253E"
+            }}
+          >
+            <DeliveryOfferMap pickup={pickup} destination={destination} isSmall />
+          </View>
+        ) : null}
 
         {/* Client */}
         <View style={{ backgroundColor: "#11253E", borderRadius: 16, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: "rgba(255,255,255,0.07)" }}>
