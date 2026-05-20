@@ -231,7 +231,44 @@ export function DriverBottomSheet({
             from={hasPendingOffer ? { scale: 0.7, opacity: 0.4 } : { scale: 1, opacity: 1 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ type: "timing", duration: hasPendingOffer ? 320 : 180 }}
+            style={{ position: "relative" }}
           >
+            {hasPendingOffer && (
+              <>
+                <MotiView
+                  key={`offers-burst-outer-${offersPulseToken}`}
+                  from={{ opacity: 0.65, scale: 0.45 }}
+                  animate={{ opacity: 0, scale: 1.85 }}
+                  transition={{ type: "timing", duration: 620 }}
+                  style={{
+                    position: "absolute",
+                    width: 54,
+                    height: 54,
+                    borderRadius: 27,
+                    borderWidth: 2,
+                    borderColor: "rgba(251,191,36,0.95)",
+                    top: 0,
+                    left: 0,
+                  }}
+                />
+                <MotiView
+                  key={`offers-burst-inner-${offersPulseToken}`}
+                  from={{ opacity: 0.75, scale: 0.35 }}
+                  animate={{ opacity: 0, scale: 1.35 }}
+                  transition={{ type: "timing", duration: 500 }}
+                  style={{
+                    position: "absolute",
+                    width: 54,
+                    height: 54,
+                    borderRadius: 27,
+                    borderWidth: 1.5,
+                    borderColor: "rgba(251,191,36,0.7)",
+                    top: 0,
+                    left: 0,
+                  }}
+                />
+              </>
+            )}
             <TouchableOpacity
               onPress={onPressOffers}
               activeOpacity={0.8}
@@ -246,7 +283,14 @@ export function DriverBottomSheet({
                 justifyContent: "center",
               }}
             >
-              <ClipboardList size={20} color={hasPendingOffer ? "#091A2F" : "rgba(255,255,255,0.75)"} strokeWidth={2.5} />
+              <MotiView
+                key={`offers-icon-pop-${offersPulseToken}-${hasPendingOffer ? "pending" : "idle"}`}
+                from={hasPendingOffer ? { scale: 0.7, rotate: "0deg" } : { scale: 1, rotate: "0deg" }}
+                animate={{ scale: 1, rotate: "0deg" }}
+                transition={{ type: "spring", damping: 9, stiffness: 180 }}
+              >
+                <ClipboardList size={20} color={hasPendingOffer ? "#091A2F" : "rgba(255,255,255,0.75)"} strokeWidth={2.5} />
+              </MotiView>
             </TouchableOpacity>
           </MotiView>
         </View>

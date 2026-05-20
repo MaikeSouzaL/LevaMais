@@ -41,8 +41,7 @@ import { Modal } from "../../../components/Modal";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
 import { MotiView } from "moti";
-import { MapPin, Menu, Target, Layers, ShieldAlert, Info , AlertTriangle } from "lucide-react-native";
-import { DriverStatusHeader } from "@/components/driver/home/DriverStatusHeader";
+import { MapPin, Menu, Target, Layers, ShieldAlert, Info , AlertTriangle, X } from "lucide-react-native";
 import { NewIncomingOfferSheet } from "@/components/driver/home/NewIncomingOfferSheet";
 import { PremiumMapMarker } from "@/components/maps/PremiumMapMarker";
 import { PremiumDottedRoute } from "@/components/routes/PremiumDottedRoute";
@@ -131,6 +130,9 @@ export default function DriverHomeScreen() {
   const [todayEarnings, setTodayEarnings] = useState(0);
   const [incomingRequest, setIncomingRequest] = useState<any>(null);
   const [isIncomingRequestDismissed, setIsIncomingRequestDismissed] = useState(false);
+  const [showPendingBanner, setShowPendingBanner] = useState(false);
+  const [offersPulseToken, setOffersPulseToken] = useState(0);
+  const [showPendingOfferHighlight, setShowPendingOfferHighlight] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelModalReason, setCancelModalReason] = useState<string | null>(null);
@@ -1219,9 +1221,18 @@ export default function DriverHomeScreen() {
           }
   };
 
+  const dismissIncomingSheet = async () => {
+    setIsIncomingRequestDismissed(true);
+    setShowPendingBanner(true);
+    setShowPendingOfferHighlight(false);
+    await driverAlertService.stop();
+  };
+
   const clearIncoming = async () => {
     setIncomingRequest(null);
     setIsIncomingRequestDismissed(false);
+    setShowPendingBanner(false);
+    setShowPendingOfferHighlight(false);
     hasIncomingRequestRef.current = false;
     setRouteCoords([]);
     setPendingRequests(0);
@@ -1534,7 +1545,17 @@ export default function DriverHomeScreen() {
                     <Menu size={24} color="#FFF" />
                  </TouchableOpacity>
 
-                 <View className="flex-1" />
+                 <View className="flex-1 flex-row justify-end">
+                   {hasActiveIncomingRequest && (
+                     <TouchableOpacity
+                       onPress={dismissIncomingSheet}
+                       className="h-[58px] w-[58px] items-center justify-center"
+                       activeOpacity={0.8}
+                     >
+                       <X size={24} color="#FFFFFF" />
+                     </TouchableOpacity>
+                   )}
+                 </View>
               </View>
 
               {/* 🛠️ Map Action Buttons (Centering, Zoom, Layers, SOS) */}
@@ -1550,7 +1571,7 @@ export default function DriverHomeScreen() {
               )}
 
               {/* ⚠️ ACTIVE OFFER PENDING BANNER */}
-              {isIncomingRequestDismissed && incomingRequest?.rideId && (
+              {showPendingBanner && isIncomingRequestDismissed && incomingRequest?.rideId && (
                 <MotiView
                   from={{ opacity: 0, translateY: -20 }}
                   animate={{ opacity: 1, translateY: 0 }}
@@ -1563,6 +1584,7 @@ export default function DriverHomeScreen() {
                     backgroundColor: "#FBBF24",
                     borderRadius: 16,
                     padding: 14,
+                    paddingTop: 18,
                     flexDirection: "row",
                     alignItems: "center",
                     borderWidth: 1,
@@ -1592,6 +1614,26 @@ export default function DriverHomeScreen() {
                     }}
                   >
                     <Text style={{ color: "#02de95", fontSize: 11, fontWeight: "900" }}>VER DETALHES</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setShowPendingBanner(false);
+                      setShowPendingOfferHighlight(true);
+                      setOffersPulseToken((prev) => prev + 1);
+                    }}
+                    activeOpacity={0.85}
+                    style={{
+                      position: "absolute",
+                      top: -4,
+                      right: -2,
+                      width: 28,
+                      height: 28,
+                      borderRadius: 14,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <X size={18} color="#091A2F" />
                   </TouchableOpacity>
                 </MotiView>
               )}
@@ -1682,6 +1724,8 @@ export default function DriverHomeScreen() {
               driverBalance={driverBalance}
               onAddBalance={() => setShowDepositModal(true)}
               onPressOffers={() => (navigation as any).navigate("DriverRequests", { initialTab: "realtime" })}
+              hasPendingOffer={showPendingOfferHighlight}
+              offersPulseToken={offersPulseToken}
             />
           )}
 
