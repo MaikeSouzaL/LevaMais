@@ -82,7 +82,6 @@ export default function RideOffersMarketplaceScreen() {
   
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
-  const [showExpiredModal, setShowExpiredModal] = useState(false);
 
   const [rideDetails, setRideDetails] = useState<any>(null);
   const [negotiation, setNegotiation] = useState<any>(null);
@@ -224,14 +223,6 @@ export default function RideOffersMarketplaceScreen() {
     }
   }, [route.params?.autoOpenIncrease, navigation]);
 
-  useEffect(() => {
-    const status = rideDetails?.status;
-    if (["expired", "cancelled_no_driver", "no_drivers_available"].includes(status)) {
-      setShowExpiredModal(true);
-    } else {
-      setShowExpiredModal(false);
-    }
-  }, [rideDetails?.status]);
 
   useEffect(() => {
     let mounted = true;
@@ -881,20 +872,6 @@ export default function RideOffersMarketplaceScreen() {
          </View>
       </Modal>
 
-      {/* ⚠️ Pedido Expirado Local Modal */}
-      <Modal
-        visible={showExpiredModal}
-        title="Pedido Expirado"
-        message="Nenhum entregador aceitou sua oferta dentro do prazo de 10 minutos. Tente novamente com uma oferta mais atrativa ou em outro horario."
-        type="warning"
-        confirmText="Entendido"
-        onClose={() => setShowExpiredModal(false)}
-        onConfirm={() => {
-          setShowExpiredModal(false);
-          setShowIncreaseModal(true);
-        }}
-      />
-
       {/* 🛑 Discreet Root-Level Cancel Action */}
       <View
         style={{ 
@@ -934,3 +911,4 @@ export default function RideOffersMarketplaceScreen() {
     </GestureHandlerRootView>
   );
 }
+

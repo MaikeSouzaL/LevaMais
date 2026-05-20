@@ -1,274 +1,250 @@
-import React, { useCallback, useState } from "react";
-import { ActivityIndicator, RefreshControl, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import React, { useCallback, useMemo, useState } from "react";
+import {
+  FlatList,
+  Text,
+  TouchableOpacity,
+  View,
+  RefreshControl,
+  StatusBar,
+  ActivityIndicator,
+} from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
-import Toast from "react-native-toast-message";
-import { LinearGradient } from "expo-linear-gradient";
+import { MotiView } from "moti";
+import {
+  Package,
+  Car,
+  Clock,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  ChevronRight,
+  Inbox,
+} from "lucide-react-native";
+import { MaterialIcons } from "@expo/vector-icons";
 
 import rideService, { Ride } from "../../../services/ride.service";
-import { DriverScreen } from "./components/DriverScreen";
+import { useAuthStore } from "../../../context/authStore";
+import { formatBRL } from "@/utils/mappers";
 
-function formatBRL(value: number) {
-  try {
-    return new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-    }).format(value);
-  } catch {
-    return `R$ ${Number(value || 0).toFixed(2)}`;
-  }
+type Filter = "all" | "completed" | "cancelled" | "active" | "declined";
+
+const FILTERS: { id: Filter; label: string }[] = [
+  { id: "all", label: "Todos" },
+  { id: "completed", label: "Concluídas" },
+  { id: "cancelled", label: "Canceladas" },
+  { id: "active", label: "Ativas" },
+  { id: "declined", label: "Recusadas" },
+];
+
+const ACTIVE_STATUSES = ["requesting", "driver_assigned", "accepted", "driver_arriving", "arrived", "in_progress"];
+
+function formatRideDate(ride: any): string {
+  const value = ride?.completedAt || ride?.cancelledAt || ride?.updatedAt || ride?.createdAt;
+  if (!value) return "-";
+  const dt = new Date(value);
+  if (Number.isNaN(dt.getTime())) return "-";
+  return dt.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-function mapStatus(status: string) {
-  const labels: Record<string, string> = {
-    requesting: "Procurando",
-    driver_assigned: "Atribuida",
-    accepted: "Aceita",
-    arrived: "Cheguei",
-    in_progress: "Em andamento",
-    completed: "Finalizada",
-    cancelled: "Cancelada",
-    cancelled_by_client: "Cancelada pelo cliente",
-    cancelled_by_driver: "Cancelada por voce",
-    cancelled_no_driver: "Sem motorista",
+function statusMeta(status: string, declinedByMe: boolean) {
+  const map: Record<string, { label: string; color: string; icon: any }> = {
+    completed: { label: "Concluída", color: "#02de95", icon: CheckCircle },
+    cancelled: { label: "Cancelada", color: "#ef4444", icon: XCircle },
+    cancelled_by_client: { label: "Cancelada pelo cliente", color: "#ef4444", icon: XCircle },
+    cancelled_by_driver: { label: "Cancelada por você", color: "#f97316", icon: XCircle },
+    cancelled_no_driver: { label: "Sem motorista", color: "#f97316", icon: AlertCircle },
+    no_drivers_available: { label: "Sem motorista", color: "#f97316", icon: AlertCircle },
+    expired: { label: "Expirada", color: "#f97316", icon: AlertCircle },
+    requesting: { label: "Buscando", color: "#fbbf24", icon: Clock },
+    driver_assigned: { label: "Motorista alocado", color: "#60a5fa", icon: Clock },
+    accepted: { label: "A caminho", color: "#60a5fa", icon: Clock },
+    driver_arriving: { label: "Chegando", color: "#60a5fa", icon: Clock },
+    arrived: { label: "No local", color: "#a78bfa", icon: Clock },
+    in_progress: { label: "Em andamento", color: "#a78bfa", icon: Clock },
   };
-
-  return labels[status] || status;
+  const normalized = String(status || "");
+  const isFinalCompleted = normalized === "completed";
+  const isFinalCancelled = normalized.startsWith("cancelled") || normalized === "expired" || normalized === "no_drivers_available";
+  if (declinedByMe && !isFinalCompleted && !isFinalCancelled) {
+    return { label: "Recusada por você", color: "#f97316", icon: AlertCircle };
+  }
+  return map[status] || { label: status || "Status", color: "rgba(255,255,255,0.4)", icon: Clock };
 }
 
-function getHistoryStatusColor(status: string) {
-  if (status === "completed") return "#02de95";
-  if (status.startsWith("cancelled")) return "#ef4444";
-  if (status === "in_progress") return "#60a5fa";
-  return "#fbbf24";
+function StatusPill({ status, declinedByMe }: { status: string; declinedByMe: boolean }) {
+  const meta = statusMeta(status, declinedByMe);
+  const Icon = meta.icon;
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 4,
+        backgroundColor: `${meta.color}18`,
+        borderRadius: 20,
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderWidth: 1,
+        borderColor: `${meta.color}40`,
+      }}
+    >
+      <Icon size={11} color={meta.color} />
+      <Text style={{ color: meta.color, fontSize: 11, fontWeight: "700" }}>{meta.label}</Text>
+    </View>
+  );
 }
 
 export default function DriverHistoryScreen() {
   const navigation = useNavigation<any>();
-  const [rides, setRides] = useState<Ride[]>([]);
-  const [loading, setLoading] = useState(false);
+  const driverId = useAuthStore((s) => s.userData?.id);
+
+  const [history, setHistory] = useState<Ride[]>([]);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedFilter, setSelectedFilter] = useState<Filter>("all");
 
   const loadHistory = useCallback(async (isRefresh = false) => {
     try {
-      if (isRefresh) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
-
-      const res = await rideService.getHistory({ limit: 50, page: 1 });
-      setRides(res.rides || []);
-    } catch (e: any) {
-      Toast.show({
-        type: "error",
-        text1: "Nao foi possivel carregar historico",
-        text2: e?.message || "Tente novamente",
-      });
+      if (isRefresh) setRefreshing(true);
+      else setLoading(true);
+      const res = await rideService.getHistory({ page: 1, limit: 80 });
+      setHistory(res.rides || []);
+    } catch {
+      setHistory([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadHistory();
-    }, [loadHistory]),
-  );
+  useFocusEffect(useCallback(() => { loadHistory(); }, [loadHistory]));
+
+  const filtered = useMemo(() => {
+    return history.filter((r: any) => {
+      const status = String(r?.status || "");
+      const declinedByMe = Array.isArray(r?.rejectedBy) && r.rejectedBy.some((x: any) => String(x?.driverId?._id || x?.driverId) === String(driverId));
+      if (selectedFilter === "all") return true;
+      if (selectedFilter === "completed") return status === "completed";
+      if (selectedFilter === "cancelled") return status.startsWith("cancelled") || status === "expired" || status === "no_drivers_available";
+      if (selectedFilter === "active") return ACTIVE_STATUSES.includes(status);
+      if (selectedFilter === "declined") return declinedByMe;
+      return true;
+    });
+  }, [history, selectedFilter, driverId]);
 
   return (
-    <DriverScreen
-      title="Histórico"
-      scroll={false}
-      hideHeader={true}
-      headerRight={
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "rgba(2,222,149,0.15)", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 }}>
-          <MaterialIcons name="history" size={16} color="#02de95" />
-          <Text style={{ color: "#02de95", fontWeight: "900", fontSize: 13 }}>
-            {rides.length}
-          </Text>
-        </View>
-      }
-    >
-      {loading ? (
-        <View style={{ flex: 1, paddingTop: 60, alignItems: "center", gap: 16 }}>
+    <View style={{ flex: 1, backgroundColor: "#091A2F" }}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+
+      <View style={{ flexDirection: "row", paddingHorizontal: 16, paddingVertical: 12, gap: 8 }}>
+        {FILTERS.map((f) => {
+          const active = selectedFilter === f.id;
+          return (
+            <TouchableOpacity
+              key={f.id}
+              onPress={() => setSelectedFilter(f.id)}
+              activeOpacity={0.8}
+              style={{
+                borderRadius: 20,
+                paddingHorizontal: 14,
+                paddingVertical: 7,
+                borderWidth: 1.5,
+                borderColor: active ? "#02de95" : "rgba(255,255,255,0.12)",
+                backgroundColor: active ? "rgba(2,222,149,0.12)" : "rgba(255,255,255,0.03)",
+              }}
+            >
+              <Text style={{ color: active ? "#02de95" : "rgba(255,255,255,0.5)", fontSize: 12, fontWeight: "700" }}>
+                {f.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {loading && !refreshing ? (
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
           <ActivityIndicator size="large" color="#02de95" />
-          <Text style={{ color: "rgba(255,255,255,0.65)", fontSize: 14 }}>
-            Carregando histórico de corridas...
-          </Text>
-        </View>
-      ) : rides.length === 0 ? (
-        <View style={{ flex: 1, paddingTop: 60, alignItems: "center", gap: 16 }}>
-          <View
-            style={{
-              width: 100,
-              height: 100,
-              borderRadius: 50,
-              backgroundColor: "rgba(2,222,149,0.1)",
-              alignItems: "center",
-              justifyContent: "center",
-              borderWidth: 2,
-              borderColor: "rgba(2,222,149,0.2)",
-            }}
-          >
-            <MaterialIcons name="history" size={48} color="rgba(255,255,255,0.3)" />
-          </View>
-          <Text style={{ color: "rgba(255,255,255,0.7)", fontWeight: "700", fontSize: 16 }}>
-            Nenhuma corrida no histórico
-          </Text>
-          <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, textAlign: "center", paddingHorizontal: 20 }}>
-            Suas corridas concluídas aparecerão aqui
-          </Text>
+          <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, marginTop: 14 }}>Carregando histórico...</Text>
         </View>
       ) : (
-        <ScrollView
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => loadHistory(true)}
-              tintColor="#02de95"
-            />
-          }
+        <FlatList
+          data={filtered}
+          keyExtractor={(item: any, idx) => String(item?._id || idx)}
+          contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 32 }}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 24 }}
-        >
-          {rides.map((ride, index) => {
-            const rideStatusColor = getHistoryStatusColor(ride.status);
-            const statusLabel = mapStatus(ride.status);
-            const isCompleted = ride.status === "completed";
-
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadHistory(true)} tintColor="#02de95" />}
+          ListEmptyComponent={
+            <View style={{ alignItems: "center", justifyContent: "center", paddingTop: 60 }}>
+              <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: "rgba(255,255,255,0.04)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+                <Inbox size={32} color="rgba(255,255,255,0.2)" />
+              </View>
+              <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 15, fontWeight: "700" }}>
+                {selectedFilter === "all" ? "Nenhum registro encontrado" : "Nenhum item nesse filtro"}
+              </Text>
+            </View>
+          }
+          renderItem={({ item, index }) => {
+            const ride = item as any;
+            const isDelivery = ride.serviceType === "delivery" || ride.serviceType === "frete";
+            const Icon = isDelivery ? Package : Car;
+            const status = String(ride.status || "");
+            const declinedByMe = Array.isArray(ride?.rejectedBy) && ride.rejectedBy.some((x: any) => String(x?.driverId?._id || x?.driverId) === String(driverId));
+            const price = ride?.pricing?.driverValue ?? ride?.pricing?.total ?? ride?.negotiation?.finalAgreedPrice ?? 0;
+            const distance = ride?.distance?.text || "";
             return (
-              <TouchableOpacity
-                key={ride._id}
-                activeOpacity={0.85}
-                onPress={() =>
-                  navigation.navigate("DriverFinance", {
-                    screen: "DriverRideDetails",
-                    params: { rideId: ride._id },
-                  })
-                }
-              >
-                <LinearGradient
-                  colors={
-                    isCompleted
-                      ? ["rgba(2,222,149,0.08)", "rgba(2,222,149,0.03)"]
-                      : ["rgba(255,255,255,0.05)", "rgba(255,255,255,0.02)"]
-                  }
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={{
-                    borderRadius: 16,
-                    padding: 14,
-                    marginBottom: 10,
-                    borderWidth: 1,
-                    borderColor: isCompleted ? "rgba(2,222,149,0.2)" : "rgba(255,255,255,0.08)",
-                    overflow: "hidden",
-                  }}
+              <MotiView from={{ opacity: 0, translateY: 10 }} animate={{ opacity: 1, translateY: 0 }} transition={{ delay: Math.min(index * 40, 200) }}>
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={() => navigation.navigate("DriverFinance", { screen: "DriverRideDetails", params: { rideId: ride._id } })}
+                  style={{ backgroundColor: "#11253E", borderRadius: 18, borderWidth: 1, borderColor: "rgba(255,255,255,0.07)", overflow: "hidden" }}
                 >
-                  <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
-                    {/* Icon */}
-                    <LinearGradient
-                      colors={
-                        isCompleted
-                          ? ["rgba(2,222,149,0.15)", "rgba(2,222,149,0.08)"]
-                          : ["rgba(239,68,68,0.15)", "rgba(239,68,68,0.08)"]
-                      }
-                      style={{
-                        width: 48,
-                        height: 48,
-                        borderRadius: 12,
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <MaterialIcons
-                        name={ride.serviceType === "delivery" ? "local-shipping" : "directions-car"}
-                        size={24}
-                        color={isCompleted ? "#02de95" : "#ef4444"}
-                      />
-                    </LinearGradient>
-
-                    {/* Content */}
-                    <View style={{ flex: 1 }}>
-                      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
-                        <View style={{ flex: 1, marginRight: 8 }}>
-                          <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15 }} numberOfLines={1}>
-                            {ride.dropoff?.address || "Destino desconhecido"}
-                          </Text>
-                        </View>
-                        <View
-                          style={{
-                            backgroundColor: rideStatusColor === "#02de95" ? "rgba(2,222,149,0.15)" : "rgba(239,68,68,0.15)",
-                            paddingHorizontal: 10,
-                            paddingVertical: 5,
-                            borderRadius: 8,
-                          }}
-                        >
-                          <Text
-                            style={{
-                              color: rideStatusColor,
-                              fontWeight: "800",
-                              fontSize: 11,
-                            }}
-                          >
-                            {statusLabel}
-                          </Text>
-                        </View>
-                      </View>
-
-                      <View style={{ gap: 4 }}>
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                          <MaterialIcons name="location-on" size={14} color="rgba(255,255,255,0.5)" />
-                          <Text style={{ color: "rgba(255,255,255,0.65)", fontSize: 12 }} numberOfLines={1}>
-                            Origem: {ride.pickup?.address || "Desconhecida"}
-                          </Text>
-                        </View>
-
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                          <MaterialCommunityIcons name="map-marker-distance" size={14} color="rgba(255,255,255,0.5)" />
-                          <Text style={{ color: "rgba(255,255,255,0.55)", fontSize: 12 }}>
-                            Distância desconhecida
-                          </Text>
-                        </View>
-
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 }}>
-                          <MaterialIcons name="access-time" size={14} color="rgba(255,255,255,0.5)" />
-                          <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 11 }}>
-                            {new Date(ride.createdAt || ride.createdAt).toLocaleDateString("pt-BR")}
-                          </Text>
-                        </View>
-                      </View>
+                  <View style={{ flexDirection: "row", alignItems: "center", padding: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.05)" }}>
+                    <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: "rgba(2,222,149,0.1)", alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+                      <Icon size={20} color="#02de95" />
                     </View>
-                  </View>
-
-                  {/* Footer */}
-                  <View
-                    style={{
-                      marginTop: 12,
-                      paddingTop: 10,
-                      borderTopWidth: 1,
-                      borderTopColor: "rgba(255,255,255,0.05)",
-                      flexDirection: "row",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                    }}
-                  >
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                      <MaterialIcons name="attach-money" size={16} color="#02de95" />
-                      <Text style={{ color: "#fff", fontWeight: "900", fontSize: 14 }}>
-                        {formatBRL((ride as any)?.pricing?.total ?? 0)}
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: "#fff", fontSize: 13, fontWeight: "800" }}>
+                        {isDelivery ? "Entrega" : "Corrida"} · {(ride.vehicleType || "-").toUpperCase()}
+                      </Text>
+                      <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 11, marginTop: 2 }}>
+                        {formatRideDate(ride)}
                       </Text>
                     </View>
-
-                    <MaterialIcons name="chevron-right" size={20} color="rgba(2,222,149,0.5)" />
+                    <StatusPill status={status} declinedByMe={declinedByMe} />
                   </View>
-                </LinearGradient>
-              </TouchableOpacity>
+
+                  <View style={{ padding: 14, paddingTop: 12, gap: 8 }}>
+                    <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
+                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#02de95", marginTop: 4 }} />
+                      <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, flex: 1 }} numberOfLines={1}>
+                        {ride.pickup?.address || "-"}
+                      </Text>
+                    </View>
+                    <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
+                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#ef4444", marginTop: 4 }} />
+                      <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, flex: 1 }} numberOfLines={1}>
+                        {ride.dropoff?.address || "-"}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingBottom: 14 }}>
+                    <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 11, fontWeight: "600" }}>
+                      {distance}
+                    </Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <Text style={{ color: "#02de95", fontSize: 16, fontWeight: "900" }}>
+                        {formatBRL(Number(price || 0))}
+                      </Text>
+                      <ChevronRight size={14} color="rgba(255,255,255,0.2)" />
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              </MotiView>
             );
-          })}
-        </ScrollView>
+          }}
+        />
       )}
-    </DriverScreen>
+    </View>
   );
 }

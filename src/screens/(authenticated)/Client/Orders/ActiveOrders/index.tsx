@@ -73,7 +73,7 @@ export default function ActiveOrdersScreen() {
   const [selectedTime, setSelectedTime] = useState<string>("");
 
   // Segment Tab for Client Screen ("Em Andamento", "Negociações", "Agendados")
-  const [activeTab, setActiveTab] = useState<"active" | "scheduled" | "negotiation">("active");
+  const [activeTab, setActiveTab] = useState<"active" | "scheduled">("active");
 
   const loadRides = useCallback(async () => {
     try {
@@ -277,16 +277,7 @@ export default function ActiveOrdersScreen() {
       !["completed", "cancelled", "cancelled_by_client", "cancelled_by_driver"].includes(String(r.status || ""))
   );
   const scheduledRides = rides.filter((r) => r.status === "scheduled");
-  const negotiationRides = rides.filter(
-    (r) => 
-      ["requesting", "searching_driver", "offers_received", "payment_pending", "no_drivers_available", "cancelled_no_driver"].includes(r.status)
-  );
-  
-  const currentList = activeTab === "active" 
-    ? activeRides 
-    : activeTab === "scheduled" 
-      ? scheduledRides 
-      : negotiationRides;
+  const currentList = activeTab === "active" ? activeRides : scheduledRides;
 
   return (
     <View style={{ flex: 1, backgroundColor: "#091A2F" }}>
@@ -321,7 +312,7 @@ export default function ActiveOrdersScreen() {
       </View>
 
       {/* Segmented Tabs (ATIVOS, NEGOCIAÇÕES, AGENDADOS) */}
-      {!loading && (activeRides.length > 0 || scheduledRides.length > 0 || negotiationRides.length > 0) && (
+      {!loading && (activeRides.length > 0 || scheduledRides.length > 0) && (
         <View style={{ paddingHorizontal: 16, marginTop: 16, marginBottom: 8, zIndex: 98 }}>
           <View
             style={{
@@ -336,7 +327,6 @@ export default function ActiveOrdersScreen() {
           >
             {([
               { id: "active", label: "Ativos", count: activeRides.length },
-              { id: "negotiation", label: "Negociações", count: negotiationRides.length },
               { id: "scheduled", label: "Agendados", count: scheduledRides.length }
             ] as const).map((tab) => {
               const isActive = activeTab === tab.id;
@@ -435,18 +425,10 @@ export default function ActiveOrdersScreen() {
             <Inbox size={36} color="rgba(255,255,255,0.2)" />
           </View>
           <Text className="text-white text-lg font-black text-center">
-            {activeTab === "active" 
-              ? "Nenhum pedido ativo" 
-              : activeTab === "scheduled"
-                ? "Nenhum agendamento"
-                : "Nenhuma negociação"}
+            {activeTab === "active" ? "Nenhum pedido ativo" : "Nenhum agendamento"}
           </Text>
           <Text className="text-slate-400 text-xs text-center mt-2 max-w-[260px] leading-relaxed">
-            {activeTab === "active" 
-              ? "Suas encomendas em andamento, aguardando pagamento ou em análise aparecerão aqui."
-              : activeTab === "scheduled"
-                ? "Seus pedidos agendados para horários futuros aparecerão aqui."
-                : "Seu histórico de propostas, entregas recusadas e canceladas aparecerão aqui."}
+            {activeTab === "active" ? "Suas encomendas em andamento, aguardando pagamento ou em an??lise aparecer??o aqui." : "Seus pedidos agendados para hor??rios futuros aparecer??o aqui."}
           </Text>
           
           <TouchableOpacity
@@ -924,3 +906,5 @@ export default function ActiveOrdersScreen() {
     </View>
   );
 }
+
+

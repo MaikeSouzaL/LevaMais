@@ -2565,7 +2565,7 @@ class RideController {
       const isAdmin = req.user && req.user.userType === "admin";
 
       const query = {
-        ...(isAdmin ? (req.query.clientId ? { clientId: req.query.clientId } : req.query.driverId ? { driverId: req.query.driverId } : {}) : { $or: [{ clientId: userObjectId }, { driverId: userObjectId }] }),
+        ...(isAdmin ? (req.query.clientId ? { clientId: req.query.clientId } : req.query.driverId ? { driverId: req.query.driverId } : {}) : req.user.userType === "driver" ? { $or: [{ driverId: userObjectId }, { "rejectedBy.driverId": userObjectId }, { "negotiation.offers.driverId": userObjectId }] } : { clientId: userObjectId }),
       };
 
       if (status) {

@@ -67,6 +67,7 @@ function OperationalBackground({ currentLoc }: OperationalBackgroundProps) {
 
 type RideRequestItem = {
   rideId: string;
+  status?: string;
   pickup?: { address?: string; latitude?: number; longitude?: number };
   dropoff?: { address?: string; latitude?: number; longitude?: number };
   pricing?: { total?: number; platformFee?: number; serviceFee?: number };
@@ -679,20 +680,24 @@ export default function DriverRequestsScreen() {
 
   // Ã°Å¸â€â‚¬ Advanced Operational Filtration System
   const offersFeed = useMemo(() => {
-    const byRideId = new Map<string, RideRequestItem>();
-
-    for (const item of pendingNegotiations) {
-      if (!item?.rideId) continue;
-      byRideId.set(item.rideId, item);
-    }
-
-    for (const item of requests) {
-      if (!item?.rideId) continue;
-      if (!byRideId.has(item.rideId)) byRideId.set(item.rideId, item);
-    }
-
-    return Array.from(byRideId.values());
-  }, [pendingNegotiations, requests]);
+    // Na aba "Ofertas", mostrar apenas solicitações ativas realmente disponíveis em tempo real.
+    // Itens recusados/perdidos/cancelados devem aparecer somente no Histórico.
+    return requests.filter((item) => {
+      const status = String(item?.status || "requesting");
+      const myOfferStatus = String(item?.negotiation?.myOffer?.status || "");
+      const isTerminalRide = [
+        "completed",
+        "cancelled",
+        "cancelled_by_client",
+        "cancelled_by_driver",
+        "cancelled_no_driver",
+        "no_drivers_available",
+        "expired",
+      ].includes(status);
+      const isRejectedByMe = myOfferStatus === "rejected";
+      return !isTerminalRide && !isRejectedByMe;
+    });
+  }, [requests]);
 
   const currentTabCount = activeTab === "realtime" ? offersFeed.length : scheduledRides.length;
 
