@@ -262,7 +262,7 @@ export default function ActiveOrdersScreen() {
   const scheduledRides = rides.filter((r) => r.status === "scheduled");
   const negotiationRides = rides.filter(
     (r) => 
-      ["completed", "cancelled", "cancelled_by_client", "cancelled_by_driver", "cancelled_no_driver", "no_drivers_available", "requesting", "searching_driver", "offers_received"].includes(r.status)
+      ["completed", "cancelled", "cancelled_by_client", "cancelled_by_driver", "cancelled_no_driver", "no_drivers_available"].includes(r.status)
   );
   
   const currentList = activeTab === "active" 
@@ -681,7 +681,7 @@ export default function ActiveOrdersScreen() {
                 marginBottom: 16,
               }}
             >
-              <View style={{ flexDirection: "row", alignItems: "start" }}>
+              <View style={{ flexDirection: "row", alignItems: "flex-start" }}>
                 <View style={{ marginRight: 12, alignItems: "center", paddingTop: 4 }}>
                   <MapPin size={14} color="#02de95" />
                   <View style={{ width: 1, height: 20, backgroundColor: "rgba(255,255,255,0.08)", marginVertical: 4 }} />

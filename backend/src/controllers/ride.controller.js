@@ -21,6 +21,8 @@ const NON_TERMINAL_STATUSES = [
 const RIDE_CAPABLE_VEHICLES = new Set(["motorcycle", "car"]);
 const DEFAULT_APP_TIMEZONE = process.env.APP_TIMEZONE || "America/Sao_Paulo";
 
+let rideControllerInstance;
+
 function normalizePaymentMethod(rawMethod) {
   const value = String(rawMethod || "")
     .trim()
@@ -3269,18 +3271,6 @@ class RideController {
       if (String(rideSnapshot.status || "") !== "scheduled") {
         return sendError(res, 400, "Corrida agendada nao esta mais disponivel");
       }
-      if (!isServiceCompatibleWithVehicle(driverLocation.vehicleType, rideSnapshot.serviceType)) {
-        return sendError(res, 400, "Servico incompativel com o veiculo do motorista");
-      }
-      const driverServiceTypes = Array.isArray(driverLocation.serviceTypes)
-        ? driverLocation.serviceTypes
-        : [];
-      if (!driverServiceTypes.includes(String(rideSnapshot.serviceType || ""))) {
-        return sendError(res, 400, "Este servico nao esta ativo para o motorista");
-      }
-      if (String(driverLocation.vehicleType || "") !== String(rideSnapshot.vehicleType || "")) {
-        return sendError(res, 400, "Tipo de veiculo do motorista nao corresponde a solicitacao");
-      }
 
       const ride = await Ride.findOneAndUpdate(
         {
@@ -3316,36 +3306,47 @@ class RideController {
 
       const ride = await Ride.findById(rideId).populate("clientId");
       if (!ride) {
-        return sendError(res, 404, "Corrida nÃ£o encontrada.");
+        return sendError(res, 404, "Corrida não encontrada.");
       }
 
-      // Valida se ainda estÃ¡ em negociaÃ§Ã£o e permite aumento
-      if (!ride.negotiation || !ride.negotiation.enabled || ["accepted", "driver_arriving", "arrived", "in_progress", "completed", "cancelled"].includes(ride.status)) {
-        return sendError(res, 400, "NÃ£o Ã© possÃ­vel alterar a oferta desta corrida agora.");
+      // Se a corrida expirou ou foi cancelada sem motorista, ativamos preventivamente a negociação para permitir a ressuscitação!
+      const isResuscitable = ["cancelled_no_driver", "no_drivers_available", "cancelled"].includes(ride.status) && !ride.driverId;
+      if (isResuscitable && ride.negotiation) {
+        ride.negotiation.enabled = true;
+      }
+
+      // Valida se ainda está em negociação e permite aumento
+      const blockedStatuses = ["accepted", "driver_arriving", "arrived", "in_progress", "completed"];
+      if (!isResuscitable) {
+        blockedStatuses.push("cancelled");
+      }
+
+      if (!ride.negotiation || !ride.negotiation.enabled || blockedStatuses.includes(ride.status)) {
+        return sendError(res, 400, "Não é possível alterar a oferta desta corrida agora.");
       }
 
       const currentOffer = Number(ride.negotiation.clientOffer || ride.pricing.total || 0);
       
-      // Define o piso dinÃ¢mico: a oferta inicial feita ao criar o chamado! ðŸ›¡ï¸
+      // Define o piso dinâmico: a oferta inicial feita ao criar o chamado! 🛡️
       const minFloor = Number(ride.negotiation.initialClientOffer || ride.pricing.subtotal || 5.00);
 
       const parsedInc = Number(incrementAmount);
       const rawNewOffer = currentOffer + (isNaN(parsedInc) ? 2 : parsedInc);
       
-      // NÃ£o permite reduzir abaixo do valor inicial em hipÃ³tese alguma!
+      // Não permite reduzir abaixo do valor inicial em hipótese alguma!
       const newOffer = toMoney(Math.max(minFloor, rawNewOffer));
 
       ride.negotiation.clientOffer = newOffer;
       ride.pricing.total = newOffer;
+      ride.rejectedBy = [];
 
-      if (["cancelled_no_driver", "no_drivers_available"].includes(ride.status)) {
+      if (["cancelled_no_driver", "no_drivers_available", "cancelled"].includes(ride.status)) {
         ride.status = "requesting";
-        ride.rejectedBy = [];
       }
       
       await ride.save();
 
-      // Disparos em tempo real via sockets e push! âœ¨ðŸŽï¸
+      // Disparos em tempo real via sockets e push! 🛡️⚡
       if (io) {
         io.to(`ride_${rideId}`).emit("ride-status-updated", ride);
         
@@ -3359,7 +3360,7 @@ class RideController {
         });
         
         // Re-despacha para os motoristas ativos notificando o ajuste!
-        await this.dispatchRideToNearbyDrivers(ride, io);
+        await rideControllerInstance.dispatchRideToNearbyDrivers(ride, io);
       }
 
       return res.json({ 
@@ -3655,6 +3656,8 @@ function isTimeInRange(current, start, end) {
 // attach extra handlers
 ratingProofMixin.attach(RideController, { Ride, DriverLocation });
 
-module.exports = new RideController();
+const instance = new RideController();
+rideControllerInstance = instance;
+module.exports = instance;
 
 
