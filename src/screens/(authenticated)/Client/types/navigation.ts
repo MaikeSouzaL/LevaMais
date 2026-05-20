@@ -106,6 +106,7 @@ export type ClientStackParamList = {
       }
     | undefined;
   Favorites: undefined;
+  AddFavorite: undefined;
   SelectVehicle:
     | {
         pickup?: { address: string; latitude: number; longitude: number };

@@ -851,12 +851,38 @@ export default function DriverHomeScreen() {
       }
     };
 
+    // NEW: Handle client selecting this driver's offer (awaiting payment)
+    const onClientSelectedOffer = async (payload: any) => {
+      if (!mounted) return;
+      const rideId = payload?.rideId || payload?.ride?._id;
+      if (!rideId) return;
+      if (incomingRequest && incomingRequest.rideId === rideId) {
+        setIncomingRequest((prev: any) => ({ ...prev, paymentPending: true, status: "payment_pending" }));
+      }
+      await clearIncoming();
+      await driverAlertService.stop().catch(() => {});
+      Toast.show({ type: "success", text1: "Oferta Selecionada!", text2: "Cliente aceitou sua proposta e esta confirmando o pagamento." });
+      if (isFocused) { (navigation as any).navigate("DriverRequests", { initialTab: "negotiation" }); }
+    };
+
+    // NEW: Handle payment expiration (client didn't confirm)
+    const onDeliverySelectionExpired = async (payload: any) => {
+      if (!mounted) return;
+      const reason = payload?.reason || "tempo_pagamento_expirado";
+      await clearIncoming();
+      await driverAlertService.stop().catch(() => {});
+      Toast.show({ type: "error", text1: "Tempo de Pagamento Expirado", text2: "Cliente nao confirmou o pagamento a tempo. Voce foi liberado." });
+      syncAvailableRequests().catch(() => {});
+    };
+
     webSocketService.on("new-ride-request", onNewRideRequest);
     webSocketService.on("ride-taken", onRideTaken);
     webSocketService.on("ride-cancelled", onRideCancelled);
     webSocketService.on("waiting-queue-updated", syncAvailableRequests);
     webSocketService.on("online_time_updated", onOnlineTimeUpdated);
     webSocketService.on("client-counter-proposal", onClientCounterProposal);
+    webSocketService.on("client-selected-offer-awaiting-payment", onClientSelectedOffer);
+    webSocketService.on("delivery-selection-expired", onDeliverySelectionExpired);
 
     webSocketService.connect().catch(() => {});
     syncAvailableRequests().catch(() => {});
@@ -869,6 +895,8 @@ export default function DriverHomeScreen() {
       webSocketService.off("waiting-queue-updated", syncAvailableRequests);
       webSocketService.off("online_time_updated", onOnlineTimeUpdated);
       webSocketService.off("client-counter-proposal", onClientCounterProposal);
+      webSocketService.off("client-selected-offer-awaiting-payment", onClientSelectedOffer);
+      webSocketService.off("delivery-selection-expired", onDeliverySelectionExpired);
     };
   }, [online, incomingRequest?.rideId, isFocused]);
 

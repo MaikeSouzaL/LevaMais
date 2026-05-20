@@ -11,6 +11,7 @@ import EditAccountScreen from "../screens/(authenticated)/Client/Profile/EditAcc
 import AddressPickerScreen from "../screens/(authenticated)/Client/Ride/Request/AddressPicker";
 import DestinationSearchScreen from "../screens/(authenticated)/Client/Ride/Request/DestinationSearch";
 import FavoritesScreen from "../screens/(authenticated)/Client/Favorites/FavoritesList";
+import AddFavoriteScreen from "../screens/(authenticated)/Client/Favorites/AddFavorite";
 import SelectVehicleScreen from "../screens/(authenticated)/Client/Ride/Request/SelectVehicle";
 import ServicePurposeScreen from "../screens/(authenticated)/Client/Ride/Request/ServicePurpose";
 import RideSetupScreen from "../screens/(authenticated)/Client/Ride/Request/RideSetup";
@@ -75,6 +76,7 @@ export default function ClientStackRoutes({
       <Stack.Screen name="DestinationSearch" component={DestinationSearchScreen} />
       <Stack.Screen name="EditFavorite" component={AddressPickerScreen} />
       <Stack.Screen name="Favorites" component={FavoritesScreen} />
+      <Stack.Screen name="AddFavorite" component={AddFavoriteScreen} />
       <Stack.Screen name="SelectVehicle" component={SelectVehicleScreen} />
       <Stack.Screen name="RideSetup" component={RideSetupScreen} />
       <Stack.Screen name="DeliverySetup" component={DeliverySetupScreen} />

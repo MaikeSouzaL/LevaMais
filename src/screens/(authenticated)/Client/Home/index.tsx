@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { MotiView } from "moti";
 import { Info } from "lucide-react-native";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import Toast from "react-native-toast-message";
 
 // ðŸ“ Custom Hooks / Global System
 import { useAuthStore } from "@/context/authStore";
@@ -136,7 +137,24 @@ export default function HomeScreen() {
     // WebSocket listeners for real-time updates
     webSocketService.connect().then(() => {
        webSocketService.on("ride-status-updated", checkActiveRide);
-       webSocketService.on("ride-offers-updated", checkActiveRide);
+              webSocketService.on("ride-offers-updated", checkActiveRide);
+       webSocketService.on("driver-accepted-offer", async (data: any) => {
+        console.log("[Home] driver-accepted-offer received:", data);
+        const rId = data?.rideId;
+        const dId = data?.driverId;
+        if (rId && dId) {
+          try {
+            // Auto-select the driver's offer and navigate to payment
+            await rideService.selectOffer(rId, dId);
+            navigation.navigate("DeliveryPaymentConfirm", { rideId: rId });
+          } catch (e: any) {
+            // Fallback: navigate to marketplace
+            navigation.navigate("RideOffersMarketplace", { rideId: rId });
+          }
+        } else if (rId) {
+          navigation.navigate("RideOffersMarketplace", { rideId: rId });
+        }
+       });
        webSocketService.on("ride-cancelled", (data: any) => {
        console.log("[Home] ride-cancelled received:", data);
        const rId = data?.rideId || data?.ride?._id || data?._id;
@@ -145,6 +163,16 @@ export default function HomeScreen() {
        setActiveRequestingRideId(null);
        setNegotiationRideId(null);
        setWaitingQueueCount(0);
+     });
+       webSocketService.on("ride-payment-expired", (data: any) => {
+       console.log("[Home] ride-payment-expired received:", data);
+       const rId = data?.rideId || data?.ride?._id || data?._id;
+       if (rId) setExpiredRideId(rId);
+       if (navigation.isFocused()) { setShowCancelledModal(true); }
+       setActiveRequestingRideId(null);
+       setNegotiationRideId(null);
+       setWaitingQueueCount(0);
+       Toast.show({ type: "error", text1: "Pagamento Expirado", text2: data?.reason || "Tempo de confirmacao esgotado." });
      });
     }).catch(() => {});
 
@@ -155,8 +183,11 @@ export default function HomeScreen() {
       isMounted = false;
       if (pollInterval) clearInterval(pollInterval);
       webSocketService.off("ride-status-updated", checkActiveRide);
-      webSocketService.off("ride-offers-updated", checkActiveRide);
+             webSocketService.off("ride-offers-updated", checkActiveRide);
+       webSocketService.off("driver-accepted-offer");
       webSocketService.off("ride-cancelled", checkActiveRide);
+       webSocketService.off("ride-payment-expired", checkActiveRide);
+       webSocketService.off("ride-payment-expired", checkActiveRide);
     };
   }, [navigation]);
 
@@ -263,7 +294,7 @@ export default function HomeScreen() {
     } else if ("openDrawer" in navigation && typeof navigation.openDrawer === "function") {
       navigation.openDrawer();
     } else {
-      Alert.alert("Menu", "Navegador Drawer nÃ£o encontrado.");
+      Alert.alert("Menu", "Navegador Drawer não encontrado.");
     }
   }, [navigation]);
 
@@ -544,7 +575,7 @@ export default function HomeScreen() {
       <Modal
         visible={showHomeSuccessModal}
         title="Fila de Espera Ativada!"
-        message="Seu pedido foi para a fila pÃºblica. Assim que um motorista aceitar ou enviar uma proposta, vocÃª serÃ¡ informado na mesma hora sobre a contraproposta ou negociaÃ§Ã£o para aceitar ou nÃ£o!"
+        message="Seu pedido foi para a fila pública. Assim que um motorista aceitar ou enviar uma proposta, você será informado na mesma hora sobre a contraproposta ou negociação para aceitar ou não!"
         type="success"
         confirmText="Entendido"
         onClose={() => setShowHomeSuccessModal(false)}
@@ -585,5 +616,5 @@ const styles = StyleSheet.create({
 
 
 
-
-
+
+

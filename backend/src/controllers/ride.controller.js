@@ -1720,9 +1720,17 @@ class RideController {
       await ride.populate("negotiation.offers.driverId", "name profilePhoto");
 
       if (io) {
-        io.to(`client-${ride.clientId._id || ride.clientId}`).emit("ride-offers-updated", {
+        const clientId = ride.clientId._id || ride.clientId;
+        io.to(`client-${clientId}`).emit("ride-offers-updated", {
           rideId: ride._id,
         });
+        if (status === "accepted") {
+          io.to(`client-${clientId}`).emit("driver-accepted-offer", {
+            rideId: ride._id,
+            driverId,
+            amount,
+          });
+        }
       }
 
       return res.json({

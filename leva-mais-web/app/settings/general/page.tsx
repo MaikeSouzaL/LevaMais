@@ -1,6 +1,6 @@
-﻿"use client";
+"use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Settings,
   Save,
@@ -24,7 +24,9 @@ export default function GeneralSettingsPage() {
     isDevelopmentMode: true,
     defaultSearchRadius: 5000,
     queueRedispatchInterval: 60,
+    rideSearchTimeoutSeconds: 600,
     rideSearchTimeoutMinutes: 10,
+
     splitRules: { representativeShare: 50 },
     driverGoals: { dailyGoalRides: 10, dailyBonusAmount: 20 },
     supportChannels: { phone: "0800123456", email: "suporte@levamais.app", whatsapp: "5500000000000", helpCenterUrl: "" },
@@ -36,15 +38,7 @@ export default function GeneralSettingsPage() {
   const [saving, setSaving] = useState(false);
   const { showToast, ToastContainer } = useToast();
 
-  useEffect(() => {
-    loadConfig();
-    window.addEventListener("platform-config-updated", loadConfig);
-    return () => {
-      window.removeEventListener("platform-config-updated", loadConfig);
-    };
-  }, []);
-
-  const loadConfig = async () => {
+  const loadConfig = useCallback(async () => {
     try {
       const data = await platformConfigService.get();
       setConfig({
@@ -52,7 +46,9 @@ export default function GeneralSettingsPage() {
         isDevelopmentMode: data.isDevelopmentMode !== undefined ? data.isDevelopmentMode : true,
         defaultSearchRadius: data.defaultSearchRadius ?? 5000,
         queueRedispatchInterval: data.queueRedispatchInterval ?? 60,
+        rideSearchTimeoutSeconds: data.rideSearchTimeoutSeconds ?? 600,
         rideSearchTimeoutMinutes: data.rideSearchTimeoutSeconds ? Math.round(data.rideSearchTimeoutSeconds / 60) : 10,
+
         splitRules: {
           representativeShare: data.splitRules?.representativeShare ?? 50
         },
@@ -73,22 +69,30 @@ export default function GeneralSettingsPage() {
         }
       });
     } catch {
-      showToast("Erro ao carregar configuraÃ§Ãµes", "error");
+      showToast("Erro ao carregar configurações", "error");
     } finally {
       setLoading(false);
     }
-  };
+  }, [showToast]);
+
+  useEffect(() => {
+    loadConfig();
+    window.addEventListener("platform-config-updated", loadConfig);
+    return () => {
+      window.removeEventListener("platform-config-updated", loadConfig);
+    };
+  }, [loadConfig]);
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      const payloadForSave = {
-      ...config,
-      rideSearchTimeoutSeconds: config.rideSearchTimeoutMinutes * 60,
-    };
-      delete (payloadForSave as any).rideSearchTimeoutMinutes;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { rideSearchTimeoutMinutes, ...payloadForSave } = {
+        ...config,
+        rideSearchTimeoutSeconds: config.rideSearchTimeoutMinutes * 60,
+      };
       await platformConfigService.update(payloadForSave);
-      showToast("ConfiguraÃ§Ãµes salvas e ativadas com sucesso!", "success");
+      showToast("Configurações salvas e ativadas com sucesso!", "success");
       window.dispatchEvent(new Event("platform-config-updated"));
     } catch {
       showToast("Erro ao salvar no banco", "error");
@@ -102,8 +106,8 @@ export default function GeneralSettingsPage() {
     { id: "search" as TabType, label: "Pesquisa & Fila", icon: Timer },
     { id: "goals" as TabType, label: "Metas dos Motoristas", icon: Trophy },
     { id: "support" as TabType, label: "Canais de Suporte", icon: LifeBuoy },
-    { id: "policies" as TabType, label: "PolÃ­ticas Legais", icon: FileCheck },
-    { id: "operation" as TabType, label: "Modo de OperaÃ§Ã£o", icon: Cpu }
+    { id: "policies" as TabType, label: "Políticas Legais", icon: FileCheck },
+    { id: "operation" as TabType, label: "Modo de Operação", icon: Cpu }
   ];
 
   if (loading) {
@@ -125,10 +129,10 @@ export default function GeneralSettingsPage() {
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight text-gray-900 flex items-center gap-3">
             <Settings className="w-9 h-9 text-emerald-600 animate-spin-slow" />
-            Painel de ConfiguraÃ§Ã£o Global
+            Painel de Configuração Global
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            Gerencie todas as variÃ¡veis estÃ¡ticas, parÃ¢metros de corrida, regras financeiras e canais do app Leva+.
+            Gerencie todas as variáveis estáticas, parâmetros de corrida, regras financeiras e canais do app Leva+.
           </p>
         </div>
         
@@ -140,7 +144,7 @@ export default function GeneralSettingsPage() {
           {saving ? "Salvando..." : (
             <>
               <Save className="w-4 h-4" />
-              Salvar AlteraÃ§Ãµes
+              Salvar Alterações
             </>
           )}
         </button>
@@ -201,9 +205,9 @@ export default function GeneralSettingsPage() {
 
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-1">
-                    ComissÃ£o do Representante (Split %)
+                    Comissão do Representante (Split %)
                   </label>
-                  <p className="text-xs text-gray-400 mb-2">Porcentagem da taxa que Ã© repassada para o representante da cidade.</p>
+                  <p className="text-xs text-gray-400 mb-2">Porcentagem da taxa que é repassada para o representante da cidade.</p>
                   <div className="relative w-full max-w-xs">
                     <input
                       type="number"
@@ -224,13 +228,13 @@ export default function GeneralSettingsPage() {
               <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-xs text-blue-800 flex gap-3">
                 <HelpCircle className="w-5 h-5 text-blue-600 shrink-0" />
                 <div>
-                  <h4 className="font-bold mb-0.5">Exemplo PrÃ¡tico de Repasse</h4>
+                  <h4 className="font-bold mb-0.5">Exemplo Prático de Repasse</h4>
                   Se a taxa for 15% e o split do representante for 50%:
                   <ul className="list-disc pl-4 mt-1 space-y-0.5">
                     <li>Corrida total: R$ 100,00</li>
-                    <li>RetenÃ§Ã£o total: R$ 15,00 (15%)</li>
-                    <li>ComissÃ£o do Representante: R$ 7,50 (50% do retido)</li>
-                    <li>LÃ­quido Plataforma: R$ 7,50</li>
+                    <li>Retenção total: R$ 15,00 (15%)</li>
+                    <li>Comissão do Representante: R$ 7,50 (50% do retido)</li>
+                    <li>Líquido Plataforma: R$ 7,50</li>
                   </ul>
                 </div>
               </div>
@@ -243,16 +247,16 @@ export default function GeneralSettingsPage() {
           <div>
             <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center gap-2">
               <MapPin className="w-5 h-5 text-emerald-600" />
-              <h2 className="font-bold text-gray-900 text-base">ParÃ¢metros de Pesquisa & Tempo</h2>
+              <h2 className="font-bold text-gray-900 text-base">Parâmetros de Pesquisa & Tempo</h2>
             </div>
             
             <div className="p-6 space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-1">
-                    Raio PadrÃ£o de Busca (Metros)
+                    Raio Padrão de Busca (Metros)
                   </label>
-                  <p className="text-xs text-gray-400 mb-2">Raio geogrÃ¡fico inicial mÃ¡ximo para buscar motoristas prÃ³ximos.</p>
+                  <p className="text-xs text-gray-400 mb-2">Raio geográfico inicial máximo para buscar motoristas próximos.</p>
                   <div className="relative">
                     <input
                       type="number"
@@ -269,7 +273,7 @@ export default function GeneralSettingsPage() {
                   <label className="block text-sm font-bold text-gray-700 mb-1">
                     Fila de Redisparo (Segundos)
                   </label>
-                  <p className="text-xs text-gray-400 mb-2">FrequÃªncia em segundos para redisparar e procurar novos motoristas.</p>
+                  <p className="text-xs text-gray-400 mb-2">Frequência em segundos para redisparar e procurar novos motoristas.</p>
                   <div className="relative">
                     <input
                       type="number"
@@ -286,7 +290,7 @@ export default function GeneralSettingsPage() {
                   <label className="block text-sm font-bold text-gray-700 mb-1">
                     Tempo Limite de Busca (Minutos)
                   </label>
-                  <p className="text-xs text-gray-400 mb-2">Tempo mÃ¡ximo de busca antes da corrida expirar por timeout.</p>
+                  <p className="text-xs text-gray-400 mb-2">Tempo máximo de busca antes da corrida expirar por timeout.</p>
                   <div className="relative">
                     <input
                       type="number"
@@ -308,16 +312,16 @@ export default function GeneralSettingsPage() {
           <div>
             <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center gap-2">
               <Trophy className="w-5 h-5 text-emerald-600" />
-              <h2 className="font-bold text-gray-900 text-base">Metas e Campanhas DiÃ¡rias</h2>
+              <h2 className="font-bold text-gray-900 text-base">Metas e Campanhas Diárias</h2>
             </div>
             
             <div className="p-6 space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-1">
-                    Meta de Corridas DiÃ¡rias (Rides)
+                    Meta de Corridas Diárias (Rides)
                   </label>
-                  <p className="text-xs text-gray-400 mb-2">Meta de corridas para liberar o bÃ´nus diÃ¡rio nas telas do motorista.</p>
+                  <p className="text-xs text-gray-400 mb-2">Meta de corridas para liberar o bônus diário nas telas do motorista.</p>
                   <input
                     type="number"
                     min="1"
@@ -332,9 +336,9 @@ export default function GeneralSettingsPage() {
 
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-1">
-                    Valor do BÃ´nus DiÃ¡rio (R$)
+                    Valor do Bônus Diário (R$)
                   </label>
-                  <p className="text-xs text-gray-400 mb-2">PrÃªmio financeiro em carteira adicionado ao completar a meta.</p>
+                  <p className="text-xs text-gray-400 mb-2">Prêmio financeiro em carteira adicionado ao completar a meta.</p>
                   <div className="relative">
                     <span className="absolute left-3 top-3.5 text-gray-500 font-bold text-sm">R$</span>
                     <input
@@ -433,14 +437,14 @@ export default function GeneralSettingsPage() {
           <div>
             <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center gap-2">
               <FileCheck className="w-5 h-5 text-emerald-600" />
-              <h2 className="font-bold text-gray-900 text-base">VersÃµes de Termos & PolÃ­ticas Legais</h2>
+              <h2 className="font-bold text-gray-900 text-base">Versões de Termos & Políticas Legais</h2>
             </div>
             
             <div className="p-6 space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-1">
-                    VersÃ£o dos Termos de Uso
+                    Versão dos Termos de Uso
                   </label>
                   <input
                     type="text"
@@ -455,7 +459,7 @@ export default function GeneralSettingsPage() {
 
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-1">
-                    VersÃ£o da PolÃ­tica de Privacidade
+                    Versão da Política de Privacidade
                   </label>
                   <input
                     type="text"
@@ -470,7 +474,7 @@ export default function GeneralSettingsPage() {
 
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-1">
-                    VersÃ£o do Consentimento de Dados
+                    Versão do Consentimento de Dados
                   </label>
                   <input
                     type="text"
@@ -492,18 +496,18 @@ export default function GeneralSettingsPage() {
           <div>
             <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center gap-2">
               <Cpu className="w-5 h-5 text-emerald-600" />
-              <h2 className="font-bold text-gray-900 text-base">Modo de OperaÃ§Ã£o do Sistema</h2>
+              <h2 className="font-bold text-gray-900 text-base">Modo de Operação do Sistema</h2>
             </div>
             
             <div className="p-6 space-y-6">
               <div className="flex items-center justify-between p-4 bg-amber-50 border border-amber-200/50 rounded-2xl">
                 <div>
                   <label className="block text-sm font-bold text-gray-800">
-                    ðŸ› ï¸ Modo de Desenvolvimento
+                    🛠️ Modo de Desenvolvimento
                   </label>
                   <p className="text-xs text-amber-800 max-w-xl mt-1">
-                    Ao ativar este modo, as consultas de validaÃ§Ã£o (APIs externas) de CPF, CNPJ e Placa de VeÃ­culo sÃ£o desabilitadas no backend.
-                    Isso permite cadastrar qualquer dado fictÃ­cio de testes de maneira imediata.
+                    Ao ativar este modo, as consultas de validação (APIs externas) de CPF, CNPJ e Placa de Veículo são desabilitadas no backend.
+                    Isso permite cadastrar qualquer dado fictício de testes de maneira imediata.
                   </p>
                 </div>
                 <button

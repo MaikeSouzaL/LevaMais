@@ -1,4 +1,4 @@
-import axios from "axios";
+﻿import axios from "axios";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || '';
@@ -27,8 +27,9 @@ export interface PlatformConfig {
   defaultSearchRadius?: number;
   queueRedispatchInterval?: number;
   rideSearchTimeoutSeconds?: number;
+  rideSearchTimeoutMinutes?: number;
   splitRules?: {
-    representativeShare: number; // Padrão 50
+    representativeShare: number;
   };
   driverGoals?: {
     dailyGoalRides: number;
@@ -72,4 +73,3 @@ export const platformConfigService = {
     return res.data.data;
   }
 };
-

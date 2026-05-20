@@ -120,8 +120,8 @@ export default function DriverRequestsScreen() {
     serviceTypes: string[];
   }>({ serviceTypes: [] });
   
-  const requestedInitialTab = route.params?.initialTab || "realtime";
-  const [activeTab, setActiveTab] = useState<"realtime" | "negotiation" | "scheduled">(
+  const requestedInitialTab = route.params?.initialTab === "queue" ? "queue" : route.params?.initialTab || "realtime";
+  const [activeTab, setActiveTab] = useState<"realtime" | "negotiation" | "scheduled" | "queue">(
     requestedInitialTab as any
   );
   const [pendingNegotiations, setPendingNegotiations] = useState<RideRequestItem[]>([]);
@@ -682,13 +682,14 @@ export default function DriverRequestsScreen() {
   // Ã°Å¸â€â‚¬ Advanced Operational Filtration System
   const pendingIds = new Set(pendingNegotiations.map((n) => n.rideId));
   const activeRequests = requests.filter((r) => !pendingIds.has(r.rideId));
+  const queueRides = requests.filter((r) => r.isWaitingInQueue === true);
 
   const currentTabCount =
     activeTab === "realtime"
       ? activeRequests.length
       : activeTab === "negotiation"
       ? pendingNegotiations.length
-      : scheduledRides.length;
+      : activeTab === "scheduled" ? scheduledRides.length : queueRides.length;
 
   return (
     <View style={{ flex: 1, backgroundColor: "#091A2F" }}>
@@ -776,17 +777,19 @@ export default function DriverRequestsScreen() {
             gap: 4
           }}
         >
-          {(["realtime", "negotiation", "scheduled"] as const).map((tab) => {
+          {(["realtime", "negotiation", "scheduled", "queue"] as const).map((tab) => {
             const isActive = activeTab === tab;
             const tabLabels = {
               realtime: "Ofertas",
               negotiation: "Negociações",
               scheduled: "Agendados",
+          queue: "Fila",
             };
             const tabCounts = {
               realtime: activeRequests.length,
               negotiation: pendingNegotiations.length,
               scheduled: scheduledRides.length,
+          queue: queueRides.length,
             };
 
             const isClientCounteredTab = tab === "negotiation" && pendingNegotiations.some((item: any) => 
@@ -911,6 +914,20 @@ export default function DriverRequestsScreen() {
               </MotiView>
             ) : (
               pendingNegotiations.map((r, i) => (
+                <MotiView key={r.rideId} from={{ opacity: 0, translateY: 15 }} animate={{ opacity: 1, translateY: 0 }} transition={{ delay: i * 80 }}>
+                  <DriverRequestCard item={r} onAccept={accept} onReject={reject} onCounterOffer={counterOffer} onOpenDetail={handleOpenDetail} />
+                </MotiView>
+              ))
+            )
+          )}
+
+          {activeTab === "queue" && (
+            queueRides.length === 0 ? (
+              <MotiView from={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                <DriverEmptyState title="Nenhum pedido na fila de espera." />
+              </MotiView>
+            ) : (
+              queueRides.map((r, i) => (
                 <MotiView key={r.rideId} from={{ opacity: 0, translateY: 15 }} animate={{ opacity: 1, translateY: 0 }} transition={{ delay: i * 80 }}>
                   <DriverRequestCard item={r} onAccept={accept} onReject={reject} onCounterOffer={counterOffer} onOpenDetail={handleOpenDetail} />
                 </MotiView>

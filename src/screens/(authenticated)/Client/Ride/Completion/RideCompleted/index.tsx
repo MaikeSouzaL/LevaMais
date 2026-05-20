@@ -1,60 +1,70 @@
-import React, { useMemo, useState } from "react";
+﻿import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
   TextInput,
   ScrollView,
+  StatusBar,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { MaterialIcons } from "@expo/vector-icons";
+import { MotiView } from "moti";
+import {
+  CheckCircle,
+  Star,
+  MapPin,
+  User,
+  Package,
+  Car,
+  DollarSign,
+  Home,
+  MessageSquare,
+  Heart,
+} from "lucide-react-native";
 import Toast from "react-native-toast-message";
 
-import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
-import { ClientScreenHeader, LoadingButton } from "../../../Shared/components";
 import rideService from "@/services/ride.service";
 import { ClientStackParamList } from "../../../types/navigation";
+import { formatBRL } from "@/utils/mappers";
 
 const QUICK_TAGS = [
   "Educado",
-  "Chegou rapido",
-  "Boa comunicacao",
+  "Chegou rápido",
+  "Boa comunicação",
   "Dirigiu com cuidado",
   "Atendimento excelente",
+  "Entrega cuidadosa",
 ];
 
-const ratingLabels: Record<number, string> = {
-  1: "Muito ruim",
-  2: "Ruim",
-  3: "Regular",
-  4: "Bom",
-  5: "Excelente",
+const ratingLabels: Record<number, { label: string; color: string }> = {
+  1: { label: "Muito ruim", color: "#ef4444" },
+  2: { label: "Ruim", color: "#f97316" },
+  3: { label: "Regular", color: "#fbbf24" },
+  4: { label: "Bom", color: "#34d399" },
+  5: { label: "Excelente!", color: "#02de95" },
 };
 
 export default function RideCompletedScreen() {
-  const navigation = useNavigation<
-    NativeStackNavigationProp<ClientStackParamList, "RideCompleted">
-  >();
+  const navigation = useNavigation<NativeStackNavigationProp<ClientStackParamList, "RideCompleted">>();
   const route = useRoute<RouteProp<ClientStackParamList, "RideCompleted">>();
+  const insets = useSafeAreaInsets();
+
   const rideId = route.params?.rideId;
   const total = route.params?.total;
   const pickupAddress = route.params?.pickupAddress;
   const dropoffAddress = route.params?.dropoffAddress;
   const driverName = route.params?.driverName;
   const serviceType = route.params?.serviceType;
-  const isDelivery =
-    serviceType === "delivery" || serviceType === "frete";
+  const isDelivery = serviceType === "delivery" || serviceType === "frete";
 
-  // Rating state
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState("");
   const [sendingRating, setSendingRating] = useState(false);
+  const [ratingDone, setRatingDone] = useState(false);
 
-  // Tip state
   const [selectedTip, setSelectedTip] = useState<number | null>(null);
   const [sendingTip, setSendingTip] = useState(false);
 
@@ -64,21 +74,14 @@ export default function RideCompletedScreen() {
   );
 
   const toggleTag = (tag: string) => {
-    const tags = comment
-      .split(";")
-      .map((t) => t.trim())
-      .filter(Boolean);
+    const tags = comment.split(";").map((t) => t.trim()).filter(Boolean);
     const exists = tags.includes(tag);
     const next = exists ? tags.filter((t) => t !== tag) : [...tags, tag];
     setComment(next.join("; "));
   };
 
   const hasTag = (tag: string) =>
-    comment
-      .split(";")
-      .map((t) => t.trim())
-      .filter(Boolean)
-      .includes(tag);
+    comment.split(";").map((t) => t.trim()).filter(Boolean).includes(tag);
 
   const handleSubmitRating = async () => {
     if (!canSubmitRating || !rideId) return;
@@ -88,11 +91,12 @@ export default function RideCompletedScreen() {
         stars: rating,
         comment: comment.trim() || undefined,
       });
-      Toast.show({ type: "success", text1: "Avaliacao enviada" });
+      setRatingDone(true);
+      Toast.show({ type: "success", text1: "Avaliação enviada!", text2: "Obrigado pelo seu feedback." });
     } catch (error: any) {
       Toast.show({
         type: "error",
-        text1: "Nao foi possivel enviar",
+        text1: "Não foi possível enviar",
         text2: error?.message || "Tente novamente",
       });
     } finally {
@@ -101,14 +105,14 @@ export default function RideCompletedScreen() {
   };
 
   const handleQuickTip = async (amount: number) => {
-    if (!rideId || sendingTip) return;
+    if (!rideId || sendingTip || selectedTip !== null) return;
     setSendingTip(true);
     try {
       await rideService.addTip(rideId, amount);
       setSelectedTip(amount);
       Toast.show({
         type: "success",
-        text1: "Gorjeta enviada!",
+        text1: "Gorjeta enviada! ❤️",
         text2: `Você enviou R$ ${amount.toFixed(2)} ao motorista. Obrigado!`,
       });
     } catch (err: any) {
@@ -123,325 +127,347 @@ export default function RideCompletedScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ClientScreenHeader
-        title={isDelivery ? "Entrega finalizada" : "Corrida finalizada"}
-        subtitle="Pedido concluido com sucesso"
-      />
+    <View style={{ flex: 1, backgroundColor: "#091A2F" }}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
       <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={{ paddingBottom: 120, paddingTop: insets.top + 20 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Conclusão */}
-        <View style={styles.iconWrap}>
-          <MaterialIcons name="check-circle" size={72} color={colors.primary[500]} />
-        </View>
-        <Text style={styles.title}>Tudo certo!</Text>
-        <Text style={styles.subtitle}>Seu pedido foi concluido e registrado no historico.</Text>
-
-        {/* Resumo da corrida */}
-        <View style={styles.summaryCard}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 12 }}>
-            <View style={styles.driverAvatar}>
-              <MaterialIcons name="person" size={24} color={colors.primary[500]} />
-            </View>
-            <View>
-              <Text style={{ color: "#fff", fontSize: 14, fontWeight: "800" }}>
-                {driverName || "Onze Motores App"}
-              </Text>
-              <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 11 }}>Seu Motorista</Text>
-            </View>
-          </View>
-
-          <View style={styles.dottedDivider} />
-
-          {!!pickupAddress && (
-            <View style={styles.routeRow}>
-              <View style={[styles.dot, { backgroundColor: colors.primary[500] }]} />
-              <Text style={styles.meta} numberOfLines={1}>Coleta: {pickupAddress}</Text>
-            </View>
-          )}
-          {!!dropoffAddress && (
-            <View style={styles.routeRow}>
-              <View style={[styles.dot, { backgroundColor: "#ef4444" }]} />
-              <Text style={styles.meta} numberOfLines={1}>Destino: {dropoffAddress}</Text>
-            </View>
-          )}
-
-          <View style={styles.dottedDivider} />
-
-          <View style={styles.totalRow}>
-            <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, fontWeight: "700" }}>Total pago:</Text>
-            {typeof total === "number" && (
-              <Text style={styles.total}>R$ {Number(total).toFixed(2)}</Text>
+        {/* Hero de conclusão */}
+        <MotiView
+          from={{ opacity: 0, scale: 0.7 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ type: "spring", damping: 14, stiffness: 120 }}
+          style={{ alignItems: "center", paddingHorizontal: 24, paddingBottom: 32 }}
+        >
+          <View
+            style={{
+              width: 100, height: 100, borderRadius: 50,
+              backgroundColor: "rgba(2,222,149,0.1)",
+              borderWidth: 2, borderColor: "rgba(2,222,149,0.35)",
+              alignItems: "center", justifyContent: "center",
+              marginBottom: 22,
+            }}
+          >
+            {isDelivery ? (
+              <Package size={46} color="#02de95" />
+            ) : (
+              <Car size={46} color="#02de95" />
             )}
           </View>
-        </View>
 
-        {/* Avaliação do motorista */}
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Avaliar motorista</Text>
-          <Text style={styles.sectionSubtitle}>
-            Como foi a {isDelivery ? "entrega" : "corrida"} com {driverName}?
+          <Text style={{ color: "#02de95", fontSize: 13, fontWeight: "800", textTransform: "uppercase", letterSpacing: 2, marginBottom: 8 }}>
+            {isDelivery ? "Entrega Concluída" : "Corrida Concluída"}
           </Text>
-
-          <View style={styles.stars}>
-            {[1, 2, 3, 4, 5].map((star) => (
-              <TouchableOpacity key={star} onPress={() => setRating(star)} disabled={sendingRating}>
-                <MaterialIcons
-                  name={star <= rating ? "star" : "star-border"}
-                  size={40}
-                  color={colors.primary[500]}
-                />
-              </TouchableOpacity>
-            ))}
-          </View>
-          <Text style={styles.ratingLabel}>
-            {rating > 0 ? ratingLabels[rating] : "Toque nas estrelas para avaliar"}
+          <Text style={{ color: "#fff", fontSize: 28, fontWeight: "900", textAlign: "center", letterSpacing: -0.5 }}>
+            Tudo certo! 🎉
           </Text>
+          <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 14, textAlign: "center", marginTop: 8, lineHeight: 21 }}>
+            Seu pedido foi concluído e registrado no histórico.
+          </Text>
+        </MotiView>
 
-          <Text style={[styles.sectionTitle, { marginTop: spacing.md }]}>Destaques (opcional)</Text>
-          <View style={styles.tagsWrap}>
-            {QUICK_TAGS.map((tag) => {
-              const selected = hasTag(tag);
-              return (
-                <TouchableOpacity
-                  key={tag}
-                  onPress={() => toggleTag(tag)}
-                  style={[styles.tagChip, selected && styles.tagChipSelected]}
-                  activeOpacity={0.8}
-                  disabled={sendingRating}
-                >
-                  <Text style={[styles.tagText, selected && styles.tagTextSelected]}>{tag}</Text>
-                </TouchableOpacity>
-              );
-            })}
+        {/* Card resumo */}
+        <MotiView
+          from={{ opacity: 0, translateY: 20 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ delay: 150, type: "timing", duration: 400 }}
+          style={{
+            marginHorizontal: 20, borderRadius: 24, overflow: "hidden",
+            backgroundColor: "#11253E", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)",
+            marginBottom: 16,
+          }}
+        >
+          {/* Motorista */}
+          <View style={{ flexDirection: "row", alignItems: "center", padding: 20, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)" }}>
+            <View
+              style={{
+                width: 46, height: 46, borderRadius: 23,
+                backgroundColor: "rgba(255,255,255,0.07)",
+                alignItems: "center", justifyContent: "center", marginRight: 14,
+              }}
+            >
+              <User size={22} color="#02de95" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.8 }}>
+                {isDelivery ? "Entregador" : "Motorista"}
+              </Text>
+              <Text style={{ color: "#fff", fontSize: 16, fontWeight: "800", marginTop: 2 }}>
+                {driverName || "Leva Mais"}
+              </Text>
+            </View>
+            <CheckCircle size={20} color="#02de95" />
           </View>
 
-          <TextInput
-            value={comment}
-            onChangeText={setComment}
-            placeholder="Comentario adicional (opcional)"
-            placeholderTextColor={colors.text.tertiary}
-            multiline
-            style={styles.input}
-            editable={!sendingRating}
-          />
+          {/* Rota */}
+          {(pickupAddress || dropoffAddress) && (
+            <View style={{ padding: 20, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)" }}>
+              {pickupAddress && (
+                <View style={{ flexDirection: "row", alignItems: "flex-start", marginBottom: 12, gap: 10 }}>
+                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#02de95", marginTop: 4 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: "700", textTransform: "uppercase", marginBottom: 2 }}>Coleta</Text>
+                    <Text style={{ color: "rgba(255,255,255,0.85)", fontSize: 13 }} numberOfLines={2}>{pickupAddress}</Text>
+                  </View>
+                </View>
+              )}
+              {dropoffAddress && (
+                <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
+                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#ef4444", marginTop: 4 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: "700", textTransform: "uppercase", marginBottom: 2 }}>Entrega</Text>
+                    <Text style={{ color: "rgba(255,255,255,0.85)", fontSize: 13 }} numberOfLines={2}>{dropoffAddress}</Text>
+                  </View>
+                </View>
+              )}
+            </View>
+          )}
 
-          {canSubmitRating && !sendingRating && (
-            <TouchableOpacity style={styles.sendRatingBtn} onPress={handleSubmitRating}>
-              <Text style={styles.sendRatingText}>Enviar avaliacao</Text>
-            </TouchableOpacity>
+          {/* Total pago */}
+          {total !== undefined && total !== null && (
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 20 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <DollarSign size={16} color="rgba(255,255,255,0.4)" />
+                <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, fontWeight: "600" }}>Total pago</Text>
+              </View>
+              <Text style={{ color: "#02de95", fontSize: 22, fontWeight: "900" }}>
+                {formatBRL(Number(total))}
+              </Text>
+            </View>
           )}
-          {sendingRating && (
-            <ActivityIndicator size="small" color={colors.primary[500]} style={{ marginTop: spacing.md }} />
-          )}
-        </View>
+        </MotiView>
 
         {/* Gorjeta */}
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Gorjeta</Text>
-          <Text style={styles.sectionSubtitle}>
-            Deseja reconhecer o motorista com uma gorjeta?
-          </Text>
-
-          <View style={{ flexDirection: "row", gap: 10, marginTop: spacing.sm }}>
-            {[2, 5, 10].map((val) => {
-              const isSelected = selectedTip === val;
-              return (
+        {selectedTip === null && (
+          <MotiView
+            from={{ opacity: 0, translateY: 20 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ delay: 250, type: "timing", duration: 400 }}
+            style={{
+              marginHorizontal: 20, borderRadius: 20, padding: 20,
+              backgroundColor: "#11253E", borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.06)", marginBottom: 16,
+            }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 6, gap: 8 }}>
+              <Heart size={16} color="#f43f5e" />
+              <Text style={{ color: "#fff", fontSize: 15, fontWeight: "800" }}>Enviar Gorjeta</Text>
+            </View>
+            <Text style={{ color: "rgba(255,255,255,0.45)", fontSize: 12, marginBottom: 16, lineHeight: 18 }}>
+              Reconheça um serviço excelente com uma gorjeta para o {isDelivery ? "entregador" : "motorista"}.
+            </Text>
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              {[2, 5, 10].map((val) => (
                 <TouchableOpacity
                   key={val}
-                  disabled={sendingTip || selectedTip !== null}
                   onPress={() => handleQuickTip(val)}
+                  disabled={sendingTip}
+                  activeOpacity={0.8}
                   style={{
-                    flex: 1,
-                    paddingVertical: 10,
-                    borderRadius: 12,
-                    alignItems: "center",
-                    borderWidth: 1,
-                    borderColor: isSelected ? colors.primary[500] : "rgba(255,255,255,0.1)",
-                    backgroundColor: isSelected ? "rgba(2,222,149,0.15)" : "rgba(255,255,255,0.03)",
+                    flex: 1, height: 52, borderRadius: 14,
+                    alignItems: "center", justifyContent: "center",
+                    borderWidth: 1.5,
+                    borderColor: "rgba(244,63,94,0.4)",
+                    backgroundColor: "rgba(244,63,94,0.08)",
                   }}
                 >
-                  {sendingTip && selectedTip === null ? (
-                    <ActivityIndicator size="small" color="#fff" />
+                  {sendingTip ? (
+                    <ActivityIndicator size="small" color="#f43f5e" />
                   ) : (
-                    <Text style={{ color: isSelected ? colors.primary[500] : "#fff", fontSize: 13, fontWeight: "900" }}>
-                      + R$ {val},00
-                    </Text>
+                    <>
+                      <Text style={{ color: "#f43f5e", fontSize: 15, fontWeight: "900" }}>R$ {val}</Text>
+                      <Text style={{ color: "rgba(244,63,94,0.6)", fontSize: 10, fontWeight: "600" }}>gorjeta</Text>
+                    </>
                   )}
                 </TouchableOpacity>
-              );
-            })}
+              ))}
+            </View>
+          </MotiView>
+        )}
+
+        {selectedTip !== null && (
+          <MotiView
+            from={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            style={{
+              marginHorizontal: 20, borderRadius: 20, padding: 18,
+              backgroundColor: "rgba(244,63,94,0.08)", borderWidth: 1,
+              borderColor: "rgba(244,63,94,0.25)", marginBottom: 16,
+              flexDirection: "row", alignItems: "center", gap: 12,
+            }}
+          >
+            <Heart size={20} color="#f43f5e" fill="#f43f5e" />
+            <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700", flex: 1 }}>
+              Gorjeta de R$ {selectedTip},00 enviada! ❤️
+            </Text>
+          </MotiView>
+        )}
+
+        {/* Avaliação */}
+        <MotiView
+          from={{ opacity: 0, translateY: 20 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ delay: 350, type: "timing", duration: 400 }}
+          style={{
+            marginHorizontal: 20, borderRadius: 20, padding: 20,
+            backgroundColor: "#11253E", borderWidth: 1,
+            borderColor: "rgba(255,255,255,0.06)", marginBottom: 16,
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 6, gap: 8 }}>
+            <Star size={16} color="#fbbf24" fill={rating >= 1 ? "#fbbf24" : "none"} />
+            <Text style={{ color: "#fff", fontSize: 15, fontWeight: "800" }}>
+              Avaliar {isDelivery ? "Entregador" : "Motorista"}
+            </Text>
           </View>
-        </View>
+
+          {ratingDone ? (
+            <View style={{ alignItems: "center", paddingVertical: 16 }}>
+              <CheckCircle size={32} color="#02de95" />
+              <Text style={{ color: "#02de95", fontSize: 15, fontWeight: "700", marginTop: 10 }}>Avaliação enviada!</Text>
+              <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginTop: 4 }}>Obrigado pelo seu feedback.</Text>
+            </View>
+          ) : (
+            <>
+              <Text style={{ color: "rgba(255,255,255,0.45)", fontSize: 12, marginBottom: 20, lineHeight: 18 }}>
+                Como foi sua experiência? Sua avaliação ajuda a melhorar o serviço.
+              </Text>
+
+              {/* Estrelas */}
+              <View style={{ flexDirection: "row", justifyContent: "center", gap: 10, marginBottom: 10 }}>
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <TouchableOpacity key={star} onPress={() => setRating(star)} activeOpacity={0.7}>
+                    <MotiView
+                      animate={{ scale: rating >= star ? 1.15 : 1 }}
+                      transition={{ type: "spring", damping: 10 }}
+                    >
+                      <Star
+                        size={38}
+                        color="#fbbf24"
+                        fill={rating >= star ? "#fbbf24" : "none"}
+                        strokeWidth={1.5}
+                      />
+                    </MotiView>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {rating > 0 && (
+                <Text style={{
+                  textAlign: "center", fontSize: 13, fontWeight: "700", marginBottom: 20,
+                  color: ratingLabels[rating]?.color || "#02de95"
+                }}>
+                  {ratingLabels[rating]?.label}
+                </Text>
+              )}
+
+              {/* Tags rápidas */}
+              {rating >= 4 && (
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+                  {QUICK_TAGS.map((tag) => {
+                    const active = hasTag(tag);
+                    return (
+                      <TouchableOpacity
+                        key={tag}
+                        onPress={() => toggleTag(tag)}
+                        activeOpacity={0.8}
+                        style={{
+                          borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7,
+                          borderWidth: 1.5,
+                          borderColor: active ? "#02de95" : "rgba(255,255,255,0.12)",
+                          backgroundColor: active ? "rgba(2,222,149,0.12)" : "rgba(255,255,255,0.03)",
+                        }}
+                      >
+                        <Text style={{
+                          color: active ? "#02de95" : "rgba(255,255,255,0.55)",
+                          fontSize: 12, fontWeight: "700"
+                        }}>
+                          {active ? "✓ " : ""}{tag}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+
+              {/* Comentário */}
+              <TextInput
+                value={comment}
+                onChangeText={setComment}
+                placeholder="Deixe um comentário (opcional)..."
+                placeholderTextColor="rgba(255,255,255,0.2)"
+                multiline
+                numberOfLines={3}
+                style={{
+                  backgroundColor: "rgba(255,255,255,0.04)",
+                  borderWidth: 1, borderColor: "rgba(255,255,255,0.08)",
+                  borderRadius: 14, padding: 14,
+                  color: "#fff", fontSize: 13, textAlignVertical: "top",
+                  minHeight: 80, marginBottom: 16,
+                }}
+              />
+
+              {/* Botão de avaliação */}
+              {canSubmitRating && (
+                <TouchableOpacity
+                  onPress={handleSubmitRating}
+                  disabled={sendingRating}
+                  activeOpacity={0.85}
+                  style={{
+                    height: 52, borderRadius: 16,
+                    backgroundColor: sendingRating ? "rgba(2,222,149,0.5)" : "#02de95",
+                    alignItems: "center", justifyContent: "center",
+                    flexDirection: "row", gap: 8,
+                  }}
+                >
+                  {sendingRating ? (
+                    <ActivityIndicator color="#091A2F" />
+                  ) : (
+                    <>
+                      <Star size={18} color="#091A2F" fill="#091A2F" />
+                      <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 14, textTransform: "uppercase" }}>
+                        Enviar Avaliação
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
+            </>
+          )}
+        </MotiView>
+
       </ScrollView>
 
-      <View style={styles.footer}>
-        <LoadingButton
-          title={canSubmitRating && !sendingRating ? "Pular avaliacao" : "Voltar ao inicio"}
+      {/* Botão fixo de voltar ao início */}
+      <View
+        style={{
+          position: "absolute", bottom: 0, left: 0, right: 0,
+          paddingHorizontal: 20,
+          paddingBottom: insets.bottom + 16,
+          paddingTop: 12,
+          backgroundColor: "rgba(9,26,47,0.97)",
+          borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.06)",
+        }}
+      >
+        <TouchableOpacity
           onPress={() => navigation.navigate("Home")}
-          variant="ghost"
-        />
+          activeOpacity={0.85}
+          style={{
+            height: 56, borderRadius: 18,
+            borderWidth: 1.5, borderColor: "rgba(2,222,149,0.3)",
+            backgroundColor: "rgba(2,222,149,0.08)",
+            alignItems: "center", justifyContent: "center",
+            flexDirection: "row", gap: 10,
+          }}
+        >
+          <Home size={20} color="#02de95" />
+          <Text style={{ color: "#02de95", fontWeight: "900", fontSize: 15, textTransform: "uppercase", letterSpacing: 0.5 }}>
+            Voltar ao Início
+          </Text>
+        </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background.primary },
-  scroll: { flex: 1 },
-  scrollContent: { padding: spacing.xl, paddingBottom: 140 },
-  iconWrap: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    alignSelf: "center",
-    backgroundColor: "rgba(2,222,149,0.09)",
-    borderWidth: 1,
-    borderColor: "rgba(2,222,149,0.28)",
-    marginBottom: spacing.md,
-  },
-  title: {
-    color: colors.text.primary,
-    fontSize: fontSize["2xl"],
-    fontWeight: fontWeight.bold,
-    textAlign: "center",
-  },
-  subtitle: {
-    color: colors.text.secondary,
-    fontSize: fontSize.base,
-    marginTop: spacing.xs,
-    textAlign: "center",
-    lineHeight: 22,
-    marginBottom: spacing.xl,
-  },
-  summaryCard: {
-    borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-    backgroundColor: "rgba(17,37,62,0.62)",
-    padding: spacing.lg,
-    marginBottom: spacing.lg,
-  },
-  driverAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  dottedDivider: {
-    height: 1,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-    borderStyle: "dashed",
-    marginVertical: 10,
-  },
-  routeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginVertical: 4,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  meta: {
-    color: colors.text.tertiary,
-    fontSize: fontSize.sm,
-    flex: 1,
-  },
-  totalRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 4,
-  },
-  total: {
-    color: colors.primary[500],
-    fontSize: fontSize.xl,
-    fontWeight: fontWeight.bold,
-  },
-  card: {
-    backgroundColor: colors.background.secondary,
-    borderWidth: 1,
-    borderColor: colors.border.light,
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-    marginBottom: spacing.lg,
-  },
-  sectionTitle: {
-    color: colors.text.primary,
-    fontSize: fontSize.base,
-    fontWeight: fontWeight.bold,
-    marginBottom: spacing.xs,
-  },
-  sectionSubtitle: {
-    color: colors.text.secondary,
-    fontSize: fontSize.sm,
-    marginBottom: spacing.md,
-  },
-  stars: { flexDirection: "row", justifyContent: "center", gap: spacing.sm },
-  ratingLabel: {
-    color: colors.text.secondary,
-    fontSize: fontSize.sm,
-    textAlign: "center",
-    marginTop: spacing.sm,
-  },
-  tagsWrap: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-    marginBottom: spacing.md,
-  },
-  tagChip: {
-    borderWidth: 1,
-    borderColor: colors.border.light,
-    borderRadius: borderRadius.full,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    backgroundColor: colors.background.primary,
-  },
-  tagChipSelected: {
-    borderColor: colors.primary[500],
-    backgroundColor: "rgba(2,222,149,0.12)",
-  },
-  tagText: { color: colors.text.secondary, fontSize: fontSize.sm },
-  tagTextSelected: { color: colors.primary[500], fontWeight: fontWeight.semibold },
-  input: {
-    minHeight: 80,
-    backgroundColor: colors.background.primary,
-    borderWidth: 1,
-    borderColor: colors.border.light,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    color: colors.text.primary,
-    textAlignVertical: "top",
-  },
-  sendRatingBtn: {
-    marginTop: spacing.md,
-    backgroundColor: colors.primary[500],
-    borderRadius: borderRadius.md,
-    paddingVertical: spacing.md,
-    alignItems: "center",
-  },
-  sendRatingText: {
-    color: "#091A2F",
-    fontSize: fontSize.base,
-    fontWeight: fontWeight.bold,
-  },
-  footer: {
-    padding: spacing.lg,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.06)",
-    backgroundColor: "rgba(10,25,20,0.96)",
-  },
-});

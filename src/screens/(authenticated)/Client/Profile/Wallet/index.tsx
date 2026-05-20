@@ -1,41 +1,74 @@
 ﻿import React, { useCallback, useState } from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { MaterialIcons } from "@expo/vector-icons";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  ActivityIndicator,
+  StatusBar,
+  TextInput,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { MotiView } from "moti";
+import {
+  Wallet,
+  ArrowLeft,
+  Plus,
+  ChevronRight,
+  History,
+  TrendingUp,
+  TrendingDown,
+  CreditCard,
+  RefreshCw,
+  AlertCircle,
+} from "lucide-react-native";
 import Toast from "react-native-toast-message";
 
-import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
 import { formatBRL } from "@/utils/mappers";
-import { ClientScreenHeader, LoadingButton } from "../../Shared/components";
 import { getClientWallet, topupClientWallet, WalletTransaction } from "@/services/auth.service";
 import { ClientStackParamList } from "../../types/navigation";
+import { Modal } from "@/components/Modal";
+
+const QUICK_TOPUPS = [10, 20, 50, 100];
 
 function transactionLabel(type: WalletTransaction["type"]) {
   const map = {
-    topup: "Recarga",
+    topup: "Recarga de saldo",
     ride_payment: "Pagamento de corrida",
     refund: "Estorno",
     adjustment: "Ajuste",
   } as const;
+  return map[type] || "Movimentação";
+}
 
-  return map[type] || "Movimentacao";
+function transactionSign(type: WalletTransaction["type"]) {
+  return type === "topup" || type === "refund" || type === "adjustment" ? "+" : "-";
+}
+
+function transactionColor(type: WalletTransaction["type"]) {
+  return type === "topup" || type === "refund" ? "#02de95" : type === "adjustment" ? "#fbbf24" : "#f43f5e";
 }
 
 export default function WalletScreen() {
-  const navigation = useNavigation<
-    NativeStackNavigationProp<ClientStackParamList, "Wallet">
-  >();
+  const navigation = useNavigation<NativeStackNavigationProp<ClientStackParamList, "Wallet">>();
+  const insets = useSafeAreaInsets();
+
   const [balance, setBalance] = useState(0);
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [topupLoading, setTopupLoading] = useState(false);
 
-  const quickTopups = [10, 20, 50];
+  // Modal de confirmação de recarga
+  const [confirmVisible, setConfirmVisible] = useState(false);
+  const [pendingTopup, setPendingTopup] = useState<number | null>(null);
+  const [customAmount, setCustomAmount] = useState("");
+  const [showCustom, setShowCustom] = useState(false);
 
   const loadWallet = useCallback(async () => {
+    setLoading(true);
     try {
-      setLoading(true);
       const wallet = await getClientWallet();
       setBalance(Number(wallet?.balance || 0));
       setTransactions(wallet?.transactions || []);
@@ -56,15 +89,34 @@ export default function WalletScreen() {
     }, [loadWallet]),
   );
 
-  const handleTopup = async (value: number) => {
+  const handleQuickTopup = (value: number) => {
+    setPendingTopup(value);
+    setConfirmVisible(true);
+  };
+
+  const handleCustomTopup = () => {
+    const parsed = parseFloat(customAmount.replace(",", "."));
+    if (!parsed || parsed < 1) {
+      Toast.show({ type: "error", text1: "Valor inválido", text2: "Informe um valor acima de R$ 1,00" });
+      return;
+    }
+    setPendingTopup(parsed);
+    setConfirmVisible(true);
+  };
+
+  const handleConfirmTopup = async () => {
+    if (!pendingTopup) return;
+    setConfirmVisible(false);
+    setTopupLoading(true);
     try {
-      setLoading(true);
-      const response = await topupClientWallet(value);
+      const response = await topupClientWallet(pendingTopup);
       setBalance(Number(response?.balance || 0));
+      setCustomAmount("");
+      setShowCustom(false);
       Toast.show({
         type: "success",
-        text1: "Saldo atualizado",
-        text2: `+ ${formatBRL(value)} adicionado`,
+        text1: "Saldo adicionado!",
+        text2: `+ ${formatBRL(pendingTopup)} na sua carteira`,
       });
       await loadWallet();
     } catch (error: any) {
@@ -74,186 +126,339 @@ export default function WalletScreen() {
         text2: error?.message || "Tente novamente",
       });
     } finally {
-      setLoading(false);
+      setTopupLoading(false);
+      setPendingTopup(null);
     }
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ClientScreenHeader title="Carteira" subtitle="Saldo e movimentacoes da sua conta" />
+    <View style={{ flex: 1, backgroundColor: "#091A2F" }}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        <View style={styles.balanceCard}>
-          <MaterialIcons name="account-balance-wallet" size={46} color={colors.primary[500]} />
-          <Text style={styles.balanceLabel}>Saldo disponivel</Text>
-          <Text style={styles.balanceValue}>{formatBRL(balance)}</Text>
+      {/* Header */}
+      <View
+        style={{
+          paddingTop: insets.top + 12,
+          paddingHorizontal: 20,
+          paddingBottom: 16,
+          flexDirection: "row",
+          alignItems: "center",
+          borderBottomWidth: 1,
+          borderBottomColor: "rgba(255,255,255,0.06)",
+        }}
+      >
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={{
+            width: 40, height: 40, borderRadius: 14,
+            backgroundColor: "rgba(255,255,255,0.08)",
+            alignItems: "center", justifyContent: "center", marginRight: 14,
+          }}
+        >
+          <ArrowLeft size={22} color="#fff" />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: "#fff", fontSize: 18, fontWeight: "800" }}>Carteira</Text>
+          <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginTop: 2 }}>
+            Saldo e movimentações
+          </Text>
         </View>
+        <TouchableOpacity
+          onPress={loadWallet}
+          disabled={loading}
+          style={{
+            width: 38, height: 38, borderRadius: 12,
+            backgroundColor: "rgba(255,255,255,0.06)",
+            alignItems: "center", justifyContent: "center",
+          }}
+        >
+          {loading ? (
+            <ActivityIndicator color="#02de95" size="small" />
+          ) : (
+            <RefreshCw size={16} color="rgba(255,255,255,0.5)" />
+          )}
+        </TouchableOpacity>
+      </View>
 
-        <View style={styles.actions}>
-          <LoadingButton
-            title="Adicionar saldo rapido"
-            onPress={() => handleTopup(20)}
-            variant="primary"
-            loading={loading}
-          />
+      <ScrollView
+        contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Card de saldo */}
+        <MotiView
+          from={{ opacity: 0, translateY: 12 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          style={{
+            borderRadius: 28, overflow: "hidden",
+            backgroundColor: "#11253E",
+            borderWidth: 1, borderColor: "rgba(2,222,149,0.18)",
+            padding: 28, marginBottom: 20, alignItems: "center",
+            position: "relative",
+          }}
+        >
+          {/* Glow de fundo */}
+          <View style={{ position: "absolute", top: -30, right: -30, width: 100, height: 100, borderRadius: 50, backgroundColor: "rgba(2,222,149,0.06)" }} />
 
-          <View style={styles.quickTopupRow}>
-            {quickTopups.map((value) => (
+          <View style={{
+            width: 60, height: 60, borderRadius: 30,
+            backgroundColor: "rgba(2,222,149,0.12)",
+            borderWidth: 1.5, borderColor: "rgba(2,222,149,0.3)",
+            alignItems: "center", justifyContent: "center", marginBottom: 16,
+          }}>
+            <Wallet size={28} color="#02de95" />
+          </View>
+
+          <Text style={{ color: "rgba(255,255,255,0.45)", fontSize: 11, fontWeight: "700", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 8 }}>
+            Saldo Disponível
+          </Text>
+          {loading ? (
+            <ActivityIndicator color="#02de95" size="large" style={{ marginVertical: 8 }} />
+          ) : (
+            <Text style={{ color: "#02de95", fontSize: 44, fontWeight: "900", letterSpacing: -1 }}>
+              {formatBRL(balance)}
+            </Text>
+          )}
+        </MotiView>
+
+        {/* Recarga rápida */}
+        <MotiView
+          from={{ opacity: 0, translateY: 12 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ delay: 100 }}
+          style={{
+            backgroundColor: "#11253E", borderRadius: 22,
+            borderWidth: 1, borderColor: "rgba(255,255,255,0.06)",
+            padding: 20, marginBottom: 16,
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 16, gap: 8 }}>
+            <Plus size={16} color="#02de95" />
+            <Text style={{ color: "#fff", fontSize: 15, fontWeight: "800" }}>Adicionar Saldo</Text>
+          </View>
+
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
+            {QUICK_TOPUPS.map((value) => (
               <TouchableOpacity
                 key={value}
-                style={styles.quickTopupChip}
-                onPress={() => handleTopup(value)}
-                disabled={loading}
+                onPress={() => handleQuickTopup(value)}
+                disabled={topupLoading}
+                activeOpacity={0.8}
+                style={{
+                  flex: 1, minWidth: "40%", height: 52,
+                  borderRadius: 14, alignItems: "center", justifyContent: "center",
+                  borderWidth: 1.5, borderColor: "rgba(2,222,149,0.3)",
+                  backgroundColor: "rgba(2,222,149,0.07)",
+                }}
               >
-                <Text style={styles.quickTopupText}>+ {formatBRL(value)}</Text>
+                {topupLoading ? (
+                  <ActivityIndicator size="small" color="#02de95" />
+                ) : (
+                  <>
+                    <Text style={{ color: "#02de95", fontSize: 16, fontWeight: "900" }}>
+                      {formatBRL(value)}
+                    </Text>
+                    <Text style={{ color: "rgba(2,222,149,0.55)", fontSize: 10, fontWeight: "600" }}>
+                      adicionar
+                    </Text>
+                  </>
+                )}
               </TouchableOpacity>
             ))}
           </View>
 
-          <LoadingButton
-            title="Historico completo"
-            onPress={() => navigation.navigate("History")}
-            variant="secondary"
-            disabled={loading}
-          />
-        </View>
-
-        <Text style={styles.sectionTitle}>METODOS DE PAGAMENTO</Text>
-        <TouchableOpacity
-          style={styles.paymentMethodCard}
-          onPress={() => navigation.navigate("PaymentsCenter")}
-        >
-          <MaterialIcons name="add-circle" size={24} color={colors.primary[500]} />
-          <Text style={styles.paymentMethodText}>Gerenciar cartões e forma padrão</Text>
-          <MaterialIcons name="chevron-right" size={24} color="#555" />
-        </TouchableOpacity>
-
-        <Text style={styles.sectionTitle}>TRANSACOES RECENTES</Text>
-        {transactions.length === 0 ? (
-          <View style={styles.emptyState}>
-            <MaterialIcons name="receipt" size={42} color={colors.text.tertiary} />
-            <Text style={styles.emptyText}>Nenhuma transacao ainda</Text>
-          </View>
-        ) : (
-          <View style={styles.transactionsList}>
-            {transactions.slice(0, 6).map((item) => (
-              <View key={String(item._id)} style={styles.transactionItem}>
-                <View>
-                  <Text style={styles.transactionTitle}>{transactionLabel(item.type)}</Text>
-                  <Text style={styles.transactionDate}>
-                    {new Date(item.createdAt).toLocaleDateString("pt-BR")}
-                  </Text>
-                </View>
-                <Text style={styles.transactionAmount}>{formatBRL(Number(item.amount || 0))}</Text>
+          {/* Outro valor */}
+          {!showCustom ? (
+            <TouchableOpacity
+              onPress={() => setShowCustom(true)}
+              activeOpacity={0.8}
+              style={{
+                height: 44, borderRadius: 14, borderWidth: 1,
+                borderColor: "rgba(255,255,255,0.1)",
+                backgroundColor: "rgba(255,255,255,0.03)",
+                alignItems: "center", justifyContent: "center",
+              }}
+            >
+              <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, fontWeight: "700" }}>
+                + Outro valor
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <View style={{
+                flex: 1, height: 48, borderRadius: 14,
+                borderWidth: 1.5, borderColor: "rgba(255,255,255,0.12)",
+                backgroundColor: "rgba(255,255,255,0.04)",
+                flexDirection: "row", alignItems: "center", paddingHorizontal: 14,
+              }}>
+                <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 14, fontWeight: "700", marginRight: 4 }}>R$</Text>
+                <TextInput
+                  value={customAmount}
+                  onChangeText={setCustomAmount}
+                  placeholder="0,00"
+                  placeholderTextColor="rgba(255,255,255,0.2)"
+                  keyboardType="decimal-pad"
+                  style={{ flex: 1, color: "#fff", fontSize: 16, fontWeight: "700" }}
+                  autoFocus
+                />
               </View>
-            ))}
+              <TouchableOpacity
+                onPress={handleCustomTopup}
+                disabled={topupLoading}
+                activeOpacity={0.85}
+                style={{
+                  height: 48, paddingHorizontal: 18, borderRadius: 14,
+                  backgroundColor: "#02de95", alignItems: "center", justifyContent: "center",
+                }}
+              >
+                <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 13, textTransform: "uppercase" }}>
+                  OK
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </MotiView>
+
+        {/* Métodos de pagamento */}
+        <MotiView
+          from={{ opacity: 0, translateY: 12 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ delay: 180 }}
+          style={{ marginBottom: 16 }}
+        >
+          <TouchableOpacity
+            onPress={() => navigation.navigate("PaymentsCenter")}
+            activeOpacity={0.85}
+            style={{
+              flexDirection: "row", alignItems: "center", gap: 14,
+              backgroundColor: "#11253E", borderRadius: 18, padding: 18,
+              borderWidth: 1, borderColor: "rgba(255,255,255,0.06)",
+            }}
+          >
+            <View style={{
+              width: 42, height: 42, borderRadius: 13,
+              backgroundColor: "rgba(59,130,246,0.12)",
+              borderWidth: 1, borderColor: "rgba(59,130,246,0.2)",
+              alignItems: "center", justifyContent: "center",
+            }}>
+              <CreditCard size={20} color="#3b82f6" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700" }}>Métodos de Pagamento</Text>
+              <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginTop: 2 }}>
+                Gerenciar cartões e forma padrão
+              </Text>
+            </View>
+            <ChevronRight size={18} color="rgba(255,255,255,0.25)" />
+          </TouchableOpacity>
+        </MotiView>
+
+        {/* Histórico de transações */}
+        <MotiView
+          from={{ opacity: 0, translateY: 12 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ delay: 240 }}
+          style={{
+            backgroundColor: "#11253E", borderRadius: 22,
+            borderWidth: 1, borderColor: "rgba(255,255,255,0.06)", overflow: "hidden",
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 20, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.05)" }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <History size={16} color="rgba(255,255,255,0.5)" />
+              <Text style={{ color: "#fff", fontSize: 15, fontWeight: "800" }}>Transações Recentes</Text>
+            </View>
+            <TouchableOpacity onPress={() => navigation.navigate("History")} activeOpacity={0.8}>
+              <Text style={{ color: "#02de95", fontSize: 12, fontWeight: "700" }}>Ver todas</Text>
+            </TouchableOpacity>
           </View>
-        )}
+
+          {loading ? (
+            <View style={{ padding: 32, alignItems: "center" }}>
+              <ActivityIndicator color="#02de95" />
+            </View>
+          ) : transactions.length === 0 ? (
+            <View style={{ padding: 32, alignItems: "center" }}>
+              <AlertCircle size={32} color="rgba(255,255,255,0.15)" style={{ marginBottom: 12 }} />
+              <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 14, fontWeight: "600" }}>
+                Nenhuma transação ainda
+              </Text>
+              <Text style={{ color: "rgba(255,255,255,0.2)", fontSize: 12, marginTop: 4 }}>
+                Adicione saldo para começar
+              </Text>
+            </View>
+          ) : (
+            <>
+              {transactions.slice(0, 8).map((item, index) => {
+                const sign = transactionSign(item.type);
+                const color = transactionColor(item.type);
+                const Icon = sign === "+" ? TrendingUp : TrendingDown;
+                return (
+                  <View
+                    key={String(item._id || index)}
+                    style={{
+                      flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingVertical: 14,
+                      borderBottomWidth: index < Math.min(transactions.length, 8) - 1 ? 1 : 0,
+                      borderBottomColor: "rgba(255,255,255,0.04)",
+                    }}
+                  >
+                    <View style={{
+                      width: 38, height: 38, borderRadius: 12,
+                      backgroundColor: color + "18",
+                      alignItems: "center", justifyContent: "center", marginRight: 14,
+                    }}>
+                      <Icon size={18} color={color} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: "#fff", fontSize: 13, fontWeight: "700" }}>
+                        {transactionLabel(item.type)}
+                      </Text>
+                      <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 11, marginTop: 2 }}>
+                        {new Date(item.createdAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" })}
+                      </Text>
+                    </View>
+                    <Text style={{ color, fontSize: 14, fontWeight: "900" }}>
+                      {sign}{formatBRL(Number(item.amount || 0))}
+                    </Text>
+                  </View>
+                );
+              })}
+              {transactions.length > 8 && (
+                <TouchableOpacity
+                  onPress={() => navigation.navigate("History")}
+                  activeOpacity={0.8}
+                  style={{ padding: 16, alignItems: "center", borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.04)" }}
+                >
+                  <Text style={{ color: "#02de95", fontSize: 13, fontWeight: "700" }}>
+                    Ver mais {transactions.length - 8} transações
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </>
+          )}
+        </MotiView>
       </ScrollView>
-    </SafeAreaView>
+
+      {/* Modal de confirmação de recarga */}
+      <Modal
+        visible={confirmVisible}
+        title="Confirmar Recarga"
+        type="info"
+        confirmText="Confirmar"
+        onClose={() => { setConfirmVisible(false); setPendingTopup(null); }}
+        onConfirm={handleConfirmTopup}
+      >
+        <View style={{ width: "100%", marginTop: 12, alignItems: "center" }}>
+          <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, textAlign: "center", marginBottom: 12 }}>
+            Você está adicionando à sua carteira:
+          </Text>
+          <Text style={{ color: "#02de95", fontSize: 36, fontWeight: "900" }}>
+            {pendingTopup ? formatBRL(pendingTopup) : ""}
+          </Text>
+          <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 12, textAlign: "center", marginTop: 10, lineHeight: 18 }}>
+            O saldo será creditado imediatamente e poderá ser usado em suas próximas corridas e entregas.
+          </Text>
+        </View>
+      </Modal>
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background.primary },
-  content: { flex: 1 },
-  contentContainer: { padding: spacing.lg },
-  balanceCard: {
-    backgroundColor: colors.background.secondary,
-    padding: spacing.xl,
-    borderRadius: borderRadius.lg,
-    alignItems: "center",
-    marginBottom: spacing.xl,
-    borderWidth: 1,
-    borderColor: colors.border.light,
-  },
-  balanceLabel: {
-    color: colors.text.secondary,
-    fontSize: fontSize.sm,
-    marginTop: spacing.md,
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-  },
-  balanceValue: {
-    color: colors.primary[500],
-    fontSize: fontSize["3xl"],
-    fontWeight: fontWeight.bold,
-    marginTop: spacing.xs,
-  },
-  actions: { gap: spacing.md, marginBottom: spacing.xl },
-  quickTopupRow: { flexDirection: "row", gap: spacing.sm },
-  quickTopupChip: {
-    flex: 1,
-    backgroundColor: colors.background.secondary,
-    borderWidth: 1,
-    borderColor: colors.border.light,
-    borderRadius: borderRadius.md,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: spacing.sm,
-  },
-  quickTopupText: {
-    color: colors.text.primary,
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.semibold,
-  },
-  sectionTitle: {
-    color: colors.text.tertiary,
-    fontSize: fontSize.xs,
-    fontWeight: fontWeight.bold,
-    marginBottom: spacing.md,
-    letterSpacing: 0.8,
-  },
-  emptyState: {
-    alignItems: "center",
-    padding: spacing.xl,
-    borderWidth: 1,
-    borderColor: colors.border.light,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.background.secondary,
-  },
-  emptyText: { color: colors.text.tertiary, fontSize: fontSize.base, marginTop: spacing.md },
-  paymentMethodCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.border.light,
-    padding: spacing.lg,
-    marginBottom: spacing.xl,
-    gap: spacing.md,
-  },
-  paymentMethodText: { color: colors.text.primary, fontSize: fontSize.base, flex: 1, fontWeight: fontWeight.semibold },
-  transactionsList: {
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.border.light,
-    padding: spacing.md,
-    gap: spacing.sm,
-  },
-  transactionItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.05)",
-  },
-  transactionTitle: {
-    color: colors.text.primary,
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.semibold,
-  },
-  transactionDate: {
-    color: colors.text.tertiary,
-    fontSize: fontSize.xs,
-    marginTop: 2,
-  },
-  transactionAmount: {
-    color: colors.primary[500],
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.bold,
-  },
-});
