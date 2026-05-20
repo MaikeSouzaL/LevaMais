@@ -1,7 +1,7 @@
 // Mixin helpers for rating + proofs (separated to keep ride.controller readable)
 
 module.exports.attach = function attach(RideController, deps) {
-  const { Ride, DriverLocation } = deps;
+  const { Ride, DriverLocation, User } = deps;
 
   // Cliente avalia motorista
   RideController.prototype.rateClientToDriver = async function rateClientToDriver(
@@ -33,6 +33,7 @@ module.exports.attach = function attach(RideController, deps) {
         return res.status(400).json({ error: "Avaliação já enviada" });
       }
 
+      // Salvar avaliação na corrida
       ride.rating = ride.rating || {};
       ride.rating.clientRating = {
         stars: n,
@@ -41,7 +42,51 @@ module.exports.attach = function attach(RideController, deps) {
       };
 
       await ride.save();
-      return res.json({ message: "Avaliação registrada" });
+
+      // Atualizar ratingStats do motorista
+      if (ride.driverId && User) {
+        try {
+          const driver = await User.findById(ride.driverId);
+          if (driver) {
+            driver.ratingStats = driver.ratingStats || {
+              averageStars: 0,
+              totalRatings: 0,
+              starDistribution: { "1": 0, "2": 0, "3": 0, "4": 0, "5": 0 },
+            };
+
+            const stats = driver.ratingStats;
+            const starKey = String(n);
+
+            // Atualizar distribuição de estrelas
+            stats.starDistribution[starKey] = (stats.starDistribution[starKey] || 0) + 1;
+            stats.totalRatings += 1;
+
+            // Recalcular média
+            let sum = 0;
+            for (let i = 1; i <= 5; i++) {
+              sum += i * (stats.starDistribution[String(i)] || 0);
+            }
+            stats.averageStars = stats.totalRatings > 0
+              ? Math.round((sum / stats.totalRatings) * 10) / 10
+              : 0;
+
+            await driver.save();
+          }
+        } catch (driverError) {
+          console.error("Erro ao atualizar rating do motorista:", driverError);
+          // Não falhar a requisição se só a atualização do motorista falhar
+        }
+      }
+
+      return res.json({
+        message: "Avaliação registrada",
+        driverRating: ride.driverId
+          ? {
+              average: (await User.findById(ride.driverId))?.ratingStats?.averageStars || 0,
+              total: (await User.findById(ride.driverId))?.ratingStats?.totalRatings || 0,
+            }
+          : null,
+      });
     } catch (error) {
       console.error("Erro ao avaliar motorista:", error);
       return res.status(500).json({ error: "Erro ao avaliar", details: error.message });
@@ -78,6 +123,7 @@ module.exports.attach = function attach(RideController, deps) {
         return res.status(400).json({ error: "Avaliação já enviada" });
       }
 
+      // Salvar avaliação na corrida
       ride.rating = ride.rating || {};
       ride.rating.driverRating = {
         stars: n,
@@ -86,6 +132,39 @@ module.exports.attach = function attach(RideController, deps) {
       };
 
       await ride.save();
+
+      // Atualizar ratingStats do cliente
+      if (ride.clientId && User) {
+        try {
+          const client = await User.findById(ride.clientId);
+          if (client) {
+            client.ratingStats = client.ratingStats || {
+              averageStars: 0,
+              totalRatings: 0,
+              starDistribution: { "1": 0, "2": 0, "3": 0, "4": 0, "5": 0 },
+            };
+
+            const stats = client.ratingStats;
+            const starKey = String(n);
+
+            stats.starDistribution[starKey] = (stats.starDistribution[starKey] || 0) + 1;
+            stats.totalRatings += 1;
+
+            let sum = 0;
+            for (let i = 1; i <= 5; i++) {
+              sum += i * (stats.starDistribution[String(i)] || 0);
+            }
+            stats.averageStars = stats.totalRatings > 0
+              ? Math.round((sum / stats.totalRatings) * 10) / 10
+              : 0;
+
+            await client.save();
+          }
+        } catch (clientError) {
+          console.error("Erro ao atualizar rating do cliente:", clientError);
+        }
+      }
+
       return res.json({ message: "Avaliação registrada" });
     } catch (error) {
       console.error("Erro ao avaliar cliente:", error);

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, TouchableOpacity, Linking, ActivityIndicator, ScrollView, Alert, Dimensions, StatusBar } from "react-native";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -120,10 +120,8 @@ export default function DriverRequestsScreen() {
     serviceTypes: string[];
   }>({ serviceTypes: [] });
   
-  const requestedInitialTab = route.params?.initialTab === "queue" ? "queue" : route.params?.initialTab || "realtime";
-  const [activeTab, setActiveTab] = useState<"realtime" | "negotiation" | "scheduled" | "queue">(
-    requestedInitialTab as any
-  );
+  const requestedInitialTab = route.params?.initialTab === "scheduled" ? "scheduled" : "realtime";
+  const [activeTab, setActiveTab] = useState<"realtime" | "scheduled">(requestedInitialTab as any);
   const [pendingNegotiations, setPendingNegotiations] = useState<RideRequestItem[]>([]);
   const [scheduledRides, setScheduledRides] = useState<any[]>([]);
   const [scheduledFilterInfo, setScheduledFilterInfo] = useState<{
@@ -503,7 +501,7 @@ export default function DriverRequestsScreen() {
             return [updatedReq as any, ...prev];
           });
           setRequests((prev) => prev.filter((r) => r.rideId !== rideId));
-          setActiveTab("negotiation");
+          setActiveTab("realtime");
           driverAlertService.stop().catch(() => {});
         }
       }
@@ -680,16 +678,23 @@ export default function DriverRequestsScreen() {
   };
 
   // Ã°Å¸â€â‚¬ Advanced Operational Filtration System
-  const pendingIds = new Set(pendingNegotiations.map((n) => n.rideId));
-  const activeRequests = requests.filter((r) => !pendingIds.has(r.rideId));
-  const queueRides = requests.filter((r) => r.isWaitingInQueue === true);
+  const offersFeed = useMemo(() => {
+    const byRideId = new Map<string, RideRequestItem>();
 
-  const currentTabCount =
-    activeTab === "realtime"
-      ? activeRequests.length
-      : activeTab === "negotiation"
-      ? pendingNegotiations.length
-      : activeTab === "scheduled" ? scheduledRides.length : queueRides.length;
+    for (const item of pendingNegotiations) {
+      if (!item?.rideId) continue;
+      byRideId.set(item.rideId, item);
+    }
+
+    for (const item of requests) {
+      if (!item?.rideId) continue;
+      if (!byRideId.has(item.rideId)) byRideId.set(item.rideId, item);
+    }
+
+    return Array.from(byRideId.values());
+  }, [pendingNegotiations, requests]);
+
+  const currentTabCount = activeTab === "realtime" ? offersFeed.length : scheduledRides.length;
 
   return (
     <View style={{ flex: 1, backgroundColor: "#091A2F" }}>
@@ -733,7 +738,7 @@ export default function DriverRequestsScreen() {
                 Solicitações
               </Text>
               <Text style={{ color: "rgba(255, 255, 255, 0.4)", fontSize: 11, fontWeight: "700", letterSpacing: 0.3, textTransform: "uppercase", marginTop: 1 }}>
-                Central de Negociação Realtime
+                Central de Ofertas em Tempo Real
               </Text>
             </View>
           </View>
@@ -764,56 +769,37 @@ export default function DriverRequestsScreen() {
 
       {/* Ã°Å¸Â§Â¬ Glassmorphic Operational Tabs Matrix */}
       <View style={{ paddingHorizontal: 16, marginTop: 16, zIndex: 98 }}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{
+        <View
+          style={{
             flexDirection: "row",
             backgroundColor: "rgba(11, 26, 42, 0.4)",
             borderRadius: 20,
             padding: 5,
             borderWidth: 1,
             borderColor: "rgba(255, 255, 255, 0.05)",
-            gap: 4
+            gap: 4,
+            width: "100%",
           }}
         >
-          {(["realtime", "negotiation", "scheduled", "queue"] as const).map((tab) => {
+          {(["realtime", "scheduled"] as const).map((tab) => {
             const isActive = activeTab === tab;
             const tabLabels = {
               realtime: "Ofertas",
-              negotiation: "Negociações",
               scheduled: "Agendados",
-          queue: "Fila",
-            };
+          };
             const tabCounts = {
-              realtime: activeRequests.length,
-              negotiation: pendingNegotiations.length,
-              scheduled: scheduledRides.length,
-          queue: queueRides.length,
-            };
-
-            const isClientCounteredTab = tab === "negotiation" && pendingNegotiations.some((item: any) => 
-              item.negotiation?.offers?.some((o: any) => 
-                o.driverId?.toString() === currentDriverId && o.status === "client_countered"
-              )
-            );
-
-            const getLabelColor = () => {
-              if (isActive) return "#091A2F";
-              if (isClientCounteredTab) return "#F59E0B";
-              return "rgba(255, 255, 255, 0.45)";
-            };
+              realtime: offersFeed.length, scheduled: scheduledRides.length,
+          };
 
             return (
               <TouchableOpacity
                 key={tab}
                 onPress={() => {
                   setActiveTab(tab);
-                  if (tab === "negotiation") loadPendingNegotiations();
                   if (tab === "scheduled") loadScheduledRides();
                 }}
                 style={{
-                  paddingHorizontal: 16,
+                  flex: 1,
                   height: 42,
                   alignItems: "center",
                   justifyContent: "center",
@@ -833,9 +819,9 @@ export default function DriverRequestsScreen() {
                       left: 0,
                       right: 0,
                       bottom: 0,
-                      backgroundColor: isClientCounteredTab ? "#F59E0B" : "#02de95",
+                      backgroundColor: "#02de95",
                       borderRadius: 16,
-                      shadowColor: isClientCounteredTab ? "#F59E0B" : "#02de95",
+                      shadowColor: "#02de95",
                       shadowOffset: { width: 0, height: 4 },
                       shadowOpacity: 0.3,
                       shadowRadius: 8,
@@ -845,31 +831,9 @@ export default function DriverRequestsScreen() {
                   />
                 )}
                 
-                {/* Small pulsing indicator dot on non-active countered tab */}
-                {!isActive && isClientCounteredTab && (
-                  <MotiView
-                    from={{ scale: 0.5, opacity: 0.5 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{
-                      type: "timing",
-                      duration: 1000,
-                      loop: true,
-                    }}
-                    style={{
-                      position: "absolute",
-                      top: 6,
-                      right: 8,
-                      width: 6,
-                      height: 6,
-                      borderRadius: 3,
-                      backgroundColor: "#F59E0B",
-                    }}
-                  />
-                )}
-
                 <Text
                   style={{
-                    color: getLabelColor(),
+                    color: isActive ? "#091A2F" : "rgba(255, 255, 255, 0.45)",
                     fontWeight: "900",
                     fontSize: 10.5,
                     textTransform: "uppercase",
@@ -877,12 +841,12 @@ export default function DriverRequestsScreen() {
                   }}
                   numberOfLines={1}
                 >
-                  {tabLabels[tab]} ({tabCounts[tab]}){isClientCounteredTab ? " Ã°Å¸â€â€" : ""}
+                  {tabLabels[tab]} ({tabCounts[tab]})
                 </Text>
               </TouchableOpacity>
             );
           })}
-        </ScrollView>
+        </View>
       </View>
 
 
@@ -894,40 +858,12 @@ export default function DriverRequestsScreen() {
       >
         <AnimatePresence exitBeforeEnter>
           {activeTab === "realtime" && (
-            activeRequests.length === 0 ? (
+            offersFeed.length === 0 ? (
               <MotiView from={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                 <DriverEmptyState title="Nenhuma oferta no momento." />
               </MotiView>
             ) : (
-              activeRequests.map((r, i) => (
-                <MotiView key={r.rideId} from={{ opacity: 0, translateY: 15 }} animate={{ opacity: 1, translateY: 0 }} transition={{ delay: i * 80 }}>
-                  <DriverRequestCard item={r} onAccept={accept} onReject={reject} onCounterOffer={counterOffer} onOpenDetail={handleOpenDetail} />
-                </MotiView>
-              ))
-            )
-          )}
-
-          {activeTab === "negotiation" && (
-            pendingNegotiations.length === 0 ? (
-              <MotiView from={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                <DriverEmptyState title="Nenhuma negociação ativa pendente." />
-              </MotiView>
-            ) : (
-              pendingNegotiations.map((r, i) => (
-                <MotiView key={r.rideId} from={{ opacity: 0, translateY: 15 }} animate={{ opacity: 1, translateY: 0 }} transition={{ delay: i * 80 }}>
-                  <DriverRequestCard item={r} onAccept={accept} onReject={reject} onCounterOffer={counterOffer} onOpenDetail={handleOpenDetail} />
-                </MotiView>
-              ))
-            )
-          )}
-
-          {activeTab === "queue" && (
-            queueRides.length === 0 ? (
-              <MotiView from={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                <DriverEmptyState title="Nenhum pedido na fila de espera." />
-              </MotiView>
-            ) : (
-              queueRides.map((r, i) => (
+              offersFeed.map((r, i) => (
                 <MotiView key={r.rideId} from={{ opacity: 0, translateY: 15 }} animate={{ opacity: 1, translateY: 0 }} transition={{ delay: i * 80 }}>
                   <DriverRequestCard item={r} onAccept={accept} onReject={reject} onCounterOffer={counterOffer} onOpenDetail={handleOpenDetail} />
                 </MotiView>

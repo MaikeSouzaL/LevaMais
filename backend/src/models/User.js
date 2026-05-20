@@ -462,6 +462,17 @@ const userSchema = new mongoose.Schema(
       activeDateStr: { type: String, default: "" },
       isOnline: { type: Boolean, default: false },
     },
+    ratingStats: {
+      averageStars: { type: Number, default: 0 },
+      totalRatings: { type: Number, default: 0 },
+      starDistribution: {
+        "1": { type: Number, default: 0 },
+        "2": { type: Number, default: 0 },
+        "3": { type: Number, default: 0 },
+        "4": { type: Number, default: 0 },
+        "5": { type: Number, default: 0 },
+      },
+    },
     createdAt: {
       type: Date,
       default: Date.now,

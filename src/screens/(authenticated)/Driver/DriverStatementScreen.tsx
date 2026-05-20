@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import {
 import { MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { DriverScreen } from "./components/DriverScreen";
-import walletService, { StatementItem } from "../../../services/wallet.service";
+import driverService, { BalanceTransaction } from "../../../services/driver.service";
 import Toast from "react-native-toast-message";
 import { LinearGradient } from "expo-linear-gradient";
 
@@ -27,7 +27,7 @@ function formatBRL(value: number) {
 }
 
 export default function DriverStatementScreen() {
-  const [items, setItems] = useState<StatementItem[]>([]);
+  const [items, setItems] = useState<BalanceTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -49,10 +49,10 @@ export default function DriverStatementScreen() {
         setLoading(true);
       }
 
-       const response = await walletService.getStatement(nextPage, 30);
-       setHasNext(Boolean(response?.pagination?.hasNext));
+       const response = await driverService.getBalanceHistory(300);
+       const pageSize = 30; const start = (nextPage - 1) * pageSize; const pageItems = response.slice(start, start + pageSize); setHasNext(start + pageSize < response.length);
        setPage(nextPage);
-       setItems((prev) => (append ? [...prev, ...(response?.items || [])] : response?.items || []));
+       setItems((prev) => (append ? [...prev, ...pageItems] : pageItems));
      } catch (error) {
        console.error('Failed to load statement:', error);
        Toast.show({ type: "error", text1: "Erro ao carregar extrato" });
@@ -81,11 +81,11 @@ export default function DriverStatementScreen() {
   }, [filteredItems]);
 
   const sections = useMemo(() => {
-    const groups: Record<string, StatementItem[]> = {};
+    const groups: Record<string, BalanceTransaction[]> = {};
     const now = new Date();
 
     filteredItems.forEach((item) => {
-      const date = new Date(item.date);
+      const date = new Date(item.createdAt);
       if (Number.isNaN(date.getTime())) return;
 
       let key = date.toLocaleDateString("pt-BR");
@@ -194,7 +194,7 @@ export default function DriverStatementScreen() {
           <SectionList
             sections={sections}
             stickySectionHeadersEnabled={false}
-            keyExtractor={(item) => item._id}
+            keyExtractor={(item) => String(item.id || `${item.createdAt}-${item.amount}`)}
             contentContainerStyle={{ paddingBottom: 40 }}
             refreshControl={
               <RefreshControl
@@ -222,7 +222,7 @@ export default function DriverStatementScreen() {
             )}
             renderItem={({ item }) => {
               const isCredit = item.amount >= 0;
-              const time = new Date(item.date).toLocaleTimeString("pt-BR", {
+              const time = new Date(item.createdAt).toLocaleTimeString("pt-BR", {
                 hour: "2-digit",
                 minute: "2-digit",
               });
@@ -261,7 +261,7 @@ export default function DriverStatementScreen() {
                       />
                     </View>
                     <View>
-                      <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>{item.description}</Text>
+                      <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>{item.reason || "Transação"}</Text>
                       <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 13 }}>{time}</Text>
                     </View>
                   </View>

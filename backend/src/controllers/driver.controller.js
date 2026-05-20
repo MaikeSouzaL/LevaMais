@@ -96,8 +96,10 @@ const driverController = {
         type: t?.type || "deduction",
         amount: Number(t?.amount || 0),
         reason: t?.description || "",
+        description: t?.description || "",
         rideId: t?.rideId ? String(t.rideId) : undefined,
         createdAt: t?.createdAt || null,
+        date: t?.createdAt || null,
         status: t?.status || "completed",
       }));
 
@@ -132,7 +134,15 @@ const driverController = {
 
       res.json({
         success: true,
-        data: balance,
+        data: {
+          ...balance,
+          available: Number(balance.balance || 0),
+          totalWithdrawn: Array.isArray(balance.transactions)
+            ? balance.transactions
+                .filter((t) => t?.type === "withdrawal")
+                .reduce((acc, t) => acc + Number(t?.amount || 0), 0)
+            : 0,
+        },
       });
     } catch (error) {
       res.status(500).json({ error: error.message });

@@ -180,6 +180,7 @@ export interface AvailableRideRequest {
   vehicleType?: string;
   requestedAt?: string;
   distanceToPickup?: number;
+  durationToPickup?: DistanceDuration | null;
   client?: {
     name?: string;
     phone?: string;

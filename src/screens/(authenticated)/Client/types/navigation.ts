@@ -177,6 +177,9 @@ export type ClientStackParamList = {
     pickupAddress?: string;
     dropoffAddress?: string;
     driverName?: string;
+    driverId?: string;
+    driverRating?: { averageStars?: number; totalRatings?: number };
+    existingRating?: { stars: number; comment?: string };
     serviceType?: string;
   };
   ClientRateDriver: { rideId: string; driverName?: string; serviceType?: string };

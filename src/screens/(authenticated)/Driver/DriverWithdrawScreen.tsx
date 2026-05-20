@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { DriverScreen } from "./components/DriverScreen";
-import walletService, { Balance } from "../../../services/wallet.service";
+import driverService from "../../../services/driver.service";
 import Toast from "react-native-toast-message";
 
 function formatBRL(value: number) {
@@ -34,21 +34,9 @@ function parseCurrencyToNumber(raw: string): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function inferPixKeyType(value: string): "cpf" | "email" | "phone" | "random" {
-  const v = String(value || "").trim();
-
-  if (/^[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}$/.test(v)) return "email";
-
-  const digits = v.replace(/\D/g, "");
-  if (digits.length === 11) return "cpf";
-  if (digits.length >= 10 && digits.length <= 13) return "phone";
-
-  return "random";
-}
-
 export default function DriverWithdrawScreen() {
   const navigation = useNavigation<any>();
-  const [balance, setBalance] = useState<Balance>({ available: 0, totalEarnings: 0, totalWithdrawn: 0 });
+  const [availableBalance, setAvailableBalance] = useState(0);
   const [amount, setAmount] = useState("");
   const [pixKey, setPixKey] = useState("");
   const [loading, setLoading] = useState(false);
@@ -57,8 +45,8 @@ export default function DriverWithdrawScreen() {
   const loadBalance = useCallback(async () => {
     try {
       setLoadingBalance(true);
-      const response = await walletService.getBalance();
-      setBalance(response);
+      const response = await driverService.getBalance();
+      setAvailableBalance(Number(response?.balance || 0));
     } finally {
       setLoadingBalance(false);
     }
@@ -78,7 +66,7 @@ export default function DriverWithdrawScreen() {
       return;
     }
 
-    if (value > balance.available) {
+    if (value > availableBalance) {
       Toast.show({ type: "error", text1: "Saldo insuficiente" });
       return;
     }
@@ -91,8 +79,7 @@ export default function DriverWithdrawScreen() {
 
     setLoading(true);
     try {
-      const pixKeyType = inferPixKeyType(trimmedPixKey);
-      await walletService.withdraw(value, trimmedPixKey, pixKeyType);
+      await driverService.requestWithdrawal(value, trimmedPixKey);
 
       Toast.show({
         type: "success",
@@ -116,7 +103,7 @@ export default function DriverWithdrawScreen() {
   };
 
   const setPercent = (percentage: number) => {
-    const value = balance.available * percentage;
+    const value = availableBalance * percentage;
     setAmount(value.toFixed(2).replace(".", ","));
   };
 
@@ -149,7 +136,7 @@ export default function DriverWithdrawScreen() {
             <ActivityIndicator color="#02de95" style={{ marginTop: 10 }} />
           ) : (
             <Text style={{ color: "#fff", fontSize: 42, fontWeight: "900", marginTop: 8 }}>
-              {formatBRL(balance.available)}
+              {formatBRL(availableBalance)}
             </Text>
           )}
         </View>

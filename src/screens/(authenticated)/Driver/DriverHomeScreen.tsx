@@ -851,6 +851,33 @@ export default function DriverHomeScreen() {
       }
     };
 
+    const onRideStatusChanged = async (payload: any) => {
+      if (!mounted) return;
+      const payloadRideId = String(payload?.rideId || payload?._id || payload?.ride?._id || payload?.ride || "");
+      const currentRideId = String(incomingRequest?.rideId || "");
+      if (!payloadRideId || !currentRideId || payloadRideId !== currentRideId) return;
+      const status = String(payload?.status || payload?.ride?.status || "").toLowerCase();
+      const terminalStatuses = [
+        "accepted",
+        "in_progress",
+        "arrived",
+        "completed",
+        "cancelled",
+        "canceled",
+        "cancelled_by_client",
+        "cancelled_by_driver",
+        "cancelled_no_driver",
+        "rejected",
+        "expired",
+        "no_drivers_available",
+      ];
+      if (terminalStatuses.includes(status)) {
+        await clearIncoming();
+        return;
+      }
+      setIncomingRequest((prev: any) => (prev ? { ...prev, status } : prev));
+    };
+
     // NEW: Handle client selecting this driver's offer (awaiting payment)
     const onClientSelectedOffer = async (payload: any) => {
       if (!mounted) return;
@@ -859,7 +886,6 @@ export default function DriverHomeScreen() {
       if (incomingRequest && incomingRequest.rideId === rideId) {
         setIncomingRequest((prev: any) => ({ ...prev, paymentPending: true, status: "payment_pending" }));
       }
-      await clearIncoming();
       await driverAlertService.stop().catch(() => {});
       Toast.show({ type: "success", text1: "Oferta Selecionada!", text2: "Cliente aceitou sua proposta e esta confirmando o pagamento." });
       if (isFocused) { (navigation as any).navigate("DriverRequests", { initialTab: "negotiation" }); }
@@ -883,6 +909,8 @@ export default function DriverHomeScreen() {
     webSocketService.on("client-counter-proposal", onClientCounterProposal);
     webSocketService.on("client-selected-offer-awaiting-payment", onClientSelectedOffer);
     webSocketService.on("delivery-selection-expired", onDeliverySelectionExpired);
+    webSocketService.on("ride-status-updated", onRideStatusChanged);
+    webSocketService.on("ride-status-changed", onRideStatusChanged);
 
     webSocketService.connect().catch(() => {});
     syncAvailableRequests().catch(() => {});
@@ -897,6 +925,8 @@ export default function DriverHomeScreen() {
       webSocketService.off("client-counter-proposal", onClientCounterProposal);
       webSocketService.off("client-selected-offer-awaiting-payment", onClientSelectedOffer);
       webSocketService.off("delivery-selection-expired", onDeliverySelectionExpired);
+      webSocketService.off("ride-status-updated", onRideStatusChanged);
+      webSocketService.off("ride-status-changed", onRideStatusChanged);
     };
   }, [online, incomingRequest?.rideId, isFocused]);
 
@@ -1503,7 +1533,6 @@ export default function DriverHomeScreen() {
 
                  <View className="flex-1">
                     <DriverStatusHeader 
-                      driverBalance={driverBalance ?? 0}
                       pendingRequests={pendingRequests}
                       scheduledCount={scheduledCount}
                       waitingQueueCount={waitingQueueCount}
@@ -1633,10 +1662,6 @@ export default function DriverHomeScreen() {
               countdown={countdown}
               onAccept={acceptIncoming}
               onReject={rejectIncoming}
-              onClose={() => {
-                setIsIncomingRequestDismissed(true);
-                driverAlertService.stop().catch(() => {});
-              }}
               onViewDetail={() => {
                 if (!incomingRequest) return;
                 (navigation as any).navigate("DeliveryOfferDetail", {
@@ -1660,6 +1685,7 @@ export default function DriverHomeScreen() {
               stats={driverStats}
               driverBalance={driverBalance}
               onAddBalance={() => setShowDepositModal(true)}
+              onPressOffers={() => (navigation as any).navigate("DriverRequests", { initialTab: "realtime" })}
             />
           )}
 

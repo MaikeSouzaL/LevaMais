@@ -57,13 +57,19 @@ export default function RideCompletedScreen() {
   const pickupAddress = route.params?.pickupAddress;
   const dropoffAddress = route.params?.dropoffAddress;
   const driverName = route.params?.driverName;
+  const driverId = route.params?.driverId;
+  const driverRatingParam = route.params?.driverRating;
   const serviceType = route.params?.serviceType;
   const isDelivery = serviceType === "delivery" || serviceType === "frete";
 
-  const [rating, setRating] = useState(0);
-  const [comment, setComment] = useState("");
+  const existingRating = route.params?.existingRating;
+  const hasExistingRating = Boolean(existingRating?.stars);
+
+  const [rating, setRating] = useState(existingRating?.stars || 0);
+  const [currentDriverRating, setCurrentDriverRating] = useState(driverRatingParam || null);
+  const [comment, setComment] = useState(existingRating?.comment || "");
   const [sendingRating, setSendingRating] = useState(false);
-  const [ratingDone, setRatingDone] = useState(false);
+  const [ratingDone, setRatingDone] = useState(hasExistingRating);
 
   const [selectedTip, setSelectedTip] = useState<number | null>(null);
   const [sendingTip, setSendingTip] = useState(false);
@@ -197,6 +203,17 @@ export default function RideCompletedScreen() {
               <Text style={{ color: "#fff", fontSize: 16, fontWeight: "800", marginTop: 2 }}>
                 {driverName || "Leva Mais"}
               </Text>
+              {currentDriverRating && (currentDriverRating.totalRatings ?? 0) > 0 && (
+                <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4, gap: 4 }}>
+                  <Star size={12} color="#fbbf24" fill="#fbbf24" />
+                  <Text style={{ color: "#fbbf24", fontSize: 12, fontWeight: "700" }}>
+                    {(currentDriverRating.averageStars ?? 0).toFixed(1)}
+                  </Text>
+                  <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 10 }}>
+                    ({currentDriverRating.totalRatings ?? 0} {(currentDriverRating.totalRatings ?? 0) === 1 ? "avalia??o" : "avalia??es"})
+                  </Text>
+                </View>
+              )}
             </View>
             <CheckCircle size={20} color="#02de95" />
           </View>

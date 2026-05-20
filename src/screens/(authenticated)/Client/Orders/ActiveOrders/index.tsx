@@ -100,6 +100,23 @@ export default function ActiveOrdersScreen() {
       setShowScheduledModal(true);
     } else if (["requesting", "searching_driver", "payment_pending", "offers_received", "no_drivers_available", "cancelled_no_driver"].includes(status)) {
       navigation.navigate("RideOffersMarketplace", { rideId: ride._id });
+    } else if (status === "completed") {
+      navigation.navigate("RideCompleted", {
+        rideId: ride._id,
+        total: ride?.pricing?.total,
+        pickupAddress: ride?.pickup?.address,
+        dropoffAddress: ride?.dropoff?.address,
+        driverName: typeof ride?.driverId === "string" ? undefined : ride?.driverId?.name,
+        driverId: typeof ride?.driverId === "string" ? ride?.driverId : ride?.driverId?._id,
+        driverRating: typeof ride?.driverId === "object" ? ride?.driverId?.ratingStats : undefined,
+        existingRating: ride?.rating?.clientRating?.stars ? {
+          stars: ride.rating.clientRating.stars,
+          comment: ride.rating.clientRating.comment,
+        } : undefined,
+        serviceType: ride?.serviceType,
+      });
+    } else if (["cancelled", "cancelled_by_client", "cancelled_by_driver"].includes(status)) {
+      navigation.navigate("OrderDetails", { rideId: ride._id, order: ride });
     } else {
       navigation.navigate("RideTracking", { rideId: ride._id });
     }
@@ -255,14 +272,14 @@ export default function ActiveOrdersScreen() {
 
   // Filter rides based on active tab
   const activeRides = rides.filter(
-    (r) => 
-      r.status !== "scheduled" && 
-      !["completed", "cancelled", "cancelled_by_client", "cancelled_by_driver", "cancelled_no_driver", "no_drivers_available"].includes(r.status)
+    (r) =>
+      r.status !== "scheduled" &&
+      !["completed", "cancelled", "cancelled_by_client", "cancelled_by_driver"].includes(String(r.status || ""))
   );
   const scheduledRides = rides.filter((r) => r.status === "scheduled");
   const negotiationRides = rides.filter(
     (r) => 
-      ["completed", "cancelled", "cancelled_by_client", "cancelled_by_driver", "cancelled_no_driver", "no_drivers_available"].includes(r.status)
+      ["requesting", "searching_driver", "offers_received", "payment_pending", "no_drivers_available", "cancelled_no_driver"].includes(r.status)
   );
   
   const currentList = activeTab === "active" 
@@ -296,15 +313,15 @@ export default function ActiveOrdersScreen() {
         <View className="flex-1">
           <Text className="text-white text-xl font-bold tracking-wide">Meus Pedidos</Text>
           <Text className="text-slate-400 text-[11px] font-medium mt-0.5">
-            {rides.length === 0 
-              ? "Nenhum chamado ativo no momento" 
-              : `${rides.length} chamado${rides.length !== 1 ? "s ativos" : " ativo"}`}
+            {activeRides.length === 0
+              ? "Nenhum chamado ativo no momento"
+              : `${activeRides.length} chamado${activeRides.length !== 1 ? "s ativos" : " ativo"}`}
           </Text>
         </View>
       </View>
 
       {/* Segmented Tabs (ATIVOS, NEGOCIAÇÕES, AGENDADOS) */}
-      {!loading && rides.length > 0 && (
+      {!loading && (activeRides.length > 0 || scheduledRides.length > 0 || negotiationRides.length > 0) && (
         <View style={{ paddingHorizontal: 16, marginTop: 16, marginBottom: 8, zIndex: 98 }}>
           <View
             style={{
@@ -462,6 +479,17 @@ export default function ActiveOrdersScreen() {
             
             // Corrida elegível para ser promovida a agendada (não iniciada, sem motorista ativo)
             const canBePromoted = ["requesting", "searching_driver", "offers_received", "payment_pending", "no_drivers_available"].includes(ride.status);
+
+            // Cores de fundo do card para a tab de Negociações
+            const negotiationCardColors: Record<string, { bg: string; border: string }> = {
+              completed: { bg: "rgba(2, 222, 149, 0.06)", border: "rgba(2, 222, 149, 0.2)" },
+              cancelled: { bg: "rgba(239, 68, 68, 0.06)", border: "rgba(239, 68, 68, 0.2)" },
+              cancelled_by_client: { bg: "rgba(239, 68, 68, 0.06)", border: "rgba(239, 68, 68, 0.2)" },
+              cancelled_by_driver: { bg: "rgba(239, 68, 68, 0.06)", border: "rgba(239, 68, 68, 0.2)" },
+              cancelled_no_driver: { bg: "rgba(245, 158, 11, 0.06)", border: "rgba(245, 158, 11, 0.2)" },
+              no_drivers_available: { bg: "rgba(251, 191, 36, 0.06)", border: "rgba(251, 191, 36, 0.2)" },
+            };
+            const cardStyle = negotiationCardColors[ride.status] || { bg: "#11253E", border: "rgba(2, 222, 149, 0.15)" };
             
             return (
               <MotiView
@@ -474,11 +502,11 @@ export default function ActiveOrdersScreen() {
                   onPress={() => handleRidePress(ride)}
                   activeOpacity={0.85}
                   style={{
-                    backgroundColor: "#11253E",
+                    backgroundColor: cardStyle.bg,
                     borderRadius: 20,
                     padding: 14,
                     borderWidth: 1,
-                    borderColor: "rgba(2, 222, 149, 0.15)",
+                    borderColor: cardStyle.border,
                     marginBottom: 14,
                     shadowColor: "#000",
                     shadowOffset: { width: 0, height: 6 },

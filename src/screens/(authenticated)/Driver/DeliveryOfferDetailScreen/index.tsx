@@ -30,7 +30,7 @@ import {
 } from "lucide-react-native";
 import Toast from "react-native-toast-message";
 import rideService from "@/services/ride.service";
-import walletService from "@/services/wallet.service";
+import driverService from "@/services/driver.service";
 import { useAuthStore } from "@/context/authStore";
 import { formatBRL } from "@/utils/mappers";
 import { DeliveryOfferMap } from "@/components/driver/delivery-offer/DeliveryOfferMap";
@@ -117,8 +117,8 @@ export default function DeliveryOfferDetailScreen() {
     if (!offer?.rideId) return;
     setAccepting(true);
     try {
-      const balance = await walletService.getBalance();
-      if (balance.available <= 0) {
+      const balance = await driverService.getBalance();
+      if (Number(balance?.balance || 0) <= 0) {
         Toast.show({ type: "error", text1: "Saldo insuficiente", text2: "Adicione saldo para aceitar." });
         return;
       }

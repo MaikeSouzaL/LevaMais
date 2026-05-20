@@ -2373,56 +2373,104 @@ class RideController {
         );
 
         try {
-          let deductAmount = toMoney(ride.pricing?.serviceFee || 0);
-          if (deductAmount <= 0) {
+          const paymentMethod = normalizePaymentMethod(
+            ride?.payment?.method?.type || ride?.payment?.method || ride?.payment
+          );
+          const pricingTotal = toMoney(ride?.pricing?.total || 0);
+
+          let platformFee = toMoney(ride?.pricing?.platformFee ?? ride?.pricing?.serviceFee ?? 0);
+          if (platformFee <= 0 && pricingTotal > 0) {
             const PlatformConfig = require("../models/PlatformConfig");
             const config = await PlatformConfig.findOne().sort({ createdAt: -1 });
             const pct = config ? (config.appFeePercentage || 15) : 15;
-            deductAmount = toMoney((ride.pricing?.total || 0) * (pct / 100));
+            platformFee = toMoney(pricingTotal * (pct / 100));
           }
 
-          if (deductAmount > 0) {
-            const driver = await User.findById(driverId);
-            if (driver && driver.userType === "driver") {
-              if (!driver.driverBalance) {
-                driver.driverBalance = {
-                  balance: 0,
-                  totalDeposits: 0,
-                  totalDeductions: 0,
-                  transactions: [],
-                };
-              }
+          const driverValue = toMoney(
+            ride?.pricing?.driverValue ?? Math.max(0, pricingTotal - platformFee)
+          );
 
+          const driver = await User.findById(driverId);
+          if (driver && driver.userType === "driver") {
+            if (!driver.driverBalance) {
+              driver.driverBalance = {
+                balance: 0,
+                totalDeposits: 0,
+                totalDeductions: 0,
+                transactions: [],
+              };
+            }
+
+            const transactions = Array.isArray(driver.driverBalance.transactions)
+              ? driver.driverBalance.transactions
+              : [];
+            const rideIdStr = String(ride._id);
+            const alreadyCredited = transactions.some(
+              (tx) => tx?.rideId === rideIdStr && tx?.type === "client_in_app_payment"
+            );
+            const alreadyDebited = transactions.some(
+              (tx) => tx?.rideId === rideIdStr && tx?.type === "app_fee_debit"
+            );
+
+            let creditedAmount = 0;
+            let deductedAmount = 0;
+            const isInAppPayment = paymentMethod && paymentMethod !== "cash";
+
+            if (isInAppPayment && driverValue > 0 && !alreadyCredited) {
+              creditedAmount = driverValue;
               driver.driverBalance.balance = toMoney(
-                Math.max(0, driver.driverBalance.balance - deductAmount)
+                (driver.driverBalance.balance || 0) + creditedAmount
               );
-              driver.driverBalance.totalDeductions = toMoney(
-                (driver.driverBalance.totalDeductions || 0) + deductAmount
+              driver.driverBalance.totalDeposits = toMoney(
+                (driver.driverBalance.totalDeposits || 0) + creditedAmount
               );
-
               driver.driverBalance.transactions.push({
-                type: "deduction",
-                amount: deductAmount,
-                description: `DeduÃ§Ã£o de taxa da plataforma para a corrida ${ride._id}`,
-                rideId: ride._id,
+                type: "client_in_app_payment",
+                amount: creditedAmount,
+                description: `Cr�dito da corrida ${rideIdStr} (${paymentMethod})`,
+                rideId: rideIdStr,
                 status: "completed",
                 createdAt: new Date(),
               });
+            }
 
-              await driver.save();
-
-              const io = req.app.get("io");
-              if (io) {
-                io.to(`driver-${driverId}`).emit("balance_updated", {
-                  balance: driver.driverBalance.balance,
-                  deducted: deductAmount,
-                  rideId: ride._id,
-                });
+            if (platformFee > 0 && !alreadyDebited) {
+              deductedAmount = toMoney(
+                Math.min(driver.driverBalance.balance || 0, platformFee)
+              );
+              if (deductedAmount > 0) {
+                driver.driverBalance.balance = toMoney(
+                  Math.max(0, (driver.driverBalance.balance || 0) - deductedAmount)
+                );
               }
+              driver.driverBalance.totalDeductions = toMoney(
+                (driver.driverBalance.totalDeductions || 0) + deductedAmount
+              );
+              driver.driverBalance.transactions.push({
+                type: "app_fee_debit",
+                amount: deductedAmount,
+                description: `Taxa da plataforma da corrida ${rideIdStr}`,
+                rideId: rideIdStr,
+                status: "completed",
+                createdAt: new Date(),
+              });
+            }
+
+            await driver.save();
+
+            const io = req.app.get("io");
+            if (io) {
+              io.to(`driver-${driverId}`).emit("balance_updated", {
+                balance: toMoney(driver.driverBalance.balance || 0),
+                credited: toMoney(creditedAmount),
+                deducted: toMoney(deductedAmount),
+                rideId: ride._id,
+                paymentMethod: paymentMethod || "unknown",
+              });
             }
           }
-        } catch (deductionErr) {
-          console.error("Erro ao descontar saldo do motorista:", deductionErr);
+        } catch (balanceErr) {
+          console.error("Erro ao atualizar saldo unificado do motorista:", balanceErr);
         }
       }
 
@@ -3575,6 +3623,20 @@ function buildRideRequestPayload(ride, extras = {}) {
   const estimatedPlatformFee =
     Number(ride?.pricing?.platformFee ?? ride?.pricing?.serviceFee ?? toMoney(pricingTotal * 0.2)) || 0;
   const requiredBalance = toMoney(pricingTotal * 0.2);
+  const distanceToPickup = Number(extras.distanceToPickup || 0);
+  // Fallback ETA (seconds) until pickup based on straight-line distance when router ETA is unavailable.
+  const durationToPickupSecondsRaw =
+    extras.durationToPickup != null
+      ? Number(extras.durationToPickup)
+      : distanceToPickup > 0
+        ? Math.max(120, Math.round((distanceToPickup / 1000 / 30) * 3600))
+        : 0;
+  const durationToPickupSeconds = Number.isFinite(durationToPickupSecondsRaw)
+    ? Math.max(0, Math.round(durationToPickupSecondsRaw))
+    : 0;
+  const durationToPickupText =
+    durationToPickupSeconds > 0 ? `${Math.max(1, Math.round(durationToPickupSeconds / 60))} min` : null;
+
   return {
     rideId: ride._id,
     pickup: ride.pickup,
@@ -3588,7 +3650,14 @@ function buildRideRequestPayload(ride, extras = {}) {
     isWaitingInQueue: ride.isWaitingInQueue || false,
     details: ride.details || {},
     scheduledFor: ride.scheduledFor || null,
-    distanceToPickup: extras.distanceToPickup,
+    distanceToPickup,
+    durationToPickup:
+      durationToPickupSeconds > 0
+        ? {
+            value: durationToPickupSeconds,
+            text: durationToPickupText,
+          }
+        : null,
     payment: ride.payment || { method: { type: "cash" } },
     financialRisk: {
       requiredBalance,
@@ -3662,7 +3731,7 @@ function isTimeInRange(current, start, end) {
 }
 
 // attach extra handlers
-ratingProofMixin.attach(RideController, { Ride, DriverLocation });
+ratingProofMixin.attach(RideController, { Ride, DriverLocation, User });
 
 const instance = new RideController();
 rideControllerInstance = instance;

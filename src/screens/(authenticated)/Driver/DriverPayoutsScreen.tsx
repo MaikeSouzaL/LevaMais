@@ -2,7 +2,7 @@
 import { Text, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 
-import walletService, { StatementItem } from "../../../services/wallet.service";
+import driverService, { BalanceTransaction } from "../../../services/driver.service";
 import { DriverScreen } from "./components/DriverScreen";
 import SectionCard from "../../../components/ui/SectionCard";
 
@@ -19,14 +19,14 @@ export default function DriverPayoutsScreen() {
   const [paid, setPaid] = useState(0);
 
   const load = useCallback(async () => {
-    const balance = await walletService.getBalance();
-    const statement = await walletService.getStatement(1, 50);
+    const balance = await driverService.getBalance();
+    const statement = await driverService.getBalanceHistory(200);
 
-    const paidTotal = (statement.items || [])
-      .filter((item: StatementItem) => item.type === "withdrawal" && item.status === "paid")
-      .reduce((acc: number, item: StatementItem) => acc + Math.abs(Number(item.amount || 0)), 0);
+    const paidTotal = (statement || [])
+      .filter((item: BalanceTransaction) => item.type === "withdrawal" && item.status === "completed")
+      .reduce((acc: number, item: BalanceTransaction) => acc + Math.abs(Number(item.amount || 0)), 0);
 
-    setAvailable(Number(balance.available || 0));
+    setAvailable(Number(balance.balance || 0));
     setPaid(Number(paidTotal || 0));
   }, []);
 

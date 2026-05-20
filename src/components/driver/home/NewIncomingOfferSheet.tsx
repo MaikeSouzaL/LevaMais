@@ -1,14 +1,13 @@
-import React, { useEffect, useRef } from "react";
+﻿import React from "react";
 import {
   View,
   Text,
   TouchableOpacity,
-  Animated,
   Dimensions,
   ActivityIndicator,
 } from "react-native";
 import { MotiView, AnimatePresence } from "moti";
-import { MapPin, Package, Clock, Route, ChevronRight, Check, X } from "lucide-react-native";
+import { Clock, ChevronRight, CircleDot, Route } from "lucide-react-native";
 import { formatBRL } from "@/utils/mappers";
 
 const { width } = Dimensions.get("window");
@@ -22,27 +21,26 @@ interface NewIncomingOfferSheetProps {
   onViewDetail: () => void;
   acceptLoading?: boolean;
   rejectLoading?: boolean;
-  onClose?: () => void;
 }
 
 function CountdownRing({ value, max }: { value: number; max: number }) {
   const pct = Math.max(0, Math.min(1, (value ?? 0) / (max || 60)));
   const color = pct > 0.4 ? "#02de95" : pct > 0.15 ? "#F59E0B" : "#EF4444";
   return (
-    <View style={{ alignItems: "center", justifyContent: "center", width: 46, height: 46 }}>
+    <View style={{ alignItems: "center", justifyContent: "center", width: 50, height: 50 }}>
       <View
         style={{
-          width: 46,
-          height: 46,
-          borderRadius: 23,
-          borderWidth: 3,
+          width: 50,
+          height: 50,
+          borderRadius: 25,
+          borderWidth: 3.5,
           borderColor: color,
           alignItems: "center",
           justifyContent: "center",
-          backgroundColor: `${color}15`,
+          backgroundColor: `${color}10`,
         }}
       >
-        <Text style={{ color, fontWeight: "900", fontSize: 14 }}>{value ?? "--"}</Text>
+        <Text style={{ color, fontWeight: "900", fontSize: 16 }}>{value ?? "--"}</Text>
       </View>
     </View>
   );
@@ -57,24 +55,45 @@ export function NewIncomingOfferSheet({
   onViewDetail,
   acceptLoading,
   rejectLoading,
-  onClose,
 }: NewIncomingOfferSheetProps) {
+  const formatDistanceFromMeters = (meters?: number): string => {
+    if (typeof meters !== "number" || Number.isNaN(meters) || meters <= 0) return "--";
+    return `${(meters / 1000).toFixed(1).replace(".", ",")} km`;
+  };
+
+  const formatDurationFromSeconds = (seconds?: number): string => {
+    if (typeof seconds !== "number" || Number.isNaN(seconds) || seconds <= 0) return "--";
+    const min = Math.max(1, Math.round(seconds / 60));
+    return `${min} min`;
+  };
+
   const offer = request;
   const baseValue = Number(offer?.negotiation?.clientOffer ?? offer?.pricing?.total ?? 0);
-  const distanceKm = offer?.distance?.text || "--";
-  const durationText = offer?.duration?.text || "--";
+  const routeDistanceMeters = Number(offer?.distance?.value ?? 0);
+  const routeDurationSeconds = Number(offer?.duration?.value ?? 0);
+  const toPickupDistanceMeters = Number(offer?.distanceToPickup ?? 0);
+  const toPickupDurationSecondsRaw = Number(
+    offer?.durationToPickup?.value ?? offer?.etaToPickup?.value ?? 0
+  );
+  const toPickupDurationText = formatDurationFromSeconds(toPickupDurationSecondsRaw);
+  const toPickupDistanceText = formatDistanceFromMeters(toPickupDistanceMeters);
+  const routeDurationText = formatDurationFromSeconds(routeDurationSeconds);
+  const routeDistanceText = formatDistanceFromMeters(routeDistanceMeters);
   const pickup = offer?.pickup?.address || "--";
   const dropoff = offer?.dropoff?.address || "--";
   const maxCountdown = 60;
+  const valuePerKm = routeDistanceMeters > 0 ? baseValue / (routeDistanceMeters / 1000) : 0;
+  const passengerRating = Number(offer?.client?.rating || offer?.clientRating || 5).toFixed(1);
+  const ridesCount = Number(offer?.client?.ridesCount || offer?.client?.totalRides || offer?.clientRides || 0);
 
   return (
     <AnimatePresence>
       {isVisible && offer?.rideId && (
         <MotiView
-          from={{ opacity: 0, translateY: 220 }}
+          from={{ opacity: 0, translateY: 300 }}
           animate={{ opacity: 1, translateY: 0 }}
-          exit={{ opacity: 0, translateY: 220 }}
-          transition={{ type: "spring", damping: 20, stiffness: 200 }}
+          exit={{ opacity: 0, translateY: 300 }}
+          transition={{ type: "spring", damping: 18, stiffness: 180 }}
           style={{
             position: "absolute",
             bottom: 0,
@@ -83,161 +102,148 @@ export function NewIncomingOfferSheet({
             zIndex: 999,
           }}
         >
-          {/* Card */}
           <View
             style={{
-              backgroundColor: "#0D1F35",
-              borderTopLeftRadius: 28,
-              borderTopRightRadius: 28,
-              paddingTop: 10,
-              paddingBottom: 32,
-              paddingHorizontal: 20,
-              borderTopWidth: 1,
-              borderTopColor: "rgba(2,222,149,0.25)",
+              backgroundColor: "#081325",
+              borderTopLeftRadius: 32,
+              borderTopRightRadius: 32,
+              paddingTop: 12,
+              paddingBottom: 36,
+              paddingHorizontal: 22,
+              borderTopWidth: 2,
+              borderTopColor: "rgba(2, 222, 149, 0.35)",
               shadowColor: "#000",
-              shadowOffset: { width: 0, height: -8 },
-              shadowOpacity: 0.4,
-              shadowRadius: 20,
-              elevation: 30,
+              shadowOffset: { width: 0, height: -12 },
+              shadowOpacity: 0.5,
+              shadowRadius: 25,
+              elevation: 35,
             }}
           >
-            {/* Drag handle */}
-            <View style={{ alignItems: "center", marginBottom: 14 }}>
-              <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.15)" }} />
+            <View style={{ alignItems: "center", marginBottom: 12 }}>
+              <View style={{ width: 44, height: 5, borderRadius: 2.5, backgroundColor: "rgba(255, 255, 255, 0.12)" }} />
             </View>
 
-            {/* Top row: value + countdown */}
-            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 16 }}>
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, textTransform: "uppercase", marginBottom: 2 }}>
-                  Novo Pedido de Entrega
-                </Text>
-                <Text style={{ color: "#02de95", fontSize: 28, fontWeight: "900" }}>
-                  {formatBRL(baseValue)}
-                </Text>
-              </View>
-              <TouchableOpacity
-                onPress={onClose}
-                activeOpacity={0.8}
-                style={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: 21,
-                  backgroundColor: "rgba(255, 255, 255, 0.05)",
-                  borderWidth: 1.5,
-                  borderColor: "rgba(255, 255, 255, 0.15)",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <X size={18} color="rgba(255, 255, 255, 0.85)" strokeWidth={2.5} />
-              </TouchableOpacity>
-            </View>
+            <View style={{ marginBottom: 16 }} />
 
-            {/* Addresses */}
             <View
               style={{
-                backgroundColor: "rgba(255,255,255,0.04)",
-                borderRadius: 14,
+                backgroundColor: "rgba(255, 255, 255, 0.02)",
+                borderRadius: 18,
                 padding: 14,
-                marginBottom: 14,
                 borderWidth: 1,
-                borderColor: "rgba(255,255,255,0.06)",
+                borderColor: "rgba(255,255,255,0.08)",
+                marginBottom: 20,
               }}
             >
-              <View style={{ flexDirection: "row", alignItems: "flex-start", marginBottom: 10 }}>
-                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#02de95", marginTop: 4, marginRight: 10 }} />
-                <Text style={{ color: "rgba(255,255,255,0.8)", fontSize: 12, flex: 1, lineHeight: 18 }} numberOfLines={2}>
-                  {pickup}
+              <View style={{ alignItems: "center" }}>
+                <Text style={{ color: "#FFFFFF", fontSize: 52, fontWeight: "900", letterSpacing: -1.2 }}>
+                  {formatBRL(baseValue)}
+                </Text>
+                <Text style={{ color: "rgba(255,255,255,0.85)", fontSize: 14, fontWeight: "800", marginTop: -3 }}>
+                  {valuePerKm > 0 ? `${formatBRL(valuePerKm)}/km` : "--/km"}
                 </Text>
               </View>
-              <View style={{ flexDirection: "row", alignItems: "flex-start" }}>
-                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#EF4444", marginTop: 4, marginRight: 10 }} />
-                <Text style={{ color: "rgba(255,255,255,0.8)", fontSize: 12, flex: 1, lineHeight: 18 }} numberOfLines={2}>
-                  {dropoff}
-                </Text>
+
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 5 }}>
+                    <CircleDot size={14} color="rgba(255,255,255,0.95)" />
+                    <Text style={{ color: "rgba(255,255,255,0.92)", fontSize: 12.5, fontWeight: "700", marginLeft: 6 }}>
+                      {passengerRating} · {ridesCount} corridas
+                    </Text>
+                  </View>
+                </View>
+                {countdown !== null && <CountdownRing value={countdown} max={maxCountdown} />}
+              </View>
+
+              <View style={{ borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.08)", paddingTop: 11 }}>
+                <View style={{ flexDirection: "row", marginBottom: 12 }}>
+                  <Route size={16} color="#34D399" style={{ marginTop: 1, marginRight: 7 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: "#fff", fontSize: 15, fontWeight: "900" }}>
+                      {(toPickupDurationText !== "--" ? toPickupDurationText : "Sem ETA")} ({toPickupDistanceText}) até a coleta
+                    </Text>
+                    <Text style={{ color: "rgba(255,255,255,0.78)", fontSize: 13, fontWeight: "500", lineHeight: 18 }} numberOfLines={2}>
+                      {pickup}
+                    </Text>
+                  </View>
+                </View>
+                <View style={{ flexDirection: "row" }}>
+                  <Clock size={16} color="#FB923C" style={{ marginTop: 1, marginRight: 7 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: "#fff", fontSize: 15, fontWeight: "900" }}>
+                      {routeDurationText} ({routeDistanceText}) até a entrega
+                    </Text>
+                    <Text style={{ color: "rgba(255,255,255,0.78)", fontSize: 13, fontWeight: "500", lineHeight: 18 }} numberOfLines={2}>
+                      {dropoff}
+                    </Text>
+                  </View>
+                </View>
               </View>
             </View>
 
-            {/* Stats */}
-            <View style={{ flexDirection: "row", gap: 8, marginBottom: 18 }}>
-              <View style={{ flex: 1, flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 10, padding: 10, gap: 6 }}>
-                <Route size={14} color="#02de95" />
-                <Text style={{ color: "rgba(255,255,255,0.8)", fontSize: 12, fontWeight: "700" }}>{distanceKm}</Text>
-              </View>
-              <View style={{ flex: 1, flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 10, padding: 10, gap: 6 }}>
-                <Clock size={14} color="#F59E0B" />
-                <Text style={{ color: "rgba(255,255,255,0.8)", fontSize: 12, fontWeight: "700" }}>{durationText}</Text>
-              </View>
-            </View>
-
-            {/* Action buttons */}
             <View style={{ gap: 10 }}>
-              {/* Accept */}
               <TouchableOpacity
                 onPress={onAccept}
-                disabled={acceptLoading}
+                disabled={acceptLoading || rejectLoading}
                 style={{
-                  height: 52,
-                  borderRadius: 14,
+                  height: 56,
+                  borderRadius: 16,
                   backgroundColor: "#02de95",
                   flexDirection: "row",
                   alignItems: "center",
                   justifyContent: "center",
                   gap: 8,
+                  shadowColor: "#02de95",
+                  shadowOffset: { width: 0, height: 6 },
+                  shadowOpacity: 0.35,
+                  shadowRadius: 10,
+                  elevation: 5,
                 }}
                 activeOpacity={0.85}
               >
                 {acceptLoading ? (
-                  <ActivityIndicator color="#091A2F" />
+                  <ActivityIndicator color="#081325" size="small" />
                 ) : (
-                  <>
-                    <Check size={18} color="#091A2F" strokeWidth={2.5} />
-                    <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 14 }}>
-                      Aceitar {formatBRL(baseValue)}
-                    </Text>
-                  </>
+                  <Text style={{ color: "#081325", fontWeight: "900", fontSize: 15, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                    ACEITAR CORRIDA • {formatBRL(baseValue)}
+                  </Text>
                 )}
               </TouchableOpacity>
 
               <View style={{ flexDirection: "row", gap: 10 }}>
-                {/* Reject */}
                 <TouchableOpacity
                   onPress={onReject}
-                  disabled={rejectLoading}
+                  disabled={acceptLoading || rejectLoading}
                   style={{
                     flex: 1,
-                    height: 46,
+                    height: 48,
                     borderRadius: 14,
-                    borderWidth: 1,
-                    borderColor: "rgba(239,68,68,0.4)",
+                    borderWidth: 1.5,
+                    borderColor: "rgba(239, 68, 68, 0.4)",
+                    backgroundColor: "rgba(239, 68, 68, 0.05)",
                     alignItems: "center",
                     justifyContent: "center",
-                    flexDirection: "row",
-                    gap: 6,
                   }}
                   activeOpacity={0.8}
                 >
                   {rejectLoading ? (
                     <ActivityIndicator color="#EF4444" size="small" />
                   ) : (
-                    <>
-                      <X size={15} color="#EF4444" />
-                      <Text style={{ color: "#EF4444", fontWeight: "700", fontSize: 13 }}>Recusar</Text>
-                    </>
+                    <Text style={{ color: "#EF4444", fontWeight: "800", fontSize: 13, textTransform: "uppercase" }}>Recusar</Text>
                   )}
                 </TouchableOpacity>
 
-                {/* View detail */}
                 <TouchableOpacity
                   onPress={onViewDetail}
+                  disabled={acceptLoading || rejectLoading}
                   style={{
-                    flex: 1.5,
-                    height: 46,
+                    flex: 1.4,
+                    height: 48,
                     borderRadius: 14,
-                    backgroundColor: "rgba(99,102,241,0.15)",
-                    borderWidth: 1,
-                    borderColor: "rgba(99,102,241,0.4)",
+                    backgroundColor: "rgba(59, 130, 246, 0.1)",
+                    borderWidth: 1.5,
+                    borderColor: "rgba(59, 130, 246, 0.35)",
                     alignItems: "center",
                     justifyContent: "center",
                     flexDirection: "row",
@@ -245,8 +251,8 @@ export function NewIncomingOfferSheet({
                   }}
                   activeOpacity={0.85}
                 >
-                  <Text style={{ color: "#A5B4FC", fontWeight: "700", fontSize: 13 }}>Ver Detalhes</Text>
-                  <ChevronRight size={14} color="#A5B4FC" />
+                  <Text style={{ color: "#93C5FD", fontWeight: "800", fontSize: 13, textTransform: "uppercase" }}>Ver Detalhes</Text>
+                  <ChevronRight size={15} color="#93C5FD" strokeWidth={2.5} />
                 </TouchableOpacity>
               </View>
             </View>

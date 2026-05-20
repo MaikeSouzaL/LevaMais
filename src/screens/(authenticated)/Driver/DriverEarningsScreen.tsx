@@ -12,7 +12,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 
 import rideService, { Ride } from "../../../services/ride.service";
-import walletService, { Balance } from "../../../services/wallet.service";
+import driverService from "../../../services/driver.service";
 import websocketService from "../../../services/websocket.service";
 import { DriverScreen } from "./components/DriverScreen";
 import { DriverDepositModal } from "@/components/DriverDepositModal";
@@ -50,11 +50,7 @@ export default function DriverEarningsScreen() {
   const [balanceVisible, setBalanceVisible] = useState(true);
   const [showDepositModal, setShowDepositModal] = useState(false);
 
-  const [balance, setBalance] = useState<Balance>({
-    available: 0,
-    totalEarnings: 0,
-    totalWithdrawn: 0,
-  });
+  const [availableBalance, setAvailableBalance] = useState(0);
   const [driverStats, setDriverStats] = useState({ earnings: 0, rides: 0, goal: 10, bonus: 0 });
   const [rides, setRides] = useState<Ride[]>([]);
   const [chartData, setChartData] = useState<{ label: string; value: number; count?: number }[]>([]);
@@ -68,13 +64,13 @@ export default function DriverEarningsScreen() {
       }
 
       const [balanceRes, statsRes, historyRes, chartRes] = await Promise.all([
-        walletService.getBalance(),
+        driverService.getBalance(),
         rideService.getDriverStats(),
         rideService.getHistory({ limit: 20, page: 1 }),
         rideService.getEarningsHistory(period),
       ]);
 
-      setBalance(balanceRes);
+      setAvailableBalance(Number(balanceRes?.balance || 0));
       setDriverStats(statsRes);
       setRides(historyRes.rides || []);
        setChartData((chartRes || []).map((item) => ({ label: item.label, value: item.value || 0, count: item.count || 0 })));
@@ -255,7 +251,7 @@ export default function DriverEarningsScreen() {
           </Text>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: 8 }}>
             <Text style={{ color: "#fff", fontSize: 32, fontWeight: "900", letterSpacing: -1 }}>
-              {balanceVisible ? formatBRL(balance.available) : "*******"}
+              {balanceVisible ? formatBRL(availableBalance) : "*******"}
             </Text>
             <TouchableOpacity onPress={() => setBalanceVisible((prev) => !prev)}>
               <Ionicons
