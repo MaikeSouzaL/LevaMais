@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
-import { Bell } from "lucide-react-native";
+import { Bell, X } from "lucide-react-native";
 import { MotiView } from "moti";
 
 interface DriverStatusHeaderProps {
@@ -10,6 +10,7 @@ interface DriverStatusHeaderProps {
   pendingNegotiationsCount: number;
   onPressNotifications: () => void;
   online: boolean;
+  incomingMode?: boolean;
 }
 
 export function DriverStatusHeader({
@@ -19,6 +20,7 @@ export function DriverStatusHeader({
   pendingNegotiationsCount,
   onPressNotifications,
   online,
+  incomingMode = false,
 }: DriverStatusHeaderProps) {
   const totalAlerts =
     pendingRequests +
@@ -35,20 +37,25 @@ export function DriverStatusHeader({
           height: 58,
           width: 58,
           borderRadius: 16,
-          borderWidth: 1,
-          borderColor:
-            totalAlerts > 0
+          borderWidth: incomingMode ? 0 : 1,
+          borderColor: incomingMode
+            ? "transparent"
+            : totalAlerts > 0
               ? "rgba(251,191,36,0.5)"
               : "rgba(255,255,255,0.1)",
           alignItems: "center",
           justifyContent: "center",
-          backgroundColor: "#091A2F",
+          backgroundColor: incomingMode ? "transparent" : "#091A2F",
           position: "relative",
         }}
       >
-        <Bell size={22} color={totalAlerts > 0 ? "#FBBF24" : "rgba(255,255,255,0.8)"} />
+        {incomingMode ? (
+          <X size={24} color="#FFFFFF" />
+        ) : (
+          <Bell size={22} color={totalAlerts > 0 ? "#FBBF24" : "rgba(255,255,255,0.8)"} />
+        )}
 
-        {totalAlerts > 0 && (
+        {totalAlerts > 0 && !incomingMode && (
           <MotiView
             from={{ scale: 0 }}
             animate={{ scale: 1 }}

@@ -1,5 +1,32 @@
 const User = require("../models/User");
 const PlatformConfig = require("../models/PlatformConfig");
+const DriverDailyStats = require("../models/DriverDailyStats");
+
+const DEFAULT_APP_TIMEZONE = process.env.APP_TIMEZONE || "America/Sao_Paulo";
+
+function getDateKeyInTimezone(date = new Date(), timeZone = DEFAULT_APP_TIMEZONE) {
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(date);
+    const year = parts.find((p) => p.type === "year")?.value;
+    const month = parts.find((p) => p.type === "month")?.value;
+    const day = parts.find((p) => p.type === "day")?.value;
+    if (!year || !month || !day) return date.toISOString().split("T")[0];
+    return `${year}-${month}-${day}`;
+  } catch {
+    return date.toISOString().split("T")[0];
+  }
+}
+
+function toMoney(value) {
+  const number = Number(value || 0);
+  if (!Number.isFinite(number)) return 0;
+  return Math.round(number * 100) / 100;
+}
 
 function normalizeServiceTypes(raw) {
   if (raw === undefined || raw === null) return undefined;
@@ -544,6 +571,53 @@ const driverController = {
         });
       }
 
+      const now = new Date();
+      const todayStr = getDateKeyInTimezone(now);
+      user.onlineStats = user.onlineStats || {
+        totalSecondsToday: 0,
+        lastHeartbeatAt: now,
+        activeDateStr: todayStr,
+        isOnline: false,
+      };
+
+      if (user.onlineStats.activeDateStr !== todayStr) {
+        await DriverDailyStats.findOneAndUpdate(
+          { driverId: user._id, dateStr: user.onlineStats.activeDateStr },
+          {
+            $set: {
+              totalSeconds: Number(user.onlineStats.totalSecondsToday || 0),
+              walletBalanceEnd: toMoney(user?.driverBalance?.balance || 0),
+              lastOfflineAt: now,
+            },
+          },
+          { upsert: true, new: true }
+        );
+
+        user.onlineStats.totalSecondsToday = 0;
+        user.onlineStats.activeDateStr = todayStr;
+      }
+
+      user.onlineStats.lastHeartbeatAt = now;
+      user.onlineStats.isOnline = true;
+      await user.save();
+
+      await DriverDailyStats.findOneAndUpdate(
+        { driverId: user._id, dateStr: todayStr },
+        {
+          $setOnInsert: {
+            walletBalanceStart: toMoney(user?.driverBalance?.balance || 0),
+            firstOnlineAt: now,
+          },
+          $set: {
+            walletBalanceEnd: toMoney(user?.driverBalance?.balance || 0),
+          },
+          $inc: {
+            onlineSessionsCount: 1,
+          },
+        },
+        { upsert: true, new: true }
+      );
+
       // Buscar appFeePercentage para informar ao motorista
       const config = await PlatformConfig.findOne().catch(() => null);
       const appFeePercentage = config?.appFeePercentage ?? 15;
@@ -552,6 +626,7 @@ const driverController = {
         success: true,
         message: "Motorista liberado para trabalhar",
         balance: balance,
+        totalSecondsToday: Number(user?.onlineStats?.totalSecondsToday || 0),
         appFeePercentage,
       });
     } catch (error) {
@@ -572,9 +647,60 @@ const driverController = {
         return res.status(403).json({ error: "Usuário não é um motorista" });
       }
 
+      const now = new Date();
+      const todayStr = getDateKeyInTimezone(now);
+      user.onlineStats = user.onlineStats || {
+        totalSecondsToday: 0,
+        lastHeartbeatAt: now,
+        activeDateStr: todayStr,
+        isOnline: false,
+      };
+
+      if (user.onlineStats.activeDateStr !== todayStr) {
+        await DriverDailyStats.findOneAndUpdate(
+          { driverId: user._id, dateStr: user.onlineStats.activeDateStr },
+          {
+            $set: {
+              totalSeconds: Number(user.onlineStats.totalSecondsToday || 0),
+              walletBalanceEnd: toMoney(user?.driverBalance?.balance || 0),
+              lastOfflineAt: now,
+            },
+          },
+          { upsert: true, new: true }
+        );
+
+        user.onlineStats.totalSecondsToday = 0;
+        user.onlineStats.activeDateStr = todayStr;
+      } else if (user.onlineStats.isOnline && user.onlineStats.lastHeartbeatAt) {
+        const diffSec = Math.floor((Date.now() - new Date(user.onlineStats.lastHeartbeatAt).getTime()) / 1000);
+        if (diffSec > 0 && diffSec < 3600) {
+          user.onlineStats.totalSecondsToday += diffSec;
+        }
+      }
+
+      user.onlineStats.lastHeartbeatAt = now;
+      user.onlineStats.isOnline = false;
+      await user.save();
+
+      await DriverDailyStats.findOneAndUpdate(
+        { driverId: user._id, dateStr: todayStr },
+        {
+          $set: {
+            totalSeconds: Number(user.onlineStats.totalSecondsToday || 0),
+            walletBalanceEnd: toMoney(user?.driverBalance?.balance || 0),
+            lastOfflineAt: now,
+          },
+          $setOnInsert: {
+            walletBalanceStart: toMoney(user?.driverBalance?.balance || 0),
+          },
+        },
+        { upsert: true, new: true }
+      );
+
       res.json({
         success: true,
         message: "Motorista offline",
+        totalSecondsToday: Number(user?.onlineStats?.totalSecondsToday || 0),
       });
     } catch (error) {
       res.status(500).json({ error: error.message });

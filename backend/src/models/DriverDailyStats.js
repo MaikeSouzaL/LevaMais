@@ -20,6 +20,10 @@ const DriverDailyStatsSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    onlineSessionsCount: {
+      type: Number,
+      default: 0,
+    },
     completedRidesCount: {
       type: Number,
       default: 0,
@@ -27,6 +31,26 @@ const DriverDailyStatsSchema = new mongoose.Schema(
     totalEarnings: {
       type: Number,
       default: 0,
+    },
+    totalPlatformFees: {
+      type: Number,
+      default: 0,
+    },
+    walletBalanceStart: {
+      type: Number,
+      default: 0,
+    },
+    walletBalanceEnd: {
+      type: Number,
+      default: 0,
+    },
+    firstOnlineAt: {
+      type: Date,
+      default: null,
+    },
+    lastOfflineAt: {
+      type: Date,
+      default: null,
     },
   },
   {

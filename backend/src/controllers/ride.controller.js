@@ -2457,6 +2457,32 @@ class RideController {
             }
 
             await driver.save();
+            try {
+              const DriverDailyStats = require("../models/DriverDailyStats");
+              const now = new Date();
+              const dateStr = getDateKeyInTimezone(now);
+              await DriverDailyStats.findOneAndUpdate(
+                { driverId, dateStr },
+                {
+                  $inc: {
+                    completedRidesCount: 1,
+                    totalEarnings: toMoney(creditedAmount),
+                    totalPlatformFees: toMoney(deductedAmount),
+                  },
+                  $set: {
+                    walletBalanceEnd: toMoney(driver.driverBalance.balance || 0),
+                  },
+                  $setOnInsert: {
+                    walletBalanceStart: toMoney(driver.driverBalance.balance || 0),
+                    firstOnlineAt: now,
+                  },
+                },
+                { upsert: true, new: true }
+              );
+            } catch (dailyStatsErr) {
+              console.error("Erro ao atualizar DriverDailyStats na conclusão da corrida:", dailyStatsErr);
+            }
+
 
             const io = req.app.get("io");
             if (io) {

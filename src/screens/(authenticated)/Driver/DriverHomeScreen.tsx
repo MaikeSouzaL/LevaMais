@@ -41,7 +41,7 @@ import { Modal } from "../../../components/Modal";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
 import { MotiView } from "moti";
-import { MapPin, Menu, Target, Layers, ShieldAlert, Info , AlertTriangle} from "lucide-react-native";
+import { MapPin, Menu, Target, Layers, ShieldAlert, Info , AlertTriangle } from "lucide-react-native";
 import { DriverStatusHeader } from "@/components/driver/home/DriverStatusHeader";
 import { NewIncomingOfferSheet } from "@/components/driver/home/NewIncomingOfferSheet";
 import { PremiumMapMarker } from "@/components/maps/PremiumMapMarker";
@@ -157,6 +157,7 @@ export default function DriverHomeScreen() {
   const vehicleType = (userData?.vehicleType ||
     "motorcycle") as DriverVehicleType;
   const vehicleInfo = (userData?.vehicleInfo || {}) as any;
+  const hasActiveIncomingRequest = !!incomingRequest?.rideId && !isIncomingRequestDismissed;
 
   const getGoogleMapsApiKey = () => {
     // Prefer env (não expõe a key no repo)
@@ -1011,6 +1012,7 @@ export default function DriverHomeScreen() {
       if (!next) {
         // indo para offline
         await stopSharing();
+        await refreshTodayEarnings();
       } else {
         // exige pelo menos um tipo
         const types = currentServiceTypes();
@@ -1045,6 +1047,7 @@ export default function DriverHomeScreen() {
         }
 
         await startSharing();
+        await refreshTodayEarnings();
         // Consulta de corrida ativa em segundo plano
         rideService
           .getActive()
@@ -1526,32 +1529,25 @@ export default function DriverHomeScreen() {
               <View className="absolute top-12 left-4 right-4 z-50 flex-row items-center gap-3">
                  <TouchableOpacity
                    onPress={() => (navigation as any).openDrawer?.()}
-                   className="h-[58px] w-[58px] bg-[#091A2F] rounded-2xl border border-white/10 items-center justify-center shadow-2xl"
+                   className="h-[58px] w-[58px] items-center justify-center"
                  >
                     <Menu size={24} color="#FFF" />
                  </TouchableOpacity>
 
-                 <View className="flex-1">
-                    <DriverStatusHeader 
-                      pendingRequests={pendingRequests}
-                      scheduledCount={scheduledCount}
-                      waitingQueueCount={waitingQueueCount}
-                      pendingNegotiationsCount={pendingNegotiationsCount}
-                      onPressNotifications={handleNotifications}
-                      online={online}
-                    />
-                 </View>
+                 <View className="flex-1" />
               </View>
 
               {/* 🛠️ Map Action Buttons (Centering, Zoom, Layers, SOS) */}
-              <MapActionButtons 
-                onSosPress={handleSOS}
-                onLocationPress={handleCenterMyLocation}
-                onMapStylePress={handleToggleMapStyle}
-                useDarkMap={useDarkMap}
-                isCentering={isCentering}
-                isSwitchingStyle={isSwitchingMapStyle}
-              />
+              {!hasActiveIncomingRequest && (
+                <MapActionButtons 
+                  onSosPress={handleSOS}
+                  onLocationPress={handleCenterMyLocation}
+                  onMapStylePress={handleToggleMapStyle}
+                  useDarkMap={useDarkMap}
+                  isCentering={isCentering}
+                  isSwitchingStyle={isSwitchingMapStyle}
+                />
+              )}
 
               {/* ⚠️ ACTIVE OFFER PENDING BANNER */}
               {isIncomingRequestDismissed && incomingRequest?.rideId && (
@@ -1821,3 +1817,6 @@ export default function DriverHomeScreen() {
     </ErrorBoundary>
   );
 }
+
+
+
