@@ -198,6 +198,13 @@ export default function PaymentScreenEnhanced() {
           value: (order.etaMinutes || 0) * 60,
           text: order.etaText || `${order.etaMinutes || 0} min`,
         },
+        routeCoordinates:
+          Array.isArray(order.routeCoordinates) && order.routeCoordinates.length >= 2
+            ? order.routeCoordinates
+            : [
+                { latitude: order.pickupLatLng.latitude, longitude: order.pickupLatLng.longitude },
+                { latitude: order.dropoffLatLng.latitude, longitude: order.dropoffLatLng.longitude },
+              ],
         payment: paymentMethodForRide,
         promotionCode: appliedPromo?.code,
         details: {

@@ -33,6 +33,7 @@ interface RideSetupRouteParams {
   vehicleType?: "car" | "motorcycle" | "van" | "truck";
   pickup: { address: string; latitude: number; longitude: number };
   dropoff: { address: string; latitude: number; longitude: number };
+  routeCoordinates?: Array<{ latitude: number; longitude: number }>;
 }
 
 export default function RideSetupScreen() {
@@ -113,6 +114,12 @@ export default function RideSetupScreen() {
         },
         distance: priceData.distance,
         duration: priceData.duration,
+        routeCoordinates:
+          Array.isArray(pathCoords) && pathCoords.length >= 2
+            ? pathCoords
+            : Array.isArray(params.routeCoordinates) && params.routeCoordinates.length >= 2
+              ? params.routeCoordinates
+              : undefined,
         cityId: detectedCity?.cityId || undefined,
         negotiation: {
           enabled: true,

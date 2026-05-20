@@ -1,9 +1,11 @@
-import React from "react";
+﻿import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
 
 import ActionButton from "../../../../components/ui/ActionButton";
 import { driverTheme } from "./driverTheme";
+import { PaymentProcessingCard } from "./payment/PaymentProcessingCard";
+import type { PaymentRealtimeState } from "./payment/PaymentStateManager";
 
 export type DriverStatusCardProps = {
   statusLabel: string;
@@ -49,6 +51,8 @@ export type DriverStatusCardProps = {
   arrivedAtDropoff?: boolean;
   canArriveDropoff?: boolean;
   onArriveDropoff?: () => void;
+  paymentRealtimeState?: PaymentRealtimeState;
+  paymentEtaSeconds?: number;
 };
 
 export function DriverStatusCard({
@@ -73,6 +77,8 @@ export function DriverStatusCard({
   arrivedAtDropoff = false,
   canArriveDropoff = false,
   onArriveDropoff,
+  paymentRealtimeState,
+  paymentEtaSeconds = 300,
 }: DriverStatusCardProps) {
   const busy = actionLoading != null;
 
@@ -266,7 +272,7 @@ export function DriverStatusCard({
         const rawType = typeof payment?.method === "object" ? payment?.method?.type : payment?.method;
         const type = rawType || "cash";
 
-        let label = "DINHEIRO EM MÃOS";
+        let label = "DINHEIRO EM MÃƒOS";
         let color = "#02de95";
         let icon = "money-bill-wave";
 
@@ -275,7 +281,7 @@ export function DriverStatusCard({
           color = "#32BCAD";
           icon = "qrcode";
         } else if (["card", "credit_card", "debit_card"].includes(String(type))) {
-          label = "CARTÃO DE CRÉDITO/DÉBITO";
+          label = "CARTÃƒO DE CRÃ‰DITO/DÃ‰BITO";
           color = "#3b82f6";
           icon = "credit-card";
         }
@@ -321,11 +327,11 @@ export function DriverStatusCard({
           }}
         >
           <Text style={{ color: "#60a5fa", fontSize: 9.5, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>
-            📦 Informações Adicionais da Carga
+            ðŸ“¦ InformaÃ§Ãµes Adicionais da Carga
           </Text>
           {!!details?.recipientName && (
             <Text style={{ color: "rgba(255,255,255,0.8)", fontSize: 11 }}>
-              Destinatário: <Text style={{ color: "#fff", fontWeight: "700" }}>{details.recipientName}</Text>
+              DestinatÃ¡rio: <Text style={{ color: "#fff", fontWeight: "700" }}>{details.recipientName}</Text>
             </Text>
           )}
           {!!details?.recipientPhone && (
@@ -335,17 +341,17 @@ export function DriverStatusCard({
           )}
           {!!details?.pickupComplement && (
             <Text style={{ color: "rgba(255,255,255,0.8)", fontSize: 11 }}>
-              Anotações Coleta: <Text style={{ color: "#fff", fontWeight: "500" }}>{details.pickupComplement}</Text>
+              AnotaÃ§Ãµes Coleta: <Text style={{ color: "#fff", fontWeight: "500" }}>{details.pickupComplement}</Text>
             </Text>
           )}
           {!!details?.dropoffComplement && (
             <Text style={{ color: "rgba(255,255,255,0.8)", fontSize: 11 }}>
-              Anotações Destino: <Text style={{ color: "#fff", fontWeight: "500" }}>{details.dropoffComplement}</Text>
+              AnotaÃ§Ãµes Destino: <Text style={{ color: "#fff", fontWeight: "500" }}>{details.dropoffComplement}</Text>
             </Text>
           )}
           {!!details?.recipientInstructions && (
             <Text style={{ color: "rgba(255,255,255,0.8)", fontSize: 11 }}>
-              Instruções: <Text style={{ color: "#fff", fontWeight: "500" }}>{details.recipientInstructions}</Text>
+              InstruÃ§Ãµes: <Text style={{ color: "#fff", fontWeight: "500" }}>{details.recipientInstructions}</Text>
             </Text>
           )}
           {!!details?.deliveryPin && (
@@ -380,27 +386,11 @@ export function DriverStatusCard({
         </View>
       )}
 
-      {/* Awaiting Payment Warning Component */}
       {isAwaitingPayment && (
-        <View
-          style={{
-            padding: 14,
-            backgroundColor: "rgba(245,158,11,0.06)",
-            borderRadius: 16,
-            borderWidth: 1,
-            borderColor: "rgba(245,158,11,0.2)",
-            alignItems: "center",
-            gap: 6,
-          }}
-        >
-          <FontAwesome5 name="hourglass-half" size={20} color="#F59E0B" />
-          <Text style={{ color: "#F59E0B", fontSize: 12.5, fontWeight: "900" }}>
-            Cliente selecionou sua oferta!
-          </Text>
-          <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 10.5, textAlign: "center", lineHeight: 14 }}>
-            Aguardando a confirmação do pagamento do cliente no aplicativo para liberar o início da rota.
-          </Text>
-        </View>
+        <PaymentProcessingCard
+          forcedState={paymentRealtimeState}
+          estimatedSeconds={paymentEtaSeconds}
+        />
       )}
 
       {/* Dropoff Arrived banner (delivery flow) */}
@@ -417,7 +407,7 @@ export function DriverStatusCard({
           }}
         >
           <Text style={{ color: "#02de95", fontSize: 10, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5 }}>
-            🏁 Chegada no ponto de entrega registrada!
+            ðŸ Chegada no ponto de entrega registrada!
           </Text>
         </View>
       )}

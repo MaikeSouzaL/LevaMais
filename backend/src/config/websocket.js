@@ -158,7 +158,7 @@ function initializeWebSocket(server) {
             });
 
             // Persistir track point (a cada atualizacao com ride ativa)
-            const activeStatuses = ["driver_arriving", "arrived", "in_progress"];
+            const activeStatuses = ["accepted", "driver_arriving", "arrived", "in_progress"];
             if (activeStatuses.includes(ride.status)) {
               try {
                 await RideTrackPoint.create({

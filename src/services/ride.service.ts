@@ -6,6 +6,11 @@ export interface Location {
   longitude: number;
 }
 
+export interface RouteCoordinate {
+  latitude: number;
+  longitude: number;
+}
+
 export interface PricingCalculation {
   basePrice: number;
   distancePrice: number;
@@ -59,6 +64,7 @@ export interface CreateRideRequest {
     };
   };
   scheduledFor?: string;
+  routeCoordinates?: RouteCoordinate[];
   negotiation?: {
     enabled?: boolean;
     clientOffer?: number;
@@ -79,6 +85,7 @@ export interface Ride {
   pricing: PricingCalculation;
   distance: DistanceDuration;
   duration: DistanceDuration;
+  routeCoordinates?: RouteCoordinate[];
   details?: RideDetails;
   status: string;
   cancellationFee?: number;
@@ -325,6 +332,11 @@ class RideService {
    */
   async getById(rideId: string): Promise<Ride> {
     const response = await api.get(`/rides/${rideId}`);
+    return response.data;
+  }
+
+  async getRouteAudit(rideId: string): Promise<any> {
+    const response = await api.get(`/rides/${rideId}/route-audit`);
     return response.data;
   }
 

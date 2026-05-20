@@ -21,6 +21,7 @@ import DriverSettingsScreen from "../screens/(authenticated)/Driver/DriverSettin
 import DriverWithdrawScreen from "../screens/(authenticated)/Driver/DriverWithdrawScreen";
 import DriverStatementScreen from "../screens/(authenticated)/Driver/DriverStatementScreen";
 import DriverRideDetailsScreen from "../screens/(authenticated)/Driver/DriverRideDetailsScreen";
+import DriverHistoryRideDetailsScreen from "../screens/(authenticated)/Driver/DriverHistoryRideDetailsScreen";
 import DriverHelpScreen from "../screens/(authenticated)/Driver/DriverHelpScreen";
 import DriverChatScreen from "../screens/(authenticated)/Driver/DriverChatScreen";
 import DriverSafetyScreen from "../screens/(authenticated)/Driver/DriverSafetyScreen";
@@ -239,6 +240,7 @@ export default function DrawerDriverRoutes({ initialRideId }: DrawerDriverRoutes
       <Drawer.Screen name="DriverNegotiation" component={DriverNegotiationScreen} options={HiddenScreenOptions} />
       <Drawer.Screen name="DeliveryOfferScreen" component={DeliveryOfferScreen} options={HiddenScreenOptions} />
       <Drawer.Screen name="DeliveryOfferDetail" component={DeliveryOfferDetailScreen} options={HiddenScreenOptions} />
+      <Drawer.Screen name="DriverHistoryRideDetails" component={DriverHistoryRideDetailsScreen} options={HiddenScreenOptions} />
     </Drawer.Navigator>
   );
 }

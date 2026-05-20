@@ -195,7 +195,7 @@ export default function DriverHistoryScreen() {
               <MotiView from={{ opacity: 0, translateY: 10 }} animate={{ opacity: 1, translateY: 0 }} transition={{ delay: Math.min(index * 40, 200) }}>
                 <TouchableOpacity
                   activeOpacity={0.85}
-                  onPress={() => navigation.navigate("DriverFinance", { screen: "DriverRideDetails", params: { rideId: ride._id } })}
+                  onPress={() => navigation.navigate("DriverHistoryRideDetails", { rideId: ride._id })}
                   style={{ backgroundColor: "#11253E", borderRadius: 18, borderWidth: 1, borderColor: "rgba(255,255,255,0.07)", overflow: "hidden" }}
                 >
                   <View style={{ flexDirection: "row", alignItems: "center", padding: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.05)" }}>

@@ -151,6 +151,13 @@ const rideSchema = new mongoose.Schema(
       value: Number, // em segundos
       text: String, // "15 min"
     },
+    // Rota planejada enviada no momento da criacao do pedido (A -> B)
+    routeCoordinates: [
+      {
+        latitude: { type: Number, required: true },
+        longitude: { type: Number, required: true },
+      },
+    ],
     // Detalhes adicionais
     details: {
       itemType: String, // Para entregas

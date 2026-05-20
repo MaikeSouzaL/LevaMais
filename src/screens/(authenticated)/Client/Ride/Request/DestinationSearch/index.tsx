@@ -272,6 +272,7 @@ export default function DestinationSearchScreen({ navigation, route }: any) {
         preferScheduled: Boolean(params.preferScheduled),
         pickup: pickupData,
         dropoff: dropoffData,
+        routeCoordinates,
         initialDistanceKm: distanceRaw,
         initialDurationMin: durationRaw,
       });
@@ -280,6 +281,7 @@ export default function DestinationSearchScreen({ navigation, route }: any) {
         vehicleType: (params.initialVehicle as any) || "car",
         pickup: pickupData,
         dropoff: dropoffData,
+        routeCoordinates,
       });
     }
   };

@@ -29,6 +29,7 @@ interface DeliverySetupParams {
   preferScheduled?: boolean;
   pickup: { address: string; latitude: number; longitude: number };
   dropoff: { address: string; latitude: number; longitude: number };
+  routeCoordinates?: Array<{ latitude: number; longitude: number }>;
   initialDistanceKm?: number;
   initialDurationMin?: number;
 }
@@ -183,6 +184,7 @@ export default function DeliverySetupScreen({ navigation, route }: any) {
     navigation.navigate("DeliveryReview", {
       pickup: params.pickup,
       dropoff: params.dropoff,
+      routeCoordinates: params.routeCoordinates,
       cityId: detectedCity?.cityId || undefined,
       preferScheduled: Boolean(params.preferScheduled),
       scheduledOffsetMin,

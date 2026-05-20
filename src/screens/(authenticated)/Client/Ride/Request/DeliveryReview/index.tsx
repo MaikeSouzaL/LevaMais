@@ -85,6 +85,13 @@ export default function DeliveryReviewScreen({ navigation, route }: any) {
       vehicleType: params.vehicleType,
       pickup: params.pickup,
       dropoff: params.dropoff,
+      routeCoordinates:
+        Array.isArray(params.routeCoordinates) && params.routeCoordinates.length >= 2
+          ? params.routeCoordinates
+          : [
+              { latitude: params.pickup?.latitude, longitude: params.pickup?.longitude },
+              { latitude: params.dropoff?.latitude, longitude: params.dropoff?.longitude },
+            ],
       cityId: params.cityId,
       pricing: { ...params.pricingSnapshot.pricing, total: offerValue },
       distance: params.pricingSnapshot.distance,
