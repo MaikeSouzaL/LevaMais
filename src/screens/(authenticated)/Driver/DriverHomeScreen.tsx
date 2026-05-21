@@ -629,17 +629,11 @@ export default function DriverHomeScreen() {
   ];
 
   useEffect(() => {
-    const checkTour = async () => {
-      if (isApproved) {
-        const seen = await AsyncStorage.getItem("@leva_mais:driver_tour_seen");
-        if (!seen) {
-          setTimeout(() => {
-            setShowTour(true);
-          }, 1200);
-        }
-      }
-    };
-    checkTour();
+    if (isApproved && !userData?.tourSeen) {
+      setTimeout(() => {
+        setShowTour(true);
+      }, 1200);
+    }
   }, [isApproved]);
 
   const handleNextTourStep = async () => {
@@ -647,13 +641,19 @@ export default function DriverHomeScreen() {
       setTourStep(tourStep + 1);
     } else {
       setShowTour(false);
-      await AsyncStorage.setItem("@leva_mais:driver_tour_seen", "true");
+      try {
+        await userService.updateProfile({ tourSeen: true });
+        useAuthStore.getState().updateUserData({ tourSeen: true });
+      } catch {}
     }
   };
 
   const handleSkipTour = async () => {
     setShowTour(false);
-    await AsyncStorage.setItem("@leva_mais:driver_tour_seen", "true");
+    try {
+      await userService.updateProfile({ tourSeen: true });
+      useAuthStore.getState().updateUserData({ tourSeen: true });
+    } catch {}
   };
 
   // 🛰️ Real-Time High-Definition Tracking for User Puck Marker

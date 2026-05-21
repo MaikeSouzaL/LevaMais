@@ -1,5 +1,4 @@
 const User = require("../models/User");
-const PlatformConfig = require("../models/PlatformConfig");
 const DriverDailyStats = require("../models/DriverDailyStats");
 
 const DEFAULT_APP_TIMEZONE = process.env.APP_TIMEZONE || "America/Sao_Paulo";
@@ -50,9 +49,8 @@ function normalizeSelectedVehicles(raw) {
 
 async function fetchVehicleDataFromAPI(plate) {
   try {
-    const config = await PlatformConfig.findOne().catch(() => null);
-    const isDev = config ? config.isDevelopmentMode : true;
-    if (isDev) {
+    // isDevelopmentMode hardcoded to true since PlatformConfig model was removed
+    if (true) {
       console.log("[Vehicle API Consult] Development Mode is ACTIVE. Bypassing external API validation.");
       return { valid: true, isFallback: true };
     }
@@ -251,8 +249,7 @@ const driverController = {
       // Buscar percentual configurado se nao enviado no request
       let effectiveDeductionPercentage = Number(deductionPercentage);
       if (!Number.isFinite(effectiveDeductionPercentage) || effectiveDeductionPercentage <= 0) {
-        const config = await PlatformConfig.findOne().catch(() => null);
-        effectiveDeductionPercentage = config?.appFeePercentage ?? 15;
+        effectiveDeductionPercentage = 15; // default since PlatformConfig model was removed
       }
 
       if (!amount || amount <= 0) {
@@ -339,8 +336,7 @@ const driverController = {
       }
 
       // Buscar percentual de taxa configurado
-      const config = await PlatformConfig.findOne().catch(() => null);
-      const appFeePercentage = config?.appFeePercentage ?? 15;
+      const appFeePercentage = 15; // default since PlatformConfig model was removed
 
       const balance = user.driverBalance?.balance || 0;
       const requiredBalance = Number((rideValue * appFeePercentage / 100).toFixed(2));
@@ -619,8 +615,7 @@ const driverController = {
       );
 
       // Buscar appFeePercentage para informar ao motorista
-      const config = await PlatformConfig.findOne().catch(() => null);
-      const appFeePercentage = config?.appFeePercentage ?? 15;
+      const appFeePercentage = 15; // default since PlatformConfig model was removed
 
       res.json({
         success: true,

@@ -14,12 +14,11 @@ export interface PricingRule {
 
 const pricingService = {
   /**
-   * Busca regras de preço para uma cidade específica
+   * Busca regras de preço (sem filtro por cidade, backend não suporta mais)
    */
-  getRules: async (cityId: string) => {
-    // Rota mapeada em routes/pricing.routes.js como '/'
+  getRules: async () => {
     const response = await api.get<PricingRule[]>('/pricing', {
-      params: { cityId, active: true }
+      params: { active: true }
     });
     return response.data;
   },

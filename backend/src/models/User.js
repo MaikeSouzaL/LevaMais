@@ -119,9 +119,17 @@ const userSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    phoneVerified: {
+      type: Boolean,
+      default: false,
+    },
     city: {
       type: String,
       trim: true,
+    },
+    tourSeen: {
+      type: Boolean,
+      default: false,
     },
     // Documentos
     cpf: {
@@ -347,7 +355,6 @@ const userSchema = new mongoose.Schema(
     userType: {
       type: String,
       enum: ["client", "driver", "admin"],
-      default: "client",
     },
     vehicleType: {
       type: String,

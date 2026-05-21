@@ -68,7 +68,6 @@ export default function RideSetupScreen() {
           pickup: params.pickup,
           dropoff: params.dropoff,
           vehicleType: selectedCat === "motorcycle" ? "motorcycle" : "car",
-          cityId: detectedCity?.cityId || undefined,
         };
 
         const resp = await rideService.calculatePrice(payload);
@@ -120,7 +119,6 @@ export default function RideSetupScreen() {
             : Array.isArray(params.routeCoordinates) && params.routeCoordinates.length >= 2
               ? params.routeCoordinates
               : undefined,
-        cityId: detectedCity?.cityId || undefined,
         negotiation: {
           enabled: true,
           clientOffer: offerPrice

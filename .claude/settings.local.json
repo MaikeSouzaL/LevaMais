@@ -7,7 +7,10 @@
       "Bash(node -e \"const RideController = require\\('./backend/src/controllers/ride.controller'\\); console.log\\('saveTrackPoint:', typeof RideController.saveTrackPoint\\); console.log\\('getRouteAudit:', typeof RideController.getRouteAudit\\);\")",
       "Bash(node *)",
       "Bash(npx tsc *)",
-      "Bash(echo \"EXIT: $?\")"
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(git checkout *)",
+      "Bash(Get-ChildItem -Recurse -Directory -Depth 4 -Path \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\Leva_Mais\\\\backend\\\\src\")",
+      "Bash(Select-Object FullName)"
     ]
   }
 }

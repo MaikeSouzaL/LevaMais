@@ -1,5 +1,4 @@
 const User = require("../models/User");
-const PlatformConfig = require("../models/PlatformConfig");
 const PasswordReset = require("../models/PasswordReset");
 const PhoneVerification = require("../models/PhoneVerification");
 const Ride = require("../models/Ride");
@@ -88,9 +87,8 @@ function normalizeNameForCompare(name) {
 
 async function validateCPFWithFreeAPI(cpf) {
   try {
-    const config = await PlatformConfig.findOne().catch(() => null);
-    const isDev = config ? config.isDevelopmentMode : true;
-    if (isDev) {
+    // isDevelopmentMode hardcoded to true since PlatformConfig model was removed
+    if (true) {
       console.log("[CPF API Validation] Development Mode is ACTIVE. Bypassing external API validation.");
       return { valid: true, name: null, isFallback: true };
     }
@@ -166,9 +164,8 @@ function validateCNPJAlgorithm(cnpj) {
 
 async function validateCNPJWithFreeAPI(cnpj) {
   try {
-    const config = await PlatformConfig.findOne().catch(() => null);
-    const isDev = config ? config.isDevelopmentMode : true;
-    if (isDev) {
+    // isDevelopmentMode hardcoded to true since PlatformConfig model was removed
+    if (true) {
       console.log("[CNPJ API Validation] Development Mode is ACTIVE. Bypassing external API validation.");
       return { valid: true, razaoSocial: null, isFallback: true };
     }
@@ -355,9 +352,6 @@ class AuthController {
         password,
         userType: resolvedUserType,
         acceptedTerms: consentAccepted,
-        consentVersion: CURRENT_CONSENT_VERSION,
-        termsVersion: CURRENT_CONSENT_VERSION,
-        privacyPolicyVersion: CURRENT_CONSENT_VERSION,
       };
 
       if (consentTimestamp) {
@@ -537,8 +531,6 @@ class AuthController {
         $or: [{ googleId }, { email: email.toLowerCase() }],
       });
 
-      let isNewUser = false;
-
       if (user) {
         // Se o usuário já existe, atualizar informações do Google se necessário
         if (!user.googleId) {
@@ -547,31 +539,20 @@ class AuthController {
         if (profilePhoto && !user.profilePhoto) {
           user.profilePhoto = profilePhoto;
         }
-        
         // Se um userType foi enviado e o usuário ainda não tem um definido ou se queremos permitir trocar agora
         if (userType && ["client", "driver"].includes(userType)) {
           user.userType = userType;
         }
-        
+
         await user.save();
       } else {
-        // Criar novo usuário
-        isNewUser = true;
-        
-        const resolvedUserType = ["client", "driver"].includes(String(userType || ""))
-          ? String(userType)
-          : "client";
 
         user = await User.create({
           googleId,
           email: email.toLowerCase(),
           name,
           profilePhoto,
-          userType: resolvedUserType,
-          acceptedTerms: false,
-          consentVersion: CURRENT_CONSENT_VERSION,
-          termsVersion: CURRENT_CONSENT_VERSION,
-          privacyPolicyVersion: CURRENT_CONSENT_VERSION,
+          phone: null,
         });
       }
       const token = this.generateToken(user);
@@ -582,7 +563,6 @@ class AuthController {
         data: {
           user,
           token,
-          isNewUser,
         },
       });
     } catch (error) {
@@ -1533,6 +1513,7 @@ class AuthController {
   async sendPhoneCode(req, res) {
     try {
       const normalizedPhone = normalizePhone(req.body?.phone);
+      const userId = req.body?.userId || null;
 
       if (!normalizedPhone) {
         return sendError(res, 400, "Telefone e obrigatorio");
@@ -1542,25 +1523,18 @@ class AuthController {
         return sendError(res, 400, "Telefone invalido");
       }
 
-      // Extrair e verificar token opcional para saber se é um update do próprio usuário
-      let currentUserId = null;
-      const authHeader = req.headers["authorization"];
-      if (authHeader) {
-        const [scheme, token] = authHeader.split(" ");
-        if (String(scheme || "").toLowerCase() === "bearer" && token) {
-          try {
-            const decoded = jwt.verify(token, process.env.JWT_SECRET || "secret");
-            currentUserId = decoded.id;
-          } catch (err) {
-            // Ignorar erro do JWT opcional
-          }
+      // Se tem userId, verifica se o usuário existe
+      if (userId) {
+        const user = await User.findById(userId);
+        if (!user) {
+          return sendError(res, 404, "Usuário não encontrado");
         }
       }
 
       // Verificar se o telefone já está cadastrado em outra conta
       const query = { phone: normalizedPhone };
-      if (currentUserId) {
-        query._id = { $ne: currentUserId };
+      if (userId) {
+        query._id = { $ne: userId };
       }
       const existingPhoneUser = await User.findOne(query);
       if (existingPhoneUser) {
@@ -1587,13 +1561,14 @@ class AuthController {
 
       await PhoneVerification.create({
         phone: normalizedPhone,
+        userId: userId || undefined,
         code,
         expiresAt,
       });
 
       const isProd = process.env.NODE_ENV === "production";
       console.log(
-        `[PhoneVerification] code generated for ${normalizedPhone}: ${code}`,
+        `[PhoneVerification] code ${code} for ${normalizedPhone} userId=${userId || "anon"}`,
       );
 
       return res.json({
@@ -1645,6 +1620,29 @@ class AuthController {
       verification.used = true;
       verification.verifiedAt = new Date();
       await verification.save();
+
+      // Se tem userId vinculado, atualiza User com phone e phoneVerified
+      if (verification.userId) {
+        const user = await User.findByIdAndUpdate(
+          verification.userId,
+          { phone: normalizedPhone, phoneVerified: true },
+          { new: true },
+        );
+
+        if (user) {
+          const token = this.generateToken(user);
+          return res.json({
+            success: true,
+            message: "Telefone verificado com sucesso",
+            data: {
+              verified: true,
+              phone: normalizedPhone,
+              user,
+              token,
+            },
+          });
+        }
+      }
 
       return res.json({
         success: true,

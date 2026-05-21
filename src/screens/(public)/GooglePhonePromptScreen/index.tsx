@@ -77,8 +77,9 @@ export default function GooglePhonePromptScreen() {
     
     setLoading(true);
     try {
-      // 1. Fire OTP to backend
-      const response = await sendPhoneVerification(rawPhone);
+      // 1. Enviar userId junto para o backend vincular o código ao usuário
+      const userId = user?._id || undefined;
+      const response = await sendPhoneVerification(rawPhone, userId);
       
       if (response.success) {
         Toast.show({
@@ -94,7 +95,7 @@ export default function GooglePhonePromptScreen() {
         navigation.navigate("PhoneVerification", {
           phone: rawPhone,
           codeSent: true,
-          nextScreen: "SelectProfile",
+          nextScreen: "PhoneLocationSetup",
           nextParams: {
             user: updatedUser,
             token: token,

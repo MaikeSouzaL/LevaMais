@@ -113,7 +113,6 @@ export default function DeliverySetupScreen({ navigation, route }: any) {
           isFragile,
           approximateWeightKg: Number.isFinite(parsedWeight) ? parsedWeight : undefined,
           serviceType: "delivery",
-          cityId: detectedCity?.cityId || undefined,
           distance: params.initialDistanceKm ? Math.round(params.initialDistanceKm * 1000) : undefined,
           duration: params.initialDurationMin ? Math.round(params.initialDurationMin * 60) : undefined,
         });
@@ -185,7 +184,6 @@ export default function DeliverySetupScreen({ navigation, route }: any) {
       pickup: params.pickup,
       dropoff: params.dropoff,
       routeCoordinates: params.routeCoordinates,
-      cityId: detectedCity?.cityId || undefined,
       preferScheduled: Boolean(params.preferScheduled),
       scheduledOffsetMin,
       vehicleType,

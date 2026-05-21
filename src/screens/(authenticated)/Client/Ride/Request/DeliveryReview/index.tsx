@@ -92,7 +92,6 @@ export default function DeliveryReviewScreen({ navigation, route }: any) {
               { latitude: params.pickup?.latitude, longitude: params.pickup?.longitude },
               { latitude: params.dropoff?.latitude, longitude: params.dropoff?.longitude },
             ],
-      cityId: params.cityId,
       pricing: { ...params.pricingSnapshot.pricing, total: offerValue },
       distance: params.pricingSnapshot.distance,
       duration: params.pricingSnapshot.duration,

@@ -36,6 +36,7 @@ export type UserProfile = {
     autoAccept?: boolean;
   };
   driverStatus?: "pending" | "approved" | "rejected";
+  tourSeen?: boolean;
   driverDocuments?: {
     cnhFront?: string;
     cnhBack?: string;
@@ -74,6 +75,7 @@ export type UpdateProfilePayload = Partial<
     | "companyEmail"
     | "companyPhone"
     | "driverPreferences"
+    | "tourSeen"
   >
 >;
 

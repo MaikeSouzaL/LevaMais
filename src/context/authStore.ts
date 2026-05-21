@@ -20,6 +20,7 @@ export interface UserData {
   googleId?: string;
   aceitouTermos: boolean;
   acceptedTerms?: boolean;
+  tourSeen?: boolean;
   expoPushToken?: string;
   vehicleType?: unknown;
   vehicleInfo?: unknown;

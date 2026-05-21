@@ -79,6 +79,7 @@ export default function Routes() {
           fotoPerfil: user.profilePhoto,
           googleId: user.googleId,
           aceitouTermos: Boolean(user.acceptedTerms),
+          tourSeen: Boolean(user.tourSeen),
           vehicleType: user.vehicleType,
           vehicleInfo: user.vehicleInfo,
           driverStatus: user.driverStatus || "none",

@@ -64,11 +64,6 @@ export default function PaymentScreenEnhanced() {
     }
   }, [order, navigation]);
 
-  const cityId = useMemo(
-    () => detectedCity?.cityId,
-    [detectedCity]
-  );
-
   const serviceType = useMemo(
     () => mapServiceModeToApi(order?.serviceMode) as "ride" | "delivery",
     [order?.serviceMode]
@@ -171,8 +166,6 @@ export default function PaymentScreenEnhanced() {
       const ride = await rideService.create({
         serviceType: mapServiceModeToApi(order.serviceMode),
         vehicleType: mapVehicleTypeToApi(order.vehicleType),
-        cityId,
-        purposeId: order.purposeId,
         pickup: {
           latitude: order.pickupLatLng.latitude,
           longitude: order.pickupLatLng.longitude,
@@ -239,7 +232,7 @@ export default function PaymentScreenEnhanced() {
     } finally {
       setProcessing(false);
     }
-  }, [order, paymentForm, finalAmount, appliedPromo, cityId, serviceType, handleError, navigation, paymentMethodForRide, insuranceLevel]);
+  }, [order, paymentForm, finalAmount, appliedPromo, serviceType, handleError, navigation, paymentMethodForRide, insuranceLevel]);
 
   if (!order) {
     return null;

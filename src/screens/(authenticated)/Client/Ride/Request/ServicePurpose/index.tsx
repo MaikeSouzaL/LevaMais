@@ -169,8 +169,6 @@ export default function ServicePurposeScreen() {
           longitude: Number(safeDropoff.longitude),
         },
         vehicleType: resolveVehicleTypeForApi(vehicleType),
-        cityId: detectedCity?.cityId || undefined,
-        purposeId: selectedPurposeId,
       };
 
       const resp = await rideService.calculatePrice(calculatePayload);

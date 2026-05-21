@@ -128,7 +128,7 @@ export default function SignInScreen() {
       });
 
       if (response.success && response.data) {
-        const { user: userData, token, isNewUser } = response.data;
+        const { user: userData, token } = response.data;
         const {
           _id,
           name: userName,
@@ -162,9 +162,8 @@ export default function SignInScreen() {
           return;
         }
 
-        // 🚀 If it's a NEW user, they MUST go to SelectProfile to choose between Client or Driver!
-        // Also if userType is not explicitly set (rare with defaults, but safe)
-        if (isNewUser || !userType) {
+        // 🚀 New users (no userType) or users without type MUST go to SelectProfile
+        if (!userType) {
           const generatedPassword = `${userEmail}-${id}`;
           navigation.navigate("SelectProfile", {
             user: {

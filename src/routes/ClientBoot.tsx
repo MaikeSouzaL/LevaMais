@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, Image, StyleSheet } from "react-native";
 import { MotiView } from "moti";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 const LogoImg = require("../assets/Logo/logo.png");
 
 import DrawerClienteRoutes from "./drawer.cliente.routes";
@@ -12,7 +11,6 @@ import {
   checkLocationPermission,
   requestLocationPermission,
 } from "../utils/location";
-import { resolveCityIdByNameAndState } from "../services/cityResolver.service";
 import { useClientCityStore } from "../context/clientCityStore";
 import { logger } from "../utils/logger";
 import { useAuthStore } from "../context/authStore";
@@ -22,16 +20,18 @@ import ClientOnboardingDashboard from "../components/client/home/ClientOnboardin
 import LocationPermissionScreen from "../screens/(public)/LocationPermissionScreen";
 
 export default function ClientBoot() {
-  const { userData, updateUserData } = useAuthStore();
+  const { userData, updateUserData, token } = useAuthStore();
   const setCity = useClientCityStore((s) => s.setCity);
   const [loading, setLoading] = useState(true);
   const [showLocationPermission, setShowLocationPermission] = useState(false);
   const [initialRideId, setInitialRideId] = useState<string | null>(null);
-  // Activated is persisted so hot-reloads/force-closes don't reset the onboarding gate
-  const [activated, setActivated] = useState(false);
+  const [activated, setActivated] = useState(userData?.tourSeen ?? false);
 
   const persistActivated = async () => {
-    try { await AsyncStorage.setItem("client_onboarding_done", "1"); } catch {}
+    try {
+      await userService.updateProfile({ tourSeen: true });
+      updateUserData({ tourSeen: true });
+    } catch {}
     setActivated(true);
   };
 
@@ -95,33 +95,22 @@ export default function ClientBoot() {
               ? estadoParaSigla[addr.region] || addr.region
               : addr?.region;
 
-          const resolved = await resolveCityIdByNameAndState({
-            cityName: addr?.city || addr?.subregion,
-            stateCode,
-          });
-          logger.info(
-            "ClientBoot",
-            "Cidade resolvida pelo backend",
-            resolved,
-          );
-
-          if (resolved?.cityId) {
+          // Use reverse-geocode data directly (backend city endpoint removed)
+          const cityName = addr?.city || addr?.subregion;
+          if (cityName && stateCode) {
             setCity({
-              cityId: resolved.cityId,
-              name: resolved.name,
-              state: resolved.state,
+              cityId: `${cityName}-${stateCode}`.toLowerCase().replace(/\s+/g, '-'),
+              name: cityName,
+              state: stateCode,
               source: "gps",
               updatedAt: Date.now(),
             });
-            logger.info("ClientBoot", "Cidade salva no store", {
-              cityId: resolved.cityId,
-              name: resolved.name,
+            logger.info("ClientBoot", "Cidade detectada via GPS", {
+              name: cityName,
+              state: stateCode,
             });
           } else {
-            logger.warn(
-              "ClientBoot",
-              "Cidade não encontrada no backend. Cadastre via Leva Web!",
-            );
+            logger.warn("ClientBoot", "Cidade/estado não detectados via reverse geocode");
           }
         } else {
           logger.warn("ClientBoot", "GPS não disponível ou não montado");
@@ -155,12 +144,6 @@ export default function ClientBoot() {
 
     (async () => {
       try {
-        // Fast path: if already completed onboarding, skip straight to app
-        const done = await AsyncStorage.getItem("client_onboarding_done").catch(() => null);
-        if (done === "1" && mounted) {
-          setActivated(true);
-        }
-
         const alreadyGranted = await checkLocationPermission();
         if (!mounted) return;
 

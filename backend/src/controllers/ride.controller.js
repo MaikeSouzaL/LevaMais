@@ -1,9 +1,6 @@
 ﻿const Ride = require("../models/Ride");
 const DriverLocation = require("../models/DriverLocation");
 const User = require("../models/User");
-const PricingConfig = require("../models/PricingConfig");
-const City = require("../models/City");
-const ShiftOffer = require("../models/ShiftOffer");
 const Promotion = require("../models/Promotion");
 
 // mixins (rating + proofs)
@@ -301,21 +298,9 @@ class RideController {
         await ride.populate("clientId");
       }
 
-      let cityRadius = 15000;
-      try {
-        if (ride.cityId) {
-          const city = await City.findById(ride.cityId).select("searchRadius");
-          if (city?.searchRadius) {
-            cityRadius = city.searchRadius;
-          }
-        }
-      } catch (cityErr) {
-        console.error("Erro ao buscar raio de busca da cidade:", cityErr);
-      }
-
       // Dynamic Progressive Scaling synchronized with the client-side circle UI!
       const dynamicRadius = calculateDynamicSearchRadius(ride);
-      const searchRadius = Math.min(dynamicRadius, cityRadius);
+      const searchRadius = dynamicRadius;
 
       let nearbyDrivers = [];
       try {
@@ -590,8 +575,7 @@ class RideController {
           ? await Ride.findById(dl.currentRideId)
               .populate("clientId", "name phone profilePhoto")
               .populate("driverId", "name phone profilePhoto")
-              .populate("purposeId")
-          : null;
+                        : null;
 
         if (!ride) {
           ride = await Ride.findOne({
@@ -750,17 +734,6 @@ class RideController {
         return res.json({ count: 0, requests: [], pendingNegotiationsCount, clientCounteredCount });
       }
 
-      const now = new Date();
-      const activeShift = await ShiftOffer.findOne({
-        acceptedBy: driverId,
-        status: "accepted",
-        startAt: { $lte: now },
-        endAt: { $gt: now },
-      }).select("_id");
-      if (activeShift?._id) {
-        return res.json({ count: 0, requests: [], pendingNegotiationsCount, clientCounteredCount });
-      }
-
       const driverLocation = await DriverLocation.findOne({ driverId });
       if (
         !driverLocation ||
@@ -834,20 +807,6 @@ class RideController {
         .limit(30)
         .populate("clientId", "name phone profilePhoto rating");
 
-      const cityIds = [
-        ...new Set(
-          rides
-            .map((ride) => ride.cityId?.toString())
-            .filter(Boolean),
-        ),
-      ];
-      const cities = cityIds.length
-        ? await City.find({ _id: { $in: cityIds } }).select("_id searchRadius")
-        : [];
-      const radiusByCityId = new Map(
-        cities.map((city) => [city._id.toString(), city.searchRadius || 15000]),
-      );
-
       const clientIds = [...new Set(rides.map((r) => r.clientId?._id?.toString()).filter(Boolean))];
       const ridesCounts = await Ride.aggregate([
         { $match: { clientId: { $in: clientIds.map(id => new mongoose.Types.ObjectId(id)) }, status: "completed" } },
@@ -860,9 +819,6 @@ class RideController {
           const pickup = ride.pickup;
           if (!pickup?.latitude || !pickup?.longitude) return null;
 
-          const cityMaxDistance =
-            radiusByCityId.get(ride.cityId?.toString()) || 15000;
-          
           // Align driver visibility filter with progressive frontend seeker! Ã°Å¸Â§Â­Ã°Å¸Å¡â‚¬
           const dynamicRadius = calculateDynamicSearchRadius(ride);
           const activeMaxDistance = Math.min(dynamicRadius, cityMaxDistance);
@@ -872,7 +828,7 @@ class RideController {
             pickup.longitude,
           );
 
-          if (distanceToPickup > activeMaxDistance) return null;
+          if (distanceToPickup > dynamicRadius) return null;
           const cId = ride.clientId?._id?.toString();
           const clientRidesCount = countByClientId.get(cId) || 0;
           return buildRideRequestPayload(ride, { distanceToPickup, clientRidesCount });
@@ -1060,7 +1016,7 @@ class RideController {
           resolvedPurposeId &&
           !mongoose.Types.ObjectId.isValid(resolvedPurposeId)
         ) {
-          const Purpose = require("../models/Purpose");
+          // Purpose removido
           const purpose = await Purpose.findOne({
             id: String(resolvedPurposeId),
             vehicleType: vehicleType,
@@ -1091,8 +1047,8 @@ class RideController {
       }
 
       // Criar a corrida
-      const PlatformConfig = require("../models/PlatformConfig");
-      const City = require("../models/City");
+      // PlatformConfig removido
+      // City removido
 
       // 1. Busca configuraÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Âµes globais (App Fee %)
       let config = await PlatformConfig.findOne().sort({ createdAt: -1 });
@@ -2446,7 +2402,7 @@ class RideController {
             }
           }
           if (platformFee <= 0 && pricingTotal > 0) {
-            const PlatformConfig = require("../models/PlatformConfig");
+            // PlatformConfig removido
             const config = await PlatformConfig.findOne().sort({ createdAt: -1 });
             const pct = config ? (config.appFeePercentage || 15) : 15;
             platformFee = toMoney(pricingTotal * (pct / 100));
@@ -2645,8 +2601,7 @@ class RideController {
       const rides = await Ride.find(query)
         .populate("clientId", "name phone profilePhoto")
         .populate("driverId", "name phone profilePhoto")
-        .populate("purposeId")
-        .sort({ createdAt: -1 })
+                .sort({ createdAt: -1 })
         .limit(parseInt(limit))
         .skip((parseInt(page) - 1) * parseInt(limit));
 
@@ -2709,7 +2664,7 @@ class RideController {
       const result = stats[0] || { totalEarnings: 0, ridesCount: 0 };
 
       // Meta e bonus diario configuraveis via PlatformConfig (com fallback)
-      const PlatformConfig = require("../models/PlatformConfig");
+      // PlatformConfig removido
       const platformConfig = await PlatformConfig.findOne().sort({ createdAt: -1 });
       const dailyGoal = Number(platformConfig?.driverGoals?.dailyGoalRides || 10);
       const configuredBonus = Number(platformConfig?.driverGoals?.dailyBonusAmount || 20);
@@ -2928,8 +2883,8 @@ class RideController {
       // MVP: App manda ou Backend resolve. Vamos focar na lÃƒÆ’Ã‚Â³gica de preÃƒÆ’Ã‚Â§o primeiro.
 
       const mongoose = require("mongoose");
-      const PricingRule = require("../models/PricingRule");
-      const Purpose = require("../models/Purpose");
+      // PricingRule removido
+      // Purpose removido
 
       // DistÃƒÆ’Ã‚Â¢ncia Haversine em metros
       // Pre-calculate explicit provided metrics or fallback to geometric Haversine
@@ -3181,7 +3136,7 @@ class RideController {
 
       const durationMinutes = Math.max(1, Math.ceil(durationInSeconds / 60)); // Uses injected time scalar
 
-    const PlatformConfig = require("../models/PlatformConfig");
+    // PlatformConfig removido
     let platformConfig = await PlatformConfig.findOne().sort({ createdAt: -1 });
     const feePercentage = platformConfig ? (platformConfig.appFeePercentage || 0) : 0;
 
@@ -3207,7 +3162,7 @@ class RideController {
 
     if (serviceType === "delivery" || deliveryType || cargoSize) {
       const PricingEngine = require("../services/pricing-engine");
-      const PricingConfig = require("../models/PricingConfig");
+      // PricingConfig removido
       const globalConfig = await PricingConfig.findOne().sort({ updatedAt: -1 });
       const pEco = globalConfig?.platformSettings?.priorityMultiplierEconomic || 1.0;
       const pFast = globalConfig?.platformSettings?.priorityMultiplierFast || 1.3;

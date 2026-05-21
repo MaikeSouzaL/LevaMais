@@ -12,6 +12,7 @@ import TermsScreen from "../screens/(public)/TermsScreen";
 import NotificationPermissionScreen from "../screens/(public)/NotificationPermissionScreen";
 import PhoneVerificationScreen from "../screens/(public)/PhoneVerificationScreen";
 import GooglePhonePromptScreen from "../screens/(public)/GooglePhonePromptScreen";
+import PhoneLocationSetupScreen from "../screens/(public)/PhoneLocationSetupScreen";
 
 const { Navigator, Screen } = createNativeStackNavigator();
 
@@ -34,6 +35,7 @@ export default function AuthRoutes() {
       <Screen name="NewPassword" component={NewPasswordScreen} />
       <Screen name="Terms" component={TermsScreen} />
       <Screen name="PhoneVerification" component={PhoneVerificationScreen} />
+      <Screen name="PhoneLocationSetup" component={PhoneLocationSetupScreen} />
       <Screen
         name="NotificationPermission"
         component={NotificationPermissionScreen}

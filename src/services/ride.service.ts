@@ -50,7 +50,6 @@ export interface RideDetails {
 export interface CreateRideRequest {
   serviceType: "ride" | "delivery";
   vehicleType: "motorcycle" | "car" | "van" | "truck";
-  cityId?: string;
   purposeId?: string;
   pickup: Location;
   dropoff: Location;
@@ -79,7 +78,6 @@ export interface Ride {
   driverId?: any;
   serviceType: string;
   vehicleType: string;
-  purposeId?: string;
   pickup: Location;
   dropoff: Location;
   pricing: PricingCalculation;
@@ -136,8 +134,6 @@ export interface CalculatePriceRequest {
   pickup: Location;
   dropoff: Location;
   vehicleType: "motorcycle" | "car" | "van" | "truck";
-  cityId?: string;
-  purposeId?: string;
   // Logistic Extensions for Smart Engine âš¡
   serviceType?: "ride" | "delivery";
   deliveryType?: string;
@@ -269,8 +265,7 @@ class RideService {
   async getNearbyDrivers(
     latitude: number,
     longitude: number,
-    radius: number = 5000, 
-    cityId?: string 
+    radius: number = 5000
   ): Promise<Array<{
     id: string;
     name?: string;
@@ -283,7 +278,7 @@ class RideService {
     serviceTypes?: string[];
   }>> {
     const response = await api.get("/rides/nearby-drivers", {
-      params: { latitude, longitude, radius, cityId }
+      params: { latitude, longitude, radius }
     });
     return response.data;
   }

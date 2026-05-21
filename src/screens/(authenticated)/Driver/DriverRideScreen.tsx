@@ -859,7 +859,7 @@ export default function DriverRideScreen() {
               tracksViewChanges={false}
               anchor={{ x: 0.5, y: 1 }}
             >
-              <MapMarker type={getClientMarkerType(ride?.serviceType, ride?.purposeId)} />
+              <MapMarker type={getClientMarkerType(ride?.serviceType)} />
             </Marker>
           )}
           {hasDropoffCoords && (

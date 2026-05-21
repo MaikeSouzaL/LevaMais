@@ -14,12 +14,6 @@ const rideSchema = new mongoose.Schema(
       ref: "User",
       default: null,
     },
-    // Cidade da corrida (importante para relatórios por região)
-    cityId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "City",
-      default: null
-    },
     // Tipo de serviço
     serviceType: {
       type: String,
@@ -31,12 +25,6 @@ const rideSchema = new mongoose.Schema(
       type: String,
       enum: ["motorcycle", "car", "van", "truck"],
       required: true,
-    },
-    // Finalidade (purpose)
-    purposeId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Purpose",
-      default: null,
     },
     // Localização de origem
     pickup: {
@@ -369,7 +357,6 @@ rideSchema.index({ clientId: 1, createdAt: -1 });
 rideSchema.index({ driverId: 1, createdAt: -1 });
 rideSchema.index({ status: 1 });
 rideSchema.index({ "pickup.latitude": 1, "pickup.longitude": 1 });
-rideSchema.index({ cityId: 1 }); // Importante para filtros de admin
 
 // Middleware para adicionar ao histórico de status
 rideSchema.pre("save", function (next) {
@@ -423,7 +410,7 @@ rideSchema.methods.canBeCancelled = function () {
   return cancellableStatuses.includes(this.status);
 };
 
-// Método para calcular taxa de cancelamento usando regras do PlatformConfig
+// Método para calcular taxa de cancelamento usando regras de configuracao
 // Aceita um objeto config opcional com as regras de cancelamento
 rideSchema.methods.calculateCancellationFee = function (platformConfig) {
   const total = Number(this.pricing?.total || 0);

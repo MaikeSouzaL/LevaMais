@@ -366,10 +366,11 @@ export async function removePushToken(
 
 export async function sendPhoneVerification(
   phone: string,
+  userId?: string,
 ): Promise<ApiResponse<{ message: string }>> {
   try {
     let normalizedPhone = String(phone || "").replace(/\D/g, "");
-    
+
     // Remove leading zero (comum em discagem interurbana no Brasil: 0 + DDD)
     if ((normalizedPhone.length === 11 || normalizedPhone.length === 12) && normalizedPhone.startsWith("0")) {
       normalizedPhone = normalizedPhone.substring(1);
@@ -386,7 +387,7 @@ export async function sendPhoneVerification(
 
     const response = await apiPost<ApiResponse<{ message: string }>>(
       "/auth/send-phone-code",
-      { phone: normalizedPhone },
+      { phone: normalizedPhone, userId: userId || undefined },
     );
     return response.data;
   } catch (error: any) {
