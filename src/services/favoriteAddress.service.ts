@@ -54,11 +54,12 @@ class FavoriteAddressService {
   // Listar favoritos
   async list(): Promise<FavoriteAddress[]> {
     try {
-      const response = await api.get("/favorite-addresses");
-      return response.data.favorites || [];
+      // const response = await api.get("/favorite-addresses");
+      // return response.data.favorites || [];
+      return [];
     } catch (error: any) {
-      console.error("Erro ao listar favoritos:", error);
-      throw error;
+      // console.error("Erro ao listar favoritos:", error);
+      return [];
     }
   }
 

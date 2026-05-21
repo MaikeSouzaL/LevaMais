@@ -340,7 +340,7 @@ export default function HomeScreen() {
 
   const handleWalletPress = useCallback(() => {
     // Example route - if specific wallet exists
-    Alert.alert("Carteira", `OlÃ¡ ${user?.name || "Cliente"}! Seu saldo estÃ¡ disponÃ­vel.`);
+    Alert.alert("Carteira", `Olá ${user?.name || "Cliente"}! Seu saldo está disponível.`);
   }, [user?.name]);
 
   const handleToggleMapStyle = useCallback(() => {
@@ -362,10 +362,10 @@ export default function HomeScreen() {
 
   const handleSOS = useCallback(() => {
     try {
-      // Navigates seamlessly to client-specific safety zone! ðŸ›¡ï¸
+      // Navigates seamlessly to client-specific safety zone! 🛡️
       navigation.navigate("SafetyCenter");
     } catch {
-      Alert.alert("SOS", "Ativando modo de emergÃªncia do passageiro...");
+      Alert.alert("SOS", "Ativando modo de emergência do passageiro...");
     }
   }, [navigation]);
 
@@ -558,7 +558,7 @@ export default function HomeScreen() {
           // Emulates handling of legacy favorite flow triggers
           navigation.navigate("DestinationSearch", {
             pickup: { 
-              address: currentAddress || "LocalizaÃ§Ã£o Atual",
+              address: currentAddress || "Localização Atual",
               latitude: userRegion?.latitude || region.latitude,
               longitude: userRegion?.longitude || region.longitude,
             },
@@ -591,8 +591,8 @@ export default function HomeScreen() {
       />
       <Modal
         visible={showNoDriversModal}
-        title="Entrega indisponÃ­vel"
-        message="NÃ£o encontramos entregadores online na sua regiÃ£o agora. Tente novamente em alguns minutos."
+        title="Entrega indisponível"
+        message="Não encontramos entregadores online na sua região agora. Tente novamente em alguns minutos."
         type="warning"
         confirmText="Entendido"
         onClose={() => setShowNoDriversModal(false)}

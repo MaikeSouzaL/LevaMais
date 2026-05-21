@@ -6,6 +6,10 @@ const jwt = require("jsonwebtoken");
 const emailService = require("../services/email.service");
 const crypto = require("crypto");
 const mongoose = require("mongoose");
+const path = require("path");
+const fs = require("fs");
+
+
 const ACTIVE_RIDE_STATUSES = [
   "requesting",
   "driver_assigned",
@@ -1807,6 +1811,7 @@ class AuthController {
         "driverStatus",
         "driverDocuments",
         "vehicles",
+        "clientVerification",
       ];
 
       const payload = req.body || {};
@@ -1928,7 +1933,7 @@ class AuthController {
       if (!req.file) {
         return sendError(res, 400, "Nenhuma imagem foi enviada");
       }
-
+      
       const protocol = req.headers["x-forwarded-proto"] || req.protocol;
       const host = req.get("host");
       const baseUrl = `${protocol}://${host}/uploads/drivers`;
@@ -1945,9 +1950,7 @@ class AuthController {
         user.clientVerification.documents.selfie = photoUrl;
         user.clientVerification.selfieStatus = "pending";
         user.clientVerification.submittedAt = new Date();
-        if (user.clientVerification.status === "none") {
-          user.clientVerification.status = "pending";
-        }
+        user.clientVerification.status = "pending";
       }
 
       await user.save();
@@ -1997,6 +2000,10 @@ class AuthController {
       user.clientVerification.documents = user.clientVerification.documents || {};
 
       if (req.files.selfie && req.files.selfie[0]) {
+        // --- MOCK DE VERIFICAÇÃO FACIAL ---
+        // Aqui também validariamos a selfie com AWS/Google Cloud.
+        // --- FIM MOCK ---
+
         user.clientVerification.documents.selfie = `${baseUrl}/${req.files.selfie[0].filename}`;
         user.clientVerification.selfieStatus = "pending";
       }

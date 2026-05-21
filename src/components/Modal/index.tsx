@@ -11,8 +11,7 @@ import {
   Platform,
   TouchableWithoutFeedback,
 } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
-import { X } from "lucide-react-native";
+import { X, CheckCircle2, AlertCircle, AlertTriangle, Info } from "lucide-react-native";
 
 interface ModalProps {
   visible: boolean;
@@ -96,16 +95,18 @@ export function Modal({
     }
   }, [visible]);
 
-  const getIcon = () => {
+  const renderIcon = () => {
+    const size = 48;
+    const color = getColor();
     switch (type) {
       case "success":
-        return "check-circle";
+        return <CheckCircle2 size={size} color={color} strokeWidth={2} />;
       case "error":
-        return "error";
+        return <AlertCircle size={size} color={color} strokeWidth={2} />;
       case "warning":
-        return "warning";
+        return <AlertTriangle size={size} color={color} strokeWidth={2} />;
       default:
-        return "info";
+        return <Info size={size} color={color} strokeWidth={2} />;
     }
   };
 
@@ -166,13 +167,8 @@ export function Modal({
           )}
           <View style={styles.content}>
             {!children && (
-              <View
-                style={[
-                  styles.iconContainer,
-                  { backgroundColor: `${getColor()}20` },
-                ]}
-              >
-                <MaterialIcons name={getIcon()} size={32} color={getColor()} />
+              <View style={{ marginBottom: 16 }}>
+                {renderIcon()}
               </View>
             )}
 

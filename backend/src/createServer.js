@@ -51,13 +51,17 @@ function applyRoutes(app) {
   app.use("/api/auth", authRoutes);
   app.use("/api/rides", rideRoutes);
   app.use("/api/driver-location", driverLocationRoutes);
-  app.use("/api/chat", chatRoutes);
 
   app.get("/api/health", (req, res) => {
     res.json({
       status: "ok",
       message: "Servidor esta funcionando",
       timestamp: new Date().toISOString(),
+      features: {
+        auth: true,
+        rides: true,
+        websocket: true,
+      },
     });
   });
 }

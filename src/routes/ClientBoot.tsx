@@ -25,14 +25,24 @@ export default function ClientBoot() {
   const [loading, setLoading] = useState(true);
   const [showLocationPermission, setShowLocationPermission] = useState(false);
   const [initialRideId, setInitialRideId] = useState<string | null>(null);
-  const [activated, setActivated] = useState(userData?.tourSeen ?? false);
+
 
   const persistActivated = async () => {
     try {
       await userService.updateProfile({ tourSeen: true });
-      updateUserData({ tourSeen: true });
+      // Fetch latest profile to ensure we have the approved status locally
+      const profile = await userService.getProfile().catch(() => null);
+      if (profile) {
+        updateUserData({
+          cpf: profile.cpf || "",
+          cnpj: profile.cnpj || "",
+          clientVerification: profile.clientVerification || null,
+          tourSeen: true,
+        });
+      } else {
+        updateUserData({ tourSeen: true });
+      }
     } catch {}
-    setActivated(true);
   };
 
   // Helper function to run the location detection and active ride fetch
@@ -117,6 +127,24 @@ export default function ClientBoot() {
         }
       } else {
         logger.info("ClientBoot", "Permissão de localização não concedida, pulando GPS");
+      }
+
+      // Fetch latest client profile to check compliance status
+      const profile = await userService.getProfile().catch(() => null);
+      if (profile && mounted) {
+        updateUserData({
+          cidade: profile.cidade || profile.city || "",
+          city: profile.city || profile.cidade || "",
+          cpf: profile.cpf || "",
+          cnpj: profile.cnpj || "",
+          phone: profile.phone || profile.telefone || "",
+          telefone: profile.telefone || profile.phone || "",
+          companyName: profile.companyName || "",
+          companyEmail: profile.companyEmail || "",
+          companyPhone: profile.companyPhone || "",
+          fotoPerfil: profile.profilePhoto || "",
+          clientVerification: profile.clientVerification || null,
+        });
       }
 
       // 2) Retomar corrida ativa (se existir)
@@ -228,8 +256,14 @@ export default function ClientBoot() {
     );
   }
 
-  // Se não estiver ativado (onboarding inicial), mostra dashboard de ativação
-  if (!activated) {
+  const isClientCompliant = Boolean(
+    (userData?.cpf || userData?.cnpj) &&
+    userData?.clientVerification?.documents?.selfie &&
+    userData?.clientVerification?.status === "approved"
+  );
+
+  // Se não estiver com os dados e a selfie aprovados, mostra dashboard de ativação
+  if (!isClientCompliant) {
     return <ClientOnboardingDashboard onContinue={persistActivated} />;
   }
 

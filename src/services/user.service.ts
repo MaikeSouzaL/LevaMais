@@ -47,6 +47,18 @@ export type UserProfile = {
     submittedAt?: string;
     rejectionReason?: string;
   };
+  clientVerification?: {
+    status?: "none" | "pending" | "approved" | "rejected";
+    cpfStatus?: "unchecked" | "valid" | "invalid" | "manual_review";
+    selfieStatus?: "none" | "pending" | "approved" | "rejected";
+    documents?: {
+      selfie?: string;
+      rgFront?: string;
+      rgBack?: string;
+    };
+    rejectionReason?: string;
+    submittedAt?: string;
+  };
   acceptedTerms?: boolean;
   paymentMethods?: Array<any>;
 };
