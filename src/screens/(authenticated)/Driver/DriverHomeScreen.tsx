@@ -329,6 +329,14 @@ export default function DriverHomeScreen() {
         await showIncomingRideRequest(realtimeRequests[0], response.count || requests.length);
       } else {
         setPendingRequests(0);
+        // Se não há chamadas imediatas mas há negociações pendentes,
+        // redireciona para DriverRequests na aba de negociação
+        const negotiations = response?.pendingNegotiationsCount || 0;
+        const countered = response?.clientCounteredCount || 0;
+        if ((negotiations > 0 || countered > 0) && !hasIncomingRequestRef.current) {
+          (navigation as any).navigate("DriverRequests", { initialTab: "negotiation" });
+          return;
+        }
       }
     } catch (e) {
       console.error("Error syncing available requests:", e);
@@ -362,6 +370,13 @@ export default function DriverHomeScreen() {
             (navigation as any).navigate("DriverRide", {
               rideId: response.ride._id,
             });
+            return;
+          }
+
+          // Se não tem corrida ativa, verifica negociações pendentes
+          const negotiations = await rideService.getPendingNegotiations();
+          if (active && negotiations?.count > 0 && negotiations.requests.length > 0) {
+            (navigation as any).navigate("DriverRequests", { initialTab: "negotiation" });
           }
         } catch {}
       })();
@@ -393,6 +408,13 @@ export default function DriverHomeScreen() {
             (navigation as any).navigate("DriverRide", {
               rideId: response.ride._id,
             });
+            return;
+          }
+
+          // Se não tem corrida ativa, verifica negociações pendentes
+          const negotiations = await rideService.getPendingNegotiations();
+          if (negotiations?.count > 0 && negotiations.requests.length > 0) {
+            (navigation as any).navigate("DriverRequests", { initialTab: "negotiation" });
           }
         })
         .catch(() => {});

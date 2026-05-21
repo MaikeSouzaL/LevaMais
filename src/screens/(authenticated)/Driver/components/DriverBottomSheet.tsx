@@ -30,6 +30,9 @@ interface DriverBottomSheetProps {
   onPressOffers: () => void;
   hasPendingOffer?: boolean;
   offersPulseToken?: number;
+  pendingNegotiationsCount?: number;
+  clientCounteredCount?: number;
+  onPressNegotiations?: () => void;
 }
 
 export function DriverBottomSheet({
@@ -46,6 +49,9 @@ export function DriverBottomSheet({
   onPressOffers,
   hasPendingOffer = false,
   offersPulseToken = 0,
+  pendingNegotiationsCount = 0,
+  clientCounteredCount = 0,
+  onPressNegotiations,
 }: DriverBottomSheetProps) {
   const [showSettings, setShowSettings] = useState(false);
 
@@ -155,6 +161,65 @@ export function DriverBottomSheet({
             <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 8.5, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.5 }}>Tempo Online</Text>
           </View>
         </View>
+
+        {(pendingNegotiationsCount > 0 || clientCounteredCount > 0) && online && (
+          <TouchableOpacity
+            onPress={onPressNegotiations || onPressOffers}
+            activeOpacity={0.85}
+            style={{ marginBottom: 18 }}
+          >
+            <MotiView
+              from={{ opacity: 0, scale: 0.92, translateY: -8 }}
+              animate={{ opacity: 1, scale: 1, translateY: 0 }}
+              transition={{ type: "spring", damping: 14 }}
+              style={{
+                backgroundColor: clientCounteredCount > 0 ? "rgba(2, 222, 149, 0.1)" : "rgba(251, 191, 36, 0.08)",
+                borderRadius: 16,
+                borderWidth: 1.5,
+                borderColor: clientCounteredCount > 0 ? "rgba(2, 222, 149, 0.4)" : "rgba(251, 191, 36, 0.35)",
+                padding: 14,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <MotiView
+                  from={{ scale: 0.7 }}
+                  animate={{ scale: [1, 1.2, 1] }}
+                  transition={{ type: "timing", loop: true, duration: 1800 }}
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: 5,
+                    backgroundColor: clientCounteredCount > 0 ? "#02de95" : "#fbbf24",
+                  }}
+                />
+                <View>
+                  <Text style={{ color: "#fff", fontWeight: "900", fontSize: 12 }}>
+                    {clientCounteredCount > 0
+                      ? "Contraproposta do Cliente!"
+                      : "Negociações Pendentes"}
+                  </Text>
+                  <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: "600", marginTop: 2 }}>
+                    {clientCounteredCount > 0
+                      ? `Você tem ${clientCounteredCount} contraproposta(s) aguardando`
+                      : `Você tem ${pendingNegotiationsCount} negociação(ões) em aberto`}
+                  </Text>
+                </View>
+              </View>
+              <MotiView
+                from={{ translateX: 0 }}
+                animate={{ translateX: [0, 6, 0] }}
+                transition={{ type: "timing", loop: true, duration: 2000 }}
+              >
+                <Text style={{ color: clientCounteredCount > 0 ? "#02de95" : "#fbbf24", fontWeight: "900", fontSize: 12 }}>
+                  Ver →
+                </Text>
+              </MotiView>
+            </MotiView>
+          </TouchableOpacity>
+        )}
 
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: showSettings ? 18 : 0 }}>
           <TouchableOpacity
