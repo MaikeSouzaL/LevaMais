@@ -171,7 +171,11 @@ export type ClientStackParamList = {
     | undefined;
   EditDeliveryAddress:
     | {
-        addressId: string;
+        addressId?: string;
+        addressData?: any;
+        mapPickedAddress?: string;
+        mapPickedLatitude?: number;
+        mapPickedLongitude?: number;
       }
     | undefined;
   DeliverySetup:

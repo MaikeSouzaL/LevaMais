@@ -80,17 +80,19 @@ export default function DeliverySenderInfoScreen() {
 
   // Pre-fill with user data if sender mode
   useEffect(() => {
-    if (isSender && currentAddress) {
-      setAddress(currentAddress);
-      if (userRegion) {
-        setAddressCoords({ latitude: userRegion.latitude, longitude: userRegion.longitude });
+    if (isSender) {
+      if (currentAddress) {
+        setAddress(currentAddress);
+        if (userRegion) {
+          setAddressCoords({ latitude: userRegion.latitude, longitude: userRegion.longitude });
+        }
+      }
+      if (user) {
+        setContactName(user.name || "");
+        setContactPhone(user.phone || "");
       }
     }
-    if (user) {
-      setContactName(user.name || "");
-      setContactPhone(user.phone || "");
-    }
-  }, []);
+  }, [currentAddress, isSender, userRegion, user]);
 
   useEffect(() => {
     if (route.params?.mapPickedAddress) {
@@ -146,7 +148,7 @@ export default function DeliverySenderInfoScreen() {
             const history = await rideService.getHistory({ limit: 5 });
             if (history?.rides) {
               // Convert past rides dropoff/pickups to FavoriteAddress format
-              const seen = new Set(favs.map(f => f.formattedAddress || f.address));
+              const seen = new Set<string>();
               
               history.rides.forEach(ride => {
                 const addLocation = (loc: any, type: string) => {
@@ -171,7 +173,7 @@ export default function DeliverySenderInfoScreen() {
             console.log("Failed to fetch ride history", e);
           }
           
-          setRecentAddresses([...favs, ...historyFavs]);
+          setRecentAddresses(historyFavs);
         } catch {}
       };
       loadFavorites();
@@ -255,6 +257,15 @@ export default function DeliverySenderInfoScreen() {
   const handleSelectRecent = (fav: FavoriteAddress) => {
     setAddress(fav.formattedAddress || fav.address || "");
     setAddressCoords({ latitude: Number(fav.latitude), longitude: Number(fav.longitude) });
+    
+    // Fill contact details if available
+    if (fav.name && fav.name !== "Endereço recente" && fav.name !== "Casa" && fav.name !== "Trabalho") {
+      setContactName(fav.name);
+    }
+    if ((fav as any).contactPhone) {
+      setContactPhone((fav as any).contactPhone);
+    }
+
     setIsSearchingAddress(false);
     setSearchMode("address");
     setSearchQuery("");
@@ -487,35 +498,8 @@ export default function DeliverySenderInfoScreen() {
           <View className="pt-7 px-5">
             <Text className="text-gray-500 text-[14px] font-semibold mb-3">Endereços recentes</Text>
 
-            {/* Show current address as a recent */}
-            {currentAddress && (
-              <TouchableOpacity
-                onPress={() => {
-                  setAddress(currentAddress);
-                  if (userRegion) {
-                    setAddressCoords({ latitude: userRegion.latitude, longitude: userRegion.longitude });
-                  }
-                }}
-                className="flex-row items-center py-3.5 border-b border-gray-50"
-              >
-                <View className="w-[36px] h-[36px] rounded-full bg-gray-100 items-center justify-center mr-3">
-                  <MapPin size={18} color="#02de95" />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-gray-900 text-[15px] font-semibold" numberOfLines={1}>
-                    {currentAddress}
-                  </Text>
-                  <Text className="text-gray-400 text-[12px] mt-0.5">
-                    {user?.name || "maike"} · {user?.phone || "69993168022"}
-                  </Text>
-                </View>
-                <TouchableOpacity className="p-2">
-                  <Edit3 size={16} color="#bbb" />
-                </TouchableOpacity>
-              </TouchableOpacity>
-            )}
 
-            {/* Favorite addresses */}
+            {/* Recent ride history addresses */}
             {recentAddresses.map((fav) => (
               <TouchableOpacity
                 key={fav._id}
@@ -530,15 +514,9 @@ export default function DeliverySenderInfoScreen() {
                     {fav.address || fav.formattedAddress}
                   </Text>
                   <Text className="text-gray-400 text-[12px] mt-0.5">
-                    {fav.name} · {user?.phone || "69993168022"}
+                    {fav.name && fav.name !== "Endereço recente" ? fav.name : "Histórico de corrida"} · {user?.phone || "69993168022"}
                   </Text>
                 </View>
-                <TouchableOpacity 
-                  className="p-2"
-                  onPress={() => navigation.navigate("EditDeliveryAddress", { addressId: fav._id } as any)}
-                >
-                  <Edit3 size={16} color="#bbb" />
-                </TouchableOpacity>
               </TouchableOpacity>
             ))}
           </View>

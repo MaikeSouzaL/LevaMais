@@ -836,14 +836,23 @@ export default function HomeScreen() {
                     style={{ position: 'absolute', left: 0, right: 0, height: 48, top: 4, justifyContent: 'center' }}
                     className="z-10"
                   >
-                    <View className="flex-1 justify-center">
+                    <TouchableOpacity 
+                      activeOpacity={0.7}
+                      className="flex-1 justify-center"
+                      onPress={() => {
+                        navigation.navigate("DeliverySenderInfo", {
+                          mode: deliveryMode === "send" ? "sender" : "receiver",
+                          vehicleType: selectedDeliveryVehicle
+                        });
+                      }}
+                    >
                       <Text className="text-white text-base font-bold mb-0.5" numberOfLines={1}>
                         {currentAddress || "Localização Atual"}
                       </Text>
                       <Text className="text-white/40 text-xs font-bold" numberOfLines={1}>
                         {user?.name || "Cliente"} • {user?.phone || "Telefone não cadastrado"}
                       </Text>
-                    </View>
+                    </TouchableOpacity>
                   </MotiView>
 
                   {/* Slot B: Clickable Search Button */}

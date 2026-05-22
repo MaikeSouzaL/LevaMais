@@ -34,8 +34,22 @@ export default function EditDeliveryAddressScreen() {
     }
   }, [addressId]);
 
+  useEffect(() => {
+    if (route.params?.mapPickedAddress) {
+      setAddress(route.params.mapPickedAddress);
+    }
+  }, [route.params?.mapPickedAddress]);
+
   const loadAddress = async () => {
     try {
+      if (route.params?.addressData) {
+        const fav = route.params.addressData;
+        setAddress(fav.formattedAddress || fav.address || "");
+        setAddressDetails(fav.details || "");
+        setContactName(fav.contactName || fav.name || "");
+        setContactPhone(fav.contactPhone || fav.contactPhone === "" ? fav.contactPhone : "");
+        return;
+      }
       const favs = await favoriteAddressService.list();
       const fav = favs.find(f => f._id === addressId || f.id === addressId);
       if (fav) {
@@ -53,12 +67,24 @@ export default function EditDeliveryAddressScreen() {
     if (!addressId) return;
     setIsLoading(true);
     try {
-      await favoriteAddressService.update(addressId, {
-        address,
-        details: addressDetails,
-        contactName,
-        contactPhone,
-      });
+      if (addressId.toString().startsWith("hist_")) {
+        await favoriteAddressService.create({
+          name: contactName || "Favorito recente",
+          address,
+          formattedAddress: address,
+          details: addressDetails,
+          contactPhone,
+          latitude: route.params?.addressData?.latitude || 0,
+          longitude: route.params?.addressData?.longitude || 0,
+        });
+      } else {
+        await favoriteAddressService.update(addressId, {
+          address,
+          details: addressDetails,
+          contactName,
+          contactPhone,
+        });
+      }
       Toast.show({ type: "success", text1: "Endereço atualizado com sucesso!" });
       navigation.goBack();
     } catch (error) {
@@ -71,7 +97,9 @@ export default function EditDeliveryAddressScreen() {
     if (!addressId) return;
     setIsLoading(true);
     try {
-      await favoriteAddressService.delete(addressId);
+      if (!addressId.toString().startsWith("hist_")) {
+        await favoriteAddressService.delete(addressId);
+      }
       Toast.show({ type: "success", text1: "Endereço removido!" });
       navigation.goBack();
     } catch (error) {
@@ -107,7 +135,16 @@ export default function EditDeliveryAddressScreen() {
               <Text className="text-gray-500 text-[13px] font-bold mb-2">
                 Endereço<Text className="text-[#02de95]">*</Text>
               </Text>
-              <TouchableOpacity className="flex-row items-center py-2 border-b border-gray-200">
+              <TouchableOpacity 
+                onPress={() => {
+                  navigation.navigate("FavoriteAddressFlow", {
+                    selectionMode: true,
+                    initialSearchMode: "favorite",
+                    returnScreen: "EditDeliveryAddress",
+                  });
+                }}
+                className="flex-row items-center py-2 border-b border-gray-200"
+              >
                 <Text
                   className="flex-1 text-[16px] font-medium text-gray-900"
                   numberOfLines={2}
