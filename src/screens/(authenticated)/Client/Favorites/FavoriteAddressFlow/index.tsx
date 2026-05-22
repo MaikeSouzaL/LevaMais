@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Keyboard,
   SafeAreaView,
   ScrollView,
@@ -158,6 +159,45 @@ export default function FavoriteAddressFlowScreen() {
     navigation.goBack();
   };
 
+  const handleFavoritePress = (fav: FavoriteAddress) => {
+    Alert.alert(
+      fav.name,
+      fav.formattedAddress || fav.address,
+      [
+        {
+          text: "Usar endereço",
+          onPress: () => {
+            navigation.navigate("DestinationSearch", {
+              initialVehicle: "car",
+              serviceType: "ride",
+              pickup: {
+                address: fav.formattedAddress || fav.address,
+                latitude: fav.latitude,
+                longitude: fav.longitude,
+              }
+            });
+          }
+        },
+        {
+          text: "Excluir favorito",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await favoriteAddressService.delete(fav._id);
+              await loadFavorites();
+            } catch (err) {
+              Alert.alert("Erro", "Não foi possível excluir o favorito.");
+            }
+          }
+        },
+        {
+          text: "Cancelar",
+          style: "cancel"
+        }
+      ]
+    );
+  };
+
   const renderSearchIcon = () => {
     if (mode === "home") return <HomeIcon size={18} color="#6b7280" style={{ marginRight: 12 }} />;
     if (mode === "work") return <Briefcase size={18} color="#6b7280" style={{ marginRight: 12 }} />;
@@ -167,7 +207,7 @@ export default function FavoriteAddressFlowScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-      <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingVertical: 18, borderBottomWidth: 1, borderBottomColor: "#f1f1f1" }}>
+      <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingTop: StatusBar.currentHeight ? StatusBar.currentHeight + 28 : 48, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: "#f1f1f1" }}>
         <TouchableOpacity onPress={handleBack} style={{ width: 42, height: 42, alignItems: "center", justifyContent: "center" }}>
           <ChevronLeft size={30} color="#111" strokeWidth={2.5} />
         </TouchableOpacity>
@@ -199,7 +239,7 @@ export default function FavoriteAddressFlowScreen() {
             <View style={{ flex: 1 }}>
               <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
                 {favorites.map((fav) => (
-                  <TouchableOpacity key={fav._id} style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 24, paddingVertical: 16 }}>
+                  <TouchableOpacity key={fav._id} onPress={() => handleFavoritePress(fav)} style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 24, paddingVertical: 16 }}>
                     <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "#9ca3af", alignItems: "center", justifyContent: "center", marginRight: 16 }}>
                       <MapPin size={20} color="#fff" fill="#fff" />
                     </View>

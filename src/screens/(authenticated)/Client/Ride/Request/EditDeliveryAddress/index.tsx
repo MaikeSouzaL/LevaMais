@@ -83,7 +83,7 @@ export default function EditDeliveryAddressScreen() {
   const isFormValid = address.trim().length > 0 && contactName.trim().length > 0 && contactPhone.trim().length > 0;
 
   return (
-    <View className="flex-1 bg-white" style={{ paddingTop: StatusBar.currentHeight || 44 }}>
+    <View className="flex-1 bg-white" style={{ paddingTop: StatusBar.currentHeight ? StatusBar.currentHeight + 20 : 44 }}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
       {/* Header */}

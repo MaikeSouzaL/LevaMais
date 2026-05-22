@@ -14,7 +14,7 @@ import {
   Dimensions,
 } from "react-native";
 import { NavigationProp, RouteProp, useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
-import { ChevronLeft, ChevronRight, MapPin, Edit3, X, Home as HomeIcon, Briefcase, Star, Phone, User, Flame } from "lucide-react-native";
+import { ChevronLeft, ChevronRight, MapPin, Edit3, X, Home as HomeIcon, Briefcase, Star, Phone, User, Flame, Plus, Pencil } from "lucide-react-native";
 import { MotiView } from "moti";
 import { ClientStackParamList } from "../../../types/navigation";
 import { useAuthStore } from "@/context/authStore";
@@ -363,7 +363,7 @@ export default function DeliverySenderInfoScreen() {
 
   // ────────────────────── Main Form Screen ──────────────────────
   return (
-    <View className="flex-1 bg-white" style={{ paddingTop: StatusBar.currentHeight || 44 }}>
+    <View className="flex-1 bg-white" style={{ paddingTop: StatusBar.currentHeight ? StatusBar.currentHeight + 20 : 44 }}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
       {/* Header */}
