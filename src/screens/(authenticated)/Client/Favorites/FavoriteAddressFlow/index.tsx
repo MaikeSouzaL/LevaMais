@@ -1,0 +1,306 @@
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Keyboard,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
+import { Briefcase, ChevronLeft, Flame, Home as HomeIcon, MapPin, Star, X } from "lucide-react-native";
+
+import favoriteAddressService, { FavoriteAddress } from "@/services/favoriteAddress.service";
+import { getPlaceDetails, PlaceAutocompleteResult, searchPlaces } from "@/services/googlePlaces.service";
+import { ClientStackParamList } from "../../types/navigation";
+
+type Mode = "home" | "work" | "favorite" | "favoritesList" | "favoriteName";
+
+const nearbySuggestions = [
+  {
+    title: "Supermercado Irmãos Gonçalves",
+    subtitle: "Avenida Marechal Rondon, 1993 - A Apidia, Pimenta Bueno - RO, 76970-000, Brasil",
+    distance: "2km",
+  },
+  {
+    title: "Matriz Transportes",
+    subtitle: "Box25 - Rodoviária, Pimenta Bueno - RO, 78984-000, Brasil",
+    distance: "1,4km",
+  },
+  {
+    title: "Posto Itaporanga",
+    subtitle: "BR-364 - ITAPORANGA, Pimenta Bueno - RO, 76970-000, Brasil",
+    distance: "4.4km",
+  },
+  {
+    title: "Parada de Ônibus Pimenta Bueno",
+    subtitle: "Pioneiros, Pimenta Bueno - RO, 76970-000, Brasil",
+    distance: "1,4km",
+  },
+];
+
+export default function FavoriteAddressFlowScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<ClientStackParamList, "FavoriteAddressFlow">>();
+  const route = useRoute<RouteProp<ClientStackParamList, "FavoriteAddressFlow">>();
+  const [mode, setMode] = useState<Mode>(route.params?.initialSearchMode || "favoritesList");
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<PlaceAutocompleteResult[]>([]);
+  const [favorites, setFavorites] = useState<FavoriteAddress[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [draft, setDraft] = useState<{ address: string; latitude: number; longitude: number } | null>(null);
+  const [favoriteName, setFavoriteName] = useState("");
+  const searchTimeout = useRef<any>(null);
+
+  const loadFavorites = useCallback(async () => {
+    const list = await favoriteAddressService.list();
+    setFavorites(list || []);
+  }, []);
+
+  useEffect(() => {
+    loadFavorites().catch(() => setFavorites([]));
+  }, [loadFavorites]);
+
+  useEffect(() => {
+    if (mode === "favoritesList" || mode === "favoriteName") return;
+    if (query.trim().length < 3) {
+      setResults([]);
+      return;
+    }
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    searchTimeout.current = setTimeout(async () => {
+      setLoading(true);
+      try {
+        setResults(await searchPlaces(query));
+      } catch {
+        setResults([]);
+      } finally {
+        setLoading(false);
+      }
+    }, 350);
+    return () => {
+      if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    };
+  }, [mode, query]);
+
+  const title = mode === "favoriteName" ? "Nome do local" : mode === "favoritesList" ? "Favoritos" : "Favoritos";
+  const placeholder =
+    mode === "home" ? "Onde você mora?" : mode === "work" ? "Onde você trabalha?" : "Insira o endereço";
+
+  const saveAddress = async (name: string, icon: "home" | "work" | "favorite", address: string, latitude: number, longitude: number) => {
+    setSaving(true);
+    try {
+      await favoriteAddressService.create({
+        name,
+        icon,
+        address,
+        formattedAddress: address,
+        latitude,
+        longitude,
+      });
+      await loadFavorites();
+      setQuery("");
+      setResults([]);
+      setDraft(null);
+      setFavoriteName("");
+      setMode("favoritesList");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSelectResult = async (item: PlaceAutocompleteResult) => {
+    setLoading(true);
+    try {
+      const details = await getPlaceDetails(item.placeId);
+      if (!details) return;
+      if (mode === "home") {
+        await saveAddress("Casa", "home", details.formattedAddress, details.latitude, details.longitude);
+        return;
+      }
+      if (mode === "work") {
+        await saveAddress("Trabalho", "work", details.formattedAddress, details.latitude, details.longitude);
+        return;
+      }
+      setDraft({
+        address: details.formattedAddress,
+        latitude: details.latitude,
+        longitude: details.longitude,
+      });
+      setFavoriteName(item.mainText || details.street || details.formattedAddress);
+      setQuery("");
+      setResults([]);
+      setMode("favoriteName");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveFavoriteName = async () => {
+    if (!draft || !favoriteName.trim()) return;
+    await saveAddress(favoriteName.trim(), "favorite", draft.address, draft.latitude, draft.longitude);
+  };
+
+  const handleBack = () => {
+    Keyboard.dismiss();
+    if (mode === "favoriteName") {
+      setMode("favorite");
+      return;
+    }
+    if (mode !== "favoritesList") {
+      setMode("favoritesList");
+      return;
+    }
+    navigation.goBack();
+  };
+
+  const renderSearchIcon = () => {
+    if (mode === "home") return <HomeIcon size={18} color="#6b7280" style={{ marginRight: 12 }} />;
+    if (mode === "work") return <Briefcase size={18} color="#6b7280" style={{ marginRight: 12 }} />;
+    return <Star size={18} color="#6b7280" fill="#6b7280" style={{ marginRight: 12 }} />;
+  };
+
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingVertical: 18, borderBottomWidth: 1, borderBottomColor: "#f1f1f1" }}>
+        <TouchableOpacity onPress={handleBack} style={{ width: 42, height: 42, alignItems: "center", justifyContent: "center" }}>
+          <ChevronLeft size={30} color="#111" strokeWidth={2.5} />
+        </TouchableOpacity>
+        <Text style={{ flex: 1, marginRight: 42, textAlign: "center", color: "#111827", fontSize: 22, fontWeight: "900" }}>
+          {title}
+        </Text>
+      </View>
+
+      {mode === "favoritesList" ? (
+        <View style={{ flex: 1 }}>
+          {favorites.length === 0 ? (
+            <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 }}>
+              <View style={{ width: 116, height: 116, borderRadius: 58, backgroundColor: "#e5e5ea", alignItems: "center", justifyContent: "center", marginBottom: 28 }}>
+                <MapPin size={60} color="#ff9f2d" fill="#ff9f2d" />
+              </View>
+              <Text style={{ color: "#0f172a", fontSize: 25, fontWeight: "900", marginBottom: 12 }}>Locais favoritos</Text>
+              <Text style={{ color: "#333", textAlign: "center", fontSize: 16, lineHeight: 22, marginBottom: 28 }}>
+                É mais fácil chegar a um destino se ele já estiver salvo
+              </Text>
+              <TouchableOpacity
+                onPress={() => setMode("favorite")}
+                activeOpacity={0.85}
+                style={{ height: 56, paddingHorizontal: 34, borderRadius: 28, backgroundColor: "#ffbd31", alignItems: "center", justifyContent: "center" }}
+              >
+                <Text style={{ color: "#111827", fontSize: 19, fontWeight: "900" }}>Adicionar favorito</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={{ flex: 1 }}>
+              <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                {favorites.map((fav) => (
+                  <TouchableOpacity key={fav._id} style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 24, paddingVertical: 16 }}>
+                    <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "#9ca3af", alignItems: "center", justifyContent: "center", marginRight: 16 }}>
+                      <MapPin size={20} color="#fff" fill="#fff" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: "#111827", fontSize: 17, fontWeight: "800" }} numberOfLines={1}>{fav.name}</Text>
+                      <Text style={{ color: "#9ca3af", fontSize: 13, marginTop: 2 }} numberOfLines={1}>{fav.formattedAddress || fav.address}</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              <TouchableOpacity
+                onPress={() => setMode("favorite")}
+                style={{ position: "absolute", right: 24, bottom: 28, width: 64, height: 64, borderRadius: 32, backgroundColor: "#ffc43d", alignItems: "center", justifyContent: "center" }}
+              >
+                <Text style={{ color: "#fff", fontSize: 42, lineHeight: 46, fontWeight: "300" }}>+</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      ) : mode === "favoriteName" ? (
+        <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 34 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 32 }}>
+            <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "#9ca3af", alignItems: "center", justifyContent: "center", marginRight: 16 }}>
+              <MapPin size={20} color="#fff" fill="#fff" />
+            </View>
+            <Text style={{ flex: 1, color: "#4b5563", fontSize: 14, lineHeight: 19 }} numberOfLines={2}>{draft?.address}</Text>
+          </View>
+          <View style={{ backgroundColor: "#fff", borderRadius: 18, paddingHorizontal: 18, paddingVertical: 12, borderWidth: 1, borderColor: "#f3f4f6", shadowColor: "#000", shadowOpacity: 0.08, shadowRadius: 10, elevation: 2 }}>
+            <Text style={{ color: "#6b7280", fontSize: 12, marginBottom: 4 }}>Nome do local</Text>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <TextInput value={favoriteName} onChangeText={setFavoriteName} autoFocus style={{ flex: 1, color: "#111827", fontSize: 17, fontWeight: "600" }} />
+              {favoriteName.length > 0 && (
+                <TouchableOpacity onPress={() => setFavoriteName("")}>
+                  <X size={18} color="#c7c7c7" />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+          <View style={{ alignItems: "flex-end", marginTop: 32 }}>
+            <TouchableOpacity
+              onPress={handleSaveFavoriteName}
+              disabled={saving || !draft || !favoriteName.trim()}
+              style={{ height: 58, paddingHorizontal: 34, borderRadius: 29, backgroundColor: "#ffbd31", opacity: saving || !favoriteName.trim() ? 0.55 : 1, alignItems: "center", justifyContent: "center" }}
+            >
+              <Text style={{ color: "#111827", fontSize: 20, fontWeight: "900" }}>{saving ? "Salvando..." : "Salvar"}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : (
+        <View style={{ flex: 1 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 14, gap: 12 }}>
+            <View style={{ flex: 1, height: 54, borderRadius: 27, backgroundColor: "#f5f5f6", flexDirection: "row", alignItems: "center", paddingHorizontal: 18 }}>
+              {renderSearchIcon()}
+              <TextInput value={query} onChangeText={setQuery} autoFocus placeholder={placeholder} placeholderTextColor="#c4c4c8" style={{ flex: 1, color: "#111827", fontSize: 16, fontWeight: "600" }} />
+              {query.length > 0 && (
+                <TouchableOpacity onPress={() => setQuery("")}>
+                  <X size={18} color="#999" />
+                </TouchableOpacity>
+              )}
+            </View>
+            <TouchableOpacity onPress={() => setMode("favoritesList")}>
+              <Text style={{ color: "#555", fontSize: 15, fontWeight: "600" }}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            {loading && <ActivityIndicator color="#02de95" style={{ marginVertical: 18 }} />}
+            {results.map((item) => (
+              <TouchableOpacity key={item.placeId} onPress={() => handleSelectResult(item)} style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 24, paddingVertical: 12 }}>
+                <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: "#fff0e8", alignItems: "center", justifyContent: "center", marginRight: 14 }}>
+                  <MapPin size={18} color="#ff7a3d" fill="#ff7a3d" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: "#333", fontSize: 16, fontWeight: "800" }} numberOfLines={1}>{item.mainText}</Text>
+                  <Text style={{ color: "#9ca3af", fontSize: 14, marginTop: 2 }} numberOfLines={2}>{item.secondaryText}</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+            {query.length === 0 && nearbySuggestions.map((item) => (
+              <TouchableOpacity
+                key={item.title}
+                onPress={() => {
+                  setDraft({ address: `${item.title} - ${item.subtitle}`, latitude: 0, longitude: 0 });
+                  setFavoriteName(item.title);
+                  setMode("favoriteName");
+                }}
+                style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 24, paddingVertical: 12 }}
+              >
+                <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: "#fff0e8", alignItems: "center", justifyContent: "center", marginRight: 14 }}>
+                  <Flame size={17} color="#ff7a3d" fill="#ff7a3d" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: "#333", fontSize: 16, fontWeight: "800" }} numberOfLines={1}>{item.title}</Text>
+                  <Text style={{ color: "#9ca3af", fontSize: 14, marginTop: 2 }} numberOfLines={2}>{item.subtitle}</Text>
+                </View>
+                <Text style={{ color: "#9ca3af", fontSize: 14, marginLeft: 10 }}>{item.distance}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+    </SafeAreaView>
+  );
+}

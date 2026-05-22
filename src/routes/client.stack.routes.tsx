@@ -11,11 +11,14 @@ import EditAccountScreen from "../screens/(authenticated)/Client/Profile/EditAcc
 import AddressPickerScreen from "../screens/(authenticated)/Client/Ride/Request/AddressPicker";
 import DestinationSearchScreen from "../screens/(authenticated)/Client/Ride/Request/DestinationSearch";
 import FavoritesScreen from "../screens/(authenticated)/Client/Favorites/FavoritesList";
-import AddFavoriteScreen from "../screens/(authenticated)/Client/Favorites/AddFavorite";
+import FavoriteAddressFlowScreen from "../screens/(authenticated)/Client/Favorites/FavoriteAddressFlow";
 import SelectVehicleScreen from "../screens/(authenticated)/Client/Ride/Request/SelectVehicle";
 import ServicePurposeScreen from "../screens/(authenticated)/Client/Ride/Request/ServicePurpose";
 import RideSetupScreen from "../screens/(authenticated)/Client/Ride/Request/RideSetup";
 import DeliverySetupScreen from "../screens/(authenticated)/Client/Ride/Request/DeliverySetup";
+import DeliverySenderInfoScreen from "../screens/(authenticated)/Client/Ride/Request/DeliverySenderInfo";
+import EditDeliveryAddressScreen from "../screens/(authenticated)/Client/Ride/Request/EditDeliveryAddress";
+import DeliveryMapPickerScreen from "../screens/(authenticated)/Client/Ride/Request/DeliveryMapPicker";
 import DeliveryReviewScreen from "../screens/(authenticated)/Client/Ride/Request/DeliveryReview";
 import DeliveryPaymentConfirmScreen from "../screens/(authenticated)/Client/Ride/Request/DeliveryPaymentConfirm";
 import OrderSummaryScreen from "../screens/(authenticated)/Client/Ride/Request/OrderSummary";
@@ -76,9 +79,12 @@ export default function ClientStackRoutes({
       <Stack.Screen name="DestinationSearch" component={DestinationSearchScreen} />
       <Stack.Screen name="EditFavorite" component={AddressPickerScreen} />
       <Stack.Screen name="Favorites" component={FavoritesScreen} />
-      <Stack.Screen name="AddFavorite" component={AddFavoriteScreen} />
+      <Stack.Screen name="FavoriteAddressFlow" component={FavoriteAddressFlowScreen} />
       <Stack.Screen name="SelectVehicle" component={SelectVehicleScreen} />
       <Stack.Screen name="RideSetup" component={RideSetupScreen} />
+      <Stack.Screen name="DeliverySenderInfo" component={DeliverySenderInfoScreen} />
+      <Stack.Screen name="EditDeliveryAddress" component={EditDeliveryAddressScreen} />
+      <Stack.Screen name="DeliveryMapPicker" component={DeliveryMapPickerScreen} />
       <Stack.Screen name="DeliverySetup" component={DeliverySetupScreen} />
       <Stack.Screen name="DeliveryReview" component={DeliveryReviewScreen} />
       <Stack.Screen name="DeliveryPaymentConfirm" component={DeliveryPaymentConfirmScreen} />

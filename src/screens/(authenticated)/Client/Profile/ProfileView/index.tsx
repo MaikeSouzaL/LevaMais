@@ -1,9 +1,12 @@
 import React from "react";
-import { View, Text, TouchableOpacity, ScrollView, StatusBar } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, StatusBar, Image, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { MotiView } from "moti";
+import * as ImagePicker from "expo-image-picker";
+import Toast from "react-native-toast-message";
+import userService from "@/services/user.service";
 import {
   User,
   History,
@@ -23,6 +26,7 @@ import {
   LogOut,
   Truck,
   Edit3,
+  ArrowLeft,
 } from "lucide-react-native";
 
 import { useAuthStore } from "@/context/authStore";
@@ -87,6 +91,54 @@ export default function ProfileScreen() {
   const displayEmail = user?.email || "sem-email@leva-mais.app";
   const initials = displayName.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase();
 
+  const [uploadingImage, setUploadingImage] = React.useState(false);
+
+  const profileImageUrl = user?.fotoPerfil || user?.profilePhoto;
+
+  const handlePickImage = async () => {
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    
+    if (permissionResult.granted === false) {
+      Toast.show({
+        type: "error",
+        text1: "Permissão necessária",
+        text2: "Precisamos de permissão para acessar suas fotos.",
+      });
+      return;
+    }
+
+    const pickerResult = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.5,
+    });
+
+    if (!pickerResult.canceled && pickerResult.assets && pickerResult.assets.length > 0) {
+      const uri = pickerResult.assets[0].uri;
+      setUploadingImage(true);
+      try {
+        const newPhotoUrl = await userService.uploadProfilePhoto(uri);
+        useAuthStore.getState().updateUserData({ 
+          profilePhoto: newPhotoUrl,
+          fotoPerfil: newPhotoUrl
+        });
+        Toast.show({
+          type: "success",
+          text1: "Foto atualizada!",
+        });
+      } catch (error: any) {
+        Toast.show({
+          type: "error",
+          text1: "Erro ao atualizar foto",
+          text2: error.message || "Tente novamente mais tarde.",
+        });
+      } finally {
+        setUploadingImage(false);
+      }
+    }
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: "#091A2F" }}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
@@ -106,20 +158,59 @@ export default function ProfileScreen() {
             alignItems: "center",
             borderBottomWidth: 1,
             borderBottomColor: "rgba(255,255,255,0.06)",
+            position: "relative",
           }}
         >
+          {/* Back Button */}
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={{
+              position: "absolute",
+              top: insets.top + 12,
+              left: 16,
+              width: 40,
+              height: 40,
+              borderRadius: 20,
+              backgroundColor: "rgba(255,255,255,0.03)",
+              alignItems: "center",
+              justifyContent: "center",
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.08)",
+            }}
+          >
+            <ArrowLeft size={20} color="#fff" />
+          </TouchableOpacity>
           {/* Avatar */}
           <View style={{ position: "relative", marginBottom: 16 }}>
-            <View style={{
-              width: 88, height: 88, borderRadius: 44,
-              backgroundColor: "rgba(2,222,149,0.12)",
-              borderWidth: 2.5, borderColor: "rgba(2,222,149,0.35)",
-              alignItems: "center", justifyContent: "center",
-            }}>
-              <Text style={{ color: "#02de95", fontSize: 32, fontWeight: "900" }}>{initials}</Text>
-            </View>
+            {profileImageUrl ? (
+              <Image 
+                source={{ uri: profileImageUrl }} 
+                style={{ width: 88, height: 88, borderRadius: 44, borderWidth: 2.5, borderColor: "rgba(2,222,149,0.35)" }} 
+              />
+            ) : (
+              <View style={{
+                width: 88, height: 88, borderRadius: 44,
+                backgroundColor: "rgba(2,222,149,0.12)",
+                borderWidth: 2.5, borderColor: "rgba(2,222,149,0.35)",
+                alignItems: "center", justifyContent: "center",
+              }}>
+                <Text style={{ color: "#02de95", fontSize: 32, fontWeight: "900" }}>{initials}</Text>
+              </View>
+            )}
+
+            {uploadingImage && (
+              <View style={{
+                position: "absolute", top: 0, left: 0, right: 0, bottom: 0, 
+                backgroundColor: "rgba(9,26,47,0.6)", borderRadius: 44, 
+                alignItems: "center", justifyContent: "center"
+              }}>
+                <ActivityIndicator color="#02de95" size="small" />
+              </View>
+            )}
+
             <TouchableOpacity
-              onPress={() => navigation.navigate("EditAccount")}
+              onPress={handlePickImage}
+              disabled={uploadingImage}
               style={{
                 position: "absolute", bottom: 0, right: 0,
                 width: 28, height: 28, borderRadius: 14,

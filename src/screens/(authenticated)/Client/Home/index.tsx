@@ -3,7 +3,7 @@ import { StatusBar, Alert, View, Text, TouchableOpacity, ScrollView, Image } fro
 import { NavigationProp, RouteProp, useNavigation, useFocusEffect, useRoute } from "@react-navigation/native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { MotiView } from "moti";
-import { Info, Search, QrCode, Percent, CreditCard, ChevronRight, User, Bell, Shield, ArrowRight, Car, Package, Wallet, Gift, Home as HomeIcon, Briefcase } from "lucide-react-native";
+import { Info, Search, QrCode, Percent, CreditCard, ChevronRight, User, Bell, Shield, ArrowRight, Car, Package, Wallet, Gift, Home as HomeIcon, Briefcase, Sparkles, Bike, Check } from "lucide-react-native";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Toast from "react-native-toast-message";
 
@@ -80,7 +80,17 @@ export default function HomeScreen() {
 
   // Active Service view state & Delivery configurations
   const [activeService, setActiveService] = useState<"ride" | "delivery" | "pay">("ride");
+  const [isTransitioning, setIsTransitioning] = useState(false);
   const [deliveryMode, setDeliveryMode] = useState<"send" | "receive">("send");
+  const [selectedDeliveryVehicle, setSelectedDeliveryVehicle] = useState<"motorcycle" | "car" | "van" | "truck">("motorcycle");
+
+  useEffect(() => {
+    setIsTransitioning(true);
+    const timer = setTimeout(() => {
+      setIsTransitioning(false);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [activeService]);
 
   //Background monitoring of active ride (Redirect if driver offers or accepts)
   useEffect(() => {
@@ -132,7 +142,7 @@ export default function HomeScreen() {
       }
     };
 
-    // âœ… Call immediately on mount â€” don't wait for WebSocket
+    // ? Call immediately on mount ? don't wait for WebSocket
     checkActiveRide();
 
     // WebSocket listeners for real-time updates
@@ -192,7 +202,7 @@ export default function HomeScreen() {
     };
   }, [navigation]);
 
-  // ðŸ” Re-check on every focus (catches rides from other screens)
+  // Re-check on every focus (catches rides from other screens)
   useFocusEffect(
     useCallback(() => {
       let isMounted = true;
@@ -338,6 +348,42 @@ export default function HomeScreen() {
     });
   }, [navigation, currentAddress, userRegion, region]);
 
+  const handleOpenFavoriteShortcut = useCallback(
+    (mode: "home" | "work" | "favorite" | "favoritesList") => {
+      navigation.navigate("FavoriteAddressFlow", {
+        initialSearchMode: mode,
+      });
+    },
+    [navigation],
+  );
+
+  const deliveryVehicles = [
+    {
+      id: "motorcycle" as const,
+      title: "Moto Entrega",
+      subtitle: "Rápido • Econômico",
+      image: require("../../../../assets/Logo/leva_moto.png"),
+    },
+    {
+      id: "car" as const,
+      title: "Carro Entrega",
+      subtitle: "Pacotes médios",
+      image: require("../../../../assets/Logo/leva-carro.png"),
+    },
+    {
+      id: "van" as const,
+      title: "Van Entrega",
+      subtitle: "Volumes maiores",
+      image: require("../../../../assets/Logo/leva_van.png"),
+    },
+    {
+      id: "truck" as const,
+      title: "Baú entrega",
+      subtitle: "Cargas grandes",
+      image: require("../../../../assets/Logo/leva_bau.png"),
+    },
+  ];
+
   const handleWalletPress = useCallback(() => {
     // Example route - if specific wallet exists
     Alert.alert("Carteira", `Olá ${user?.name || "Cliente"}! Seu saldo está disponível.`);
@@ -385,31 +431,34 @@ export default function HomeScreen() {
   return (
     <ErrorBoundary componentName="ClientHomeScreen">
       <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#091A2F" }}>
-        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+        <StatusBar barStyle={activeService === "ride" ? "dark-content" : "light-content"} backgroundColor="transparent" translucent />
         
         {activeService === "ride" && (
           <View className="flex-1 pb-[110px]" style={{ paddingTop: StatusBar.currentHeight || 20 }}>
+            {/* Green Background behind Header and top of Map */}
+            <View className="absolute top-0 left-0 right-0 h-[220px] bg-[#02de95]" style={{ borderBottomLeftRadius: 32, borderBottomRightRadius: 32 }} />
+
             {/* 1. Header (Greeting & Actions) */}
-            <View className="flex-row justify-between items-center px-5 pb-0">
+            <View className="flex-row justify-between items-center px-5 pb-0 mt-2 relative z-10">
               <View className="flex-row items-center gap-3">
                 <TouchableOpacity onPress={handleMenuPress} className="relative">
                   {user?.fotoPerfil || user?.profilePhoto ? (
-                    <Image source={{ uri: user.fotoPerfil || user.profilePhoto }} className="w-11 h-11 rounded-full border-[1.5px] border-[#02de95]" />
+                    <Image source={{ uri: user.fotoPerfil || user.profilePhoto }} className="w-11 h-11 rounded-full border-[2px] border-white" />
                   ) : (
-                    <View className="w-11 h-11 rounded-full bg-[#11253E] items-center justify-center border-[1.5px] border-white/10">
-                      <User size={20} color="#fff" />
+                    <View className="w-11 h-11 rounded-full bg-[#091A2F]/10 items-center justify-center border-[1.5px] border-[#091A2F]/20">
+                      <User size={20} color="#091A2F" />
                     </View>
                   )}
-                  <View className="absolute top-0 right-0 w-2.5 h-2.5 rounded-full bg-[#ef4444] border-[1.5px] border-[#091A2F]" />
+                  <View className="absolute top-0 right-0 w-2.5 h-2.5 rounded-full bg-[#ef4444] border-[1.5px] border-[#02de95]" />
                 </TouchableOpacity>
-                <Text className="text-white text-[22px] font-bold">Olá, <Text className="text-[#02de95] font-black">{user?.name || "Cliente"}</Text>!</Text>
+                <Text className="text-[#091A2F] text-[22px] font-bold">Olá, <Text className="text-[#091A2F] font-black">{user?.name || "Cliente"}</Text>!</Text>
               </View>
               <View className="flex-row items-center gap-3">
-                <TouchableOpacity className="bg-[#02de95]/15 px-3 py-1 rounded-xl border border-[#02de95]/30">
-                  <Text className="text-[#02de95] text-xs font-bold">Pix</Text>
+                <TouchableOpacity className="bg-[#091A2F]/10 px-3 py-1 rounded-xl border border-[#091A2F]/20">
+                  <Text className="text-[#091A2F] text-xs font-bold">Pix</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={handleSOS} className="w-10 h-10 rounded-full bg-[#11253E] items-center justify-center border border-white/5">
-                  <QrCode size={20} color="#fff" />
+                <TouchableOpacity onPress={handleSOS} className="w-10 h-10 rounded-full bg-[#091A2F]/10 items-center justify-center border border-[#091A2F]/20">
+                  <QrCode size={20} color="#091A2F" />
                 </TouchableOpacity>
               </View>
             </View>
@@ -421,26 +470,26 @@ export default function HomeScreen() {
                 region={region}
                 userRegion={userRegion}
                 onRegionChangeComplete={handleRegionChangeComplete}
-                useDarkStyle={true}
+                useDarkStyle={user?.mapTheme === "dark"}
                 avatarUrl={user?.fotoPerfil || user?.profilePhoto || undefined}
               />
-              
-              {/* Green coupon pill */}
-              <View className="absolute bottom-[35px] left-0 right-0 bg-[#02de95] flex-row items-center justify-center py-2">
-                <Percent size={14} color="#091A2F" style={{ marginRight: 6 }} />
-                <Text className="text-[#091A2F] text-[11px] font-black uppercase tracking-[0.5px]">Corra com cupom de 30% OFF!</Text>
-              </View>
             </View>
             
             {/* 3. Overlapping Search Bar */}
             <TouchableOpacity 
               activeOpacity={0.95}
               onPress={handleSearchPress}
-              className="bg-[#11253E] mx-5 h-14 rounded-b-[24px] flex-row items-center px-[18px] -mt-10 border border-[#02de95]/20 z-20"
-              style={{ shadowColor: "#000", shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 6 }}
+              className="bg-[#02de95] mx-5 h-[64px] rounded-[36px] flex-row items-center px-6 -mt-16 z-20"
+              style={{ 
+                shadowColor: "#000", 
+                shadowOffset: { width: 0, height: 6 }, 
+                shadowOpacity: 0.22, 
+                shadowRadius: 12, 
+                elevation: 10 
+              }}
             >
-              <Search size={22} color="#02de95" style={{ marginRight: 12 }} />
-              <Text className="text-white text-base font-bold">Para onde vamos?</Text>
+              <Search size={28} color="#091A2F" style={{ marginRight: 14 }} />
+              <Text className="text-[#091A2F] text-xl font-black">Para onde vamos?</Text>
             </TouchableOpacity>
 
             {/* Quick Favorites Pills */}
@@ -450,7 +499,7 @@ export default function HomeScreen() {
                 showsHorizontalScrollIndicator={false} 
                 contentContainerStyle={{ gap: 10, paddingRight: 20 }}
               >
-                {favorites.length > 0 ? (
+                {favorites.length > 0 && (
                   favorites.slice(0, 3).map((fav, index) => (
                     <TouchableOpacity
                       key={fav.id || index}
@@ -471,24 +520,24 @@ export default function HomeScreen() {
                       }}
                     >
                       <View className="w-6 h-6 rounded-full bg-[#02de95]/10 items-center justify-center mr-2">
-                        {fav.label?.toLowerCase() === "casa" ? (
+                        {(fav.name || fav.label)?.toLowerCase() === "casa" ? (
                           <HomeIcon size={14} color="#02de95" />
-                        ) : fav.label?.toLowerCase() === "trabalho" ? (
+                        ) : (fav.name || fav.label)?.toLowerCase() === "trabalho" ? (
                           <Briefcase size={14} color="#02de95" />
                         ) : (
-                          <Shield size={14} color="#02de95" />
+                          <Sparkles size={14} color="#02de95" />
                         )}
                       </View>
                       <Text className="text-white text-xs font-bold" numberOfLines={1}>
-                        {fav.label}
+                        {fav.name || fav.label}
                       </Text>
                     </TouchableOpacity>
                   ))
-                ) : (
-                  <>
+                )}
+                <>
                     <TouchableOpacity
                       className="flex-row items-center bg-[#11253E] px-3.5 py-2 rounded-[20px] border border-white/[0.03]"
-                      onPress={() => navigation.navigate("Favorites")}
+                      onPress={() => handleOpenFavoriteShortcut("home")}
                     >
                       <View className="w-6 h-6 rounded-full bg-[#02de95]/10 items-center justify-center mr-2">
                         <HomeIcon size={14} color="#02de95" />
@@ -498,15 +547,24 @@ export default function HomeScreen() {
 
                     <TouchableOpacity
                       className="flex-row items-center bg-[#11253E] px-3.5 py-2 rounded-[20px] border border-white/[0.03]"
-                      onPress={() => navigation.navigate("Favorites")}
+                      onPress={() => handleOpenFavoriteShortcut("work")}
                     >
                       <View className="w-6 h-6 rounded-full bg-[#02de95]/10 items-center justify-center mr-2">
                         <Briefcase size={14} color="#02de95" />
                       </View>
                       <Text className="text-white text-xs font-bold">Adicionar Trabalho</Text>
                     </TouchableOpacity>
+
+                    <TouchableOpacity
+                      className="flex-row items-center bg-[#11253E] px-3.5 py-2 rounded-[20px] border border-white/[0.03]"
+                      onPress={() => handleOpenFavoriteShortcut("favoritesList")}
+                    >
+                      <View className="w-6 h-6 rounded-full bg-[#02de95]/10 items-center justify-center mr-2">
+                        <Sparkles size={14} color="#02de95" />
+                      </View>
+                      <Text className="text-white text-xs font-bold">Adicionar Favorito</Text>
+                    </TouchableOpacity>
                   </>
-                )}
               </ScrollView>
             </View>
 
@@ -523,49 +581,69 @@ export default function HomeScreen() {
                 <TouchableOpacity 
                   activeOpacity={0.9}
                   onPress={() => handleServiceSelect("ride")}
-                  className="w-[280px] h-[110px] bg-[#11253E] rounded-[20px] p-3.5 flex-row items-center border border-white/[0.03]"
+                  className="w-[325px] h-[135px] bg-[#11253E] rounded-[24px] p-4 flex-row items-center border border-white/[0.04] overflow-hidden"
                 >
-                  <View className="flex-1">
-                    <View className="self-start bg-[#02de95]/15 border border-[#02de95]/30 px-2 py-0.5 rounded-md mb-2">
-                      <Text className="text-[#02de95] text-[10px] font-black tracking-widest uppercase">Leva+</Text>
+                  <View className="flex-1 justify-between h-full pr-1">
+                    <View className="self-start bg-[#02de95]/10 border border-[#02de95]/20 px-2 py-0.5 rounded-md">
+                      <Text className="text-[#02de95] text-[9px] font-black tracking-widest uppercase">Leva+</Text>
                     </View>
-                    <Text className="text-white text-[13px] font-black uppercase mb-1" numberOfLines={1}>VÁ COM A LEVA+</Text>
-                    <Text className="text-white/60 text-[11px] leading-[14px]" numberOfLines={2}>
-                      Escolha mais de uma categoria com preço justo.
-                    </Text>
+                    <View className="mt-1">
+                      <Text className="text-[#02de95] text-lg font-black tracking-tight mb-0.5">Vá com a Leva+</Text>
+                      <Text className="text-white/60 text-[11px] leading-[15px]" numberOfLines={2}>
+                        Escolha entre entrega ou corrida com preço justo.
+                      </Text>
+                    </View>
                   </View>
-                  <View className="w-12 h-12 rounded-full bg-[#02de95]/5 items-center justify-center ml-2 border border-[#02de95]/15">
-                    <Car size={28} color="#02de95" strokeWidth={1.5} />
+
+                  {/* Rich Right Graphic Container */}
+                  <View className="flex-row items-center ml-2 h-full">
+                    {/* Stylized Glowing Illustration */}
+                    <View className="w-[70px] h-[70px] justify-center items-center relative mr-3">
+                      <View className="absolute w-[68px] h-[68px] rounded-full border border-[#02de95]/15 bg-[#02de95]/5" />
+                      <View className="absolute w-[50px] h-[50px] rounded-full bg-[#02de95]/10 opacity-70" />
+                      <Car size={32} color="#02de95" strokeWidth={1.5} style={{ opacity: 0.8, transform: [{ translateY: -6 }, { translateX: -6 }] }} />
+                      <Package size={28} color="#ffffff" strokeWidth={2} style={{ position: 'absolute', bottom: 10, right: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 4 }} />
+                    </View>
+
+                    {/* Small circular chevron indicator */}
+                    <View className="w-8 h-8 rounded-full bg-white/[0.03] border border-white/10 items-center justify-center">
+                      <ChevronRight size={16} color="#02de95" strokeWidth={3} />
+                    </View>
                   </View>
                 </TouchableOpacity>
 
-                {/* Finance Card 1 */}
+                {/* Indique e Ganhe Card */}
                 <TouchableOpacity 
-                  activeOpacity={0.8}
-                  onPress={handleWalletPress}
-                  className="w-[180px] h-[110px] bg-[#11253E] rounded-[20px] p-3.5 justify-between border border-white/[0.03]"
-                >
-                  <View className="w-9 h-9 rounded-[10px] bg-[#02de95]/10 items-center justify-center">
-                    <CreditCard size={20} color="#02de95" />
-                  </View>
-                  <View>
-                    <Text className="text-white text-[11px] font-black mb-0.5">PARCELE EM ATÉ 12X</Text>
-                    <Text className="text-white/50 text-[10px] leading-[13px]" numberOfLines={2}>Descontos para parcelar seu Pix e saldo!</Text>
-                  </View>
-                </TouchableOpacity>
-
-                {/* Finance Card 2 */}
-                <TouchableOpacity 
-                  activeOpacity={0.8}
+                  activeOpacity={0.9}
                   onPress={() => Alert.alert("Indique e Ganhe", "Em breve: Indique amigos e ganhe créditos!")}
-                  className="w-[180px] h-[110px] bg-[#11253E] rounded-[20px] p-3.5 justify-between border border-white/[0.03]"
+                  className="w-[325px] h-[135px] bg-[#11253E] rounded-[24px] p-4 flex-row items-center border border-white/[0.04] overflow-hidden"
                 >
-                  <View className="w-9 h-9 rounded-[10px] bg-[#02de95]/10 items-center justify-center">
-                    <Gift size={20} color="#02de95" />
+                  <View className="flex-1 justify-between h-full pr-1">
+                    <View className="self-start bg-[#02de95]/10 border border-[#02de95]/20 px-2 py-0.5 rounded-md">
+                      <Text className="text-[#02de95] text-[9px] font-black tracking-widest uppercase">Promoção</Text>
+                    </View>
+                    <View className="mt-1">
+                      <Text className="text-[#02de95] text-lg font-black tracking-tight mb-0.5">Indique & Ganhe</Text>
+                      <Text className="text-white/60 text-[11px] leading-[15px]" numberOfLines={2}>
+                        Ative sua conta e ganhe cupons compartilhando!
+                      </Text>
+                    </View>
                   </View>
-                  <View>
-                    <Text className="text-white text-[11px] font-black mb-0.5">INDIQUE & GANHE</Text>
-                    <Text className="text-white/50 text-[10px] leading-[13px]" numberOfLines={2}>Ative sua conta e ganhe cupons compartilhando!</Text>
+
+                  {/* Rich Right Graphic Container */}
+                  <View className="flex-row items-center ml-2 h-full">
+                    {/* Stylized Glowing Illustration */}
+                    <View className="w-[70px] h-[70px] justify-center items-center relative mr-3">
+                      <View className="absolute w-[68px] h-[68px] rounded-full border border-[#02de95]/15 bg-[#02de95]/5" />
+                      <View className="absolute w-[50px] h-[50px] rounded-full bg-[#02de95]/10 opacity-70" />
+                      <Gift size={32} color="#02de95" strokeWidth={1.5} style={{ opacity: 0.8, transform: [{ translateY: -2 }] }} />
+                      <Sparkles size={16} color="#ffffff" style={{ position: 'absolute', top: 12, right: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 4 }} />
+                    </View>
+
+                    {/* Small circular chevron indicator */}
+                    <View className="w-8 h-8 rounded-full bg-white/[0.03] border border-white/10 items-center justify-center">
+                      <ChevronRight size={16} color="#02de95" strokeWidth={3} />
+                    </View>
                   </View>
                 </TouchableOpacity>
               </ScrollView>
@@ -574,62 +652,129 @@ export default function HomeScreen() {
         )}
 
         {activeService === "delivery" && (
-          <ScrollView 
-            className="flex-1" 
-            contentContainerStyle={{ paddingTop: StatusBar.currentHeight ? StatusBar.currentHeight + 10 : 50, paddingBottom: 280 }}
-            showsVerticalScrollIndicator={false}
-          >
-            {/* Header */}
-            <View className="flex-row justify-between items-center px-5 pb-0">
-              <View className="flex-row items-center gap-3">
-                <TouchableOpacity onPress={handleMenuPress} className="relative">
-                  {user?.fotoPerfil || user?.profilePhoto ? (
-                    <Image source={{ uri: user.fotoPerfil || user.profilePhoto }} className="w-11 h-11 rounded-full border-[1.5px] border-[#02de95]" />
-                  ) : (
-                    <View className="w-11 h-11 rounded-full bg-[#11253E] items-center justify-center border-[1.5px] border-white/10">
-                      <User size={20} color="#fff" />
-                    </View>
-                  )}
-                  <View className="absolute top-0 right-0 w-2.5 h-2.5 rounded-full bg-[#ef4444] border-[1.5px] border-[#091A2F]" />
-                </TouchableOpacity>
-                <Text className="text-white text-[22px] font-bold">Olá, <Text className="text-[#02de95] font-black">{user?.name || "Cliente"}</Text>!</Text>
-              </View>
-              <View className="flex-row items-center gap-3">
-                <TouchableOpacity className="bg-[#02de95]/15 px-3 py-1 rounded-xl border border-[#02de95]/30">
-                  <Text className="text-[#02de95] text-xs font-bold">Pix</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={handleSOS} className="w-10 h-10 rounded-full bg-[#11253E] items-center justify-center border border-white/5">
-                  <QrCode size={20} color="#fff" />
-                </TouchableOpacity>
+          <View className="flex-1">
+            {/* Curved Green Header */}
+            <View 
+              className="bg-[#02de95] pb-6 rounded-b-[36px]"
+              style={{ paddingTop: StatusBar.currentHeight ? StatusBar.currentHeight + 16 : 56 }}
+            >
+              <View className="flex-row justify-between items-center px-5 pb-0">
+                <View className="flex-row items-center gap-3">
+                  <TouchableOpacity onPress={handleMenuPress} className="relative">
+                    {user?.fotoPerfil || user?.profilePhoto ? (
+                      <Image source={{ uri: user.fotoPerfil || user.profilePhoto }} className="w-11 h-11 rounded-full border-[1.5px] border-[#091A2F]" />
+                    ) : (
+                      <View className="w-11 h-11 rounded-full bg-[#11253E] items-center justify-center border-[1.5px] border-white/10">
+                        <User size={20} color="#fff" />
+                      </View>
+                    )}
+                    <View className="absolute top-0 right-0 w-2.5 h-2.5 rounded-full bg-[#ef4444] border-[1.5px] border-[#02de95]" />
+                  </TouchableOpacity>
+                  <Text className="text-[#091A2F] text-[22px] font-bold">Olá, <Text className="text-[#091A2F] font-black">{user?.name || "Cliente"}</Text>!</Text>
+                </View>
+                <View className="flex-row items-center gap-3">
+                  <TouchableOpacity className="bg-[#091A2F]/10 px-3 py-1 rounded-xl border border-[#091A2F]/15">
+                    <Text className="text-[#091A2F] text-xs font-bold">Pix</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={handleSOS} className="w-10 h-10 rounded-full bg-[#091A2F]/10 items-center justify-center border border-[#091A2F]/15">
+                    <QrCode size={20} color="#091A2F" />
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
 
-            {/* VOCÊ PRECISA, -> Leva+ Entrega */}
-            <View className="px-5 mt-5 mb-5">
-              <Text className="text-white/50 text-sm font-bold tracking-widest uppercase">VOCÊ PRECISA,</Text>
-              <View className="flex-row items-center mt-1">
-                <ArrowRight size={22} color="#02de95" style={{ marginRight: 6 }} />
-                <Text className="text-[#02de95] text-[28px] font-black">Leva+ <Text className="text-white font-bold">Entrega</Text></Text>
+            {/* VOCÊ PRECISA, -> Leva+ Entrega (Centered) */}
+            <View className="px-5 mt-[120px] mb-9 items-center justify-center">
+              <Text className="text-white/50 text-[13px] font-black tracking-[3px] uppercase text-center">VOCÊ PRECISA,</Text>
+              <View className="flex-row items-center justify-center mt-2.5">
+                <View className="w-[26px] h-[26px] rounded-full bg-[#02de95] items-center justify-center mr-2">
+                  <ArrowRight size={16} color="#091A2F" strokeWidth={4} />
+                </View>
+                <Text className="text-[#02de95] text-[28px] font-black text-center">Leva+ <Text className="text-white font-bold">Entrega</Text></Text>
               </View>
             </View>
 
-            {/* Illustrations/Cards for Bike and Car */}
-            <View className="flex-row px-5 gap-3.5 mb-6">
-              <View className="flex-1 bg-[#11253E] rounded-[20px] p-4 items-center border border-white/[0.03]">
-                <View className="w-16 h-16 rounded-full bg-white/[0.03] items-center justify-center mb-3">
-                  <Car size={36} color="#02de95" />
-                </View>
-                <Text className="text-white text-sm font-bold mb-1">Moto Entrega</Text>
-                <Text className="text-white/40 text-[11px]">Rápido • Econômico</Text>
-              </View>
+            {/* Vehicle selector */}
+            <View className="mb-6">
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 12, paddingHorizontal: 20, paddingRight: 28 }}
+              >
+                {deliveryVehicles.map((vehicle) => {
+                  const isSelected = selectedDeliveryVehicle === vehicle.id;
+                  return (
+                    <TouchableOpacity
+                      key={vehicle.id}
+                      activeOpacity={0.88}
+                      onPress={() => setSelectedDeliveryVehicle(vehicle.id)}
+                      className="w-[150px] rounded-[24px] p-3 border"
+                      style={{
+                        backgroundColor: isSelected ? "rgba(2,222,149,0.11)" : "rgba(17,37,62,0.72)",
+                        borderColor: isSelected ? "#02de95" : "rgba(255,255,255,0.05)",
+                      }}
+                    >
+                      <View
+                        className="absolute top-3 right-3 z-20 w-7 h-7 rounded-full items-center justify-center"
+                        style={{ backgroundColor: isSelected ? "#02de95" : "rgba(255,255,255,0.12)" }}
+                      >
+                        {isSelected ? (
+                          <Check size={17} color="#091A2F" strokeWidth={3.5} />
+                        ) : (
+                          <View className="w-2.5 h-2.5 rounded-full bg-white/30" />
+                        )}
+                      </View>
+                      <View className="h-[104px] items-center justify-center mb-2">
+                        <Image
+                          source={vehicle.image}
+                          style={{ width: 132, height: 104 }}
+                          resizeMode="contain"
+                        />
+                      </View>
+                      <Text className="text-white text-[15px] font-black mb-0.5" numberOfLines={1}>{vehicle.title}</Text>
+                      <Text className="text-white/40 text-[11px] font-bold" numberOfLines={1}>{vehicle.subtitle}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
 
-              <View className="flex-1 bg-[#11253E] rounded-[20px] p-4 items-center border border-white/[0.03]">
-                <View className="w-16 h-16 rounded-full bg-[#02de95]/10 items-center justify-center mb-3">
-                  <Package size={36} color="#02de95" />
-                </View>
-                <Text className="text-white text-sm font-bold mb-1">Carro Entrega</Text>
-                <Text className="text-white/40 text-[11px]">Volumes maiores</Text>
-              </View>
+            <View className="px-5 mb-4">
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 10, paddingRight: 20 }}
+              >
+                <TouchableOpacity
+                  className="flex-row items-center bg-[#11253E] px-3.5 py-2 rounded-[20px] border border-white/[0.03]"
+                  onPress={() => handleOpenFavoriteShortcut("home")}
+                >
+                  <View className="w-6 h-6 rounded-full bg-[#02de95]/10 items-center justify-center mr-2">
+                    <HomeIcon size={14} color="#02de95" />
+                  </View>
+                  <Text className="text-white text-xs font-bold">Adicionar Casa</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  className="flex-row items-center bg-[#11253E] px-3.5 py-2 rounded-[20px] border border-white/[0.03]"
+                  onPress={() => handleOpenFavoriteShortcut("work")}
+                >
+                  <View className="w-6 h-6 rounded-full bg-[#02de95]/10 items-center justify-center mr-2">
+                    <Briefcase size={14} color="#02de95" />
+                  </View>
+                  <Text className="text-white text-xs font-bold">Adicionar Trabalho</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  className="flex-row items-center bg-[#11253E] px-3.5 py-2 rounded-[20px] border border-white/[0.03]"
+                  onPress={() => handleOpenFavoriteShortcut("favoritesList")}
+                >
+                  <View className="w-6 h-6 rounded-full bg-[#02de95]/10 items-center justify-center mr-2">
+                    <Sparkles size={14} color="#02de95" />
+                  </View>
+                  <Text className="text-white text-xs font-bold">Adicionar Favorito</Text>
+                </TouchableOpacity>
+              </ScrollView>
             </View>
 
             {/* Delivery Card with tabs Enviar / Receber */}
@@ -656,44 +801,78 @@ export default function HomeScreen() {
                 </TouchableOpacity>
               </View>
 
-              <View className="gap-3.5">
-                {/* Pickup / Origin */}
-                <View className="flex-row items-center">
-                  <View className="w-2.5 h-2.5 rounded-full mr-4 bg-[#02de95]" />
-                  <View className="flex-1">
-                    <Text className="text-white text-base font-bold mb-1" numberOfLines={1}>
-                      {deliveryMode === "send" ? (currentAddress || "Localização Atual") : "Retirar no endereço do remetente"}
-                    </Text>
-                    <Text className="text-white/40 text-xs" numberOfLines={1}>
-                      {user?.name || "Cliente"} • {user?.phone || "Telefone não cadastrado"}
-                    </Text>
-                  </View>
+              <View className="flex-row pl-2 h-[110px] relative overflow-hidden">
+                {/* Fixed Bullet Indicators (Left) */}
+                <View className="w-[18px] items-center relative mr-3">
+                  {/* Decorative connecting vertical line */}
+                  <View className="absolute left-[8px] top-[14px] bottom-[14px] w-[1.5px] bg-white/[0.1] z-0" />
+                  
+                  {/* Top Green Bullet */}
+                  <View className="w-[8px] h-[8px] rounded-full bg-[#02de95] mt-[20px] z-10" style={{ shadowColor: '#02de95', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.5, shadowRadius: 3 }} />
+                  
+                  {/* Bottom Orange Bullet */}
+                  <View className="w-[8px] h-[8px] rounded-full bg-[#F59E0B] absolute bottom-[20px] z-10" style={{ shadowColor: '#F59E0B', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.5, shadowRadius: 3 }} />
                 </View>
 
-                <View className="h-[1px] bg-white/[0.05] ml-[26px]" />
+                {/* Animated Contents (Right) */}
+                <View className="flex-1 relative h-full py-1">
+                  {/* Divider line fixed in the middle */}
+                  <View className="absolute left-0 right-0 top-[55px] h-[1px] bg-white/[0.05] z-0" />
 
-                {/* Destination / Dropoff */}
-                <TouchableOpacity 
-                  activeOpacity={0.7}
-                  onPress={() => {
-                    navigation.navigate("DestinationSearch", {
-                      initialVehicle: "motorcycle",
-                      serviceType: "delivery"
-                    });
-                  }}
-                  className="flex-row items-center"
-                >
-                  <View className="w-2.5 h-2.5 rounded-full mr-4 bg-[#F59E0B]" />
-                  <View className="flex-1">
-                    <Text className="text-white/50 text-base font-bold">
-                      {deliveryMode === "send" ? "Entregar para..." : "Entregar na minha localização"}
-                    </Text>
-                  </View>
-                  <ChevronRight size={20} color="rgba(255, 255, 255, 0.3)" />
-                </TouchableOpacity>
+                  {/* Slot A: User's Static Address */}
+                  <MotiView 
+                    animate={{
+                      translateY: deliveryMode === "send" ? 0 : 54
+                    }}
+                    transition={{
+                      type: "timing",
+                      duration: 350
+                    }}
+                    style={{ position: 'absolute', left: 0, right: 0, height: 48, top: 4, justifyContent: 'center' }}
+                    className="z-10"
+                  >
+                    <View className="flex-1 justify-center">
+                      <Text className="text-white text-base font-bold mb-0.5" numberOfLines={1}>
+                        {currentAddress || "Localização Atual"}
+                      </Text>
+                      <Text className="text-white/40 text-xs font-bold" numberOfLines={1}>
+                        {user?.name || "Cliente"} • {user?.phone || "Telefone não cadastrado"}
+                      </Text>
+                    </View>
+                  </MotiView>
+
+                  {/* Slot B: Clickable Search Button */}
+                  <MotiView 
+                    animate={{
+                      translateY: deliveryMode === "send" ? 0 : -54
+                    }}
+                    transition={{
+                      type: "timing",
+                      duration: 350
+                    }}
+                    style={{ position: 'absolute', left: 0, right: 0, height: 48, bottom: 4 }}
+                    className="z-10"
+                  >
+                    <TouchableOpacity 
+                      activeOpacity={0.7}
+                      onPress={() => {
+                        navigation.navigate("DeliverySenderInfo", {
+                          mode: deliveryMode === "send" ? "receiver" : "sender",
+                          vehicleType: selectedDeliveryVehicle
+                        });
+                      }}
+                      className="flex-row items-center h-full justify-between"
+                    >
+                      <Text className="text-white text-lg font-black">
+                        {deliveryMode === "send" ? "Entregar para" : "Enviar de"}
+                      </Text>
+                      <ChevronRight size={22} color="#02de95" strokeWidth={2.5} />
+                    </TouchableOpacity>
+                  </MotiView>
+                </View>
               </View>
             </View>
-          </ScrollView>
+          </View>
         )}
 
         {activeService === "pay" && (
@@ -781,39 +960,118 @@ export default function HomeScreen() {
         )}
 
         {/* Floating Navigation Tab Bar */}
-        <View className="absolute bottom-6 left-6 right-6 h-[72px] bg-[#11253E] rounded-[36px] flex-row items-center justify-between px-9 border border-white/5 z-[100]" style={{ shadowColor: "#000", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.4, shadowRadius: 15, elevation: 12 }}>
+        <View 
+          className="absolute bottom-6 h-[72px] bg-white rounded-[36px] flex-row items-center justify-between px-2 z-[100]" 
+          style={{ 
+            width: 250, 
+            alignSelf: "center", 
+            shadowColor: "#000", 
+            shadowOffset: { width: 0, height: 10 }, 
+            shadowOpacity: 0.12, 
+            shadowRadius: 18, 
+            elevation: 12 
+          }}
+        >
+          {/* Fluid Water-Drop Indicator Dot */}
+          <MotiView
+            animate={{
+              translateX: activeService === "ride" ? 0 : activeService === "delivery" ? 78 : 156,
+              scaleX: isTransitioning ? 1.35 : 1,
+              scaleY: isTransitioning ? 0.85 : 1,
+            }}
+            transition={{
+              translateX: {
+                type: "spring",
+                damping: 18,
+                mass: 0.8,
+                stiffness: 130,
+              },
+              scaleX: {
+                type: "spring",
+                damping: 10,
+                stiffness: 220,
+              },
+              scaleY: {
+                type: "spring",
+                damping: 10,
+                stiffness: 220,
+              }
+            }}
+            style={{
+              position: "absolute",
+              left: 15,
+              top: 4,
+              width: 64,
+              height: 64,
+              borderRadius: 32,
+              backgroundColor: "#02de95",
+              shadowColor: "#02de95",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.35,
+              shadowRadius: 8,
+              elevation: 5,
+              zIndex: 1,
+            }}
+          />
+
           {/* Option 1: Corrida */}
           <TouchableOpacity 
             onPress={() => setActiveService("ride")}
-            className="items-center justify-center min-w-[60px]"
-            activeOpacity={0.7}
+            className="flex-1 items-center justify-center h-full z-10"
+            activeOpacity={0.8}
           >
-            <Car size={24} color={activeService === "ride" ? "#02de95" : "rgba(255, 255, 255, 0.4)"} />
-            <Text className={`text-[10px] font-bold mt-1 ${activeService === 'ride' ? 'text-[#02de95]' : 'text-white/40'}`}>
-              Corrida
-            </Text>
+            {activeService === "ride" ? (
+              <View className="w-[64px] h-[64px] items-center justify-center">
+                <Car size={28} color="#091A2F" />
+              </View>
+            ) : (
+              <View className="items-center justify-center">
+                <Car size={24} color="rgba(9, 26, 47, 0.5)" />
+                <Text className="text-[10px] font-bold mt-1 text-[#091A2F]/50">
+                  Corrida
+                </Text>
+              </View>
+            )}
           </TouchableOpacity>
 
-          {/* Option 2: Entrega (Central main button) */}
+          {/* Option 2: Entrega */}
           <TouchableOpacity 
             onPress={() => setActiveService("delivery")}
-            className={`w-16 h-16 rounded-full -mt-7 items-center justify-center ${activeService === 'delivery' ? 'bg-[#02de95]' : 'bg-[#1c324e]'}`}
-            style={{ borderStyle: 'solid', borderWidth: 3, borderColor: '#091A2F', shadowColor: '#000', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 }}
-            activeOpacity={0.85}
+            className="flex-1 items-center justify-center h-full z-10"
+            activeOpacity={0.8}
           >
-            <Package size={28} color={activeService === "delivery" ? "#091A2F" : "#fff"} />
+            {activeService === "delivery" ? (
+              <View className="w-[64px] h-[64px] items-center justify-center">
+                <Package size={28} color="#091A2F" />
+              </View>
+            ) : (
+              <View className="items-center justify-center">
+                <Package size={24} color="rgba(9, 26, 47, 0.5)" />
+                <Text className="text-[10px] font-bold mt-1 text-[#091A2F]/50">
+                  Entrega
+                </Text>
+              </View>
+            )}
           </TouchableOpacity>
 
           {/* Option 3: Pay / Wallet */}
           <TouchableOpacity 
             onPress={() => setActiveService("pay")}
-            className="items-center justify-center min-w-[60px]"
-            activeOpacity={0.7}
+            className="flex-1 items-center justify-center h-full z-10"
+            activeOpacity={0.8}
           >
-            <Wallet size={24} color={activeService === "pay" ? "#02de95" : "rgba(255, 255, 255, 0.4)"} />
-            <Text className={`text-[10px] font-bold mt-1 ${activeService === 'pay' ? 'text-[#02de95]' : 'text-white/40'}`}>
-              Pay
-            </Text>
+            {activeService === "pay" ? (
+              <View className="w-[64px] h-[64px] items-center justify-center">
+                <Wallet size={28} color="#091A2F" />
+              </View>
+            ) : (
+              <View className="items-center justify-center">
+                <Wallet size={24} color="rgba(9, 26, 47, 0.5)" />
+                <Text className="text-[10px] font-bold mt-1 text-[#091A2F]/50">
+                  Pay
+                </Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
 

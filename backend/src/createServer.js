@@ -8,6 +8,7 @@ const { initializeWebSocket } = require("./config/websocket");
 const authRoutes = require("./routes/auth.routes");
 const rideRoutes = require("./routes/ride.routes");
 const driverLocationRoutes = require("./routes/driverLocation.routes");
+const favoriteAddressRoutes = require("./routes/favoriteAddress.routes");
 
 function parseAllowedOrigins() {
   const fromEnv = String(
@@ -51,6 +52,7 @@ function applyRoutes(app) {
   app.use("/api/auth", authRoutes);
   app.use("/api/rides", rideRoutes);
   app.use("/api/driver-location", driverLocationRoutes);
+  app.use("/api/favorite-addresses", favoriteAddressRoutes);
 
   app.get("/api/health", (req, res) => {
     res.json({

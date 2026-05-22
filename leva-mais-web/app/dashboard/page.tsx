@@ -35,6 +35,7 @@ export default function DashboardPage() {
   const [rides, setRides] = useState<Ride[]>([]);
   const [locations, setLocations] = useState<DriverLocation[]>([]);
   const [clientsCount, setClientsCount] = useState(0);
+  const [clientsList, setClientsList] = useState<any[]>([]);
   const [driversCount, setDriversCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -52,6 +53,7 @@ export default function DashboardPage() {
       setRides(ridesData);
       setLocations(locationsData);
       setClientsCount(clientsData.length);
+      setClientsList(clientsData);
       setDriversCount(driversData.length);
     } catch (err) {
       console.error(err);
@@ -198,11 +200,11 @@ export default function DashboardPage() {
 
           {/* Map Area */}
           <div className="flex-1 w-full h-full min-h-[450px] relative z-0">
-            <LiveMap locations={locations} />
+            <LiveMap locations={locations} clients={clientsList} />
           </div>
 
           {/* Legend */}
-          <div className="p-4 bg-slate-900/60 border-t border-slate-900 grid grid-cols-3 text-center text-xs font-semibold text-slate-400">
+          <div className="p-4 bg-slate-900/60 border-t border-slate-900 grid grid-cols-4 text-center text-xs font-semibold text-slate-400">
             <div className="flex items-center justify-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span>
               <span>Disponível</span>
@@ -214,6 +216,10 @@ export default function DashboardPage() {
             <div className="flex items-center justify-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.8)]"></span>
               <span>Ocupado / Pausado</span>
+            </div>
+            <div className="flex items-center justify-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span>
+              <span>Clientes</span>
             </div>
           </div>
         </div>
@@ -310,6 +316,10 @@ export default function DashboardPage() {
                 offline: "bg-slate-100 text-slate-700 border-slate-200"
               };
 
+              const statusKey = (loc.status && loc.status in statusLabels) 
+                ? loc.status as keyof typeof statusLabels 
+                : "offline";
+
               return (
                 <div key={loc._id} className="p-4 bg-slate-50 border border-gray-200 rounded-xl hover:shadow-md transition-all flex items-start gap-4">
                   <div className="w-10 h-10 rounded-full bg-emerald-600 text-white flex items-center justify-center font-extrabold text-sm shrink-0">
@@ -320,8 +330,8 @@ export default function DashboardPage() {
                     <p className="text-xs text-gray-500 font-semibold truncate">{loc.driverId?.email}</p>
                     
                     <div className="flex items-center gap-2 mt-2">
-                      <span className={`px-2 py-0.5 rounded-full border text-[10px] font-bold ${statusColors[loc.status]}`}>
-                        {statusLabels[loc.status]}
+                      <span className={`px-2 py-0.5 rounded-full border text-[10px] font-bold ${statusColors[statusKey]}`}>
+                        {statusLabels[statusKey]}
                       </span>
                       <span className="text-[10px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full capitalize">
                         {loc.vehicleType === "motorcycle" ? "Moto" : loc.vehicleType}
@@ -335,7 +345,7 @@ export default function DashboardPage() {
                       </div>
                       <div className="flex items-center gap-1">
                         <MapPin className="w-3.5 h-3.5 text-gray-400" />
-                        <span className="truncate">Lat: {loc.location.coordinates[1].toFixed(4)}</span>
+                        <span className="truncate">Lat: {loc.location?.coordinates?.[1]?.toFixed(4) || "0.0000"}</span>
                       </div>
                     </div>
                   </div>

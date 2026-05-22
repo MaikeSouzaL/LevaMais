@@ -357,6 +357,11 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    mapTheme: {
+      type: String,
+      enum: ["light", "dark"],
+      default: "light",
+    },
     queueRedispatchInterval: {
       type: Number,
       default: null

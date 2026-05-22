@@ -18,7 +18,11 @@ module.exports.attach = function attach(RideController, deps) {
         return res.status(400).json({ error: "Stars deve ser entre 1 e 5" });
       }
 
-      const ride = await Ride.findById(rideId);
+      let ride = await Ride.findById(rideId);
+      if (!ride) {
+        const RideHistory = require("../models/RideHistory");
+        ride = await RideHistory.findById(rideId);
+      }
       if (!ride) return res.status(404).json({ error: "Corrida não encontrada" });
 
       if (String(ride.clientId) !== userId) {
@@ -108,7 +112,11 @@ module.exports.attach = function attach(RideController, deps) {
         return res.status(400).json({ error: "Stars deve ser entre 1 e 5" });
       }
 
-      const ride = await Ride.findById(rideId);
+      let ride = await Ride.findById(rideId);
+      if (!ride) {
+        const RideHistory = require("../models/RideHistory");
+        ride = await RideHistory.findById(rideId);
+      }
       if (!ride) return res.status(404).json({ error: "Corrida não encontrada" });
 
       if (!ride.driverId || String(ride.driverId) !== userId) {

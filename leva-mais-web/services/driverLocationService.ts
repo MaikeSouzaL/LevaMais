@@ -18,7 +18,8 @@ export interface DriverLocation {
   updatedAt?: string;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
+const _RAW_API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001/api";
+const API_URL = _RAW_API_URL.replace("localhost", "127.0.0.1");
 const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || "dev-admin-key";
 
 export const driverLocationService = {

@@ -1,4 +1,5 @@
-﻿const Ride = require("../models/Ride");
+const Ride = require("../models/Ride");
+const RideHistory = require("../models/RideHistory");
 const DriverLocation = require("../models/DriverLocation");
 const User = require("../models/User");
 const Promotion = require("../models/Promotion");
@@ -22,6 +23,17 @@ const DEFAULT_APP_FEE_PERCENTAGE = Number(process.env.APP_FEE_PERCENTAGE || 15);
 const DEFAULT_RIDE_SEARCH_TIMEOUT_SECONDS = Number(process.env.RIDE_SEARCH_TIMEOUT_SECONDS || 60);
 const DRIVER_DAILY_GOAL_RIDES = Number(process.env.DRIVER_DAILY_GOAL_RIDES || 10);
 const DRIVER_DAILY_BONUS_AMOUNT = Number(process.env.DRIVER_DAILY_BONUS_AMOUNT || 20);
+
+async function moveToHistory(ride) {
+  try {
+    const historyRide = new RideHistory(ride.toObject());
+    await historyRide.save();
+    await Ride.deleteOne({ _id: ride._id });
+    console.log(`[RideHistory] Moved ride ${ride._id} to history.`);
+  } catch (err) {
+    console.error(`[RideHistory] Failed to move ride ${ride._id} to history:`, err);
+  }
+}
 
 let rideControllerInstance;
 
@@ -428,6 +440,7 @@ class RideController {
             updatedRide.status = "cancelled_no_driver";
             updatedRide.cancelledAt = new Date();
             await updatedRide.save();
+            await moveToHistory(updatedRide);
 
             const clientId = ride.clientId?._id || ride.clientId;
             if (clientId) {
@@ -814,7 +827,7 @@ class RideController {
         .populate("clientId", "name phone profilePhoto rating");
 
       const clientIds = [...new Set(rides.map((r) => r.clientId?._id?.toString()).filter(Boolean))];
-      const ridesCounts = await Ride.aggregate([
+      const ridesCounts = await RideHistory.aggregate([
         { $match: { clientId: { $in: clientIds.map(id => new mongoose.Types.ObjectId(id)) }, status: "completed" } },
         { $group: { _id: "$clientId", count: { $sum: 1 } } },
       ]);
@@ -1487,6 +1500,7 @@ class RideController {
           // This now applies whether in Queue OR in initial Broadcast mode!
           ride.status = "cancelled_no_driver";
           await ride.save();
+          await moveToHistory(ride);
 
           // Re-populate client payload to guarantee valid connection
           if (!ride.populated("clientId")) {
@@ -2108,6 +2122,7 @@ class RideController {
       };
 
       await ride.save();
+      await moveToHistory(ride);
 
       // Liberar motorista
       if (ride.driverId) {
@@ -2531,6 +2546,9 @@ class RideController {
       }
 
       await ride.save();
+      if (nextStatus === "completed") {
+        await moveToHistory(ride);
+      }
 
       const io = req.app.get("io");
       if (io) {
@@ -2558,10 +2576,17 @@ class RideController {
       const userId = req.user.id;
       const userIdStr = String(userId);
 
-      const ride = await Ride.findById(rideId)
+      let ride = await Ride.findById(rideId)
         .populate("clientId", "name phone profilePhoto")
         .populate("driverId", "name phone profilePhoto")
         .populate("purposeId");
+
+      if (!ride) {
+        ride = await RideHistory.findById(rideId)
+          .populate("clientId", "name phone profilePhoto")
+          .populate("driverId", "name phone profilePhoto")
+          .populate("purposeId");
+      }
 
       if (!ride) {
         return sendError(res, 404, "Corrida nao encontrada");
@@ -2606,14 +2631,14 @@ class RideController {
         query.status = status;
       }
 
-      const rides = await Ride.find(query)
+      const rides = await RideHistory.find(query)
         .populate("clientId", "name phone profilePhoto")
         .populate("driverId", "name phone profilePhoto")
                 .sort({ createdAt: -1 })
         .limit(parseInt(limit))
         .skip((parseInt(page) - 1) * parseInt(limit));
 
-      const total = await Ride.countDocuments(query);
+      const total = await RideHistory.countDocuments(query);
 
       res.json({
         rides,
@@ -2642,7 +2667,7 @@ class RideController {
       const todayEnd = endOfDay(now);
 
       const timeZone = process.env.APP_TIMEZONE || DEFAULT_APP_TIMEZONE;
-      const stats = await Ride.aggregate([
+      const stats = await RideHistory.aggregate([
         {
           $match: {
             driverId: new mongoose.Types.ObjectId(driverId),
@@ -2690,7 +2715,7 @@ class RideController {
 
       try {
         // 1. Calcular Rating MÃƒÆ’Ã‚Â©dio das Corridas
-        const ratingAgg = await Ride.aggregate([
+        const ratingAgg = await RideHistory.aggregate([
           {
             $match: {
               driverId: new mongoose.Types.ObjectId(driverId),
@@ -2710,12 +2735,16 @@ class RideController {
         }
 
         // 2. Calcular Taxa de AceitaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o (Aceitas / Total Ofertadas)
-        const acceptedCount = await Ride.countDocuments({
+        const acceptedCount = (await Ride.countDocuments({
           driverId: new mongoose.Types.ObjectId(driverId),
-        });
-        const rejectedCount = await Ride.countDocuments({
+        })) + (await RideHistory.countDocuments({
+          driverId: new mongoose.Types.ObjectId(driverId),
+        }));
+        const rejectedCount = (await Ride.countDocuments({
           "rejectedBy.driverId": new mongoose.Types.ObjectId(driverId),
-        });
+        })) + (await RideHistory.countDocuments({
+          "rejectedBy.driverId": new mongoose.Types.ObjectId(driverId),
+        }));
         const totalOffers = acceptedCount + rejectedCount;
         if (totalOffers > 0) {
           acceptanceRate = Math.round((acceptedCount / totalOffers) * 100);
@@ -2794,7 +2823,7 @@ class RideController {
       }
 
       const timeZone = process.env.APP_TIMEZONE || DEFAULT_APP_TIMEZONE;
-      const stats = await Ride.aggregate([
+      const stats = await RideHistory.aggregate([
         {
           $match: {
             driverId: driverObjectId,

@@ -2,6 +2,7 @@ const User = require("../models/User");
 const PasswordReset = require("../models/PasswordReset");
 const PhoneVerification = require("../models/PhoneVerification");
 const Ride = require("../models/Ride");
+const RideHistory = require("../models/RideHistory");
 const {
   DEFAULT_PLATFORM_CONFIG,
   mergeConfig,
@@ -704,6 +705,7 @@ class AuthController {
         preferredPayment,
         notificationsEnabled,
         enableMapAnimation,
+        mapTheme,
         queueRedispatchInterval,
         userType, // <-- Added userType
         // driver
@@ -828,6 +830,11 @@ class AuthController {
       }
       if (enableMapAnimation !== undefined) {
         user.enableMapAnimation = !!enableMapAnimation;
+      }
+      if (mapTheme !== undefined) {
+        if (["light", "dark"].includes(mapTheme)) {
+          user.mapTheme = mapTheme;
+        }
       }
 
       if (acceptedTerms === true) {
@@ -2190,19 +2197,20 @@ class AuthController {
       const baseUrl = `${protocol}://${host}/uploads/drivers`;
       const photoUrl = `${baseUrl}/${req.file.filename}`;
 
-      user.profilePhoto = photoUrl;
-
-      // Se for cliente, atualizar selfie de verificacao
-      if (user.userType === "client") {
-        if (!user.clientVerification) {
-          user.clientVerification = {};
+      // Deletar foto anterior se existir
+      if (user.profilePhoto) {
+        try {
+          const oldFilename = user.profilePhoto.split("/").pop();
+          const oldFilePath = path.join(__dirname, "../../uploads/drivers", oldFilename);
+          if (fs.existsSync(oldFilePath)) {
+            fs.unlinkSync(oldFilePath);
+          }
+        } catch (err) {
+          console.error("Erro ao deletar foto anterior:", err);
         }
-        user.clientVerification.documents = user.clientVerification.documents || {};
-        user.clientVerification.documents.selfie = photoUrl;
-        user.clientVerification.selfieStatus = "pending";
-        user.clientVerification.submittedAt = new Date();
-        user.clientVerification.status = "pending";
       }
+
+      user.profilePhoto = photoUrl;
 
       await user.save();
 
@@ -2280,6 +2288,39 @@ class AuthController {
     } catch (error) {
       console.error("Erro ao enviar documentos do cliente:", error);
       return sendError(res, 500, "Erro ao processar verificação", { details: error.message });
+    }
+  }
+
+  // Atualizar a localizacao em tempo real do usuario (cliente ou motorista)
+  async updateLocation(req, res) {
+    try {
+      const userId = req.user.id;
+      const { latitude, longitude } = req.body;
+
+      if (latitude === undefined || longitude === undefined) {
+        return sendError(res, 400, "Latitude e longitude sao obrigatorios");
+      }
+
+      const user = await User.findById(userId);
+      if (!user) {
+        return sendError(res, 404, "Usuario nao encontrado");
+      }
+
+      user.lastLocation = {
+        type: "Point",
+        coordinates: [longitude, latitude],
+        updatedAt: new Date()
+      };
+
+      await user.save();
+
+      return res.json({
+        success: true,
+        message: "Localizacao atualizada com sucesso"
+      });
+    } catch (error) {
+      console.error("Erro ao atualizar localizacao do usuario:", error);
+      return sendError(res, 500, "Erro ao atualizar localizacao", { details: error.message });
     }
   }
 }

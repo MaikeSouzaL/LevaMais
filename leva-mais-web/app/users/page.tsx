@@ -30,10 +30,15 @@ interface UnifiedUser {
   phone?: string;
   cpf?: string;
   userType: "admin" | "client" | "driver";
+  driverStatus?: string;
   isActive: boolean;
   createdAt: string;
   city?: string;
   emailVerified?: boolean;
+  clientVerification?: Client["clientVerification"];
+  driverDocuments?: Driver["driverDocuments"];
+  vehicles?: Driver["vehicles"];
+  bankAccount?: Driver["bankAccount"];
 }
 
 export default function UsersPage() {
@@ -65,7 +70,8 @@ export default function UsersPage() {
         isActive: c.isActive,
         createdAt: c.createdAt,
         city: c.city,
-        emailVerified: c.emailVerified
+        emailVerified: c.emailVerified,
+        clientVerification: c.clientVerification
       }));
 
       const formattedDrivers: UnifiedUser[] = driversData.map((d) => ({
@@ -75,9 +81,13 @@ export default function UsersPage() {
         phone: d.phone,
         cpf: d.cpf,
         userType: "driver",
+        driverStatus: d.driverStatus,
         isActive: d.isActive,
         createdAt: d.createdAt,
-        city: d.city
+        city: d.city,
+        driverDocuments: d.driverDocuments,
+        vehicles: d.vehicles,
+        bankAccount: d.bankAccount
       }));
 
       // Merge and sort by creation date
@@ -164,6 +174,27 @@ export default function UsersPage() {
   const handleViewUser = (user: UnifiedUser) => {
     setSelectedUser(user);
     setIsDrawerOpen(true);
+  };
+
+  const driverDocStatus = (status?: string) => {
+    const normalized = status || "none";
+    const styles: Record<string, string> = {
+      approved: "bg-emerald-50 text-emerald-700 border-emerald-100",
+      pending: "bg-amber-50 text-amber-700 border-amber-100",
+      rejected: "bg-rose-50 text-rose-700 border-rose-100",
+      none: "bg-slate-50 text-slate-500 border-slate-200",
+    };
+    const labels: Record<string, string> = {
+      approved: "Aprovado",
+      pending: "Pendente",
+      rejected: "Reprovado",
+      none: "Não enviado",
+    };
+    return (
+      <span className={`px-2 py-0.5 rounded-full border text-[10px] font-bold ${styles[normalized] || styles.none}`}>
+        {labels[normalized] || normalized}
+      </span>
+    );
   };
 
   if (loading) {
@@ -373,7 +404,7 @@ export default function UsersPage() {
       {/* User Details Drawer */}
       {isDrawerOpen && selectedUser && (
         <>
-          <div className="fixed inset-0 bg-black bg-opacity-40 z-40 transition-opacity" onClick={() => setIsDrawerOpen(false)} />
+          <div className="fixed inset-0 bg-transparent z-40 transition-opacity" onClick={() => setIsDrawerOpen(false)} />
 
           <div className="fixed right-0 top-0 h-full w-full max-w-md bg-white shadow-2xl z-50 overflow-y-auto flex flex-col justify-between">
             {/* Header */}
@@ -446,6 +477,90 @@ export default function UsersPage() {
                   )}
                 </div>
               </div>
+
+              {selectedUser.userType === "driver" && (
+                <>
+                  <div>
+                    <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Documentos do Motorista</h4>
+                    <div className="bg-slate-50 border border-gray-200 rounded-xl p-4 space-y-3 text-xs font-semibold">
+                      {[
+                        ["CNH Frente", selectedUser.driverDocuments?.cnhFrontStatus],
+                        ["CNH Verso", selectedUser.driverDocuments?.cnhBackStatus],
+                        ["Selfie", selectedUser.driverDocuments?.selfieStatus],
+                      ].map(([label, status]) => (
+                        <div key={label} className="flex items-center justify-between gap-3">
+                          <span className="text-gray-600">{label}</span>
+                          {driverDocStatus(status)}
+                        </div>
+                      ))}
+                      {selectedUser.driverDocuments?.rejectionReason && (
+                        <div className="rounded-lg border border-rose-100 bg-rose-50 p-3 text-rose-700">
+                          {selectedUser.driverDocuments.rejectionReason}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Veículos e Documentos</h4>
+                    <div className="space-y-3">
+                      {(selectedUser.vehicles || []).length > 0 ? (
+                        selectedUser.vehicles!.map((vehicle, index) => (
+                          <div key={vehicle._id || index} className="bg-slate-50 border border-gray-200 rounded-xl p-4 text-xs font-semibold space-y-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-gray-950 font-extrabold">{vehicle.model || "Veículo sem modelo"}</p>
+                                <p className="text-gray-500 mt-0.5">{vehicle.plate || "Sem placa"} • {vehicle.color || "Cor não informada"} • {vehicle.year || "Ano não informado"}</p>
+                              </div>
+                              {driverDocStatus(vehicle.status)}
+                            </div>
+                            <div className="grid grid-cols-3 gap-2">
+                              <div className="rounded-lg bg-white border border-gray-100 p-2 text-center">
+                                <p className="text-[9px] text-gray-400 font-bold uppercase mb-1">CRLV Frente</p>
+                                {driverDocStatus(vehicle.documents?.crlvFront ? "pending" : "none")}
+                              </div>
+                              <div className="rounded-lg bg-white border border-gray-100 p-2 text-center">
+                                <p className="text-[9px] text-gray-400 font-bold uppercase mb-1">CRLV Verso</p>
+                                {driverDocStatus(vehicle.documents?.crlvBack ? "pending" : "none")}
+                              </div>
+                              <div className="rounded-lg bg-white border border-gray-100 p-2 text-center">
+                                <p className="text-[9px] text-gray-400 font-bold uppercase mb-1">Foto</p>
+                                {driverDocStatus(vehicle.documents?.vehiclePhoto ? "pending" : "none")}
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="bg-slate-50 border border-gray-200 rounded-xl p-4 text-xs font-semibold text-gray-500">
+                          Nenhum veículo cadastrado para este motorista.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Dados de Repasse</h4>
+                    <div className="bg-slate-50 border border-gray-200 rounded-xl p-4 text-xs font-semibold space-y-2">
+                      <div className="flex justify-between gap-3">
+                        <span className="text-gray-500">Banco:</span>
+                        <span className="text-gray-950">{selectedUser.bankAccount?.bank || "Não informado"}</span>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <span className="text-gray-500">Agência:</span>
+                        <span className="text-gray-950">{selectedUser.bankAccount?.agency || "Não informada"}</span>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <span className="text-gray-500">Conta:</span>
+                        <span className="text-gray-950">{selectedUser.bankAccount?.account || "Não informada"}</span>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <span className="text-gray-500">Pix:</span>
+                        <span className="text-gray-950 truncate">{selectedUser.bankAccount?.pixKey || selectedUser.cpf || "Não informado"}</span>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
 
               {/* Datas de Controle */}
               <div>

@@ -54,6 +54,7 @@ export interface UserData {
     reviewedAt?: string;
     reviewedBy?: string;
   } | null;
+  mapTheme?: "light" | "dark" | string;
 }
 
 export interface AuthState {

@@ -57,7 +57,6 @@ export type ClientStackParamList = {
           latitude: number;
           longitude: number;
         };
-        favorite_creation?: boolean;
         initialVehicle?: string;
         initialService?: string;
         resumeDriverFound?: boolean;
@@ -68,6 +67,15 @@ export type ClientStackParamList = {
     | {
         selectionMode?: string;
         returnScreen?: string;
+        returnMode?: "sender" | "receiver";
+        senderData?: {
+          mode: string;
+          address: string;
+          addressCoords: { latitude: number; longitude: number } | null;
+          addressDetails: string;
+          contactName: string;
+          contactPhone: string;
+        };
         favoriteId?: string;
         favoriteData?: any;
         initialLocation?: {
@@ -106,7 +114,11 @@ export type ClientStackParamList = {
       }
     | undefined;
   Favorites: undefined;
-  AddFavorite: undefined;
+  FavoriteAddressFlow:
+    | {
+        initialSearchMode?: "home" | "work" | "favorite" | "favoritesList";
+      }
+    | undefined;
   SelectVehicle:
     | {
         pickup?: { address: string; latitude: number; longitude: number };
@@ -130,6 +142,35 @@ export type ClientStackParamList = {
     | undefined;
   FinalOrderSummary: { data: any };
   Payment: { amount: number; order?: any };
+  DeliverySenderInfo:
+    | {
+        mode?: "sender" | "receiver";
+        vehicleType?: string;
+        senderData?: {
+          mode: string;
+          address: string;
+          addressCoords: { latitude: number; longitude: number } | null;
+          addressDetails: string;
+          contactName: string;
+          contactPhone: string;
+        };
+        mapPickedAddress?: string;
+        mapPickedLatitude?: number;
+        mapPickedLongitude?: number;
+      }
+    | undefined;
+  DeliveryMapPicker:
+    | {
+        initialLatitude?: number;
+        initialLongitude?: number;
+        returnField?: string;
+      }
+    | undefined;
+  EditDeliveryAddress:
+    | {
+        addressId: string;
+      }
+    | undefined;
   DeliverySetup:
     | {
         vehicleType?: string;

@@ -8,7 +8,9 @@ import * as Location from 'expo-location';
 import MapView, { Region } from 'react-native-maps';
 import {
   getAddressFromCoordinates,
+  getCurrentLocationAndAddress,
 } from '@/utils/location';
+import { updateLocation } from '@/services/auth.service';
 
 export interface MapRegion {
   latitude: number;
@@ -81,6 +83,9 @@ export function useMapLocation() {
             prev ? { ...prev, latitude: lat, longitude: lng } : prev
           );
           setShowMyLocationButton(false);
+          
+          // Enviar localização real-time ao backend
+          updateLocation(lat, lng).catch(console.error);
         }
       );
     })();

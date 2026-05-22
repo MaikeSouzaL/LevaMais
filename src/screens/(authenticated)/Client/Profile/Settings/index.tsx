@@ -30,6 +30,7 @@ type LocalSettings = {
   darkMode: boolean;
   shareLocationInBackground: boolean;
   enableMapAnimation: boolean;
+  mapTheme?: "light" | "dark";
 };
 
 const initialState: LocalSettings = {
@@ -85,6 +86,7 @@ export default function SettingsScreen() {
               typeof profile.enableMapAnimation === "boolean"
                 ? profile.enableMapAnimation
                 : prev.enableMapAnimation,
+            mapTheme: profile.mapTheme || "light",
           }));
         }
 
@@ -174,6 +176,22 @@ export default function SettingsScreen() {
     }
   };
 
+  const handleMapThemeToggle = async (value: boolean) => {
+    const theme = value ? "dark" : "light";
+    await patchSettings({ mapTheme: theme });
+    try {
+      await userService.updateProfile({ mapTheme: theme });
+      useAuthStore.getState().updateUserData({ mapTheme: theme });
+    } catch (err: any) {
+      await patchSettings({ mapTheme: !value ? "dark" : "light" });
+      Toast.show({
+        type: "error",
+        text1: "Erro ao salvar preferencia",
+        text2: err?.message || "Tente novamente",
+      });
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <ClientScreenHeader title="Configuracoes" subtitle="Preferencias do app e privacidade" />
@@ -228,10 +246,10 @@ export default function SettingsScreen() {
         />
 
         <SettingRow
-          label="Modo escuro"
-          subtitle="Mantem o app com tema escuro"
-          value={settings.darkMode}
-          onToggle={(value) => patchSettings({ darkMode: value })}
+          label="Tema do Mapa"
+          subtitle="Ativar estilo noturno no mapa de corridas"
+          value={settings.mapTheme === "dark"}
+          onToggle={handleMapThemeToggle}
         />
 
         <SettingRow

@@ -56,6 +56,12 @@ export default function FavoritesScreen() {
   const [deleteTarget, setDeleteTarget] = useState<FavoriteAddress | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  const openNewFavoriteFlow = useCallback(() => {
+    navigation.navigate("FavoriteAddressFlow", {
+      initialSearchMode: "favoritesList",
+    });
+  }, [navigation]);
+
   const loadFavorites = useCallback(async (isRefresh = false) => {
     try {
       if (isRefresh) setRefreshing(true);
@@ -128,7 +134,7 @@ export default function FavoritesScreen() {
           </Text>
         </View>
         <TouchableOpacity
-          onPress={() => navigation.navigate("AddFavorite")}
+          onPress={openNewFavoriteFlow}
           activeOpacity={0.85}
           style={{
             height: 38, paddingHorizontal: 14, borderRadius: 12,
@@ -166,7 +172,7 @@ export default function FavoritesScreen() {
             Salve endereços frequentes para solicitar corridas e entregas mais rapidamente.
           </Text>
           <TouchableOpacity
-            onPress={() => navigation.navigate("AddFavorite")}
+            onPress={openNewFavoriteFlow}
             activeOpacity={0.85}
             style={{
               height: 52, paddingHorizontal: 28, borderRadius: 16,

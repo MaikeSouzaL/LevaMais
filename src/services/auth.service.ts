@@ -614,3 +614,24 @@ export async function submitDriverVerification(
     };
   }
 }
+
+// Atualizar localizacao do usuario no backend
+export async function updateLocation(
+  latitude: number,
+  longitude: number
+): Promise<ApiResponse<{ message: string }>> {
+  try {
+    const response = await apiPatch<ApiResponse<{ message: string }>>(
+      "/auth/location",
+      { latitude, longitude }
+    );
+    return response.data;
+  } catch (error: any) {
+    if (error.response?.data) return error.response.data;
+    return {
+      success: false,
+      message: error.message || "Erro ao atualizar localizacao",
+      error: error.message,
+    };
+  }
+}

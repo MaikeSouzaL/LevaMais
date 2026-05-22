@@ -20,6 +20,7 @@ export type UserProfile = {
   preferredPayment?: "pix" | "cash" | "card";
   notificationsEnabled?: boolean;
   enableMapAnimation?: boolean;
+  mapTheme?: "light" | "dark";
   queueRedispatchInterval?: number | null;
   vehicleType?: "motorcycle" | "car" | "van" | "truck";
   vehicleInfo?: {
@@ -76,6 +77,7 @@ export type UpdateProfilePayload = Partial<
     | "preferredPayment"
     | "notificationsEnabled"
     | "enableMapAnimation"
+    | "mapTheme"
     | "gpsQuality"
     | "queueRedispatchInterval"
     | "vehicleType"
@@ -120,11 +122,23 @@ async function uploadProfilePhoto(imageUri: string): Promise<string> {
     type: mimeType,
   } as any);
 
-  const res = await api.post<GetProfileResponse>("/auth/profile-photo", formData, {
-    headers: { "Content-Type": "multipart/form-data" },
+  const { useAuthStore } = require("../context/authStore");
+  const token = useAuthStore.getState().token;
+
+  const response = await fetch(`${api.defaults.baseURL}/auth/profile-photo`, {
+    method: "POST",
+    body: formData as any,
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
   });
-  
-  return res.data.data.user.profilePhoto || "";
+
+  const resData = await response.json();
+  if (!resData.success) {
+    throw new Error(resData.message || "Erro ao fazer upload da imagem");
+  }
+
+  return resData.data?.user?.profilePhoto || "";
 }
 
 export default { getProfile, updateProfile, uploadProfilePhoto };
