@@ -317,6 +317,7 @@ export default function HomeScreen() {
     ) => {
     if (type === "delivery") {
       setActiveService("delivery");
+      setSelectedDeliveryVehicle("motorcycle");
       return;
     }
     const isScheduled = Boolean(options?.preferScheduled);
@@ -683,14 +684,18 @@ export default function HomeScreen() {
               </View>
             </View>
 
-            {/* VOCÊ PRECISA, -> Leva+ Entrega (Centered) */}
+            {/* O QUE VAMOS ENVIAR HOJE? -> Leva+ Logo & Entrega (Centered & Highlighted) */}
             <View className="px-5 mt-[120px] mb-9 items-center justify-center">
-              <Text className="text-white/50 text-[13px] font-black tracking-[3px] uppercase text-center">VOCÊ PRECISA,</Text>
-              <View className="flex-row items-center justify-center mt-2.5">
-                <View className="w-[26px] h-[26px] rounded-full bg-[#02de95] items-center justify-center mr-2">
-                  <ArrowRight size={16} color="#091A2F" strokeWidth={4} />
-                </View>
-                <Text className="text-[#02de95] text-[28px] font-black text-center">Leva+ <Text className="text-white font-bold">Entrega</Text></Text>
+              <Text className="text-white/80 text-[14px] font-black tracking-[4px] uppercase text-center">O QUE VAMOS ENVIAR HOJE?</Text>
+              <View className="flex-row items-center justify-center mt-3">
+                <Image 
+                  source={require("../../../../assets/Logo/logo.png")} 
+                  style={{ width: 120, height: 35 }} 
+                  resizeMode="contain"
+                />
+                <Text className="text-white text-[28px] font-black tracking-tight ml-2.5">
+                  Entrega
+                </Text>
               </View>
             </View>
 
@@ -710,18 +715,18 @@ export default function HomeScreen() {
                       onPress={() => setSelectedDeliveryVehicle(vehicle.id)}
                       className="w-[150px] rounded-[24px] p-3 border"
                       style={{
-                        backgroundColor: isSelected ? "rgba(2,222,149,0.11)" : "rgba(17,37,62,0.72)",
-                        borderColor: isSelected ? "#02de95" : "rgba(255,255,255,0.05)",
+                        backgroundColor: "transparent",
+                        borderColor: isSelected ? "#02de95" : "transparent",
                       }}
                     >
                       <View
-                        className="absolute top-3 right-3 z-20 w-7 h-7 rounded-full items-center justify-center"
-                        style={{ backgroundColor: isSelected ? "#02de95" : "rgba(255,255,255,0.12)" }}
+                        className="absolute top-2 right-2 z-20 w-6.5 h-6.5 rounded-full items-center justify-center"
+                        style={{ backgroundColor: isSelected ? "#02de95" : "rgba(255,255,255,0.08)" }}
                       >
                         {isSelected ? (
-                          <Check size={17} color="#091A2F" strokeWidth={3.5} />
+                          <Check size={14} color="#091A2F" strokeWidth={3.5} />
                         ) : (
-                          <View className="w-2.5 h-2.5 rounded-full bg-white/30" />
+                          <View className="w-2 h-2 rounded-full bg-white/20" />
                         )}
                       </View>
                       <View className="h-[104px] items-center justify-center mb-2">
@@ -731,8 +736,8 @@ export default function HomeScreen() {
                           resizeMode="contain"
                         />
                       </View>
-                      <Text className="text-white text-[15px] font-black mb-0.5" numberOfLines={1}>{vehicle.title}</Text>
-                      <Text className="text-white/40 text-[11px] font-bold" numberOfLines={1}>{vehicle.subtitle}</Text>
+                      <Text className="text-white text-[15px] font-black mb-0.5 text-center" numberOfLines={1}>{vehicle.title}</Text>
+                      <Text className="text-white/40 text-[11px] font-bold text-center" numberOfLines={1}>{vehicle.subtitle}</Text>
                     </TouchableOpacity>
                   );
                 })}
@@ -746,33 +751,33 @@ export default function HomeScreen() {
                 contentContainerStyle={{ gap: 10, paddingRight: 20 }}
               >
                 <TouchableOpacity
-                  className="flex-row items-center bg-[#11253E] px-3.5 py-2 rounded-[20px] border border-white/[0.03]"
+                  className="flex-row items-center bg-white px-3.5 py-2 rounded-[20px]"
                   onPress={() => handleOpenFavoriteShortcut("home")}
                 >
-                  <View className="w-6 h-6 rounded-full bg-[#02de95]/10 items-center justify-center mr-2">
-                    <HomeIcon size={14} color="#02de95" />
+                  <View className="w-6 h-6 rounded-full bg-[#091A2F]/10 items-center justify-center mr-2">
+                    <HomeIcon size={14} color="#091A2F" />
                   </View>
-                  <Text className="text-white text-xs font-bold">Adicionar Casa</Text>
+                  <Text className="text-[#091A2F] text-xs font-bold">Adicionar Casa</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  className="flex-row items-center bg-[#11253E] px-3.5 py-2 rounded-[20px] border border-white/[0.03]"
+                  className="flex-row items-center bg-white px-3.5 py-2 rounded-[20px]"
                   onPress={() => handleOpenFavoriteShortcut("work")}
                 >
-                  <View className="w-6 h-6 rounded-full bg-[#02de95]/10 items-center justify-center mr-2">
-                    <Briefcase size={14} color="#02de95" />
+                  <View className="w-6 h-6 rounded-full bg-[#091A2F]/10 items-center justify-center mr-2">
+                    <Briefcase size={14} color="#091A2F" />
                   </View>
-                  <Text className="text-white text-xs font-bold">Adicionar Trabalho</Text>
+                  <Text className="text-[#091A2F] text-xs font-bold">Adicionar Trabalho</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  className="flex-row items-center bg-[#11253E] px-3.5 py-2 rounded-[20px] border border-white/[0.03]"
+                  className="flex-row items-center bg-white px-3.5 py-2 rounded-[20px]"
                   onPress={() => handleOpenFavoriteShortcut("favoritesList")}
                 >
-                  <View className="w-6 h-6 rounded-full bg-[#02de95]/10 items-center justify-center mr-2">
-                    <Sparkles size={14} color="#02de95" />
+                  <View className="w-6 h-6 rounded-full bg-[#091A2F]/10 items-center justify-center mr-2">
+                    <Sparkles size={14} color="#091A2F" />
                   </View>
-                  <Text className="text-white text-xs font-bold">Adicionar Favorito</Text>
+                  <Text className="text-[#091A2F] text-xs font-bold">Adicionar Favorito</Text>
                 </TouchableOpacity>
               </ScrollView>
             </View>
@@ -866,7 +871,9 @@ export default function HomeScreen() {
                       <Text className="text-white text-lg font-black">
                         {deliveryMode === "send" ? "Entregar para" : "Enviar de"}
                       </Text>
-                      <ChevronRight size={22} color="#02de95" strokeWidth={2.5} />
+                      <View className="w-[30px] h-[30px] rounded-full bg-[#02de95] items-center justify-center" style={{ shadowColor: '#02de95', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 6, elevation: 4 }}>
+                        <ArrowRight size={18} color="#091A2F" strokeWidth={4.5} />
+                      </View>
                     </TouchableOpacity>
                   </MotiView>
                 </View>
@@ -1036,7 +1043,10 @@ export default function HomeScreen() {
 
           {/* Option 2: Entrega */}
           <TouchableOpacity 
-            onPress={() => setActiveService("delivery")}
+            onPress={() => {
+              setActiveService("delivery");
+              setSelectedDeliveryVehicle("motorcycle");
+            }}
             className="flex-1 items-center justify-center h-full z-10"
             activeOpacity={0.8}
           >
