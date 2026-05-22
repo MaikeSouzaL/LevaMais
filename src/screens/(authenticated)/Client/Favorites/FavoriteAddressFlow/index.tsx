@@ -266,6 +266,9 @@ export default function FavoriteAddressFlowScreen() {
     return <Star size={18} color="#6b7280" fill="#6b7280" style={{ marginRight: 12 }} />;
   };
 
+  const casaFav = favorites.find(f => f.name.toLowerCase() === "casa" || f.icon === "home");
+  const trabalhoFav = favorites.find(f => f.name.toLowerCase() === "trabalho" || f.icon === "work");
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
@@ -373,6 +376,60 @@ export default function FavoriteAddressFlowScreen() {
             </TouchableOpacity>
           </View>
 
+          {/* Quick search shortcuts horizontal bar */}
+          <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 24, paddingVertical: 12, gap: 10, borderBottomWidth: 1, borderBottomColor: "#f1f1f1" }}>
+            <TouchableOpacity
+              onPress={() => {
+                if (casaFav) {
+                  navigation.navigate(returnScreen as any, {
+                    mapPickedAddress: casaFav.formattedAddress || casaFav.address,
+                    mapPickedLatitude: Number(casaFav.latitude),
+                    mapPickedLongitude: Number(casaFav.longitude),
+                    isSender: isSender,
+                  });
+                } else {
+                  setMode("home");
+                }
+              }}
+              style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#f9fafb", borderWidth: 1, borderColor: "#f3f4f6", borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, gap: 6 }}
+            >
+              <HomeIcon size={14} color="#666" />
+              <Text style={{ color: "#374151", fontSize: 13, fontWeight: "700" }}>Casa</Text>
+              <ChevronRight size={12} color="#ccc" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => {
+                if (trabalhoFav) {
+                  navigation.navigate(returnScreen as any, {
+                    mapPickedAddress: trabalhoFav.formattedAddress || trabalhoFav.address,
+                    mapPickedLatitude: Number(trabalhoFav.latitude),
+                    mapPickedLongitude: Number(trabalhoFav.longitude),
+                    isSender: isSender,
+                  });
+                } else {
+                  setMode("work");
+                }
+              }}
+              style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#f9fafb", borderWidth: 1, borderColor: "#f3f4f6", borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, gap: 6 }}
+            >
+              <Briefcase size={14} color="#666" />
+              <Text style={{ color: "#374151", fontSize: 13, fontWeight: "700" }}>Trabalho</Text>
+              <ChevronRight size={12} color="#ccc" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => {
+                setMode("favoritesList");
+              }}
+              style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#f9fafb", borderWidth: 1, borderColor: "#f3f4f6", borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, gap: 6 }}
+            >
+              <Star size={14} color="#F59E0B" fill="#F59E0B" />
+              <Text style={{ color: "#374151", fontSize: 13, fontWeight: "700" }}>Favorit...</Text>
+              <ChevronRight size={12} color="#ccc" />
+            </TouchableOpacity>
+          </View>
+
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             {loading && <ActivityIndicator color="#02de95" style={{ marginVertical: 18 }} />}
             {results.map((item) => (
@@ -386,7 +443,7 @@ export default function FavoriteAddressFlowScreen() {
                 </View>
               </TouchableOpacity>
             ))}
-            {query.length === 0 && favorites.length > 0 && (
+            {query.length === 0 && !isSelectionMode && favorites.length > 0 && (
               <View style={{ borderBottomWidth: 1, borderBottomColor: "#f3f4f6", paddingBottom: 8 }}>
                 <Text style={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: 6, color: "#9ca3af", fontSize: 12, fontWeight: "900", textTransform: "uppercase", letterSpacing: 1 }}>Meus Favoritos</Text>
                 {favorites.map((fav) => (
@@ -407,6 +464,37 @@ export default function FavoriteAddressFlowScreen() {
                     <View style={{ flex: 1 }}>
                       <Text style={{ color: "#333", fontSize: 16, fontWeight: "800" }} numberOfLines={1}>{fav.name}</Text>
                       <Text style={{ color: "#9ca3af", fontSize: 14, marginTop: 2 }} numberOfLines={1}>{fav.formattedAddress || fav.address}</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            {query.length === 0 && isSelectionMode && historyAddresses.length > 0 && (
+              <View style={{ borderBottomWidth: 1, borderBottomColor: "#f3f4f6", paddingBottom: 8 }}>
+                {historyAddresses.map((hist) => (
+                  <TouchableOpacity
+                    key={hist._id}
+                    onPress={() => {
+                      navigation.navigate(returnScreen as any, {
+                        mapPickedAddress: hist.formattedAddress || hist.address,
+                        mapPickedLatitude: Number(hist.latitude),
+                        mapPickedLongitude: Number(hist.longitude),
+                        isSender: isSender,
+                      });
+                    }}
+                    style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 24, paddingVertical: 12 }}
+                  >
+                    <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: "#fff0e8", alignItems: "center", justifyContent: "center", marginRight: 14 }}>
+                      <History size={16} color="#ff7a3d" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: "#333", fontSize: 16, fontWeight: "800" }} numberOfLines={1}>
+                        {hist.formattedAddress.split(",")[0]}
+                      </Text>
+                      <Text style={{ color: "#9ca3af", fontSize: 14, marginTop: 2 }} numberOfLines={1}>
+                        {hist.formattedAddress}
+                      </Text>
                     </View>
                   </TouchableOpacity>
                 ))}
