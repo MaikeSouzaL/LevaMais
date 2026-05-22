@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import {
@@ -119,7 +119,7 @@ interface PendingDriver {
   };
 }
 
-// 🌐 Utility to rewrite local/external IP URLs from device to local environment domain
+// Utility to rewrite local/external IP URLs from device to local environment domain
 const cleanDocUrl = (url?: string) => {
   if (!url) return "";
   if (url.startsWith("file:///")) {
@@ -176,7 +176,6 @@ export default function UnifiedVerificationPage() {
   const [rejectionReason, setRejectionReason] = useState("");
   const [customReason, setCustomReason] = useState("");
   const [processing, setProcessing] = useState(false);
-  const [rejectType, setRejectType] = useState<"user" | "cpf" | "selfie">("user");
 
   const { showToast, ToastContainer } = useToast();
 
@@ -294,7 +293,7 @@ export default function UnifiedVerificationPage() {
               payload.vehicleInfo = {
                 plate: approvedVehicle.plate,
                 model: approvedVehicle.model,
-                color: approvedVehicle.color || "Nao informada",
+                color: approvedVehicle.color || "N?o informada",
                 year: approvedVehicle.year || new Date().getFullYear()
               };
             }
@@ -324,71 +323,6 @@ export default function UnifiedVerificationPage() {
   };
 
   // Update individual client compliance aspects (CPF or Selfie)
-  const handleClientStatusUpdate = async (
-    userId: string,
-    field: "cpfStatus" | "selfieStatus",
-    newStatus: "valid" | "invalid" | "approved" | "rejected",
-    reason?: string
-  ) => {
-    setProcessing(true);
-    try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
-      const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || '';
-
-      const clientUser = selectedUser as PendingClient;
-      const currentVerification = clientUser.clientVerification || {
-        status: "pending",
-        cpfStatus: "unchecked",
-        selfieStatus: "pending",
-        documents: {}
-      };
-
-      const updatedVerification = {
-        ...currentVerification,
-        [field]: newStatus,
-      };
-
-      if (reason && (newStatus === "rejected" || newStatus === "invalid")) {
-        updatedVerification.rejectionReason = reason;
-      } else if (newStatus === "approved" || newStatus === "valid") {
-        updatedVerification.rejectionReason = "";
-      }
-
-      // Se cpfStatus for valid e selfieStatus for approved, o status geral do cliente torna-se approved!
-      if (updatedVerification.cpfStatus === "valid" && updatedVerification.selfieStatus === "approved") {
-        updatedVerification.status = "approved";
-      } else if (updatedVerification.cpfStatus === "invalid" || updatedVerification.selfieStatus === "rejected") {
-        updatedVerification.status = "rejected";
-      } else {
-        updatedVerification.status = "pending";
-      }
-
-      const payload = {
-        clientVerification: updatedVerification,
-      };
-
-      await axios.patch(`${API_URL}/auth/users/${userId}`, payload, {
-        headers: { "x-admin-key": ADMIN_API_KEY }
-      });
-
-      // Update local selectedUser state if it is currently selected
-      if (selectedUser && selectedUser._id === userId) {
-        setSelectedUser({
-          ...selectedUser,
-          clientVerification: updatedVerification
-        } as any);
-      }
-
-      showToast(`Verificação de ${field === "cpfStatus" ? "dados" : "selfie"} atualizada!`, "success");
-      loadData();
-    } catch (err) {
-      console.error(err);
-      showToast("Erro ao atualizar status da verificação", "error");
-    } finally {
-      setProcessing(false);
-    }
-  };
-
   // Approve or reject individual vehicle
   const handleVehicleStatusUpdate = async (userId: string, vehicleId: string, newStatus: "approved" | "rejected", reason?: string) => {
     setProcessing(true);
@@ -426,15 +360,33 @@ export default function UnifiedVerificationPage() {
     }
 
     if (selectedUser?.userType === "client") {
-      if (rejectType === "cpf") {
-        await handleClientStatusUpdate(selectedUser._id, "cpfStatus", "invalid", finalReason);
-      } else if (rejectType === "selfie") {
-        await handleClientStatusUpdate(selectedUser._id, "selfieStatus", "rejected", finalReason);
-      } else {
-        await handleClientStatusUpdate(selectedUser._id, "selfieStatus", "rejected", finalReason);
+      setProcessing(true);
+      try {
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
+        const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || "";
+        await axios.patch(
+          `${API_URL}/auth/users/${selectedUser._id}`,
+          {
+            isActive: false,
+            clientVerification: {
+              ...(selectedUser.clientVerification || {}),
+              status: "rejected",
+              selfieStatus: "rejected",
+              rejectionReason: finalReason,
+            },
+          },
+          { headers: { "x-admin-key": ADMIN_API_KEY } },
+        );
+        showToast(`Cadastro de ${selectedUser.name} reprovado.`, "success");
+        setShowRejectModal(false);
+        setIsDrawerOpen(false);
+        setCustomReason("");
+        loadData();
+      } catch {
+        showToast("Erro ao registrar reprovação", "error");
+      } finally {
+        setProcessing(false);
       }
-      setShowRejectModal(false);
-      setCustomReason("");
       return;
     }
 
@@ -479,9 +431,15 @@ export default function UnifiedVerificationPage() {
     return {
       pendingDrivers: drivers.filter((d) => d.driverStatus === "pending").length,
       approvedDrivers: drivers.filter((d) => d.driverStatus === "approved").length,
-      pendingClients: clients.filter((c) => c.clientVerification?.status === "pending").length,
-      totalDrivers: drivers.length,
-      totalClients: clients.length
+      pendingClients: clients.filter(
+        (c) =>
+          c.clientVerification?.status === "pending" ||
+          c.clientVerification?.status === "none" ||
+          !c.clientVerification?.status,
+      ).length,
+      activeClients: clients.filter(
+        (c) => c.isActive === true && c.clientVerification?.status === "approved",
+      ).length,
     };
   }, [drivers, clients]);
 
@@ -494,6 +452,23 @@ export default function UnifiedVerificationPage() {
     "Dados bancários inconsistentes com Pix",
     "CPF / CNPJ inválido ou irregular na Receita"
   ];
+
+  const clientDocumentsReady =
+    selectedUser?.userType === "client"
+      ? Boolean(selectedUser.clientVerification?.documents?.selfie)
+      : false;
+
+  const clientProfileReady =
+    selectedUser?.userType === "client"
+      ? Boolean(
+          selectedUser.name &&
+            selectedUser.phone &&
+            selectedUser.city &&
+            (selectedUser.cpf || (selectedUser as any).cnpj),
+        )
+      : false;
+
+  const clientApprovalReady = clientDocumentsReady && clientProfileReady;
 
   if (loading && !refreshing) {
     return (
@@ -540,7 +515,7 @@ export default function UnifiedVerificationPage() {
             <p className="text-2xl font-black text-yellow-950 mt-1">{stats.pendingDrivers}</p>
           </div>
           <div className="w-10 h-10 bg-yellow-500 text-white rounded-xl flex items-center justify-center font-bold">
-            ⏳
+            <Clock className="w-5 h-5" />
           </div>
         </div>
 
@@ -550,7 +525,7 @@ export default function UnifiedVerificationPage() {
             <p className="text-2xl font-black text-emerald-950 mt-1">{stats.approvedDrivers}</p>
           </div>
           <div className="w-10 h-10 bg-emerald-600 text-white rounded-xl flex items-center justify-center font-bold">
-            ✓
+            OK
           </div>
         </div>
 
@@ -560,17 +535,17 @@ export default function UnifiedVerificationPage() {
             <p className="text-2xl font-black text-blue-950 mt-1">{stats.pendingClients}</p>
           </div>
           <div className="w-10 h-10 bg-blue-600 text-white rounded-xl flex items-center justify-center font-bold">
-            ⏳
+            <Clock className="w-5 h-5" />
           </div>
         </div>
 
         <div className="p-4 bg-purple-50 border border-purple-200 rounded-2xl flex items-center justify-between shadow-sm">
           <div>
-            <p className="text-[10px] font-black text-purple-800 uppercase tracking-wider">Total Registros (Frota)</p>
-            <p className="text-2xl font-black text-purple-950 mt-1">{stats.totalDrivers + stats.totalClients}</p>
+            <p className="text-[10px] font-black text-purple-800 uppercase tracking-wider">Clientes Ativos</p>
+            <p className="text-2xl font-black text-purple-950 mt-1">{stats.activeClients}</p>
           </div>
           <div className="w-10 h-10 bg-purple-600 text-white rounded-xl flex items-center justify-center font-bold">
-            👥
+            <UserCheck className="w-5 h-5" />
           </div>
         </div>
       </div>
@@ -687,12 +662,12 @@ export default function UnifiedVerificationPage() {
                           {driver.vehicleInfo ? (
                             <div>
                               <p className="text-gray-950 font-bold">{driver.vehicleInfo.model} ({driver.vehicleInfo.plate})</p>
-                              <p className="text-[10px] text-gray-400 font-bold capitalize mt-0.5">{driver.vehicleInfo.color} • {driver.vehicleInfo.year}</p>
+                              <p className="text-[10px] text-gray-400 font-bold capitalize mt-0.5">{driver.vehicleInfo.color} ⬢ {driver.vehicleInfo.year}</p>
                             </div>
                           ) : driver.vehicles && driver.vehicles.length > 0 ? (
                             <div>
                               <p className="text-gray-950 font-bold">{driver.vehicles[0].model} ({driver.vehicles[0].plate})</p>
-                              <p className="text-[10px] text-amber-600 font-bold capitalize mt-0.5">{driver.vehicles[0].color} • {driver.vehicles[0].year} (Pendente)</p>
+                              <p className="text-[10px] text-amber-600 font-bold capitalize mt-0.5">{driver.vehicles[0].color} ⬢ {driver.vehicles[0].year} (Pendente)</p>
                             </div>
                           ) : (
                             <span className="text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100/50 text-[10px] font-bold">Sem Veículo</span>
@@ -800,7 +775,7 @@ export default function UnifiedVerificationPage() {
       {/* Document verification Details Drawer */}
       {isDrawerOpen && selectedUser && (
         <>
-          <div className="fixed inset-0 bg-black bg-opacity-40 z-40 transition-opacity" onClick={() => setIsDrawerOpen(false)} />
+          <div className="fixed inset-0 bg-transparent z-40 transition-opacity" onClick={() => setIsDrawerOpen(false)} />
 
           <div className="fixed right-0 top-0 h-full w-full max-w-2xl bg-white shadow-2xl z-50 overflow-y-auto flex flex-col justify-between animate-in slide-in-from-right duration-200">
             
@@ -840,71 +815,50 @@ export default function UnifiedVerificationPage() {
                 <div className="bg-slate-50 border border-gray-200 rounded-2xl p-5 space-y-4">
                   <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-wider flex items-center gap-1.5 border-b border-gray-200/60 pb-2">
                     <FileText className="w-4 h-4 text-emerald-600" />
-                    Dados Cadastrais & Pessoais
+                    Dados Cadastrais & Selfie
                   </h4>
-                  
-                  <div className="grid grid-cols-2 gap-4 text-xs font-semibold">
-                    <div>
-                      <p className="text-[9px] font-bold text-gray-400 uppercase mb-1">Nome Completo</p>
-                      <p className="text-gray-950 font-bold">{selectedUser.name}</p>
-                    </div>
-                    <div>
-                      <p className="text-[9px] font-bold text-gray-400 uppercase mb-1">Telefone Principal</p>
-                      <p className="text-gray-950 font-bold">{selectedUser.phone || "Não informado"}</p>
-                    </div>
-                    <div>
-                      <p className="text-[9px] font-bold text-gray-400 uppercase mb-1">Documento Identificador</p>
-                      <p className="text-gray-950 font-mono font-bold">{selectedUser.cpf || (selectedUser as any).cnpj || "Não informado"}</p>
-                    </div>
-                    <div>
-                      <p className="text-[9px] font-bold text-gray-400 uppercase mb-1">Cidade / Região</p>
-                      <p className="text-gray-950 font-bold">{selectedUser.city || "Não informada"}</p>
-                    </div>
-                  </div>
 
-                  <div className="flex items-center justify-between pt-3 border-t border-gray-200/60 text-xs">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[9px] font-bold text-gray-400 uppercase">Status dos Dados:</span>
-                      <span className={`px-2.5 py-0.5 rounded-full border text-[10px] font-bold capitalize ${
-                        selectedUser.clientVerification?.cpfStatus === "valid"
-                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                          : selectedUser.clientVerification?.cpfStatus === "invalid"
-                          ? "bg-rose-50 text-rose-700 border-rose-200"
-                          : selectedUser.clientVerification?.cpfStatus === "manual_review" || selectedUser.clientVerification?.cpfStatus === "pending"
-                          ? "bg-amber-50 text-amber-700 border-amber-200"
-                          : "bg-slate-50 text-slate-700 border-slate-200"
-                      }`}>
-                        {selectedUser.clientVerification?.cpfStatus === "valid"
-                          ? "Aprovado"
-                          : selectedUser.clientVerification?.cpfStatus === "invalid"
-                          ? "Reprovado"
-                          : selectedUser.clientVerification?.cpfStatus === "manual_review" || selectedUser.clientVerification?.cpfStatus === "pending" || selectedUser.clientVerification?.cpfStatus === "unchecked"
-                          ? "Aguardando Auditoria"
-                          : "Pendente"}
-                      </span>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="md:col-span-2 grid grid-cols-2 gap-4 text-xs font-semibold">
+                      <div>
+                        <p className="text-[9px] font-bold text-gray-400 uppercase mb-1">Nome Completo</p>
+                        <p className="text-gray-950 font-bold">{selectedUser.name}</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-bold text-gray-400 uppercase mb-1">Telefone Principal</p>
+                        <p className="text-gray-950 font-bold">{selectedUser.phone || "N?o informado"}</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-bold text-gray-400 uppercase mb-1">Documento Identificador</p>
+                        <p className="text-gray-950 font-mono font-bold">{selectedUser.cpf || (selectedUser as any).cnpj || "N?o informado"}</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-bold text-gray-400 uppercase mb-1">Cidade / Regi?o</p>
+                        <p className="text-gray-950 font-bold">{selectedUser.city || "N?o informada"}</p>
+                      </div>
                     </div>
 
-                    <div className="flex gap-2">
-                      {selectedUser.clientVerification?.cpfStatus !== "invalid" && (
-                        <button
-                          onClick={() => {
-                            setRejectType("cpf");
-                            setShowRejectModal(true);
-                          }}
-                          disabled={processing}
-                          className="px-2.5 py-1 bg-red-50 text-red-700 hover:bg-red-100 rounded-lg text-[10px] font-bold border border-red-200 transition-colors disabled:opacity-50"
+                    <div className="border border-gray-200 rounded-xl p-3.5 bg-white text-center space-y-2">
+                      <p className="text-[9px] font-bold text-gray-500 uppercase">Selfie do Usu?rio</p>
+                      {selectedUser.clientVerification?.documents?.selfie ? (
+                        <div
+                          className="relative group overflow-hidden rounded-lg aspect-square border border-gray-200 bg-white cursor-pointer max-w-[180px] mx-auto"
+                          onClick={() => openLightbox(selectedUser.clientVerification?.documents?.selfie ?? "", "Selfie do Cliente - " + selectedUser.name)}
                         >
-                          ✕ Reprovar Dados
-                        </button>
-                      )}
-                      {selectedUser.clientVerification?.cpfStatus !== "valid" && (
-                        <button
-                          onClick={() => handleClientStatusUpdate(selectedUser._id, "cpfStatus", "valid")}
-                          disabled={processing}
-                          className="px-2.5 py-1 bg-emerald-600 text-white hover:bg-emerald-700 rounded-lg text-[10px] font-bold shadow-sm transition-colors disabled:opacity-50"
-                        >
-                          ✓ Aprovar Dados
-                        </button>
+                          <img
+                            src={cleanDocUrl(selectedUser.clientVerification.documents.selfie)}
+                            alt="Selfie"
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                          />
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                            <Eye className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="aspect-square rounded-lg border border-dashed border-gray-300 bg-white flex flex-col items-center justify-center text-gray-400 gap-1.5 p-3 max-w-[180px] mx-auto">
+                          <Camera className="w-7 h-7 opacity-40" />
+                          <span className="text-[9px] leading-tight font-bold">Selfie ausente</span>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -1023,7 +977,7 @@ export default function UnifiedVerificationPage() {
                               <div className="px-4 py-3 bg-gray-100/70 border-b border-gray-200 flex items-center justify-between gap-3">
                                 <div className="flex items-center gap-2">
                                   <span className="text-base">
-                                    {vehicle.type === "motorcycle" ? "🏍️" : vehicle.type === "truck" ? "🚛" : vehicle.type === "van" ? "🚐" : "🚗"}
+                                    {vehicle.type === "motorcycle" ? "Moto" : vehicle.type === "truck" ? "Truck" : vehicle.type === "van" ? "Van" : "🚗"}
                                   </span>
                                   <div>
                                     <p className="text-xs font-black text-gray-950">{vehicle.model}</p>
@@ -1039,14 +993,14 @@ export default function UnifiedVerificationPage() {
                                       onClick={(e) => { e.stopPropagation(); handleVehicleStatusUpdate(selectedUser._id, vehicle._id, "approved"); }}
                                       disabled={processing}
                                       className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-lg text-[9px] font-bold hover:bg-emerald-200 disabled:opacity-50"
-                                    >✓ Aprovar</button>
+                                    >OK Aprovar</button>
                                   )}
                                   {vehicle.status !== "rejected" && (
                                     <button
                                       onClick={(e) => { e.stopPropagation(); handleVehicleStatusUpdate(selectedUser._id, vehicle._id, "rejected", "Reprovado manualmente pelo admin"); }}
                                       disabled={processing}
                                       className="px-2 py-0.5 bg-red-100 text-red-700 rounded-lg text-[9px] font-bold hover:bg-red-200 disabled:opacity-50"
-                                    >✕ Reprovar</button>
+                                    >X Reprovar</button>
                                   )}
                                 </div>
                               </div>
@@ -1103,17 +1057,17 @@ export default function UnifiedVerificationPage() {
                                   {vehicle.plateVerifiedByAPI ? (
                                     <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-full text-[9px] font-black uppercase">
                                       <Shield className="w-3 h-3 text-emerald-600 shrink-0" />
-                                      ✓ Validado DETRAN via API
+                                      OK Validado DETRAN via API
                                     </span>
                                   ) : vehicle.plateVerificationSource === "fallback" ? (
                                     <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-full text-[9px] font-black uppercase">
                                       <AlertCircle className="w-3 h-3 text-amber-600 shrink-0" />
-                                      ⚠ Placa aceita por fallback (API indisponivel)
+                                      Atenção: placa aceita por fallback (API indisponível)
                                     </span>
                                   ) : (
                                     <span className="inline-flex items-center gap-1 bg-slate-50 text-slate-700 border border-slate-200 px-2 py-0.5 rounded-full text-[9px] font-black uppercase">
                                       <AlertCircle className="w-3 h-3 text-slate-500 shrink-0" />
-                                      Nao verificado externamente
+                                      N?o verificado externamente
                                     </span>
                                   )}
                                 </div>
@@ -1258,7 +1212,7 @@ export default function UnifiedVerificationPage() {
                     ) : (selectedUser as PendingDriver).vehicleInfo ? (
                       <div className="bg-slate-50 border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
                         <div className="px-4 py-3 bg-gray-100/70 border-b border-gray-200 flex items-center gap-2">
-                          <span className="text-base">🚗</span>
+                          <span className="text-base">Carro</span>
                           <div>
                             <p className="text-xs font-black text-gray-950">{(selectedUser as PendingDriver).vehicleInfo?.model}</p>
                             <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">Veículo (Legado)</p>
@@ -1400,116 +1354,11 @@ export default function UnifiedVerificationPage() {
                 </>
               )}
 
-              {/* Seção Cliente / Selfie de Verificação */}
-              {selectedUser.userType === "client" && (
-                <div className="bg-slate-50 border border-gray-200 rounded-2xl p-5 space-y-4">
-                  <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-wider flex items-center gap-1.5 border-b border-gray-200 pb-2">
-                    <ImageIcon className="w-4 h-4 text-emerald-600" />
-                    Biometria Facial / Selfie de Verificação
-                  </h4>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Selfie de Verificação */}
-                    <div className="border border-gray-200 rounded-xl p-3.5 bg-white text-center space-y-2">
-                      <p className="text-[9px] font-bold text-gray-500 uppercase">Selfie Enviada</p>
-                      {selectedUser.clientVerification?.documents?.selfie ? (
-                        <div
-                          className="relative group overflow-hidden rounded-lg aspect-square border border-gray-200 bg-white cursor-pointer max-w-[180px] mx-auto"
-                          onClick={() => openLightbox(selectedUser.clientVerification?.documents?.selfie ?? "", "Selfie do Cliente - " + selectedUser.name)}
-                        >
-                          <img
-                            src={cleanDocUrl(selectedUser.clientVerification.documents.selfie)}
-                            alt="Selfie"
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                          />
-                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
-                            <Eye className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="aspect-square rounded-lg border border-dashed border-gray-300 bg-white flex flex-col items-center justify-center text-gray-400 gap-1.5 p-3 max-w-[180px] mx-auto">
-                          <Camera className="w-7 h-7 opacity-40" />
-                          <span className="text-[9px] leading-tight font-bold">Nenhuma selfie enviada</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Status da Validação */}
-                    <div className="border border-gray-200 rounded-xl p-4 bg-white space-y-3 flex flex-col justify-between">
-                      <div className="space-y-3">
-                        <p className="text-[9px] font-bold text-gray-500 uppercase">Status da Biometria</p>
-                        <div>
-                          <span className={`px-2.5 py-1 rounded-full border text-[10px] font-bold capitalize ${
-                            selectedUser.clientVerification?.selfieStatus === "approved"
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                              : selectedUser.clientVerification?.selfieStatus === "rejected"
-                              ? "bg-rose-50 text-rose-700 border-rose-200"
-                              : selectedUser.clientVerification?.selfieStatus === "pending"
-                              ? "bg-amber-50 text-amber-700 border-amber-200"
-                              : "bg-slate-50 text-slate-700 border-slate-200"
-                          }`}>
-                            {selectedUser.clientVerification?.selfieStatus === "approved"
-                              ? "Aprovada"
-                              : selectedUser.clientVerification?.selfieStatus === "rejected"
-                              ? "Recusada"
-                              : selectedUser.clientVerification?.selfieStatus === "pending"
-                              ? "Aguardando Auditoria"
-                              : "Não Enviada"}
-                          </span>
-                        </div>
-                        
-                        {selectedUser.clientVerification?.selfieStatus === "rejected" && selectedUser.clientVerification.rejectionReason && (
-                          <div className="bg-red-50 border border-red-100 rounded-lg p-2.5 mt-2">
-                            <p className="text-[9px] font-bold text-red-800 uppercase">Motivo da Recusa:</p>
-                            <p className="text-[10px] text-red-700 mt-0.5 leading-tight">{selectedUser.clientVerification.rejectionReason}</p>
-                          </div>
-                        )}
-
-                        {selectedUser.clientVerification?.submittedAt && (
-                          <p className="text-[9px] text-gray-400 font-bold mt-2">
-                            Enviado em: {format(new Date(selectedUser.clientVerification.submittedAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="flex gap-2 pt-4 border-t border-gray-100 mt-auto justify-end">
-                        {selectedUser.clientVerification?.selfieStatus !== "rejected" && selectedUser.clientVerification?.documents?.selfie && (
-                          <button
-                            onClick={() => {
-                              setRejectType("selfie");
-                              setShowRejectModal(true);
-                            }}
-                            disabled={processing}
-                            className="px-2.5 py-1.5 bg-red-50 text-red-700 hover:bg-red-100 rounded-lg text-[10px] font-bold border border-red-200 transition-colors disabled:opacity-50"
-                          >
-                            ✕ Reprovar Selfie
-                          </button>
-                        )}
-                        {selectedUser.clientVerification?.selfieStatus !== "approved" && selectedUser.clientVerification?.documents?.selfie && (
-                          <button
-                            onClick={() => handleClientStatusUpdate(selectedUser._id, "selfieStatus", "approved")}
-                            disabled={processing}
-                            className="px-2.5 py-1.5 bg-emerald-600 text-white hover:bg-emerald-700 rounded-lg text-[10px] font-bold shadow-sm transition-colors disabled:opacity-50"
-                          >
-                            ✓ Aprovar Selfie
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-            </div>
-
             {/* Actions footer */}
             {selectedUser.userType === "driver" ? (
               <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 p-4 z-10 flex gap-3">
                 <button
-                  onClick={() => {
-                    setRejectType("user");
-                    setShowRejectModal(true);
-                  }}
+                  onClick={() => setShowRejectModal(true)}
                   disabled={processing}
                   className="flex-1 py-3 bg-red-100 hover:bg-red-200 text-red-700 font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
                 >
@@ -1518,7 +1367,7 @@ export default function UnifiedVerificationPage() {
                 </button>
 
                 <button
-                  onClick={() => handleApprove(selectedUser)}
+                  onClick={() => handleApproveUser(selectedUser)}
                   disabled={processing}
                   className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition-all hover:shadow-md flex items-center justify-center gap-1.5 disabled:opacity-50"
                 >
@@ -1527,24 +1376,36 @@ export default function UnifiedVerificationPage() {
                 </button>
               </div>
             ) : (
-              <div className="sticky bottom-0 bg-slate-100 border-t border-slate-200 px-5 py-4 z-10 flex items-center justify-between text-xs font-bold text-slate-500">
-                <span>Status da Conta:</span>
-                <span className={`px-2.5 py-1 rounded-full border text-[10px] font-bold capitalize ${
-                  selectedUser.clientVerification?.status === "approved"
-                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                    : selectedUser.clientVerification?.status === "rejected"
-                    ? "bg-rose-50 text-rose-700 border-rose-200"
-                    : "bg-amber-50 text-amber-700 border-amber-200"
-                }`}>
-                  {selectedUser.clientVerification?.status === "approved"
-                    ? "Totalmente Liberado"
-                    : selectedUser.clientVerification?.status === "rejected"
-                    ? "Bloqueado / Recusado"
-                    : "Em Análise Parcial / Pendente"}
-                </span>
+              <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 p-4 z-10 flex gap-3">
+                {clientApprovalReady ? (
+                  <>
+                    <button
+                      onClick={() => setShowRejectModal(true)}
+                      disabled={processing}
+                      className="flex-1 py-3 bg-red-100 hover:bg-red-200 text-red-700 font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
+                    >
+                      <X className="w-4 h-4" />
+                      Reprovar Cadastro
+                    </button>
+
+                    <button
+                      onClick={() => handleApproveUser(selectedUser)}
+                      disabled={processing}
+                      className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition-all hover:shadow-md flex items-center justify-center gap-1.5 disabled:opacity-50"
+                    >
+                      <Check className="w-4 h-4" />
+                      Aprovar & Ativar Cliente
+                    </button>
+                  </>
+                ) : (
+                  <div className="w-full rounded-xl border border-amber-200 bg-amber-50 text-amber-800 px-4 py-3 text-xs font-bold">
+                    Aguardando envio completo dos dados cadastrais e da selfie. Os botões de aprovação/reprovação serão liberados após o envio completo.
+                  </div>
+                )}
               </div>
             )}
 
+          </div>
           </div>
         </>
       )}
@@ -1626,7 +1487,7 @@ export default function UnifiedVerificationPage() {
                 onClick={() => setLightboxImage(null)}
                 className="bg-white/10 hover:bg-white/20 text-white rounded-xl px-3 py-2 text-sm font-bold transition-colors"
               >
-                ✕ Fechar
+                X Fechar
               </button>
             </div>
             <div className="absolute top-4 left-4 z-[120]">

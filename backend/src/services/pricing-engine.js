@@ -1,20 +1,18 @@
 
-// Cargo size multipliers (increments over base price)
-const CARGO_SIZE_MULTIPLIERS = {
-  small: 1.0,
-  medium: 1.15,
-  large: 1.4,
-};
-
 // Weight surcharges (added to multiplier per kg tier)
-function getWeightMultiplier(approximateWeightKg) {
+function getWeightMultiplier(approximateWeightKg, weights = {}) {
   const w = Number(approximateWeightKg || 0);
+  const upTo5 = Number(weights.weightUpTo5kg ?? 1.0);
+  const upTo15 = Number(weights.weightUpTo15kg ?? 1.1);
+  const upTo30 = Number(weights.weightUpTo30kg ?? 1.25);
+  const upTo50 = Number(weights.weightUpTo50kg ?? 1.5);
+  const above50 = Number(weights.weightAbove50kg ?? 1.8);
   if (w <= 0) return 1.0;
-  if (w <= 5) return 1.0;
-  if (w <= 15) return 1.1;
-  if (w <= 30) return 1.25;
-  if (w <= 50) return 1.5;
-  return 1.8; // >50kg
+  if (w <= 5) return upTo5;
+  if (w <= 15) return upTo15;
+  if (w <= 30) return upTo30;
+  if (w <= 50) return upTo50;
+  return above50; // >50kg
 }
 
 class PricingEngine {
@@ -27,6 +25,16 @@ class PricingEngine {
     priorityEconomic = 1.0,
     priorityFast = 1.3,
     priorityUrgent = 1.8,
+    cargoSizeSmall = 1.0,
+    cargoSizeMedium = 1.15,
+    cargoSizeLarge = 1.4,
+    fragileSurchargeValue = 1.1,
+    helperSurchargeValue = 1.15,
+    weightUpTo5kg = 1.0,
+    weightUpTo15kg = 1.1,
+    weightUpTo30kg = 1.25,
+    weightUpTo50kg = 1.5,
+    weightAbove50kg = 1.8,
     // Novos parametros para delivery
     cargoSize = "small",
     approximateWeightKg,
@@ -54,10 +62,21 @@ class PricingEngine {
     };
 
     // Cargo attributes multipliers
-    const cargoSizeMultiplier = CARGO_SIZE_MULTIPLIERS[cargoSize] || 1.0;
-    const weightMultiplier = getWeightMultiplier(approximateWeightKg);
-    const fragileSurcharge = isFragile ? 1.1 : 1.0;
-    const helperSurcharge = needsHelper ? 1.15 : 1.0;
+    const cargoSizeMultipliers = {
+      small: Number(cargoSizeSmall || 1.0),
+      medium: Number(cargoSizeMedium || 1.15),
+      large: Number(cargoSizeLarge || 1.4),
+    };
+    const cargoSizeMultiplier = cargoSizeMultipliers[cargoSize] || 1.0;
+    const weightMultiplier = getWeightMultiplier(approximateWeightKg, {
+      weightUpTo5kg,
+      weightUpTo15kg,
+      weightUpTo30kg,
+      weightUpTo50kg,
+      weightAbove50kg,
+    });
+    const fragileSurcharge = isFragile ? Number(fragileSurchargeValue || 1.1) : 1.0;
+    const helperSurcharge = needsHelper ? Number(helperSurchargeValue || 1.15) : 1.0;
 
     // Combined cargo multiplier
     const cargoMultiplier = cargoSizeMultiplier * weightMultiplier * fragileSurcharge * helperSurcharge;

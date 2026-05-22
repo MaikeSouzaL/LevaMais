@@ -30,7 +30,7 @@ import {
   isErrorWithCode,
   statusCodes,
 } from "@react-native-google-signin/google-signin";
-import { googleAuth } from "../../../services/auth.service";
+import { checkEmailExists, googleAuth } from "../../../services/auth.service";
 import { useAuthStore } from "../../../context/authStore";
 
 // Unified System & Components
@@ -255,6 +255,17 @@ export default function SignUpScreen() {
     
     setLoading(true);
     try {
+      const emailCheck = await checkEmailExists(data.email);
+      if (emailCheck?.success && emailCheck?.data?.exists) {
+        Toast.show({
+          type: "error",
+          text1: "E-mail já cadastrado",
+          text2: "Faça login para continuar com este e-mail.",
+        });
+        navigation.navigate("SignIn");
+        return;
+      }
+
       // Wrap into structure required by downstream routing
       const userData = {
         _id: "",

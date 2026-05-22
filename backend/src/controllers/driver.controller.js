@@ -1,5 +1,6 @@
 const User = require("../models/User");
 const DriverDailyStats = require("../models/DriverDailyStats");
+const { getRuntimeConfig } = require("../services/platformConfig.service");
 
 const DEFAULT_APP_TIMEZONE = process.env.APP_TIMEZONE || "America/Sao_Paulo";
 
@@ -49,8 +50,11 @@ function normalizeSelectedVehicles(raw) {
 
 async function fetchVehicleDataFromAPI(plate) {
   try {
-    // isDevelopmentMode hardcoded to true since PlatformConfig model was removed
-    if (true) {
+    const runtimeConfig = await getRuntimeConfig().catch(() => null);
+    const isDevelopmentMode = runtimeConfig?.isDevelopmentMode !== undefined
+      ? Boolean(runtimeConfig.isDevelopmentMode)
+      : true;
+    if (isDevelopmentMode) {
       console.log("[Vehicle API Consult] Development Mode is ACTIVE. Bypassing external API validation.");
       return { valid: true, isFallback: true };
     }
@@ -249,7 +253,8 @@ const driverController = {
       // Buscar percentual configurado se nao enviado no request
       let effectiveDeductionPercentage = Number(deductionPercentage);
       if (!Number.isFinite(effectiveDeductionPercentage) || effectiveDeductionPercentage <= 0) {
-        effectiveDeductionPercentage = 15; // default since PlatformConfig model was removed
+        const runtimeConfig = await getRuntimeConfig().catch(() => null);
+        effectiveDeductionPercentage = Number(runtimeConfig?.appFeePercentage || 15);
       }
 
       if (!amount || amount <= 0) {
@@ -336,7 +341,8 @@ const driverController = {
       }
 
       // Buscar percentual de taxa configurado
-      const appFeePercentage = 15; // default since PlatformConfig model was removed
+      const runtimeConfig = await getRuntimeConfig().catch(() => null);
+      const appFeePercentage = Number(runtimeConfig?.appFeePercentage || 15);
 
       const balance = user.driverBalance?.balance || 0;
       const requiredBalance = Number((rideValue * appFeePercentage / 100).toFixed(2));
@@ -615,7 +621,8 @@ const driverController = {
       );
 
       // Buscar appFeePercentage para informar ao motorista
-      const appFeePercentage = 15; // default since PlatformConfig model was removed
+      const runtimeConfig = await getRuntimeConfig().catch(() => null);
+      const appFeePercentage = Number(runtimeConfig?.appFeePercentage || 15);
 
       res.json({
         success: true,

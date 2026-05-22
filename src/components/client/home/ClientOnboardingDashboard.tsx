@@ -9,6 +9,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useAuthStore } from "@/context/authStore";
 import { colors } from "@/theme/colors";
 import userService from "@/services/user.service";
+import webSocketService from "@/services/websocket.service";
 import { getCurrentLocationAndAddress } from "@/utils/location";
 import * as ImagePicker from "expo-image-picker";
 
@@ -38,6 +39,7 @@ export default function ClientOnboardingDashboard({ onContinue }: { onContinue: 
   const [companyPhoneInput, setCompanyPhoneInput] = useState("");
   const [cityInput, setCityInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [showApprovalReady, setShowApprovalReady] = useState(false);
 
   // Dynamic formatting masks
   const formatCPF = (text: string) => {
@@ -170,8 +172,7 @@ export default function ClientOnboardingDashboard({ onContinue }: { onContinue: 
           vStatus === "approved"
         );
         if (alreadyCompliant) {
-          onContinue();
-          return;
+          setShowApprovalReady(true);
         }
         
         // Seed fields
@@ -207,6 +208,37 @@ export default function ClientOnboardingDashboard({ onContinue }: { onContinue: 
       loadClientStatus();
     }
   }, [isFocused]);
+
+  useEffect(() => {
+    const onVerificationUpdated = (data: any) => {
+      const verification = data?.clientVerification;
+      if (!verification) return;
+
+      const vStatus = verification?.status || "none";
+      const cStatus = verification?.cpfStatus || "unchecked";
+      const sStatus = verification?.selfieStatus || "none";
+      const selfiePath = verification?.documents?.selfie;
+
+      setVerificationStatus(vStatus);
+      setCpfStatus(cStatus);
+      setSelfieStatus(sStatus);
+      setHasSelfieUploaded(Boolean(selfiePath));
+      updateUserData({
+        clientVerification: verification,
+        ...(typeof data?.isActive === "boolean" ? { isActive: data.isActive } : {}),
+      });
+
+      if (data?.approved === true || (vStatus === "approved" && selfiePath)) {
+        setShowApprovalReady(true);
+      }
+    };
+
+    webSocketService.connect().catch(() => {});
+    webSocketService.on("client-verification-updated", onVerificationUpdated);
+    return () => {
+      webSocketService.off("client-verification-updated", onVerificationUpdated);
+    };
+  }, [updateUserData, userData?.cpf, userData?.cnpj]);
 
   const handleSaveCadastral = async () => {
     // Basic validations
@@ -368,7 +400,8 @@ export default function ClientOnboardingDashboard({ onContinue }: { onContinue: 
      );
   }
 
-  if (globalStatus === "pending") {
+  if (globalStatus === "pending" || showApprovalReady) {
+    const approvedNow = showApprovalReady || globalStatus === "approved";
     return (
       <View style={styles.container}>
         <View style={[StyleSheet.absoluteFill, { backgroundColor: "#091A2F" }]} />
@@ -411,9 +444,11 @@ export default function ClientOnboardingDashboard({ onContinue }: { onContinue: 
             style={{ alignItems: "center", paddingHorizontal: 16 }}
           >
             <Text style={styles.analysisBadge}>FLUXO DE SEGURANÇA</Text>
-            <Text style={styles.analysisTitle}>Conta em Análise</Text>
+            <Text style={styles.analysisTitle}>{approvedNow ? "Parabéns! Conta Aprovada" : "Conta em Análise"}</Text>
             <Text style={styles.analysisSubtitle}>
-              Olá, {userData?.name || "Cliente"}! Recebemos seus dados e sua foto de verificação com sucesso.
+              {approvedNow
+                ? `Olá, ${userData?.name || "Cliente"}! Sua conta foi aprovada com sucesso.`
+                : `Olá, ${userData?.name || "Cliente"}! Recebemos seus dados e sua foto de verificação com sucesso.`}
             </Text>
           </MotiView>
 
@@ -425,8 +460,9 @@ export default function ClientOnboardingDashboard({ onContinue }: { onContinue: 
             style={styles.analysisNoticeBox}
           >
             <Text style={styles.analysisNoticeText}>
-              Nossa equipe está revisando suas informações de segurança. Esse processo costuma ser rápido!
-              Você será liberado para pedir viagens assim que a conta for aprovada.
+              {approvedNow
+                ? "Sua conta está pronta para uso. Toque em Continuar para acessar a tela inicial."
+                : "Nossa equipe está revisando suas informações de segurança. Esse processo costuma ser rápido! Você será liberado para pedir viagens assim que a conta for aprovada."}
             </Text>
           </MotiView>
 
@@ -437,23 +473,33 @@ export default function ClientOnboardingDashboard({ onContinue }: { onContinue: 
             transition={{ type: "timing", duration: 500, delay: 300 }}
             style={{ width: "100%", gap: 12, marginTop: 10 }}
           >
-            <TouchableOpacity
-              style={styles.refreshBtn}
-              activeOpacity={0.8}
-              onPress={async () => {
-                setLoading(true);
-                await loadClientStatus();
-              }}
-            >
-              <MotiView
-                animate={{ rotate: loading ? "360deg" : "0deg" }}
-                transition={loading ? { loop: true, duration: 1000, type: "timing" } : undefined}
-                style={{ marginRight: 8 }}
+            {approvedNow ? (
+              <TouchableOpacity
+                style={styles.refreshBtn}
+                activeOpacity={0.8}
+                onPress={onContinue}
               >
-                <RefreshCw size={18} color="#091A2F" />
-              </MotiView>
-              <Text style={styles.refreshBtnText}>Atualizar Status</Text>
-            </TouchableOpacity>
+                <Text style={styles.refreshBtnText}>Continuar</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={styles.refreshBtn}
+                activeOpacity={0.8}
+                onPress={async () => {
+                  setLoading(true);
+                  await loadClientStatus();
+                }}
+              >
+                <MotiView
+                  animate={{ rotate: loading ? "360deg" : "0deg" }}
+                  transition={loading ? { loop: true, duration: 1000, type: "timing" } : undefined}
+                  style={{ marginRight: 8 }}
+                >
+                  <RefreshCw size={18} color="#091A2F" />
+                </MotiView>
+                <Text style={styles.refreshBtnText}>Atualizar Status</Text>
+              </TouchableOpacity>
+            )}
 
             <View style={{ flexDirection: "row", gap: 12 }}>
               <TouchableOpacity

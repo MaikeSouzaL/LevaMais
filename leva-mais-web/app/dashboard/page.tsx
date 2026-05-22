@@ -17,6 +17,19 @@ import { driverLocationService, DriverLocation } from "@/services/driverLocation
 import { clientsService } from "@/services/clientsService";
 import { driversService } from "@/services/driversService";
 import { useToast } from "@/components/ui/Toast";
+import dynamic from "next/dynamic";
+
+const LiveMap = dynamic(() => import("@/components/LiveMap"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-full w-full items-center justify-center bg-slate-100">
+      <div className="flex flex-col items-center gap-2">
+        <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-sm font-semibold text-slate-500">Carregando mapa...</p>
+      </div>
+    </div>
+  ),
+});
 
 export default function DashboardPage() {
   const [rides, setRides] = useState<Ride[]>([]);
@@ -183,72 +196,9 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Radar Screen Area */}
-          <div className="flex-1 flex items-center justify-center relative overflow-hidden bg-[radial-gradient(circle_at_center,rgba(16,185,129,0.06)_0%,rgba(0,0,0,0)_70%)]">
-            
-            {/* Concentric rings */}
-            <div className="absolute w-[400px] h-[400px] rounded-full border border-emerald-500/10 pointer-events-none flex items-center justify-center">
-              <div className="w-[300px] h-[300px] rounded-full border border-emerald-500/20 flex items-center justify-center">
-                <div className="w-[200px] h-[200px] rounded-full border border-emerald-500/30 flex items-center justify-center">
-                  <div className="w-[100px] h-[100px] rounded-full border border-emerald-500/40"></div>
-                </div>
-              </div>
-            </div>
-
-            {/* Radar Crosshairs */}
-            <div className="absolute w-full h-[1px] bg-emerald-500/10 pointer-events-none"></div>
-            <div className="absolute w-[1px] h-full bg-emerald-500/10 pointer-events-none"></div>
-
-            {/* Sweeper animation */}
-            <div className="absolute w-[200px] h-[200px] origin-bottom-right bottom-1/2 right-1/2 bg-gradient-to-tr from-emerald-500/0 via-emerald-500/0 to-emerald-500/20 rounded-tl-full animate-radar-sweep pointer-events-none"></div>
-
-            {/* Dynamic Driver Markers on Radar */}
-            {locations.length === 0 ? (
-              <div className="text-slate-500 text-center space-y-2 z-10">
-                <AlertTriangle className="w-8 h-8 text-slate-600 mx-auto" />
-                <p className="text-sm font-semibold">Nenhum motorista online no momento</p>
-                <p className="text-xs max-w-xs mx-auto">Coloque um motorista online no app mobile para vê-lo aparecer no radar!</p>
-              </div>
-            ) : (
-              locations.map((loc, idx) => {
-                // Generate absolute radar points in a grid centered around center [0, 0]
-                const angle = (idx * 360) / locations.length;
-                const radius = 60 + (idx * 25) % 110; // offset radius
-                const rad = (angle * Math.PI) / 180;
-                const x = Math.cos(rad) * radius;
-                const y = Math.sin(rad) * radius;
-
-                const statusColors = {
-                  available: "bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.8)] border-emerald-300",
-                  busy: "bg-amber-500 shadow-[0_0_12px_rgba(245,158,11,0.8)] border-amber-300",
-                  on_ride: "bg-blue-500 shadow-[0_0_12px_rgba(59,130,246,0.8)] border-blue-300",
-                  offline: "bg-slate-600 border-slate-500"
-                };
-
-                return (
-                  <div
-                    key={loc._id}
-                    className="absolute cursor-pointer group z-10 transition-transform hover:scale-125"
-                    style={{
-                      transform: `translate(${x}px, ${y}px)`
-                    }}
-                  >
-                    <div className={`w-3.5 h-3.5 rounded-full border-2 ${statusColors[loc.status || "available"]} transition-all`}></div>
-                    
-                    {/* Tooltip flutuante */}
-                    <div className="absolute left-1/2 -translate-x-1/2 bottom-5 bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-xs text-white shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap min-w-[160px] pointer-events-none">
-                      <p className="font-bold text-slate-100">{loc.driverId?.name || "Motorista"}</p>
-                      <p className="text-slate-400 text-[10px] mt-0.5">Veículo: {loc.vehicleType === "motorcycle" ? "Moto" : loc.vehicleType}</p>
-                      <div className="flex items-center gap-1.5 mt-1.5 border-t border-slate-800 pt-1.5 text-[10px] text-emerald-400">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
-                        Velocidade: {loc.speed || 0} km/h
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-
+          {/* Map Area */}
+          <div className="flex-1 w-full h-full min-h-[450px] relative z-0">
+            <LiveMap locations={locations} />
           </div>
 
           {/* Legend */}

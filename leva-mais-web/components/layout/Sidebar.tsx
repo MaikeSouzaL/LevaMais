@@ -1,23 +1,19 @@
-"use client";
+﻿"use client";
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { platformConfigService } from "@/services/platformConfigService";
+import { verificationAdminService } from "@/services/verificationAdminService";
 import {
   LayoutDashboard,
   Users,
-  Car,
-  Map,
-  Settings,
-  DollarSign,
   Truck,
-  Box,
   ChevronRight,
   X,
   ChevronLeft,
-  MapPin,
   UserCheck,
+  Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -34,38 +30,12 @@ const MENU_ITEMS = [
     icon: UserCheck,
     href: "/verification/drivers",
     active: true,
-    badge: 3,
   },
-  { label: "Representantes", icon: UserCheck, href: "/representatives", active: true },
-  { label: "Áreas de Atuação", icon: MapPin, href: "/cities", active: true },
-  { label: "Corridas", icon: Map, href: "/rides", active: true },
-  { label: "Ganhos", icon: DollarSign, href: "/earnings", active: true },
-];
-
-const CONFIG_ITEMS = [
   {
-    label: "Geral & Taxas",
+    label: "Configurações",
     icon: Settings,
-    href: "/settings/general",
+    href: "/settings/platform",
     active: true,
-  },
-  {
-    label: "Tipos de Serviço",
-    icon: Box,
-    href: "/settings/purposes",
-    active: true,
-  },
-  {
-    label: "Tarifas & Preços",
-    icon: DollarSign,
-    href: "/settings/pricing",
-    active: true,
-  },
-  {
-    label: "Tipos de Veículo",
-    icon: Truck,
-    href: "/settings/vehicles",
-    disabled: true,
   },
 ];
 
@@ -84,6 +54,7 @@ export function Sidebar({
 }: SidebarProps) {
   const pathname = usePathname();
   const [isDevMode, setIsDevMode] = useState(true);
+  const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
 
   useEffect(() => {
     let mounted = true;
@@ -110,6 +81,58 @@ export function Sidebar({
     return () => {
       mounted = false;
       window.removeEventListener("platform-config-updated", handleExternalUpdate);
+    };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadPendingApprovalCount = async () => {
+      try {
+        const [drivers, clients] = await Promise.all([
+          verificationAdminService.listUsers("driver"),
+          verificationAdminService.listUsers("client"),
+        ]);
+
+        const driversPending = (drivers || []).filter((d: any) => {
+          const status = String(d?.driverStatus || "none");
+          return status === "pending" || status === "none";
+        }).length;
+
+        const clientsPending = (clients || []).filter((c: any) => {
+          const status = String(c?.clientVerification?.status || "none");
+          const cpfStatus = String(c?.clientVerification?.cpfStatus || "unchecked");
+          const selfieStatus = String(c?.clientVerification?.selfieStatus || "none");
+          if (status === "approved" || c?.isActive === true) return false;
+          return (
+            status === "none" ||
+            status === "pending" ||
+            status === "manual_review" ||
+            cpfStatus === "unchecked" ||
+            cpfStatus === "pending" ||
+            cpfStatus === "manual_review" ||
+            selfieStatus === "none" ||
+            selfieStatus === "pending"
+          );
+        }).length;
+
+        if (mounted) {
+          setPendingApprovalCount(driversPending + clientsPending);
+        }
+      } catch {
+        if (mounted) setPendingApprovalCount(0);
+      }
+    };
+
+    loadPendingApprovalCount();
+    const timer = setInterval(loadPendingApprovalCount, 20000);
+    const refreshHandler = () => loadPendingApprovalCount();
+    window.addEventListener("verification-updated", refreshHandler);
+
+    return () => {
+      mounted = false;
+      clearInterval(timer);
+      window.removeEventListener("verification-updated", refreshHandler);
     };
   }, []);
 
@@ -140,9 +163,9 @@ export function Sidebar({
       <aside
         className={cn(
           "h-screen bg-white text-slate-700 flex flex-col border-r border-slate-200 fixed left-0 top-0 z-50 shadow-sm transition-all duration-300",
-          "lg:translate-x-0", // Desktop: sempre visível
+          "lg:translate-x-0", // Desktop: sempre visÃ­vel
           isOpen ? "translate-x-0" : "-translate-x-full", // Mobile: controle via state
-          isCollapsed ? "w-20" : "w-64" // Largura dinâmica
+          isCollapsed ? "w-20" : "w-64" // Largura dinÃ¢mica
         )}
       >
         {/* Header */}
@@ -204,26 +227,11 @@ export function Sidebar({
               {MENU_ITEMS.map((item) => (
                 <NavItem
                   key={item.label}
-                  item={item}
-                  currentPath={pathname}
-                  onClick={onClose}
-                  isCollapsed={isCollapsed}
-                />
-              ))}
-            </nav>
-          </div>
-
-          <div>
-            {!isCollapsed && (
-              <h3 className="px-3 text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3 select-none">
-                Configurações
-              </h3>
-            )}
-            <nav className="space-y-1.5">
-              {CONFIG_ITEMS.map((item) => (
-                <NavItem
-                  key={item.label}
-                  item={item}
+                  item={
+                    item.href === "/verification/drivers"
+                      ? { ...item, badge: pendingApprovalCount > 0 ? pendingApprovalCount : undefined }
+                      : item
+                  }
                   currentPath={pathname}
                   onClick={onClose}
                   isCollapsed={isCollapsed}
@@ -251,7 +259,7 @@ export function Sidebar({
               <div 
                 className="flex items-center gap-1.5 cursor-pointer z-10" 
                 onClick={handleToggleDevMode}
-                title={isDevMode ? "Modo de Desenvolvimento Ativo (Ignorar validações)" : "Modo de Produção Ativo (Validação Estrita)"}
+                title={isDevMode ? "Modo de Desenvolvimento Ativo (Ignorar validaÃ§Ãµes)" : "Modo de ProduÃ§Ã£o Ativo (ValidaÃ§Ã£o Estrita)"}
               >
                 <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-md transition-all select-none ${
                   isDevMode ? "bg-amber-100 text-amber-800 ring-1 ring-amber-200" : "bg-slate-100 text-slate-600 ring-1 ring-slate-200"
@@ -276,7 +284,7 @@ export function Sidebar({
             <button 
               className="w-full flex flex-col items-center justify-center p-2 rounded-xl hover:bg-slate-50 transition-colors group relative"
               onClick={handleToggleDevMode}
-              title={isDevMode ? "Modo de Desenvolvimento Ativo" : "Modo de Produção Ativo"}
+              title={isDevMode ? "Modo de Desenvolvimento Ativo" : "Modo de ProduÃ§Ã£o Ativo"}
             >
               <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600 ring-2 ring-white group-hover:ring-emerald-100 transition-all relative">
                 AD
@@ -312,6 +320,7 @@ interface NavItemProps {
 
 function NavItem({ item, currentPath, onClick, isCollapsed }: NavItemProps) {
   const isActive = item.active || currentPath === item.href;
+  const hasBadge = Boolean(item.badge && item.badge > 0);
 
   if (item.disabled) {
     return (
@@ -350,6 +359,11 @@ function NavItem({ item, currentPath, onClick, isCollapsed }: NavItemProps) {
       )}
       title={isCollapsed ? item.label : undefined}
     >
+      {isCollapsed && hasBadge && (
+        <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-extrabold flex items-center justify-center border border-white">
+          {item.badge}
+        </span>
+      )}
       {isActive && !isCollapsed && (
         <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-emerald-500 rounded-r-full" />
       )}
@@ -370,20 +384,22 @@ function NavItem({ item, currentPath, onClick, isCollapsed }: NavItemProps) {
           )}
         />
         {!isCollapsed && (
-          <span className="text-sm font-medium">{item.label}</span>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium">{item.label}</span>
+            {hasBadge && (
+              <span
+                className={cn(
+                  "min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-extrabold flex items-center justify-center",
+                  isActive ? "bg-emerald-600 text-white" : "bg-red-500 text-white"
+                )}
+              >
+                {item.badge}
+              </span>
+            )}
+          </div>
         )}
       </div>
       <div className="flex items-center gap-2">
-        {item.badge && item.badge > 0 && (
-          <span
-            className={cn(
-              "px-2 py-0.5 text-xs font-bold rounded-full transition-colors",
-              isActive ? "bg-emerald-600 text-white" : "bg-red-500 text-white"
-            )}
-          >
-            {item.badge}
-          </span>
-        )}
         {isActive && !isCollapsed && (
           <ChevronRight size={14} className="text-emerald-400" />
         )}
@@ -391,3 +407,6 @@ function NavItem({ item, currentPath, onClick, isCollapsed }: NavItemProps) {
     </Link>
   );
 }
+
+
+

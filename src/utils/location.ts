@@ -75,7 +75,7 @@ export async function getCurrentLocation(): Promise<LocationObjectCoords | null>
     }
 
     const location = await Location.getCurrentPositionAsync({
-      accuracy: Location.Accuracy.High,
+      accuracy: Location.Accuracy.BestForNavigation,
     });
 
     return location.coords;

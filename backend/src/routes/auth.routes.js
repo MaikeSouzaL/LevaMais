@@ -60,6 +60,11 @@ router.patch(
   authenticateToken,
   authController.updateProfile.bind(authController),
 );
+router.patch(
+  "/location",
+  authenticateToken,
+  authController.updateLocation.bind(authController),
+);
 router.post(
   "/profile-photo",
   authenticateToken,
@@ -139,6 +144,16 @@ router.get(
   authController.listUsers.bind(authController),
 );
 router.get(
+  "/platform-config",
+  requireAdmin,
+  authController.getPlatformConfig.bind(authController),
+);
+router.patch(
+  "/platform-config",
+  requireAdmin,
+  authController.updatePlatformConfig.bind(authController),
+);
+router.get(
   "/users/:id",
   requireAdmin,
   authController.getUserById.bind(authController),
@@ -147,6 +162,16 @@ router.patch(
   "/users/:id",
   requireAdmin,
   authController.updateUserById.bind(authController),
+);
+router.patch(
+  "/users/:id/client-verification",
+  requireAdmin,
+  authController.updateClientVerificationByAdmin.bind(authController),
+);
+router.patch(
+  "/users/:id/driver-verification",
+  requireAdmin,
+  authController.updateDriverVerificationByAdmin.bind(authController),
 );
 router.delete(
   "/users/:id",

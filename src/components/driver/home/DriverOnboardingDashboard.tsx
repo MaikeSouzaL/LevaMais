@@ -9,6 +9,7 @@ import { LinearGradient } from "expo-linear-gradient";
 
 import userService from "@/services/user.service";
 import driverService from "@/services/driver.service";
+import webSocketService from "@/services/websocket.service";
 import { useAuthStore } from "@/context/authStore";
 import { colors } from "@/theme/colors";
 import { getCurrentLocationAndAddress } from "@/utils/location";
@@ -304,6 +305,21 @@ export default function DriverOnboardingDashboard() {
       loadOnboardingStatus();
     }
   }, [isFocused]);
+
+  useEffect(() => {
+    const onDriverVerificationUpdated = (data: any) => {
+      const nextDriverStatus = String(data?.driverStatus || "none");
+      setDriverStatus(nextDriverStatus);
+      updateUserData({ driverStatus: nextDriverStatus as any });
+      loadOnboardingStatus();
+    };
+
+    webSocketService.connect().catch(() => {});
+    webSocketService.on("driver-verification-updated", onDriverVerificationUpdated);
+    return () => {
+      webSocketService.off("driver-verification-updated", onDriverVerificationUpdated);
+    };
+  }, [updateUserData]);
 
   const hasCPFOrCNPJ = Boolean(userData?.cpf || userData?.cnpj);
 

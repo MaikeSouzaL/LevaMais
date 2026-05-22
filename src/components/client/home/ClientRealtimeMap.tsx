@@ -2,22 +2,32 @@ import React, { memo, useEffect, useState } from "react";
 import { StyleSheet, View, Platform, Image } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import { Car, Bike, User } from "lucide-react-native";
-import { MotiView } from "moti";
-import { colors } from "@/theme";
 
-// Premium Dark Map Style Injection
-const mapDarkStyle = [
-  { "elementType": "geometry", "stylers": [{ "color": "#0f172a" }] },
-  { "elementType": "labels.text.fill", "stylers": [{ "color": "#94a3b8" }] },
-  { "elementType": "labels.text.stroke", "stylers": [{ "color": "#0f172a" }] },
-  { "featureType": "administrative", "elementType": "geometry", "stylers": [{ "color": "#334155" }] },
-  { "featureType": "poi", "elementType": "all", "stylers": [{ "visibility": "off" }] },
-  { "featureType": "road", "elementType": "geometry", "stylers": [{ "color": "#1e293b" }] },
-  { "featureType": "road", "elementType": "labels.text.fill", "stylers": [{ "color": "#64748b" }] },
-  { "featureType": "road.highway", "elementType": "geometry", "stylers": [{ "color": "#334155" }] },
-  { "featureType": "transit", "elementType": "geometry", "stylers": [{ "color": "#1e293b" }] },
-  { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#020617" }] }
+import { colors } from "@/theme";
+import { MotiView } from "moti";
+
+// Mapa sutilmente escuro — casinhas e edifícios visíveis em tom mais claro
+const mapSoftDarkStyle = [
+  { elementType: "geometry", stylers: [{ color: "#1d2c3b" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#8fa8c8" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#1a2535" }] },
+  // Casas e edificios — tom mais claro para se destacar do fundo
+  { featureType: "landscape.man_made", elementType: "geometry", stylers: [{ color: "#2e4560" }] },
+  { featureType: "landscape.man_made", elementType: "geometry.stroke", stylers: [{ color: "#3a5578" }] },
+  { featureType: "landscape.natural", elementType: "geometry", stylers: [{ color: "#1a2d3e" }] },
+  { featureType: "road", elementType: "geometry", stylers: [{ color: "#2a3f57" }] },
+  { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#1a2c3e" }] },
+  { featureType: "road", elementType: "labels.text.fill", stylers: [{ color: "#7a9ab8" }] },
+  { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#3a5570" }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#0f1f2e" }] },
+  { featureType: "water", elementType: "labels.text.fill", stylers: [{ color: "#3d5a74" }] },
+  { featureType: "poi", elementType: "geometry", stylers: [{ color: "#1e3045" }] },
+  { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#1a3428" }] },
+  { featureType: "poi", elementType: "labels.text.fill", stylers: [{ color: "#6a8fa8" }] },
+  { featureType: "transit", elementType: "geometry", stylers: [{ color: "#1e3045" }] },
+  { featureType: "administrative", elementType: "geometry.stroke", stylers: [{ color: "#2d4a65" }] },
 ];
+
 
 interface RealtimeVehicle {
   id: string;
@@ -32,7 +42,7 @@ interface ClientRealtimeMapProps {
   region: any;
   userRegion: any;
   onRegionChangeComplete: (r: any) => void;
-  useDarkStyle?: boolean;
+  useDarkStyle?: boolean; // mantido para compatibilidade, não tem efeito
   avatarUrl?: string;
 }
 
@@ -75,46 +85,35 @@ export const ClientRealtimeMap = memo(({
     return () => clearInterval(interval);
   }, [userRegion?.latitude, userRegion?.longitude]);
 
+  const [hasCentered, setHasCentered] = useState(false);
+
+  useEffect(() => {
+    if (mapRef.current && userRegion?.latitude && !hasCentered) {
+      mapRef.current.animateToRegion({
+        latitude: userRegion.latitude,
+        longitude: userRegion.longitude,
+        latitudeDelta: 0.003,
+        longitudeDelta: 0.003,
+      }, 1000);
+      setHasCentered(true);
+    }
+  }, [userRegion?.latitude, userRegion?.longitude, hasCentered]);
+
   return (
     <View style={StyleSheet.absoluteFill}>
       <MapView
-        key={useDarkStyle ? "client-dark" : "client-light"}
         ref={mapRef}
         provider={PROVIDER_GOOGLE}
         style={StyleSheet.absoluteFill}
-        customMapStyle={useDarkStyle ? mapDarkStyle : []}
+        customMapStyle={mapSoftDarkStyle}
         initialRegion={region}
-        showsUserLocation={false} // Usamos nosso marker custom para controle visual total
+        showsUserLocation={true}
         showsCompass={false}
-        showsPointsOfInterest={false}
-        showsBuildings={false}
-        showsIndoors={false}
+        showsPointsOfInterest={true}
+        showsBuildings={true}
+        showsIndoors={true}
         onRegionChangeComplete={onRegionChangeComplete}
       >
-        {/* 📍 Custom User Location Marker (with photo or icon) */}
-        {userRegion && (
-          <Marker coordinate={userRegion} anchor={{ x: 0.5, y: 0.5 }}>
-            {/* Neon pulse ring */}
-            <MotiView
-              from={{ scale: 0.7, opacity: 0.9 }}
-              animate={{ scale: 2.2, opacity: 0 }}
-              transition={{ loop: true, duration: 1800, type: "timing" }}
-              style={styles.userPulse}
-            />
-            {/* Photo or person icon puck */}
-            <View style={[styles.userPuck, showAvatar && styles.userPuckPhoto]}>
-              {showAvatar ? (
-                <Image
-                  source={{ uri: avatarUrl }}
-                  style={styles.userAvatar}
-                  onError={() => setImageError(true)}
-                />
-              ) : (
-                <User size={11} color="#091A2F" />
-              )}
-            </View>
-          </Marker>
-        )}
 
         {/* 🚗 Dynamic Vehicle Markers */}
         {vehicles.map((vehicle) => (
@@ -149,14 +148,6 @@ export const ClientRealtimeMap = memo(({
 });
 
 const styles = StyleSheet.create({
-  userPulse: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: colors.primary[500],
-    position: "absolute",
-    opacity: 0.4,
-  },
   userPuck: {
     width: 22,
     height: 22,

@@ -18,16 +18,19 @@ export default function Dashboard() {
           <path d="M9 21V9" />
         </svg>
       </div>
+
       <h1 className="text-3xl font-bold text-slate-800">Bem-vindo ao Leva+ Admin</h1>
+
       <p className="text-slate-500 max-w-md">
-        Este é o painel de controle administrativo. Por enquanto, apenas o módulo de 
-        <strong> Configurações &gt; Tipos de Serviço</strong> está implementado (MVP).
+        Este é o painel de controle administrativo focado no fluxo atual:
+        <strong> Visão Geral, Usuários e Validação de Contas</strong>.
       </p>
-      <a 
-        href="/settings/purposes" 
+
+      <a
+        href="/dashboard"
         className="px-6 py-3 bg-emerald-500 text-white rounded-xl font-bold shadow-lg hover:bg-emerald-600 transition-transform hover:scale-105"
       >
-        Acessar Tipos de Serviço
+        Acessar Painel
       </a>
     </div>
   );

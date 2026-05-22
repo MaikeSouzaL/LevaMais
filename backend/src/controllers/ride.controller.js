@@ -2,6 +2,7 @@
 const DriverLocation = require("../models/DriverLocation");
 const User = require("../models/User");
 const Promotion = require("../models/Promotion");
+const { getRuntimeConfig } = require("../services/platformConfig.service");
 
 // mixins (rating + proofs)
 const ratingProofMixin = require("./ride.ratingProof.mixin");
@@ -17,6 +18,10 @@ const NON_TERMINAL_STATUSES = [
 ];
 const RIDE_CAPABLE_VEHICLES = new Set(["motorcycle", "car"]);
 const DEFAULT_APP_TIMEZONE = process.env.APP_TIMEZONE || "America/Sao_Paulo";
+const DEFAULT_APP_FEE_PERCENTAGE = Number(process.env.APP_FEE_PERCENTAGE || 15);
+const DEFAULT_RIDE_SEARCH_TIMEOUT_SECONDS = Number(process.env.RIDE_SEARCH_TIMEOUT_SECONDS || 60);
+const DRIVER_DAILY_GOAL_RIDES = Number(process.env.DRIVER_DAILY_GOAL_RIDES || 10);
+const DRIVER_DAILY_BONUS_AMOUNT = Number(process.env.DRIVER_DAILY_BONUS_AMOUNT || 20);
 
 let rideControllerInstance;
 
@@ -165,9 +170,10 @@ function isScheduledForFuture(scheduledFor) {
   return scheduledFor.getTime() > Date.now() + 60 * 1000;
 }
 
-function calculateSuggestedMinPrice(total) {
+function calculateSuggestedMinPrice(total, percent = 0.8) {
   const safeTotal = Math.max(0, Number(total || 0));
-  return toMoney(safeTotal * 0.8);
+  const safePercent = Number.isFinite(Number(percent)) ? Number(percent) : 0.8;
+  return toMoney(safeTotal * safePercent);
 }
 
 function applyFinalPriceOnRide(ride, finalPrice, appFeePercentage) {
@@ -1047,16 +1053,11 @@ class RideController {
       }
 
       // Criar a corrida
-      // PlatformConfig removido
-      // City removido
-
-      // 1. Busca configuraÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Âµes globais (App Fee %)
-      let config = await PlatformConfig.findOne().sort({ createdAt: -1 });
-      if (!config) {
-        // Cria default se nÃƒÆ’Ã‚Â£o existir
-        config = await PlatformConfig.create({ appFeePercentage: 15 });
-      }
-      const appFeePercentage = config.appFeePercentage || 15;
+      // App fee e timeout padrao movidos para constantes do backend.
+      const runtimeConfig = await getRuntimeConfig().catch(() => null);
+      const appFeePercentage = Number(
+        runtimeConfig?.appFeePercentage || DEFAULT_APP_FEE_PERCENTAGE,
+      );
 
       const safePricing = {
         ...(pricing || {}),
@@ -1095,7 +1096,10 @@ class RideController {
       safePricing.promotionCode = appliedPromotion?.code || undefined;
       safePricing.total = finalTotal;
 
-      const suggestedMinPrice = calculateSuggestedMinPrice(finalTotal);
+      const suggestedMinPrice = calculateSuggestedMinPrice(
+        finalTotal,
+        runtimeConfig?.suggestedMinPricePercent ?? 0.8,
+      );
       const requestedOffer = Number(negotiation?.clientOffer);
       const wantsNegotiation = Boolean(negotiation?.enabled) && Number.isFinite(requestedOffer);
       if (wantsNegotiation && requestedOffer <= 0) {
@@ -1159,7 +1163,10 @@ class RideController {
         duration,
         routeCoordinates: sanitizeRouteCoordinates(routeCoordinates, pickup, dropoff),
         details: resolvedDetails,
-        searchTimeoutSeconds: config.rideSearchTimeoutSeconds || 60,
+        searchTimeoutSeconds: Number(
+          runtimeConfig?.rideSearchTimeoutSeconds ||
+            DEFAULT_RIDE_SEARCH_TIMEOUT_SECONDS,
+        ),
         status: isScheduledForFuture(scheduledDate) ? "scheduled" : "requesting",
         requestedAt: new Date(),
         scheduledFor: scheduledDate || undefined,
@@ -2402,9 +2409,10 @@ class RideController {
             }
           }
           if (platformFee <= 0 && pricingTotal > 0) {
-            // PlatformConfig removido
-            const config = await PlatformConfig.findOne().sort({ createdAt: -1 });
-            const pct = config ? (config.appFeePercentage || 15) : 15;
+            const runtimeConfig = await getRuntimeConfig().catch(() => null);
+            const pct = Number(
+              runtimeConfig?.appFeePercentage || DEFAULT_APP_FEE_PERCENTAGE,
+            );
             platformFee = toMoney(pricingTotal * (pct / 100));
           }
 
@@ -2663,11 +2671,13 @@ class RideController {
 
       const result = stats[0] || { totalEarnings: 0, ridesCount: 0 };
 
-      // Meta e bonus diario configuraveis via PlatformConfig (com fallback)
-      // PlatformConfig removido
-      const platformConfig = await PlatformConfig.findOne().sort({ createdAt: -1 });
-      const dailyGoal = Number(platformConfig?.driverGoals?.dailyGoalRides || 10);
-      const configuredBonus = Number(platformConfig?.driverGoals?.dailyBonusAmount || 20);
+      const runtimeConfig = await getRuntimeConfig().catch(() => null);
+      const dailyGoal = Number(
+        runtimeConfig?.driverDailyGoalRides || DRIVER_DAILY_GOAL_RIDES,
+      );
+      const configuredBonus = Number(
+        runtimeConfig?.driverDailyBonusAmount || DRIVER_DAILY_BONUS_AMOUNT,
+      );
       const bonusAmount = result.ridesCount >= dailyGoal ? configuredBonus : 0;
 
       // Valor final ja representa o liquido do motorista:
@@ -3019,39 +3029,21 @@ class RideController {
         }
       }
 
-      // 4. ÃƒÆ’Ã…Â¡ltimo Recurso: ConfiguraÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o Global Aggregada (PricingConfig)
+      const runtimeConfig = await getRuntimeConfig().catch(() => null);
+
+      // 4. Ultimo recurso: configuracao global da PlatformConfig (vehiclePricing)
       if (!rule) {
-        console.log("[calculatePrice] ÃƒÂ°Ã…Â¸Ã…â€™Ã‚Â Tentando ULTIMATO fallback: PricingConfig...");
-        const globalConfig = await PricingConfig.findOne().sort({ updatedAt: -1 });
-
-        if (globalConfig) {
-          const vPricing = globalConfig.vehiclePricing?.find(p => p.vehicleType === vehicleType && p.enabled);
-
-          if (vPricing && (vPricing.minFee > 0 || vPricing.pricePerKm > 0)) {
-            console.log("[calculatePrice] ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Usando PricingConfig para veÃƒÆ’Ã‚Â­culo:", vehicleType);
-            rule = {
-              name: `GLOBAL_CONFIG_${vehicleType.toUpperCase()}`,
-              pricing: {
-                pricePerKm: vPricing.pricePerKm,
-                minimumKm: vPricing.minKmThreshold,
-                minimumFee: vPricing.minFee
-              }
-            };
-            if (purposeDoc) {
-              const pPricing = globalConfig.purposePricing?.find(p =>
-                p.purposeId?.toString() === purposeDoc._id.toString() && p.enabled
-              );
-              if (pPricing) {
-                if (pPricing.additionalPercentage > 0) {
-                  rule.pricing.minimumFee *= (1 + pPricing.additionalPercentage / 100);
-                  rule.pricing.pricePerKm *= (1 + pPricing.additionalPercentage / 100);
-                }
-                if (pPricing.additionalFixed > 0) {
-                  rule.pricing.minimumFee += pPricing.additionalFixed;
-                }
-              }
-            }
-          }
+        const vPricing = runtimeConfig?.vehiclePricing?.[vehicleType];
+        if (vPricing && (Number(vPricing.minimumFee) > 0 || Number(vPricing.pricePerKm) > 0)) {
+          console.log("[calculatePrice] Usando fallback global da PlatformConfig para veiculo:", vehicleType);
+          rule = {
+            name: `PLATFORM_CONFIG_${String(vehicleType || "MOTORCYCLE").toUpperCase()}`,
+            pricing: {
+              pricePerKm: Number(vPricing.pricePerKm || 0),
+              minimumKm: Number(vPricing.minimumKm || 0),
+              minimumFee: Number(vPricing.minimumFee || 0),
+            },
+          };
         }
       }
 
@@ -3136,9 +3128,9 @@ class RideController {
 
       const durationMinutes = Math.max(1, Math.ceil(durationInSeconds / 60)); // Uses injected time scalar
 
-    // PlatformConfig removido
-    let platformConfig = await PlatformConfig.findOne().sort({ createdAt: -1 });
-    const feePercentage = platformConfig ? (platformConfig.appFeePercentage || 0) : 0;
+    const feePercentage = Number(
+      runtimeConfig?.appFeePercentage || DEFAULT_APP_FEE_PERCENTAGE,
+    );
 
     const baseRidePrice = parseFloat(minimumFee.toFixed(2));
     const distanceExtraPrice = parseFloat((finalPrice - minimumFee).toFixed(2));
@@ -3162,14 +3154,12 @@ class RideController {
 
     if (serviceType === "delivery" || deliveryType || cargoSize) {
       const PricingEngine = require("../services/pricing-engine");
-      // PricingConfig removido
-      const globalConfig = await PricingConfig.findOne().sort({ updatedAt: -1 });
-      const pEco = globalConfig?.platformSettings?.priorityMultiplierEconomic || 1.0;
-      const pFast = globalConfig?.platformSettings?.priorityMultiplierFast || 1.3;
-      const pUrg = globalConfig?.platformSettings?.priorityMultiplierUrgent || 1.8;
+      const pEco = Number(runtimeConfig?.logisticsMultipliers?.priorityEconomic || 1.0);
+      const pFast = Number(runtimeConfig?.logisticsMultipliers?.priorityFast || 1.3);
+      const pUrg = Number(runtimeConfig?.logisticsMultipliers?.priorityUrgent || 1.8);
       
       const smartCalculation = PricingEngine.calculate({
-        pricePerKmRule: pricePerKm > 0 ? pricePerKm : 1.50,
+        pricePerKmRule: pricePerKm > 0 ? pricePerKm : Number(runtimeConfig?.vehiclePricing?.[vehicleType]?.pricePerKm || 1.5),
         minFeeRule: minimumFee,
         minKmRule: minimumKm,
         distanceKm,
@@ -3177,6 +3167,16 @@ class RideController {
         priorityEconomic: pEco,
         priorityFast: pFast,
         priorityUrgent: pUrg,
+        cargoSizeSmall: Number(runtimeConfig?.logisticsMultipliers?.cargoSizeSmall || 1.0),
+        cargoSizeMedium: Number(runtimeConfig?.logisticsMultipliers?.cargoSizeMedium || 1.15),
+        cargoSizeLarge: Number(runtimeConfig?.logisticsMultipliers?.cargoSizeLarge || 1.4),
+        fragileSurchargeValue: Number(runtimeConfig?.logisticsMultipliers?.fragileSurcharge || 1.1),
+        helperSurchargeValue: Number(runtimeConfig?.logisticsMultipliers?.helperSurcharge || 1.15),
+        weightUpTo5kg: Number(runtimeConfig?.logisticsMultipliers?.weightUpTo5kg || 1.0),
+        weightUpTo15kg: Number(runtimeConfig?.logisticsMultipliers?.weightUpTo15kg || 1.1),
+        weightUpTo30kg: Number(runtimeConfig?.logisticsMultipliers?.weightUpTo30kg || 1.25),
+        weightUpTo50kg: Number(runtimeConfig?.logisticsMultipliers?.weightUpTo50kg || 1.5),
+        weightAbove50kg: Number(runtimeConfig?.logisticsMultipliers?.weightAbove50kg || 1.8),
         cargoSize: cargoSize || "small",
         approximateWeightKg: req.body?.approximateWeightKg,
         isFragile: Boolean(req.body?.isFragile),
@@ -3811,5 +3811,3 @@ ratingProofMixin.attach(RideController, { Ride, DriverLocation, User });
 const instance = new RideController();
 rideControllerInstance = instance;
 module.exports = instance;
-
-

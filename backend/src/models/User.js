@@ -123,6 +123,15 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    phoneVerifiedAt: {
+      type: Date,
+      default: null,
+    },
+    lastPhoneVerificationMethod: {
+      type: String,
+      enum: ["sms", "whatsapp", "voice", "manual"],
+      default: "sms",
+    },
     city: {
       type: String,
       trim: true,
@@ -468,6 +477,20 @@ const userSchema = new mongoose.Schema(
       lastHeartbeatAt: { type: Date, default: Date.now },
       activeDateStr: { type: String, default: "" },
       isOnline: { type: Boolean, default: false },
+    },
+    lastLocation: {
+      type: {
+        type: String,
+        enum: ["Point"],
+        default: "Point",
+      },
+      coordinates: {
+        type: [Number], // [longitude, latitude]
+      },
+      updatedAt: {
+        type: Date,
+        default: Date.now,
+      },
     },
     ratingStats: {
       averageStars: { type: Number, default: 0 },

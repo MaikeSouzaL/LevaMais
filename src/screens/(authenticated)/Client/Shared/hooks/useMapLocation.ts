@@ -4,10 +4,10 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
+import * as Location from 'expo-location';
 import MapView, { Region } from 'react-native-maps';
 import {
-  getCurrentLocationAndAddress,
-  getCurrentLocation,
+  getAddressFromCoordinates,
 } from '@/utils/location';
 
 export interface MapRegion {
@@ -34,43 +34,80 @@ export function useMapLocation() {
     lng: number;
   } | null>(null);
 
-  // Obter localização inicial
+  // Obter e monitorar localização em tempo real
   useEffect(() => {
     let isMounted = true;
+    let subscription: Location.LocationSubscription | null = null;
 
     (async () => {
-      const result = await getCurrentLocationAndAddress();
-      if (!result || !isMounted) return;
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted' || !isMounted) return;
 
-      const { location, address } = result;
-
-      setRegion({
-        latitude: location.latitude,
-        longitude: location.longitude,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
+      // Obter posição inicial imediatamente
+      const initial = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.BestForNavigation,
       });
 
-      const fullAddr = [
-        `${address.street}${address.number ? ', ' + address.number : ''}`,
-        address.neighborhood,
-        address.city
-      ].filter(Boolean).join(' - ');
+      if (!isMounted) return;
 
-      setCurrentAddress(fullAddr);
+      const { latitude, longitude } = initial.coords;
 
-      setUserRegion({
-        latitude: location.latitude,
-        longitude: location.longitude,
-      });
+      setRegion({ latitude, longitude, latitudeDelta: 0.003, longitudeDelta: 0.003 });
+      setUserRegion({ latitude, longitude });
 
-      setShowMyLocationButton(false);
+      // Reverso do endereço inicial
+      const address = await getAddressFromCoordinates({ latitude, longitude });
+      if (isMounted && address) {
+        const fullAddr = [
+          `${address.street}${address.number ? ', ' + address.number : ''}`,
+          address.neighborhood,
+          address.city,
+        ].filter(Boolean).join(' - ');
+        setCurrentAddress(fullAddr);
+      }
+
+      // Monitorar movimentação em tempo real
+      subscription = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.BestForNavigation,
+          timeInterval: 2000,     // atualiza a cada 2 segundos no mínimo
+          distanceInterval: 3,    // ou se mover >= 3 metros
+        },
+        (loc) => {
+          if (!isMounted) return;
+          const { latitude: lat, longitude: lng } = loc.coords;
+          setUserRegion({ latitude: lat, longitude: lng });
+          setRegion((prev) =>
+            prev ? { ...prev, latitude: lat, longitude: lng } : prev
+          );
+          setShowMyLocationButton(false);
+        }
+      );
     })();
 
     return () => {
       isMounted = false;
+      subscription?.remove();
     };
   }, []);
+
+
+  const [hasCentered, setHasCentered] = useState(false);
+
+  useEffect(() => {
+    if (mapRef.current && userRegion && !hasCentered) {
+      mapRef.current.animateToRegion(
+        {
+          latitude: userRegion.latitude,
+          longitude: userRegion.longitude,
+          latitudeDelta: 0.003,
+          longitudeDelta: 0.003,
+        },
+        1000
+      );
+      setHasCentered(true);
+    }
+  }, [userRegion, hasCentered]);
 
   // Centralizar no usuário
   const centerOnUser = async () => {
@@ -95,8 +132,8 @@ export function useMapLocation() {
         {
           latitude: location.latitude,
           longitude: location.longitude,
-          latitudeDelta: 0.01,
-          longitudeDelta: 0.01,
+          latitudeDelta: 0.003,
+          longitudeDelta: 0.003,
         },
         600
       );

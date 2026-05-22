@@ -2,12 +2,19 @@ const User = require("../models/User");
 const PasswordReset = require("../models/PasswordReset");
 const PhoneVerification = require("../models/PhoneVerification");
 const Ride = require("../models/Ride");
+const {
+  DEFAULT_PLATFORM_CONFIG,
+  mergeConfig,
+  ensureConfigDocument,
+  getRuntimeConfig,
+} = require("../services/platformConfig.service");
 const jwt = require("jsonwebtoken");
 const emailService = require("../services/email.service");
 const crypto = require("crypto");
 const mongoose = require("mongoose");
 const path = require("path");
 const fs = require("fs");
+const { getIO } = require("../config/websocket");
 
 
 const ACTIVE_RIDE_STATUSES = [
@@ -91,8 +98,10 @@ function normalizeNameForCompare(name) {
 
 async function validateCPFWithFreeAPI(cpf) {
   try {
-    // isDevelopmentMode hardcoded to true since PlatformConfig model was removed
-    if (true) {
+    const config = await getRuntimeConfig();
+    const isDevelopmentMode = !!config.isDevelopmentMode;
+    console.log("[CPF API Validation] isDevelopmentMode:", isDevelopmentMode, "| cpf:", String(cpf || "").replace(/\D/g, ""));
+    if (isDevelopmentMode) {
       console.log("[CPF API Validation] Development Mode is ACTIVE. Bypassing external API validation.");
       return { valid: true, name: null, isFallback: true };
     }
@@ -114,6 +123,7 @@ async function validateCPFWithFreeAPI(cpf) {
     if (response && response.ok) {
       const data = await response.json().catch(() => null);
       if (data) {
+        console.log("[CPF API Validation] Payload recebido:", JSON.stringify(data, null, 2));
         if (data.valid === false || data.valido === false) {
           return { valid: false };
         }
@@ -122,6 +132,11 @@ async function validateCPFWithFreeAPI(cpf) {
           name: data.name || data.nome || null
         };
       }
+    }
+    if (!response) {
+      console.warn("[CPF API Validation] Sem resposta da API externa, usando fallback.");
+    } else if (!response.ok) {
+      console.warn("[CPF API Validation] API externa retornou status:", response.status, "-> fallback.");
     }
     return { valid: true, isFallback: true };
   } catch (error) {
@@ -168,8 +183,10 @@ function validateCNPJAlgorithm(cnpj) {
 
 async function validateCNPJWithFreeAPI(cnpj) {
   try {
-    // isDevelopmentMode hardcoded to true since PlatformConfig model was removed
-    if (true) {
+    const config = await getRuntimeConfig();
+    const isDevelopmentMode = !!config.isDevelopmentMode;
+    console.log("[CNPJ API Validation] isDevelopmentMode:", isDevelopmentMode, "| cnpj:", String(cnpj || "").replace(/\D/g, ""));
+    if (isDevelopmentMode) {
       console.log("[CNPJ API Validation] Development Mode is ACTIVE. Bypassing external API validation.");
       return { valid: true, razaoSocial: null, isFallback: true };
     }
@@ -191,6 +208,7 @@ async function validateCNPJWithFreeAPI(cnpj) {
     if (response && response.ok) {
       const data = await response.json().catch(() => null);
       if (data) {
+        console.log("[CNPJ API Validation] Payload recebido:", JSON.stringify(data, null, 2));
         if (data.message || data.error) {
           return { valid: false };
         }
@@ -203,6 +221,11 @@ async function validateCNPJWithFreeAPI(cnpj) {
           status: data.descricao_situacao_cadastral || data.situacao_cadastral || null
         };
       }
+    }
+    if (!response) {
+      console.warn("[CNPJ API Validation] Sem resposta da API externa, usando fallback.");
+    } else if (!response.ok) {
+      console.warn("[CNPJ API Validation] API externa retornou status:", response.status, "-> fallback.");
     }
     return { valid: true, isFallback: true };
   } catch (error) {
@@ -261,7 +284,73 @@ function getCompatibleServiceTypes(vehicleType, serviceTypes) {
   return normalized.filter((item) => item !== "ride");
 }
 
+function normalizeClientVerificationStatus(cpfStatus, selfieStatus) {
+  if (cpfStatus === "valid" && selfieStatus === "approved") return "approved";
+  if (cpfStatus === "invalid" || selfieStatus === "rejected") return "rejected";
+  return "pending";
+}
+
+function normalizeDriverStatusFromDocs(driverDocuments = {}) {
+  const cnhFrontStatus = String(driverDocuments?.cnhFrontStatus || "pending");
+  const cnhBackStatus = String(driverDocuments?.cnhBackStatus || "pending");
+  const selfieStatus = String(driverDocuments?.selfieStatus || "pending");
+
+  if ([cnhFrontStatus, cnhBackStatus, selfieStatus].includes("rejected")) return "rejected";
+  if (cnhFrontStatus === "approved" && cnhBackStatus === "approved" && selfieStatus === "approved") {
+    return "approved";
+  }
+  return "pending";
+}
+
 class AuthController {
+  async getPlatformConfig(req, res) {
+    try {
+      const config = await ensureConfigDocument();
+      return res.json({ success: true, data: mergeConfig(config.toObject()) });
+    } catch (error) {
+      return sendError(res, 500, "Erro ao buscar configuracoes da plataforma", {
+        details: error.message,
+      });
+    }
+  }
+
+  async updatePlatformConfig(req, res) {
+    try {
+      const config = await ensureConfigDocument();
+
+      const allowedFields = [
+        "isDevelopmentMode",
+        "appFeePercentage",
+        "rideSearchTimeoutSeconds",
+        "driverDailyGoalRides",
+        "driverDailyBonusAmount",
+        "appTimeZone",
+        "suggestedMinPricePercent",
+        "vehiclePricing",
+        "logisticsMultipliers",
+        "supportChannels",
+        "policyVersions",
+      ];
+
+      for (const field of allowedFields) {
+        if (req.body[field] !== undefined) {
+          config[field] = req.body[field];
+        }
+      }
+
+      await config.save();
+      return res.json({
+        success: true,
+        data: mergeConfig(config.toObject()),
+        defaults: DEFAULT_PLATFORM_CONFIG,
+      });
+    } catch (error) {
+      return sendError(res, 500, "Erro ao atualizar configuracoes da plataforma", {
+        details: error.message,
+      });
+    }
+  }
+
   // Gerar token JWT
   generateToken(user) {
     const userId = typeof user === "string" ? user : user?._id;
@@ -1518,6 +1607,9 @@ class AuthController {
     try {
       const normalizedPhone = normalizePhone(req.body?.phone);
       const userId = req.body?.userId || null;
+      const method = ["sms", "whatsapp", "voice", "manual"].includes(String(req.body?.method || "sms"))
+        ? String(req.body?.method || "sms")
+        : "sms";
 
       if (!normalizedPhone) {
         return sendError(res, 400, "Telefone e obrigatorio");
@@ -1566,6 +1658,7 @@ class AuthController {
       await PhoneVerification.create({
         phone: normalizedPhone,
         userId: userId || undefined,
+        method,
         code,
         expiresAt,
       });
@@ -1629,7 +1722,12 @@ class AuthController {
       if (verification.userId) {
         const user = await User.findByIdAndUpdate(
           verification.userId,
-          { phone: normalizedPhone, phoneVerified: true },
+          {
+            phone: normalizedPhone,
+            phoneVerified: true,
+            phoneVerifiedAt: verification.verifiedAt || new Date(),
+            lastPhoneVerificationMethod: verification.method || "sms",
+          },
           { new: true },
         );
 
@@ -1836,6 +1934,25 @@ class AuthController {
         return sendError(res, 404, "Usuário não encontrado");
       }
 
+      try {
+        const io = getIO();
+        if (updates.clientVerification && user.userType === "client") {
+          io.to(`client-${user._id}`).emit("client-verification-updated", {
+            userId: String(user._id),
+            clientVerification: user.clientVerification || null,
+            approved: user?.clientVerification?.status === "approved",
+            isActive: user.isActive === true,
+          });
+        }
+        if (Object.prototype.hasOwnProperty.call(updates, "driverStatus") && user.userType === "driver") {
+          io.to(`driver-${user._id}`).emit("driver-verification-updated", {
+            userId: String(user._id),
+            driverStatus: user.driverStatus,
+            approved: user.driverStatus === "approved",
+          });
+        }
+      } catch {}
+
       return res.json({
         success: true,
         message: "Usuário atualizado com sucesso",
@@ -1844,6 +1961,140 @@ class AuthController {
     } catch (error) {
       console.error("Erro ao atualizar usuário:", error);
       return sendError(res, 400, "Erro ao atualizar usuário", { details: error.message });
+    }
+  }
+
+
+  async updateClientVerificationByAdmin(req, res) {
+    try {
+      const { id } = req.params;
+      const { field, status, reason } = req.body || {};
+
+      if (!["cpfStatus", "selfieStatus"].includes(String(field || ""))) {
+        return sendError(res, 400, "Campo invalido. Use cpfStatus ou selfieStatus");
+      }
+
+      const allowedStatusByField = {
+        cpfStatus: ["unchecked", "pending", "manual_review", "valid", "invalid"],
+        selfieStatus: ["none", "pending", "approved", "rejected"],
+      };
+      if (!allowedStatusByField[field].includes(String(status || ""))) {
+        return sendError(res, 400, "Status invalido para o campo informado");
+      }
+
+      const user = await User.findById(id);
+      if (!user) return sendError(res, 404, "Usuário não encontrado");
+      if (String(user.userType || "").toLowerCase() !== "client") {
+        return sendError(res, 400, "Apenas clientes possuem verificacao de cliente");
+      }
+
+      user.clientVerification = user.clientVerification || {};
+      user.clientVerification.documents = user.clientVerification.documents || {};
+      user.clientVerification[field] = status;
+
+      if (reason && ["invalid", "rejected"].includes(String(status))) {
+        user.clientVerification.rejectionReason = String(reason).trim();
+      } else if (["valid", "approved"].includes(String(status))) {
+        user.clientVerification.rejectionReason = "";
+      }
+
+      user.clientVerification.status = normalizeClientVerificationStatus(
+        user.clientVerification.cpfStatus || "unchecked",
+        user.clientVerification.selfieStatus || "none",
+      );
+      user.clientVerification.reviewedAt = new Date();
+      user.clientVerification.reviewedBy = req.user?.id || "admin";
+
+      await user.save();
+
+      try {
+        const io = getIO();
+        io.to(`client-${user._id}`).emit("client-verification-updated", {
+          userId: String(user._id),
+          clientVerification: user.clientVerification || null,
+          approved: user?.clientVerification?.status === "approved",
+          isActive: user.isActive === true,
+        });
+      } catch {}
+
+      return res.json({
+        success: true,
+        message: "Verificacao do cliente atualizada com sucesso",
+        user: {
+          _id: user._id,
+          clientVerification: user.clientVerification,
+        },
+      });
+    } catch (error) {
+      console.error("Erro ao atualizar verificacao de cliente (admin):", error);
+      return sendError(res, 500, "Erro ao atualizar verificacao de cliente", { details: error.message });
+    }
+  }
+
+  async updateDriverVerificationByAdmin(req, res) {
+    try {
+      const { id } = req.params;
+      const { field, status, reason } = req.body || {};
+
+      if (!["cnhFrontStatus", "cnhBackStatus", "selfieStatus"].includes(String(field || ""))) {
+        return sendError(res, 400, "Campo invalido. Use cnhFrontStatus, cnhBackStatus ou selfieStatus");
+      }
+      if (!["none", "pending", "approved", "rejected"].includes(String(status || ""))) {
+        return sendError(res, 400, "Status invalido para o campo informado");
+      }
+
+      const user = await User.findById(id);
+      if (!user) return sendError(res, 404, "Usuário não encontrado");
+      if (String(user.userType || "").toLowerCase() !== "driver") {
+        return sendError(res, 400, "Apenas motoristas possuem verificacao de motorista");
+      }
+
+      user.driverDocuments = user.driverDocuments || {};
+      user.driverDocuments[field] = status;
+      user.driverDocuments.reviewedAt = new Date();
+      user.driverDocuments.reviewedBy = req.user?.id || "admin";
+      user.driverDocuments.reviewHistory = Array.isArray(user.driverDocuments.reviewHistory)
+        ? user.driverDocuments.reviewHistory
+        : [];
+      user.driverDocuments.reviewHistory.push({
+        documentType: field,
+        action: status === "rejected" ? "rejected" : "approved",
+        reason: reason ? String(reason).trim() : "",
+        reviewedBy: req.user?.id || undefined,
+        reviewedAt: new Date(),
+      });
+
+      if (reason && status === "rejected") {
+        user.driverDocuments.rejectionReason = String(reason).trim();
+      } else if (status === "approved") {
+        user.driverDocuments.rejectionReason = "";
+      }
+
+      user.driverStatus = normalizeDriverStatusFromDocs(user.driverDocuments);
+      await user.save();
+
+      try {
+        const io = getIO();
+        io.to(`driver-${user._id}`).emit("driver-verification-updated", {
+          userId: String(user._id),
+          driverStatus: user.driverStatus,
+          driverDocuments: user.driverDocuments || null,
+          approved: user.driverStatus === "approved",
+        });
+      } catch {}
+
+      return res.json({
+        success: true,
+        message: "Verificacao do motorista atualizada com sucesso",
+        user: {
+          _id: user._id,
+          driverStatus: user.driverStatus,
+          driverDocuments: user.driverDocuments,
+        },
+      });
+    } catch (error) {
+      console.error("Erro ao atualizar verificacao de motorista (admin):", error);
+      return sendError(res, 500, "Erro ao atualizar verificacao de motorista", { details: error.message });
     }
   }
 

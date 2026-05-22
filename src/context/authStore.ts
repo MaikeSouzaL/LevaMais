@@ -21,6 +21,7 @@ export interface UserData {
   aceitouTermos: boolean;
   acceptedTerms?: boolean;
   tourSeen?: boolean;
+  isActive?: boolean;
   expoPushToken?: string;
   vehicleType?: unknown;
   vehicleInfo?: unknown;
@@ -39,6 +40,20 @@ export interface UserData {
   companyEmail?: string;
   companyPhone?: string;
   paymentMethods?: Array<any>;
+  clientVerification?: {
+    status?: "none" | "pending" | "approved" | "rejected";
+    cpfStatus?: "unchecked" | "pending" | "manual_review" | "valid" | "invalid" | string;
+    selfieStatus?: "none" | "pending" | "approved" | "rejected" | string;
+    documents?: {
+      selfie?: string;
+      rgFront?: string;
+      rgBack?: string;
+    };
+    rejectionReason?: string;
+    submittedAt?: string;
+    reviewedAt?: string;
+    reviewedBy?: string;
+  } | null;
 }
 
 export interface AuthState {
