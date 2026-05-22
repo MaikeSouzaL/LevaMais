@@ -750,9 +750,12 @@ export default function DeliverySenderInfoScreen() {
               <TouchableOpacity
                 className="flex-row items-center gap-1.5"
                 onPress={() => {
-                  setSearchMode("home");
+                  setIsSearchingAddress(false);
                   setSearchQuery("");
                   setSearchResults([]);
+                  navigation.navigate("FavoriteAddressFlow", {
+                    initialSearchMode: "home",
+                  });
                 }}
               >
                 <HomeIcon size={14} color="#02de95" />
@@ -762,9 +765,12 @@ export default function DeliverySenderInfoScreen() {
               <TouchableOpacity
                 className="flex-row items-center gap-1.5"
                 onPress={() => {
-                  setSearchMode("work");
+                  setIsSearchingAddress(false);
                   setSearchQuery("");
                   setSearchResults([]);
+                  navigation.navigate("FavoriteAddressFlow", {
+                    initialSearchMode: "work",
+                  });
                 }}
               >
                 <Briefcase size={14} color="#666" />
@@ -895,17 +901,45 @@ export default function DeliverySenderInfoScreen() {
                       <Text className="text-gray-400 text-[13px] ml-2">{item.distance}</Text>
                     </TouchableOpacity>
                   ))}
-                  <TouchableOpacity
-                    className="flex-row items-center px-4 py-4 border-b border-gray-50"
-                    onPress={handleOpenMapPicker}
-                  >
-                    <View className="w-[36px] h-[36px] rounded-full bg-gray-100 items-center justify-center mr-3">
-                      <MapPin size={18} color="#666" />
-                    </View>
-                    <Text className="text-gray-700 text-[15px] font-medium">Marque o local no mapa</Text>
-                  </TouchableOpacity>
                 </View>
               )}
+
+              {/* ALWAYS visible action list under results */}
+              <View>
+                <TouchableOpacity
+                  className="flex-row items-center px-4 py-4 border-b border-gray-50"
+                  onPress={handleOpenMapPicker}
+                >
+                  <View className="w-[36px] h-[36px] rounded-full bg-gray-100 items-center justify-center mr-3">
+                    <MapPin size={18} color="#666" />
+                  </View>
+                  <Text className="text-gray-700 text-[15px] font-medium">Marque o local no mapa</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  className="flex-row items-center px-4 py-4 border-b border-gray-50"
+                  onPress={() => {
+                    setIsSearchingAddress(false);
+                    setSearchQuery("");
+                    navigation.navigate("FavoriteAddressFlow", { initialSearchMode: "favorite" });
+                  }}
+                >
+                  <View className="w-[36px] h-[36px] rounded-full bg-gray-100 items-center justify-center mr-3">
+                    <Plus size={18} color="#666" strokeWidth={3} />
+                  </View>
+                  <Text className="text-gray-700 text-[15px] font-medium">Adicionar local</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  className="flex-row items-center px-4 py-4 border-b border-gray-50"
+                  onPress={handleOpenMapPicker}
+                >
+                  <View className="w-[36px] h-[36px] rounded-full bg-gray-100 items-center justify-center mr-3">
+                    <Pencil size={16} color="#666" />
+                  </View>
+                  <Text className="text-gray-700 text-[15px] font-medium">Sugerir alteração de local</Text>
+                </TouchableOpacity>
+              </View>
             </ScrollView>
             </>
             )}
