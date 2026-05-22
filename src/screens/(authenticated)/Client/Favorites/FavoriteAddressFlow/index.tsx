@@ -13,10 +13,11 @@ import {
 } from "react-native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
-import { Briefcase, ChevronLeft, Flame, Home as HomeIcon, MapPin, Star, X } from "lucide-react-native";
+import { Briefcase, ChevronLeft, ChevronRight, Flame, Home as HomeIcon, MapPin, Star, X, History } from "lucide-react-native";
 
 import favoriteAddressService, { FavoriteAddress } from "@/services/favoriteAddress.service";
 import { getPlaceDetails, PlaceAutocompleteResult, searchPlaces } from "@/services/googlePlaces.service";
+import rideService from "@/services/ride.service";
 import { ClientStackParamList } from "../../types/navigation";
 
 type Mode = "home" | "work" | "favorite" | "favoritesList" | "favoriteName";
@@ -47,10 +48,18 @@ const nearbySuggestions = [
 export default function FavoriteAddressFlowScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<ClientStackParamList, "FavoriteAddressFlow">>();
   const route = useRoute<RouteProp<ClientStackParamList, "FavoriteAddressFlow">>();
-  const [mode, setMode] = useState<Mode>(route.params?.initialSearchMode || "favoritesList");
+  
+  const isSelectionMode = route.params?.selectionMode || false;
+  const returnScreen = route.params?.returnScreen || "DeliverySenderInfo";
+  const isSender = route.params?.isSender || false;
+
+  const [mode, setMode] = useState<Mode>(
+    route.params?.initialSearchMode || (isSelectionMode ? "favorite" : "favoritesList")
+  );
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PlaceAutocompleteResult[]>([]);
   const [favorites, setFavorites] = useState<FavoriteAddress[]>([]);
+  const [historyAddresses, setHistoryAddresses] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState<{ address: string; latitude: number; longitude: number } | null>(null);
@@ -60,6 +69,33 @@ export default function FavoriteAddressFlowScreen() {
   const loadFavorites = useCallback(async () => {
     const list = await favoriteAddressService.list();
     setFavorites(list || []);
+
+    try {
+      const history = await rideService.getHistory({ limit: 5 });
+      if (history?.rides) {
+        const histList: any[] = [];
+        const seen = new Set((list || []).map(f => f.formattedAddress || f.address));
+        
+        history.rides.forEach(ride => {
+          const addLocation = (loc: any, type: string) => {
+            if (loc && loc.address && !seen.has(loc.address)) {
+              seen.add(loc.address);
+              histList.push({
+                _id: `hist_${ride._id}_${type}`,
+                name: ride.details?.recipientName || "Endereço recente",
+                address: loc.address,
+                formattedAddress: loc.address,
+                latitude: loc.latitude,
+                longitude: loc.longitude,
+              });
+            }
+          };
+          addLocation(ride.dropoff, "dropoff");
+          addLocation(ride.pickup, "pickup");
+        });
+        setHistoryAddresses(histList);
+      }
+    } catch {}
   }, []);
 
   useEffect(() => {
@@ -88,9 +124,13 @@ export default function FavoriteAddressFlowScreen() {
     };
   }, [mode, query]);
 
-  const title = mode === "favoriteName" ? "Nome do local" : mode === "favoritesList" ? "Favoritos" : "Favoritos";
-  const placeholder =
-    mode === "home" ? "Onde você mora?" : mode === "work" ? "Onde você trabalha?" : "Insira o endereço";
+  const title = isSelectionMode
+    ? (isSender ? "Buscar local de coleta" : "Selecionar endereço")
+    : (mode === "favoriteName" ? "Nome do local" : mode === "favoritesList" ? "Favoritos" : "Favoritos");
+
+  const placeholder = isSelectionMode
+    ? (isSender ? "Onde retirar a entrega?" : "Onde entregar?")
+    : (mode === "home" ? "Onde você mora?" : mode === "work" ? "Onde você trabalha?" : "Insira o endereço");
 
   const saveAddress = async (name: string, icon: "home" | "work" | "favorite", address: string, latitude: number, longitude: number) => {
     setSaving(true);
@@ -119,6 +159,15 @@ export default function FavoriteAddressFlowScreen() {
     try {
       const details = await getPlaceDetails(item.placeId);
       if (!details) return;
+      if (isSelectionMode) {
+        navigation.navigate(returnScreen as any, {
+          mapPickedAddress: details.formattedAddress,
+          mapPickedLatitude: details.latitude,
+          mapPickedLongitude: details.longitude,
+          isSender: isSender,
+        });
+        return;
+      }
       if (mode === "home") {
         await saveAddress("Casa", "home", details.formattedAddress, details.latitude, details.longitude);
         return;
@@ -153,13 +202,26 @@ export default function FavoriteAddressFlowScreen() {
       return;
     }
     if (mode !== "favoritesList") {
-      setMode("favoritesList");
+      if (isSelectionMode) {
+        navigation.goBack();
+      } else {
+        setMode("favoritesList");
+      }
       return;
     }
     navigation.goBack();
   };
 
   const handleFavoritePress = (fav: FavoriteAddress) => {
+    if (isSelectionMode) {
+      navigation.navigate(returnScreen as any, {
+        mapPickedAddress: fav.formattedAddress || fav.address,
+        mapPickedLatitude: Number(fav.latitude),
+        mapPickedLongitude: Number(fav.longitude),
+        isSender: isSender,
+      });
+      return;
+    }
     Alert.alert(
       fav.name,
       fav.formattedAddress || fav.address,
@@ -300,7 +362,13 @@ export default function FavoriteAddressFlowScreen() {
                 </TouchableOpacity>
               )}
             </View>
-            <TouchableOpacity onPress={() => setMode("favoritesList")}>
+            <TouchableOpacity onPress={() => {
+              if (isSelectionMode) {
+                navigation.goBack();
+              } else {
+                setMode("favoritesList");
+              }
+            }}>
               <Text style={{ color: "#555", fontSize: 15, fontWeight: "600" }}>Cancelar</Text>
             </TouchableOpacity>
           </View>
@@ -318,10 +386,46 @@ export default function FavoriteAddressFlowScreen() {
                 </View>
               </TouchableOpacity>
             ))}
+            {query.length === 0 && favorites.length > 0 && (
+              <View style={{ borderBottomWidth: 1, borderBottomColor: "#f3f4f6", paddingBottom: 8 }}>
+                <Text style={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: 6, color: "#9ca3af", fontSize: 12, fontWeight: "900", textTransform: "uppercase", letterSpacing: 1 }}>Meus Favoritos</Text>
+                {favorites.map((fav) => (
+                  <TouchableOpacity
+                    key={fav._id}
+                    onPress={() => handleFavoritePress(fav)}
+                    style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 24, paddingVertical: 12 }}
+                  >
+                    <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: "#e2e8f0", alignItems: "center", justifyContent: "center", marginRight: 14 }}>
+                      {fav.name.toLowerCase().includes("casa") ? (
+                        <HomeIcon size={16} color="#64748b" />
+                      ) : fav.name.toLowerCase().includes("trabalho") ? (
+                        <Briefcase size={16} color="#64748b" />
+                      ) : (
+                        <Star size={16} color="#64748b" fill="#64748b" />
+                      )}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: "#333", fontSize: 16, fontWeight: "800" }} numberOfLines={1}>{fav.name}</Text>
+                      <Text style={{ color: "#9ca3af", fontSize: 14, marginTop: 2 }} numberOfLines={1}>{fav.formattedAddress || fav.address}</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
             {query.length === 0 && nearbySuggestions.map((item) => (
               <TouchableOpacity
                 key={item.title}
                 onPress={() => {
+                  if (isSelectionMode) {
+                    navigation.navigate(returnScreen as any, {
+                      mapPickedAddress: `${item.title} - ${item.subtitle}`,
+                      mapPickedLatitude: -11.6722,
+                      mapPickedLongitude: -61.1936,
+                      isSender: isSender,
+                    });
+                    return;
+                  }
                   setDraft({ address: `${item.title} - ${item.subtitle}`, latitude: 0, longitude: 0 });
                   setFavoriteName(item.title);
                   setMode("favoriteName");

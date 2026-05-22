@@ -117,6 +117,9 @@ export type ClientStackParamList = {
   FavoriteAddressFlow:
     | {
         initialSearchMode?: "home" | "work" | "favorite" | "favoritesList";
+        selectionMode?: boolean;
+        returnScreen?: string;
+        isSender?: boolean;
       }
     | undefined;
   SelectVehicle:

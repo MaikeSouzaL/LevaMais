@@ -14,7 +14,7 @@ import {
   Dimensions,
 } from "react-native";
 import { NavigationProp, RouteProp, useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
-import { ChevronLeft, ChevronRight, MapPin, Edit3, X, Home as HomeIcon, Briefcase, Star, Phone, User, Flame, Plus, Pencil } from "lucide-react-native";
+import { ChevronLeft, ChevronRight, MapPin, Edit3, X, Home as HomeIcon, Briefcase, Star, Phone, User, Flame, Plus, Pencil, History } from "lucide-react-native";
 import { MotiView } from "moti";
 import { ClientStackParamList } from "../../../types/navigation";
 import { useAuthStore } from "@/context/authStore";
@@ -394,9 +394,12 @@ export default function DeliverySenderInfoScreen() {
             </Text>
             <TouchableOpacity
               onPress={() => {
-                setSearchMode("address");
-                setSearchQuery("");
-                setIsSearchingAddress(true);
+                navigation.navigate("FavoriteAddressFlow", {
+                  selectionMode: true,
+                  initialSearchMode: "favorite",
+                  returnScreen: "DeliverySenderInfo",
+                  isSender: isSender,
+                });
               }}
               className="flex-row items-center justify-between py-3 border-b border-gray-200"
             >
@@ -567,8 +570,8 @@ export default function DeliverySenderInfoScreen() {
               backgroundColor: '#fff',
               borderTopLeftRadius: 24,
               borderTopRightRadius: 24,
-              height: isKeyboardVisible ? windowHeight * 0.44 : undefined,
-              maxHeight: windowHeight * (isKeyboardVisible ? 0.94 : 0.78),
+              height: isKeyboardVisible ? windowHeight * 0.88 : undefined,
+              maxHeight: windowHeight * (isKeyboardVisible ? 0.95 : 0.82),
               shadowColor: '#000',
               shadowOffset: { width: 0, height: -4 },
               shadowOpacity: 0.15,
@@ -582,7 +585,7 @@ export default function DeliverySenderInfoScreen() {
             </View>
 
             {searchMode === "favoritesList" ? (
-              <View style={{ height: isKeyboardVisible ? windowHeight * 0.4 : windowHeight * 0.72 }}>
+              <View style={{ height: isKeyboardVisible ? windowHeight * 0.82 : windowHeight * 0.72 }}>
                 <View className="flex-row items-center px-5 py-4 border-b border-gray-100">
                   <TouchableOpacity onPress={() => setSearchMode("address")} className="w-[40px] h-[40px] items-center justify-center mr-3">
                     <ChevronLeft size={26} color="#111" strokeWidth={2.5} />
@@ -645,7 +648,7 @@ export default function DeliverySenderInfoScreen() {
                 )}
               </View>
             ) : searchMode === "favoriteName" ? (
-              <View style={{ height: isKeyboardVisible ? windowHeight * 0.44 : windowHeight * 0.72 }}>
+              <View style={{ height: isKeyboardVisible ? windowHeight * 0.82 : windowHeight * 0.72 }}>
                 <View className="flex-row items-center px-5 py-4 border-b border-gray-100">
                   <TouchableOpacity onPress={() => setSearchMode("favorite")} className="w-[40px] h-[40px] items-center justify-center mr-3">
                     <ChevronLeft size={26} color="#111" strokeWidth={2.5} />
@@ -799,7 +802,7 @@ export default function DeliverySenderInfoScreen() {
               className="flex-1"
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
-              style={{ maxHeight: windowHeight * (isKeyboardVisible ? 0.3 : 0.5) }}
+              style={{ maxHeight: windowHeight * (isKeyboardVisible ? 0.72 : 0.5) }}
             >
               {/* Loading */}
               {isLoadingSearch && (
@@ -865,6 +868,42 @@ export default function DeliverySenderInfoScreen() {
               {searchQuery.length >= 3 && !isLoadingSearch && searchResults.length === 0 && (
                 <View className="py-10 items-center">
                   <Text className="text-gray-400 text-[14px]">Nenhum endereço encontrado</Text>
+                </View>
+              )}
+
+              {/* Recent and Favorite addresses when no search */}
+              {searchQuery.length === 0 && recentAddresses.length > 0 && (
+                <View>
+                  {recentAddresses.map((fav) => {
+                    const isHistory = fav._id.startsWith("hist_");
+                    return (
+                      <TouchableOpacity
+                        key={fav._id}
+                        onPress={() => handleSelectRecent(fav)}
+                        className="flex-row items-center px-4 py-3.5 border-b border-gray-50"
+                      >
+                        <View className="w-[32px] h-[32px] rounded-full bg-orange-50 items-center justify-center mr-3">
+                          {isHistory ? (
+                            <History size={16} color="#ff7a3d" />
+                          ) : fav.name.toLowerCase().includes("casa") ? (
+                            <HomeIcon size={16} color="#ff7a3d" />
+                          ) : fav.name.toLowerCase().includes("trabalho") ? (
+                            <Briefcase size={16} color="#ff7a3d" />
+                          ) : (
+                            <Star size={16} color="#ff7a3d" fill="#ff7a3d" />
+                          )}
+                        </View>
+                        <View className="flex-1">
+                          <Text className="text-gray-800 text-[15px] font-semibold" numberOfLines={1}>
+                            {fav.name || (isHistory ? "Endereço recente" : "Local Salvo")}
+                          </Text>
+                          <Text className="text-gray-400 text-[13px] mt-0.5" numberOfLines={2}>
+                            {fav.formattedAddress || fav.address}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
               )}
 
