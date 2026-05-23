@@ -3,6 +3,23 @@
  * Fonte de verdade para as rotas do fluxo cliente (drawer + stack).
  */
 
+export type DeliveryAddressProfile = {
+  address: string;
+  addressCoords: { latitude: number; longitude: number } | null;
+  details?: string;
+  contactName: string;
+  contactPhone: string;
+};
+
+export type DeliveryVehicleType = "motorcycle" | "car" | "van" | "truck";
+
+export type DeliveryFlowPayload = {
+  flow: "send" | "receive";
+  vehicleType: DeliveryVehicleType;
+  pickupProfile: DeliveryAddressProfile;
+  dropoffProfile: DeliveryAddressProfile;
+};
+
 export type ClientStackParamList = {
   Home:
     | {
@@ -61,6 +78,13 @@ export type ClientStackParamList = {
         initialService?: string;
         resumeDriverFound?: boolean;
         activeRideId?: string;
+        confirmedSender?: DeliveryAddressProfile;
+        deliveryDraftProfile?: {
+          role: "pickup" | "dropoff";
+          profile: DeliveryAddressProfile;
+          vehicleType?: DeliveryVehicleType | string;
+          flow?: "send" | "receive" | string;
+        };
       }
     | undefined;
   LocationPicker:
@@ -85,6 +109,10 @@ export type ClientStackParamList = {
         };
         initialVehicle?: string;
         initialService?: string;
+        vehicleType?: DeliveryVehicleType | string;
+        flow?: "send" | "receive" | string;
+        pickupProfile?: DeliveryAddressProfile | null;
+        dropoffProfile?: DeliveryAddressProfile | null;
       }
     | undefined;
   DestinationSearch:
@@ -120,6 +148,11 @@ export type ClientStackParamList = {
         selectionMode?: boolean;
         returnScreen?: string;
         isSender?: boolean;
+        returnMode?: "sender" | "receiver";
+        vehicleType?: string;
+        flow?: "send" | "receive" | string;
+        pickupProfile?: DeliveryAddressProfile | null;
+        dropoffProfile?: DeliveryAddressProfile | null;
       }
     | undefined;
   SelectVehicle:
@@ -148,7 +181,10 @@ export type ClientStackParamList = {
   DeliverySenderInfo:
     | {
         mode?: "sender" | "receiver";
-        vehicleType?: string;
+        vehicleType?: DeliveryVehicleType | string;
+        flow?: "send" | "receive" | string;
+        pickupProfile?: DeliveryAddressProfile | null;
+        dropoffProfile?: DeliveryAddressProfile | null;
         senderData?: {
           mode: string;
           address: string;
@@ -160,8 +196,12 @@ export type ClientStackParamList = {
         mapPickedAddress?: string;
         mapPickedLatitude?: number;
         mapPickedLongitude?: number;
+        mapPickedName?: string;
+        mapPickedPhone?: string;
+        mapPickedDetails?: string;
       }
     | undefined;
+  DeliveryDetails: DeliveryFlowPayload;
   DeliveryMapPicker:
     | {
         initialLatitude?: number;

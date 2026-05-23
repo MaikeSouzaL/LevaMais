@@ -139,7 +139,7 @@ export default function EditDeliveryAddressScreen() {
                 onPress={() => {
                   navigation.navigate("FavoriteAddressFlow", {
                     selectionMode: true,
-                    initialSearchMode: "favorite",
+                    initialSearchMode: "favoritesList",
                     returnScreen: "EditDeliveryAddress",
                   });
                 }}

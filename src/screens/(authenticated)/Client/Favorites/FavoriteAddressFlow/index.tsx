@@ -12,7 +12,7 @@ import {
   View,
 } from "react-native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
+import { RouteProp, StackActions, useNavigation, useRoute } from "@react-navigation/native";
 import { Briefcase, ChevronLeft, ChevronRight, Flame, Home as HomeIcon, MapPin, Star, X, History } from "lucide-react-native";
 
 import favoriteAddressService, { FavoriteAddress } from "@/services/favoriteAddress.service";
@@ -51,7 +51,8 @@ export default function FavoriteAddressFlowScreen() {
   
   const isSelectionMode = route.params?.selectionMode || false;
   const returnScreen = route.params?.returnScreen || "DeliverySenderInfo";
-  const isSender = route.params?.isSender || false;
+  const isSender = route.params?.isSender || route.params?.returnMode === "sender" || false;
+  const returnMode = route.params?.returnMode || (isSender ? "sender" : "receiver");
 
   const [mode, setMode] = useState<Mode>(
     route.params?.initialSearchMode || (isSelectionMode ? "favorite" : "favoritesList")
@@ -125,17 +126,42 @@ export default function FavoriteAddressFlowScreen() {
   }, [mode, query]);
 
   const title = isSelectionMode
-    ? (isSender ? "Buscar local de coleta" : "Selecionar endereço")
+    ? (isSender ? "Buscar local para remetente" : "Buscar local para destinatário")
     : (mode === "favoriteName" ? "Nome do local" : mode === "favoritesList" ? "Favoritos" : "Favoritos");
 
   const placeholder = isSelectionMode
-    ? (isSender ? "Onde retirar a entrega?" : "Onde entregar?")
+    ? (isSender ? "Buscar local para remetente" : "Buscar local para destinatário")
     : (mode === "home" ? "Onde você mora?" : mode === "work" ? "Onde você trabalha?" : "Insira o endereço");
+
+  const returnPickedAddress = (payload: {
+    address: string;
+    latitude: number;
+    longitude: number;
+    name?: string;
+    phone?: string;
+    details?: string;
+  }) => {
+    if (!isSelectionMode) return false;
+    navigation.dispatch(StackActions.replace(returnScreen as any, {
+      mode: returnMode,
+      vehicleType: route.params?.vehicleType,
+      flow: route.params?.flow,
+      pickupProfile: route.params?.pickupProfile || null,
+      dropoffProfile: route.params?.dropoffProfile || null,
+      mapPickedAddress: payload.address,
+      mapPickedLatitude: payload.latitude,
+      mapPickedLongitude: payload.longitude,
+      mapPickedName: payload.name,
+      mapPickedPhone: payload.phone || "",
+      mapPickedDetails: payload.details || "",
+    }));
+    return true;
+  };
 
   const saveAddress = async (name: string, icon: "home" | "work" | "favorite", address: string, latitude: number, longitude: number) => {
     setSaving(true);
     try {
-      await favoriteAddressService.create({
+      const created = await favoriteAddressService.create({
         name,
         icon,
         address,
@@ -143,6 +169,16 @@ export default function FavoriteAddressFlowScreen() {
         latitude,
         longitude,
       });
+      if (created && returnPickedAddress({
+        address: created.formattedAddress || created.address,
+        latitude: Number(created.latitude),
+        longitude: Number(created.longitude),
+        name: created.name,
+        phone: (created as any).contactPhone,
+        details: created.details,
+      })) {
+        return;
+      }
       await loadFavorites();
       setQuery("");
       setResults([]);
@@ -160,11 +196,11 @@ export default function FavoriteAddressFlowScreen() {
       const details = await getPlaceDetails(item.placeId);
       if (!details) return;
       if (isSelectionMode) {
-        navigation.navigate(returnScreen as any, {
-          mapPickedAddress: details.formattedAddress,
-          mapPickedLatitude: details.latitude,
-          mapPickedLongitude: details.longitude,
-          isSender: isSender,
+        returnPickedAddress({
+          address: details.formattedAddress,
+          latitude: details.latitude,
+          longitude: details.longitude,
+          name: item.mainText,
         });
         return;
       }
@@ -214,11 +250,13 @@ export default function FavoriteAddressFlowScreen() {
 
   const handleFavoritePress = (fav: FavoriteAddress) => {
     if (isSelectionMode) {
-      navigation.navigate(returnScreen as any, {
-        mapPickedAddress: fav.formattedAddress || fav.address,
-        mapPickedLatitude: Number(fav.latitude),
-        mapPickedLongitude: Number(fav.longitude),
-        isSender: isSender,
+      returnPickedAddress({
+        address: fav.formattedAddress || fav.address,
+        latitude: Number(fav.latitude),
+        longitude: Number(fav.longitude),
+        name: fav.name,
+        phone: (fav as any).contactPhone,
+        details: fav.details,
       });
       return;
     }
@@ -285,8 +323,18 @@ export default function FavoriteAddressFlowScreen() {
         <View style={{ flex: 1 }}>
           {favorites.length === 0 ? (
             <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 }}>
-              <View style={{ width: 116, height: 116, borderRadius: 58, backgroundColor: "#e5e5ea", alignItems: "center", justifyContent: "center", marginBottom: 28 }}>
-                <MapPin size={60} color="#ff9f2d" fill="#ff9f2d" />
+              <View style={{ width: 128, height: 128, borderRadius: 64, backgroundColor: "#f0f4f8", alignItems: "center", justifyContent: "center", marginBottom: 28, overflow: 'hidden', position: 'relative' }}>
+                {/* Decorative background circles */}
+                <View style={{ position: 'absolute', width: 60, height: 60, borderRadius: 30, backgroundColor: '#e2ebf5', left: -8, top: 34 }} />
+                <View style={{ position: 'absolute', width: 40, height: 40, borderRadius: 20, backgroundColor: '#e2ebf5', right: -8, bottom: 24 }} />
+                
+                {/* Pin with star badge */}
+                <View style={{ width: 76, height: 76, borderRadius: 38, backgroundColor: '#d1fae5', alignItems: 'center', justifyContent: 'center', shadowColor: '#02de95', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 6, elevation: 3 }}>
+                  <MapPin size={46} color="#02de95" fill="#02de95" />
+                  <View style={{ position: 'absolute', top: 20 }}>
+                    <Star size={16} color="#fff" fill="#fff" />
+                  </View>
+                </View>
               </View>
               <Text style={{ color: "#0f172a", fontSize: 25, fontWeight: "900", marginBottom: 12 }}>Locais favoritos</Text>
               <Text style={{ color: "#333", textAlign: "center", fontSize: 16, lineHeight: 22, marginBottom: 28 }}>
@@ -295,9 +343,9 @@ export default function FavoriteAddressFlowScreen() {
               <TouchableOpacity
                 onPress={() => setMode("favorite")}
                 activeOpacity={0.85}
-                style={{ height: 56, paddingHorizontal: 34, borderRadius: 28, backgroundColor: "#ffbd31", alignItems: "center", justifyContent: "center" }}
+                style={{ height: 56, paddingHorizontal: 34, borderRadius: 28, backgroundColor: "#02de95", alignItems: "center", justifyContent: "center" }}
               >
-                <Text style={{ color: "#111827", fontSize: 19, fontWeight: "900" }}>Adicionar favorito</Text>
+                <Text style={{ color: "#091A2F", fontSize: 19, fontWeight: "900" }}>Adicionar favorito</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -317,9 +365,9 @@ export default function FavoriteAddressFlowScreen() {
               </ScrollView>
               <TouchableOpacity
                 onPress={() => setMode("favorite")}
-                style={{ position: "absolute", right: 24, bottom: 28, width: 64, height: 64, borderRadius: 32, backgroundColor: "#ffc43d", alignItems: "center", justifyContent: "center" }}
+                style={{ position: "absolute", right: 24, bottom: 28, width: 64, height: 64, borderRadius: 32, backgroundColor: "#02de95", alignItems: "center", justifyContent: "center", shadowColor: '#02de95', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 4 }}
               >
-                <Text style={{ color: "#fff", fontSize: 42, lineHeight: 46, fontWeight: "300" }}>+</Text>
+                <Text style={{ color: "#091A2F", fontSize: 42, lineHeight: 46, fontWeight: "300" }}>+</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -347,9 +395,9 @@ export default function FavoriteAddressFlowScreen() {
             <TouchableOpacity
               onPress={handleSaveFavoriteName}
               disabled={saving || !draft || !favoriteName.trim()}
-              style={{ height: 58, paddingHorizontal: 34, borderRadius: 29, backgroundColor: "#ffbd31", opacity: saving || !favoriteName.trim() ? 0.55 : 1, alignItems: "center", justifyContent: "center" }}
+              style={{ height: 58, paddingHorizontal: 34, borderRadius: 29, backgroundColor: "#02de95", opacity: saving || !favoriteName.trim() ? 0.55 : 1, alignItems: "center", justifyContent: "center" }}
             >
-              <Text style={{ color: "#111827", fontSize: 20, fontWeight: "900" }}>{saving ? "Salvando..." : "Salvar"}</Text>
+              <Text style={{ color: "#091A2F", fontSize: 20, fontWeight: "900" }}>{saving ? "Salvando..." : "Salvar"}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -381,11 +429,13 @@ export default function FavoriteAddressFlowScreen() {
             <TouchableOpacity
               onPress={() => {
                 if (casaFav) {
-                  navigation.navigate(returnScreen as any, {
-                    mapPickedAddress: casaFav.formattedAddress || casaFav.address,
-                    mapPickedLatitude: Number(casaFav.latitude),
-                    mapPickedLongitude: Number(casaFav.longitude),
-                    isSender: isSender,
+                  returnPickedAddress({
+                    address: casaFav.formattedAddress || casaFav.address,
+                    latitude: Number(casaFav.latitude),
+                    longitude: Number(casaFav.longitude),
+                    name: casaFav.name,
+                    phone: (casaFav as any).contactPhone,
+                    details: casaFav.details,
                   });
                 } else {
                   setMode("home");
@@ -401,11 +451,13 @@ export default function FavoriteAddressFlowScreen() {
             <TouchableOpacity
               onPress={() => {
                 if (trabalhoFav) {
-                  navigation.navigate(returnScreen as any, {
-                    mapPickedAddress: trabalhoFav.formattedAddress || trabalhoFav.address,
-                    mapPickedLatitude: Number(trabalhoFav.latitude),
-                    mapPickedLongitude: Number(trabalhoFav.longitude),
-                    isSender: isSender,
+                  returnPickedAddress({
+                    address: trabalhoFav.formattedAddress || trabalhoFav.address,
+                    latitude: Number(trabalhoFav.latitude),
+                    longitude: Number(trabalhoFav.longitude),
+                    name: trabalhoFav.name,
+                    phone: (trabalhoFav as any).contactPhone,
+                    details: trabalhoFav.details,
                   });
                 } else {
                   setMode("work");
@@ -476,11 +528,11 @@ export default function FavoriteAddressFlowScreen() {
                   <TouchableOpacity
                     key={hist._id}
                     onPress={() => {
-                      navigation.navigate(returnScreen as any, {
-                        mapPickedAddress: hist.formattedAddress || hist.address,
-                        mapPickedLatitude: Number(hist.latitude),
-                        mapPickedLongitude: Number(hist.longitude),
-                        isSender: isSender,
+                      returnPickedAddress({
+                        address: hist.formattedAddress || hist.address,
+                        latitude: Number(hist.latitude),
+                        longitude: Number(hist.longitude),
+                        name: hist.name,
                       });
                     }}
                     style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 24, paddingVertical: 12 }}
@@ -506,11 +558,11 @@ export default function FavoriteAddressFlowScreen() {
                 key={item.title}
                 onPress={() => {
                   if (isSelectionMode) {
-                    navigation.navigate(returnScreen as any, {
-                      mapPickedAddress: `${item.title} - ${item.subtitle}`,
-                      mapPickedLatitude: -11.6722,
-                      mapPickedLongitude: -61.1936,
-                      isSender: isSender,
+                    returnPickedAddress({
+                      address: `${item.title} - ${item.subtitle}`,
+                      latitude: -11.6722,
+                      longitude: -61.1936,
+                      name: item.title,
                     });
                     return;
                   }

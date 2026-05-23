@@ -1,191 +1,159 @@
-# Fluxo 26 - Endereços favoritos do cliente
+# Fluxo 26 - Entrega, endereços e favoritos do cliente
 
 ## Objetivo
 
-Permitir que o cliente salve endereços frequentes e use esses locais como coleta ou destino no fluxo de entrega.
+Organizar a aba `Entrega` da Home para separar retirada e entrega, permitir seleção de veículo, reutilizar favoritos e abrir `Detalhes da entrega` apenas quando origem e destino estiverem completos.
 
-O app agora segue o comportamento da referência:
+## Home - Aba Entrega
 
-- `Casa` abre a busca com o texto `Onde você mora?`.
-- `Trabalho` abre a busca com o texto `Onde você trabalha?`.
-- `Favoritos` abre uma nova tela dedicada com a lista de locais salvos.
-- Se não houver favoritos, a tela exibe o estado vazio e o botão `Adicionar favorito`.
-- Ao adicionar favorito, o cliente busca um endereço, informa o `Nome do local` e salva.
-- Ao selecionar um favorito salvo, o endereço é preenchido no campo atual, seja coleta ou destino.
-- Quando o teclado é fechado manualmente durante a busca, o bottom sheet também é fechado para manter o comportamento igual à referência.
-- A Home do cliente, na aba de corrida, também exibe atalhos para adicionar `Casa`, `Trabalho` e `Favorito`, todos abrindo a nova tela.
-- A Home do cliente, na aba de entrega, exibe os mesmos atalhos acima do card `Enviar/Receber`, todos abrindo a nova tela.
-- As telas antigas de criação de favorito foram removidas; novos favoritos devem passar pela nova tela `FavoriteAddressFlow`.
+A Home mantém as abas principais `Corrida`, `Entrega` e `Pay`.
 
-## Banco de dados
+Na aba `Entrega`, a tela exibe:
 
-Foi criada a coleção MongoDB `favoritos`.
+- Seletor horizontal de veículo: `Moto`, `Carro`, `Van` e `Truck`.
+- Check verde no veículo selecionado.
+- Atalhos `Adicionar Casa`, `Adicionar Trabalho` e `Adicionar Favorito`.
+- Card com tabs internas `Enviar` e `Receber`.
 
-Cada documento fica atrelado ao usuário pelo campo `userId`.
+A Home é o ponto de montagem do fluxo. Depois que o usuário confirma o primeiro endereço, o app volta para a Home na aba `Entrega` para que ele escolha manualmente o outro campo. Quando o segundo endereço é confirmado, o app navega para `DeliveryDetails`.
 
-Campos principais:
+## Estado Interno
 
-```json
+A Home usa dois estados separados:
+
+- `pickupProfile`: retirada/origem/remetente.
+- `dropoffProfile`: entrega/destino/destinatário.
+
+Formato de cada perfil:
+
+```ts
 {
-  "_id": "ObjectId",
-  "userId": "ObjectId do usuario",
-  "name": "Casa",
-  "label": "Casa",
-  "icon": "home",
-  "address": "Rua Exemplo, 123 - Cidade",
-  "formattedAddress": "Rua Exemplo, 123 - Cidade",
-  "latitude": -11.672,
-  "longitude": -61.193,
-  "city": "Pimenta Bueno",
-  "state": "RO",
-  "createdAt": "Date",
-  "updatedAt": "Date"
+  address: string;
+  addressCoords: { latitude: number; longitude: number } | null;
+  details?: string;
+  contactName: string;
+  contactPhone: string;
 }
 ```
 
-## Backend
+## Enviar e Receber
 
-Rotas protegidas por autenticação:
+Em `Enviar`:
+
+- Campo superior: `RETIRADA (ORIGEM)` abre `Informações do remetente`.
+- Campo inferior: `ENTREGA (DESTINO)` abre `Informações do destinatário`.
+
+Em `Receber`:
+
+- Campo superior: `RETIRADA (ORIGEM)` abre `Informações do remetente`.
+- Campo inferior: `ENTREGA (DESTINO)` abre `Informações do destinatário`.
+
+A diferença entre `Enviar` e `Receber` é visual/textual. Os dados continuam separados como origem e destino.
+
+## Confirmação dos Formulários
+
+`DeliverySenderInfo` recebe:
+
+```ts
+{
+  mode: "sender" | "receiver";
+  vehicleType: "motorcycle" | "car" | "van" | "truck";
+  flow: "send" | "receive";
+  pickupProfile?: DeliveryAddressProfile | null;
+  dropoffProfile?: DeliveryAddressProfile | null;
+}
+```
+
+Regras ao confirmar:
+
+- Se confirmou o remetente e ainda falta destinatário, volta para `Home` com `deliveryDraftProfile` preenchendo `pickupProfile`.
+- Se confirmou o destinatário e ainda falta remetente, volta para `Home` com `deliveryDraftProfile` preenchendo `dropoffProfile`.
+- A Home mostra a aba `Entrega`, mantém veículo e mantém `Enviar`/`Receber`.
+- O usuário toca manualmente no outro campo para preencher o perfil restante.
+- Se os dois perfis estão completos, `DeliverySenderInfo` monta o payload final e navega para `DeliveryDetails`.
+- A tela `Localizando você...` não aparece no meio desse retorno.
+
+## Payload Final
+
+Rota: `DeliveryDetails`.
+
+```ts
+{
+  flow: "send" | "receive";
+  vehicleType: "motorcycle" | "car" | "van" | "truck";
+  pickupProfile: DeliveryAddressProfile;
+  dropoffProfile: DeliveryAddressProfile;
+}
+```
+
+## Tela Detalhes da Entrega
+
+`DeliveryDetails` é a etapa visual antes da criação real do pedido.
+
+Ela mostra:
+
+- Card de rota com coleta e entrega.
+- Contatos de coleta e entrega.
+- Complementos, quando existirem.
+- Card `Inserir detalhes do item`.
+- Card do veículo selecionado.
+- Card `Verificar com PIN`.
+- Rodapé com pagamento, total inicial e botão `Confirmar`.
+
+Por enquanto, `Confirmar` apenas mantém a tela pronta para a próxima etapa. A criação real da entrega será conectada depois.
+
+## Seleção de Endereço
+
+A seleção usa a tela full screen `FavoriteAddressFlow`.
+
+Textos corretos:
+
+- Remetente: `Buscar local para remetente`.
+- Destinatário: `Buscar local para destinatário`.
+
+O retorno para `DeliverySenderInfo` preserva o payload parcial:
+
+```ts
+{
+  mode: "sender" | "receiver";
+  vehicleType: "motorcycle" | "car" | "van" | "truck";
+  flow: "send" | "receive";
+  pickupProfile?: DeliveryAddressProfile | null;
+  dropoffProfile?: DeliveryAddressProfile | null;
+  mapPickedAddress: string;
+  mapPickedLatitude: number;
+  mapPickedLongitude: number;
+  mapPickedName?: string;
+  mapPickedPhone?: string;
+  mapPickedDetails?: string;
+}
+```
+
+## Favoritos
+
+A coleção MongoDB é `favoritos`, vinculada ao usuário por `userId`.
+
+Endpoints protegidos:
 
 - `GET /api/favorite-addresses`
 - `POST /api/favorite-addresses`
 - `PUT /api/favorite-addresses/:favoriteId`
 - `DELETE /api/favorite-addresses/:favoriteId`
 
-### Listar favoritos
+Regras:
 
-Payload enviado pelo app:
+- `Casa`: procura favorito com `icon: "home"` ou nome `Casa`.
+- `Trabalho`: procura favorito com `icon: "work"` ou nome `Trabalho`.
+- `Favoritos`: abre a lista de favoritos salvos.
+- Se `Casa` ou `Trabalho` já existir, o endereço é aplicado automaticamente.
+- Se não existir, abre o cadastro do favorito correspondente.
 
-```http
-GET /api/favorite-addresses
-Authorization: Bearer <token>
-```
+## Validação Manual
 
-Resposta:
-
-```json
-{
-  "success": true,
-  "favorites": [
-    {
-      "_id": "id",
-      "id": "id",
-      "userId": "id do usuario",
-      "name": "Casa",
-      "label": "Casa",
-      "icon": "home",
-      "address": "Rua Exemplo, 123",
-      "formattedAddress": "Rua Exemplo, 123",
-      "latitude": -11.672,
-      "longitude": -61.193
-    }
-  ]
-}
-```
-
-### Criar favorito
-
-Payload enviado pelo app:
-
-```json
-{
-  "name": "Casa",
-  "icon": "home",
-  "address": "Rua Exemplo, 123",
-  "formattedAddress": "Rua Exemplo, 123",
-  "latitude": -11.672,
-  "longitude": -61.193
-}
-```
-
-Validações do backend:
-
-- `name` é obrigatório.
-- `address` ou `formattedAddress` é obrigatório.
-- `latitude` é obrigatória e deve estar entre `-90` e `90`.
-- `longitude` é obrigatória e deve estar entre `-180` e `180`.
-- `state`, quando enviado, deve ter duas letras.
-- Não permite duplicar favoritos com o mesmo `name` para o mesmo `userId`.
-
-Resposta de sucesso:
-
-```json
-{
-  "success": true,
-  "message": "Favorito adicionado com sucesso",
-  "favorite": {
-    "_id": "id",
-    "id": "id",
-    "name": "Casa",
-    "label": "Casa",
-    "icon": "home",
-    "address": "Rua Exemplo, 123",
-    "formattedAddress": "Rua Exemplo, 123",
-    "latitude": -11.672,
-    "longitude": -61.193
-  }
-}
-```
-
-## App cliente
-
-Tela afetada:
-
-- `DeliverySenderInfo`
-
-Fluxo de uso:
-
-1. Cliente toca no campo de endereço.
-2. O bottom sheet abre com busca, atalhos e sugestões.
-3. Ao tocar em `Casa`, o placeholder muda para `Onde você mora?`.
-4. Ao tocar em `Trabalho`, o placeholder muda para `Onde você trabalha?`.
-5. Ao tocar em `Favoritos`, abre a tela de favoritos.
-6. Ao adicionar favorito, o app busca o endereço pelo Google Places.
-7. Após selecionar o endereço, o app abre `Nome do local`.
-8. Ao salvar, o app envia o favorito para o backend.
-9. O favorito salvo passa a aparecer na lista e pode preencher coleta ou destino.
-10. Se o cliente fechar o teclado durante a busca, o app fecha o bottom sheet e limpa o estado da busca.
-
-## Pontos de entrada
-
-O mesmo fluxo de favoritos pode ser aberto por:
-
-- Campo de endereço dentro de `DeliverySenderInfo`.
-- Atalhos da Home na aba `Corrida`.
-- Atalhos da Home na aba `Entrega`.
-- Tela `Favoritos`, quando o usuário toca em adicionar.
-
-Todos esses pontos usam a rota `FavoriteAddressFlow`, que é uma tela full screen do stack. O cadastro de favoritos não deve abrir como bottom sheet.
-
-## Rota mobile
-
-```ts
-FavoriteAddressFlow: {
-  initialSearchMode?: "home" | "work" | "favorite" | "favoritesList";
-}
-```
-
-Uso esperado:
-
-- `initialSearchMode: "home"` abre busca com `Onde você mora?`.
-- `initialSearchMode: "work"` abre busca com `Onde você trabalha?`.
-- `initialSearchMode: "favorite"` abre busca com `Insira o endereço`.
-- `initialSearchMode: "favoritesList"` abre a lista/estado vazio de favoritos.
-
-## Observações
-
-- A coleção `favoritos` substitui o uso de favoritos embutidos no documento do usuário.
-- O endpoint antigo foi mantido no mesmo caminho usado pelo app: `/api/favorite-addresses`.
-- Casa e Trabalho também são salvos como favoritos, usando `icon` igual a `home` ou `work`.
-- Favoritos manuais usam `icon` igual a `favorite`.
-
-## Integração com entrega
-
-A Home do cliente na aba `Entrega` possui seletor horizontal de veículo:
-
-- `Moto Entrega` envia `vehicleType: "motorcycle"`.
-- `Carro Entrega` envia `vehicleType: "car"`.
-- `Van Entrega` envia `vehicleType: "van"`.
-- `Truck Entrega` envia `vehicleType: "truck"`.
-
-O veículo selecionado aparece com check verde no canto superior direito do card e é repassado para `DeliverySenderInfo`.
+1. Selecionar `Moto`, `Carro`, `Van` e `Truck` e confirmar se `vehicleType` acompanha a seleção.
+2. Abrir `Enviar`, preencher remetente e verificar que o app volta para Home na aba `Entrega` com a origem preenchida.
+3. Tocar no destino, preencher destinatário e verificar que abre `DeliveryDetails`.
+4. Repetir iniciando pelo destinatário e confirmar que o app volta para Home com o destino preenchido.
+5. Salvar `Casa`, `Trabalho` e um favorito comum.
+6. Tocar em `Casa`, `Trabalho` ou `Favoritos` e confirmar preenchimento automático.
+7. Confirmar que favoritos aparecem apenas para o usuário autenticado.

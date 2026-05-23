@@ -13,13 +13,14 @@ import {
   Modal as RNModal,
   Dimensions,
 } from "react-native";
-import { NavigationProp, RouteProp, useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
+import { CommonActions, NavigationProp, RouteProp, StackActions, useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import { ChevronLeft, ChevronRight, MapPin, Edit3, X, Home as HomeIcon, Briefcase, Star, Phone, User, Flame, Plus, Pencil, History } from "lucide-react-native";
 import { MotiView } from "moti";
-import { ClientStackParamList } from "../../../types/navigation";
+import { ClientStackParamList, DeliveryAddressProfile, DeliveryVehicleType } from "../../../types/navigation";
 import { useAuthStore } from "@/context/authStore";
 import { useMapLocation } from "../../../Shared/hooks/useMapLocation";
 import favoriteAddressService, { FavoriteAddress } from "@/services/favoriteAddress.service";
+import senderService from "@/services/sender.service";
 import rideService from "@/services/ride.service";
 import { searchPlaces, getPlaceDetails, PlaceAutocompleteResult } from "@/services/googlePlaces.service";
 
@@ -32,6 +33,11 @@ export default function DeliverySenderInfoScreen() {
   const mode = route.params?.mode || "sender"; // "sender" | "receiver"
   const isSender = mode === "sender";
   const title = isSender ? "Informações do remetente" : "Informações do destinatário";
+  const flow = route.params?.flow === "receive" ? "receive" : "send"; // "send" | "receive"
+  const vehicleType = (["motorcycle", "car", "van", "truck"].includes(String(route.params?.vehicleType))
+    ? route.params?.vehicleType
+    : "motorcycle") as DeliveryVehicleType;
+
 
   // Form fields
   const [address, setAddress] = useState("");
@@ -39,6 +45,7 @@ export default function DeliverySenderInfoScreen() {
   const [addressDetails, setAddressDetails] = useState("");
   const [contactName, setContactName] = useState("");
   const [contactPhone, setContactPhone] = useState("");
+  const [savedSenderProfile, setSavedSenderProfile] = useState<any>(null);
 
   // Address search state
   const [isSearchingAddress, setIsSearchingAddress] = useState(false);
@@ -56,6 +63,7 @@ export default function DeliverySenderInfoScreen() {
   const [favoriteName, setFavoriteName] = useState("");
   const searchTimeout = useRef<any>(null);
   const isSearchingAddressRef = useRef(false);
+  const isInitialized = useRef(false);
   const windowHeight = Dimensions.get("window").height;
 
   // Recent addresses / favorites
@@ -77,22 +85,18 @@ export default function DeliverySenderInfoScreen() {
       distance: "4.4km",
     },
   ];
+  const [showGpsWarning, setShowGpsWarning] = useState(false);
 
-  // Pre-fill with user data if sender mode
+  // Pre-fill with user data
   useEffect(() => {
-    if (isSender) {
-      if (currentAddress) {
-        setAddress(currentAddress);
-        if (userRegion) {
-          setAddressCoords({ latitude: userRegion.latitude, longitude: userRegion.longitude });
-        }
-      }
-      if (user) {
-        setContactName(user.name || "");
-        setContactPhone(user.phone || "");
-      }
-    }
-  }, [currentAddress, isSender, userRegion, user]);
+    const existingProfile = isSender ? route.params?.pickupProfile : route.params?.dropoffProfile;
+    setAddress(existingProfile?.address || "");
+    setAddressCoords(existingProfile?.addressCoords || null);
+    setAddressDetails(existingProfile?.details || "");
+    setContactName(existingProfile?.contactName || "");
+    setContactPhone(existingProfile?.contactPhone || "");
+    isInitialized.current = true;
+  }, [isSender, route.params?.dropoffProfile, route.params?.pickupProfile]);
 
   useEffect(() => {
     if (route.params?.mapPickedAddress) {
@@ -103,11 +107,27 @@ export default function DeliverySenderInfoScreen() {
           longitude: route.params.mapPickedLongitude,
         });
       }
+      if (route.params.mapPickedName) {
+        setContactName(route.params.mapPickedName);
+      }
+      if (route.params.mapPickedPhone) {
+        setContactPhone(route.params.mapPickedPhone);
+      }
+      if (route.params.mapPickedDetails) {
+        setAddressDetails(route.params.mapPickedDetails);
+      }
       setIsSearchingAddress(false);
       setSearchQuery("");
       setSearchResults([]);
     }
-  }, [route.params?.mapPickedAddress, route.params?.mapPickedLatitude, route.params?.mapPickedLongitude]);
+  }, [
+    route.params?.mapPickedAddress,
+    route.params?.mapPickedLatitude,
+    route.params?.mapPickedLongitude,
+    route.params?.mapPickedName,
+    route.params?.mapPickedPhone,
+    route.params?.mapPickedDetails
+  ]);
 
   useEffect(() => {
     isSearchingAddressRef.current = isSearchingAddress;
@@ -142,38 +162,7 @@ export default function DeliverySenderInfoScreen() {
       const loadFavorites = async () => {
         try {
           const favs = await favoriteAddressService.list();
-          let historyFavs: FavoriteAddress[] = [];
-          
-          try {
-            const history = await rideService.getHistory({ limit: 5 });
-            if (history?.rides) {
-              // Convert past rides dropoff/pickups to FavoriteAddress format
-              const seen = new Set<string>();
-              
-              history.rides.forEach(ride => {
-                const addLocation = (loc: any, type: string) => {
-                  if (loc && loc.address && !seen.has(loc.address)) {
-                    seen.add(loc.address);
-                    historyFavs.push({
-                      _id: `hist_${ride._id}_${type}`,
-                      name: ride.details?.recipientName || "Endereço recente",
-                      address: loc.address,
-                      formattedAddress: loc.address,
-                      latitude: loc.latitude,
-                      longitude: loc.longitude,
-                      contactPhone: ride.details?.recipientPhone || "",
-                    } as any);
-                  }
-                };
-                addLocation(ride.dropoff, "dropoff");
-                addLocation(ride.pickup, "pickup");
-              });
-            }
-          } catch (e) {
-            console.log("Failed to fetch ride history", e);
-          }
-          
-          setRecentAddresses(historyFavs);
+          setRecentAddresses(favs || []);
         } catch {}
       };
       loadFavorites();
@@ -265,10 +254,48 @@ export default function DeliverySenderInfoScreen() {
     if ((fav as any).contactPhone) {
       setContactPhone((fav as any).contactPhone);
     }
+    if (fav.details) {
+      setAddressDetails(fav.details);
+    }
 
     setIsSearchingAddress(false);
     setSearchMode("address");
     setSearchQuery("");
+  };
+
+  const findFavoriteByShortcut = (shortcut: "home" | "work") => {
+    const expectedName = shortcut === "home" ? "casa" : "trabalho";
+    return recentAddresses.find((fav) => {
+      const icon = String((fav as any).icon || "").toLowerCase();
+      const name = String(fav.name || (fav as any).label || "").toLowerCase();
+      return icon === shortcut || name === expectedName;
+    });
+  };
+
+  const openFavoriteFlow = (initialSearchMode: "home" | "work" | "favorite" | "favoritesList") => {
+    setIsSearchingAddress(false);
+    setSearchQuery("");
+    setSearchResults([]);
+    navigation.navigate("FavoriteAddressFlow", {
+      selectionMode: true,
+      initialSearchMode,
+      returnScreen: "DeliverySenderInfo",
+      returnMode: mode,
+      vehicleType,
+      flow,
+      pickupProfile: route.params?.pickupProfile || null,
+      dropoffProfile: route.params?.dropoffProfile || null,
+      isSender,
+    });
+  };
+
+  const handleShortcutPress = (shortcut: "home" | "work") => {
+    const favorite = findFavoriteByShortcut(shortcut);
+    if (favorite) {
+      handleSelectRecent(favorite);
+      return;
+    }
+    openFavoriteFlow(shortcut);
   };
 
   const handleSaveFavoriteDraft = async () => {
@@ -308,6 +335,8 @@ export default function DeliverySenderInfoScreen() {
       returnScreen: "DeliverySenderInfo",
       returnMode: mode,
       senderData: route.params?.senderData,
+      pickupProfile: route.params?.pickupProfile || null,
+      dropoffProfile: route.params?.dropoffProfile || null,
       initialLocation: addressCoords
         ? {
             formattedAddress: address,
@@ -321,7 +350,9 @@ export default function DeliverySenderInfoScreen() {
               longitude: userRegion.longitude,
             }
           : undefined,
-      initialVehicle: route.params?.vehicleType,
+      initialVehicle: vehicleType,
+      vehicleType,
+      flow,
     });
   };
 
@@ -335,39 +366,46 @@ export default function DeliverySenderInfoScreen() {
   };
 
   // Handle confirm
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (!address || !contactName || !contactPhone) return;
 
-    const data = {
-      mode,
+    const profile: DeliveryAddressProfile = {
       address,
       addressCoords,
-      addressDetails,
+      details: addressDetails,
       contactName,
       contactPhone,
     };
 
-    // Navigate to the next step based on mode
-    if (isSender) {
-      // After sender info, go to receiver info
-      navigation.navigate("DeliverySenderInfo" as any, { mode: "receiver", senderData: data });
-    } else {
-      // After receiver info, go to DeliverySetup
-      const senderData = route.params?.senderData;
-      navigation.navigate("DeliverySetup", {
-        vehicleType: route.params?.vehicleType || "motorcycle",
-        pickup: senderData?.addressCoords ? {
-          address: senderData.address,
-          latitude: senderData.addressCoords.latitude,
-          longitude: senderData.addressCoords.longitude,
-        } : undefined,
-        dropoff: addressCoords ? {
-          address,
-          latitude: addressCoords.latitude,
-          longitude: addressCoords.longitude,
-        } : undefined,
-      });
+    const nextPickupProfile = isSender ? profile : route.params?.pickupProfile || null;
+    const nextDropoffProfile = isSender ? route.params?.dropoffProfile || null : profile;
+
+    if (!nextPickupProfile || !nextDropoffProfile) {
+      navigation.dispatch(CommonActions.reset({
+        index: 0,
+        routes: [
+          {
+            name: "Home",
+            params: {
+              deliveryDraftProfile: {
+                role: isSender ? "pickup" : "dropoff",
+                profile,
+                vehicleType,
+                flow,
+              },
+            },
+          },
+        ],
+      }));
+      return;
     }
+
+    navigation.dispatch(StackActions.replace("DeliveryDetails", {
+      flow,
+      vehicleType,
+      pickupProfile: nextPickupProfile,
+      dropoffProfile: nextDropoffProfile,
+    }));
   };
 
   const isFormValid = address.trim().length > 0 && contactName.trim().length > 0 && contactPhone.trim().length > 0;
@@ -409,7 +447,12 @@ export default function DeliverySenderInfoScreen() {
                   selectionMode: true,
                   initialSearchMode: "favorite",
                   returnScreen: "DeliverySenderInfo",
-                  isSender: isSender,
+                  returnMode: mode,
+                  vehicleType,
+                  flow,
+                  pickupProfile: route.params?.pickupProfile,
+                  dropoffProfile: route.params?.dropoffProfile,
+                  isSender,
                 });
               }}
               className="flex-row items-center justify-between py-3 border-b border-gray-200"
@@ -494,31 +537,51 @@ export default function DeliverySenderInfoScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Recent Addresses */}
+          {/* Seus Favoritos */}
           <View className="pt-7 px-5">
-            <Text className="text-gray-500 text-[14px] font-semibold mb-3">Endereços recentes</Text>
+            <Text className="text-gray-500 text-[14px] font-semibold mb-3">Seus Favoritos</Text>
 
-
-            {/* Recent ride history addresses */}
-            {recentAddresses.map((fav) => (
-              <TouchableOpacity
-                key={fav._id}
-                onPress={() => handleSelectRecent(fav)}
-                className="flex-row items-center py-3.5 border-b border-gray-50"
-              >
-                <View className="w-[36px] h-[36px] rounded-full bg-gray-100 items-center justify-center mr-3">
-                  <MapPin size={18} color="#666" />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-gray-900 text-[15px] font-semibold" numberOfLines={1}>
-                    {fav.address || fav.formattedAddress}
-                  </Text>
-                  <Text className="text-gray-400 text-[12px] mt-0.5">
-                    {fav.name && fav.name !== "Endereço recente" ? fav.name : "Histórico de corrida"} · {user?.phone || "69993168022"}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            ))}
+            {recentAddresses.map((fav) => {
+              const nameLower = (fav.name || "").toLowerCase();
+              const isHome = nameLower.includes("casa");
+              const isWork = nameLower.includes("trabalho") || nameLower.includes("work");
+              
+              return (
+                <TouchableOpacity
+                  key={fav._id}
+                  onPress={() => handleSelectRecent(fav)}
+                  className="flex-row items-center py-3.5 border-b border-gray-50"
+                >
+                  <View className="w-[36px] h-[36px] rounded-full bg-orange-50 items-center justify-center mr-3">
+                    {isHome ? (
+                      <HomeIcon size={18} color="#ff7a3d" />
+                    ) : isWork ? (
+                      <Briefcase size={18} color="#ff7a3d" />
+                    ) : (
+                      <Star size={18} color="#ff7a3d" fill="#ff7a3d" />
+                    )}
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-gray-900 text-[15px] font-semibold" numberOfLines={1}>
+                      {fav.name}
+                    </Text>
+                    <Text className="text-gray-400 text-[12px] mt-0.5" numberOfLines={1}>
+                      {fav.address || fav.formattedAddress}
+                    </Text>
+                    {((fav as any).contactPhone || fav.details) && (
+                      <Text className="text-gray-400 text-[10px] mt-0.5" numberOfLines={1}>
+                        {[fav.details, (fav as any).contactPhone].filter(Boolean).join(" • ")}
+                      </Text>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+            {recentAddresses.length === 0 && (
+              <View className="py-4 items-center justify-center">
+                <Text className="text-gray-400 text-[13px]">Nenhum local favorito salvo.</Text>
+              </View>
+            )}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -573,8 +636,18 @@ export default function DeliverySenderInfoScreen() {
 
                 {recentAddresses.length === 0 ? (
                   <View className="flex-1 items-center justify-center px-8">
-                    <View className="w-[110px] h-[110px] rounded-full bg-gray-100 items-center justify-center mb-6">
-                      <MapPin size={56} color="#ff9f2d" fill="#ff9f2d" />
+                    <View style={{ width: 128, height: 128, borderRadius: 64, backgroundColor: "#f0f4f8", alignItems: "center", justifyContent: "center", marginBottom: 28, overflow: 'hidden', position: 'relative' }}>
+                      {/* Decorative background circles */}
+                      <View style={{ position: 'absolute', width: 60, height: 60, borderRadius: 30, backgroundColor: '#e2ebf5', left: -8, top: 34 }} />
+                      <View style={{ position: 'absolute', width: 40, height: 40, borderRadius: 20, backgroundColor: '#e2ebf5', right: -8, bottom: 24 }} />
+                      
+                      {/* Pin with star badge */}
+                      <View style={{ width: 76, height: 76, borderRadius: 38, backgroundColor: '#d1fae5', alignItems: 'center', justifyContent: 'center', shadowColor: '#02de95', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 6, elevation: 3 }}>
+                        <MapPin size={46} color="#02de95" fill="#02de95" />
+                        <View style={{ position: 'absolute', top: 20 }}>
+                          <Star size={16} color="#fff" fill="#fff" />
+                        </View>
+                      </View>
                     </View>
                     <Text className="text-gray-950 text-[24px] font-black mb-3">Locais favoritos</Text>
                     <Text className="text-gray-700 text-[15px] text-center mb-6">
@@ -586,9 +659,9 @@ export default function DeliverySenderInfoScreen() {
                         setSearchQuery("");
                       }}
                       className="h-[54px] px-8 rounded-full items-center justify-center"
-                      style={{ backgroundColor: "#ffbd31" }}
+                      style={{ backgroundColor: "#02de95" }}
                     >
-                      <Text className="text-gray-950 text-[18px] font-black">Adicionar favorito</Text>
+                      <Text className="text-[#091A2F] text-[18px] font-black">Adicionar favorito</Text>
                     </TouchableOpacity>
                   </View>
                 ) : (
@@ -704,8 +777,8 @@ export default function DeliverySenderInfoScreen() {
                           : searchMode === "favorite"
                             ? "Insira o endereço"
                             : isSender
-                              ? "Buscar local de coleta"
-                              : "Entregar para"
+                              ? "Buscar local para remetente"
+                              : "Buscar local para destinatário"
                     }
                     placeholderTextColor="#b8b8be"
                     autoFocus
@@ -730,14 +803,7 @@ export default function DeliverySenderInfoScreen() {
             <View className="flex-row px-4 py-2.5 gap-4 border-b border-gray-100">
               <TouchableOpacity
                 className="flex-row items-center gap-1.5"
-                onPress={() => {
-                  setIsSearchingAddress(false);
-                  setSearchQuery("");
-                  setSearchResults([]);
-                  navigation.navigate("FavoriteAddressFlow", {
-                    initialSearchMode: "home",
-                  });
-                }}
+                onPress={() => handleShortcutPress("home")}
               >
                 <HomeIcon size={14} color="#02de95" />
                 <Text className="text-gray-700 text-[13px] font-semibold">Casa</Text>
@@ -745,14 +811,7 @@ export default function DeliverySenderInfoScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 className="flex-row items-center gap-1.5"
-                onPress={() => {
-                  setIsSearchingAddress(false);
-                  setSearchQuery("");
-                  setSearchResults([]);
-                  navigation.navigate("FavoriteAddressFlow", {
-                    initialSearchMode: "work",
-                  });
-                }}
+                onPress={() => handleShortcutPress("work")}
               >
                 <Briefcase size={14} color="#666" />
                 <Text className="text-gray-700 text-[13px] font-semibold">Trabalho</Text>
@@ -760,14 +819,7 @@ export default function DeliverySenderInfoScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 className="flex-row items-center gap-1.5"
-                onPress={() => {
-                  setIsSearchingAddress(false);
-                  setSearchQuery("");
-                  setSearchResults([]);
-                  navigation.navigate("FavoriteAddressFlow", {
-                    initialSearchMode: "favoritesList",
-                  });
-                }}
+                onPress={() => openFavoriteFlow("favoritesList")}
               >
                 <Star size={14} color="#F59E0B" />
                 <Text className="text-gray-700 text-[13px] font-semibold">Favorit...</Text>
@@ -938,7 +990,7 @@ export default function DeliverySenderInfoScreen() {
                   onPress={() => {
                     setIsSearchingAddress(false);
                     setSearchQuery("");
-                    navigation.navigate("FavoriteAddressFlow", { initialSearchMode: "favorite" });
+                    openFavoriteFlow("favoritesList");
                   }}
                 >
                   <View className="w-[36px] h-[36px] rounded-full bg-gray-100 items-center justify-center mr-3">

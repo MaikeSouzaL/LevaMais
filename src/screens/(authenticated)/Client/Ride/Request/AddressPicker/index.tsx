@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, StyleSheet, TouchableOpacity, ActivityIndicator, Modal, Text, TextInput, Alert, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
+import { RouteProp, StackActions, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { GlobalMap } from "@/components/GlobalMap";
 import MapView, { Marker, Region } from 'react-native-maps';
@@ -36,6 +36,10 @@ export default function AddressPickerScreen() {
     favoriteData,
     initialVehicle,
     initialService,
+    vehicleType,
+    flow,
+    pickupProfile,
+    dropoffProfile,
   } = route.params || {};
   const isEditMode = !!favoriteId;
   
@@ -268,14 +272,17 @@ export default function AddressPickerScreen() {
     }
 
     if (returnScreen === "DeliverySenderInfo") {
-      navigation.navigate("DeliverySenderInfo", {
+      navigation.dispatch(StackActions.replace("DeliverySenderInfo", {
         mode: returnMode || "sender",
-        vehicleType: initialVehicle,
+        vehicleType: vehicleType || initialVehicle,
+        flow,
+        pickupProfile: pickupProfile || null,
+        dropoffProfile: dropoffProfile || null,
         senderData,
         mapPickedAddress: resolvedAddress,
         mapPickedLatitude: Number(finalLat),
         mapPickedLongitude: Number(finalLng),
-      });
+      }));
       return;
     }
 

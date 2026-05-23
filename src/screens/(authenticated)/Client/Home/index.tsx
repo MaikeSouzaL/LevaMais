@@ -21,7 +21,7 @@ import { useMapLocation } from "../Shared/hooks/useMapLocation";
 import { ClientRealtimeMap } from "@/components/client/home/ClientRealtimeMap";
 import {Modal} from "@/components/Modal";
 import { colors } from "@/theme";
-import { ClientStackParamList } from "../types/navigation";
+import { ClientStackParamList, DeliveryAddressProfile } from "../types/navigation";
 
 export default function HomeScreen() {
   const navigation = useNavigation<NavigationProp<ClientStackParamList>>();
@@ -83,6 +83,28 @@ export default function HomeScreen() {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [deliveryMode, setDeliveryMode] = useState<"send" | "receive">("send");
   const [selectedDeliveryVehicle, setSelectedDeliveryVehicle] = useState<"motorcycle" | "car" | "van" | "truck">("motorcycle");
+  const [pickupProfile, setPickupProfile] = useState<DeliveryAddressProfile | null>(null);
+  const [dropoffProfile, setDropoffProfile] = useState<DeliveryAddressProfile | null>(null);
+
+  useEffect(() => {
+    const draft = route.params?.deliveryDraftProfile;
+    if (!draft) return;
+
+    setActiveService("delivery");
+    if (draft.flow === "send" || draft.flow === "receive") {
+      setDeliveryMode(draft.flow);
+    }
+    if (["motorcycle", "car", "van", "truck"].includes(String(draft.vehicleType))) {
+      setSelectedDeliveryVehicle(draft.vehicleType as "motorcycle" | "car" | "van" | "truck");
+    }
+    if (draft.role === "pickup") {
+      setPickupProfile(draft.profile);
+    } else {
+      setDropoffProfile(draft.profile);
+    }
+
+    navigation.setParams({ deliveryDraftProfile: undefined });
+  }, [navigation, route.params?.deliveryDraftProfile]);
 
   useEffect(() => {
     setIsTransitioning(true);
@@ -357,6 +379,24 @@ export default function HomeScreen() {
     },
     [navigation],
   );
+
+  const openDeliveryAddressInfo = useCallback(
+    (role: "pickup" | "dropoff") => {
+      navigation.navigate("DeliverySenderInfo", {
+        mode: role === "pickup" ? "sender" : "receiver",
+        vehicleType: selectedDeliveryVehicle,
+        flow: deliveryMode,
+        pickupProfile,
+        dropoffProfile,
+      });
+    },
+    [deliveryMode, dropoffProfile, navigation, pickupProfile, selectedDeliveryVehicle],
+  );
+
+  const formatDeliveryContact = (profile: DeliveryAddressProfile | null) => {
+    if (!profile) return "Toque para preencher as informações";
+    return [profile.contactName, profile.contactPhone].filter(Boolean).join(" • ");
+  };
 
   const deliveryVehicles = [
     {
@@ -824,62 +864,53 @@ export default function HomeScreen() {
                   {/* Divider line fixed in the middle */}
                   <View className="absolute left-0 right-0 top-[55px] h-[1px] bg-white/[0.05] z-0" />
 
-                  {/* Slot A: User's Static Address */}
-                  <MotiView 
-                    animate={{
-                      translateY: deliveryMode === "send" ? 0 : 54
-                    }}
-                    transition={{
-                      type: "timing",
-                      duration: 350
-                    }}
+                  {/* Slot A: origem/coleta */}
+                  <MotiView
+                    animate={{ translateY: 0 }}
+                    transition={{ type: "timing", duration: 350 }}
                     style={{ position: 'absolute', left: 0, right: 0, height: 48, top: 4, justifyContent: 'center' }}
                     className="z-10"
                   >
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       activeOpacity={0.7}
                       className="flex-1 justify-center"
-                      onPress={() => {
-                        navigation.navigate("DeliverySenderInfo", {
-                          mode: deliveryMode === "send" ? "sender" : "receiver",
-                          vehicleType: selectedDeliveryVehicle
-                        });
-                      }}
+                      onPress={() => openDeliveryAddressInfo("pickup")}
                     >
-                      <Text className="text-white text-base font-bold mb-0.5" numberOfLines={1}>
-                        {currentAddress || "Localização Atual"}
+                      <Text className="text-[9px] font-black uppercase tracking-wider mb-0.5 text-[#02de95]">
+                        RETIRADA (ORIGEM)
                       </Text>
-                      <Text className="text-white/40 text-xs font-bold" numberOfLines={1}>
-                        {user?.name || "Cliente"} • {user?.phone || "Telefone não cadastrado"}
+                      <Text className="text-white text-sm font-bold mb-0.5" numberOfLines={1}>
+                        {pickupProfile ? pickupProfile.address : (deliveryMode === "receive" ? "Enviar de" : "Selecionar local de retirada")}
+                      </Text>
+                      <Text className="text-white/40 text-[11px] font-bold" numberOfLines={1}>
+                        {formatDeliveryContact(pickupProfile)}
                       </Text>
                     </TouchableOpacity>
                   </MotiView>
 
-                  {/* Slot B: Clickable Search Button */}
-                  <MotiView 
-                    animate={{
-                      translateY: deliveryMode === "send" ? 0 : -54
-                    }}
-                    transition={{
-                      type: "timing",
-                      duration: 350
-                    }}
+                  {/* Slot B: destino/entrega */}
+                  <MotiView
+                    animate={{ translateY: 0 }}
+                    transition={{ type: "timing", duration: 350 }}
                     style={{ position: 'absolute', left: 0, right: 0, height: 48, bottom: 4 }}
                     className="z-10"
                   >
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       activeOpacity={0.7}
-                      onPress={() => {
-                        navigation.navigate("DeliverySenderInfo", {
-                          mode: deliveryMode === "send" ? "receiver" : "sender",
-                          vehicleType: selectedDeliveryVehicle
-                        });
-                      }}
+                      onPress={() => openDeliveryAddressInfo("dropoff")}
                       className="flex-row items-center h-full justify-between"
                     >
-                      <Text className="text-white text-lg font-black">
-                        {deliveryMode === "send" ? "Entregar para" : "Enviar de"}
-                      </Text>
+                      <View className="flex-1 justify-center pr-3">
+                        <Text className="text-[9px] font-black uppercase tracking-wider mb-0.5 text-[#F59E0B]">
+                          ENTREGA (DESTINO)
+                        </Text>
+                        <Text className="text-white text-base font-black" numberOfLines={1}>
+                          {dropoffProfile ? dropoffProfile.address : (deliveryMode === "receive" ? "Receber em" : "Entregar para")}
+                        </Text>
+                        <Text className="text-white/40 text-[11px] font-bold" numberOfLines={1}>
+                          {formatDeliveryContact(dropoffProfile)}
+                        </Text>
+                      </View>
                       <View className="w-[30px] h-[30px] rounded-full bg-[#02de95] items-center justify-center" style={{ shadowColor: '#02de95', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 6, elevation: 4 }}>
                         <ArrowRight size={18} color="#091A2F" strokeWidth={4.5} />
                       </View>

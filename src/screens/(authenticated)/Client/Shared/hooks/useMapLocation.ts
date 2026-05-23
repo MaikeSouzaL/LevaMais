@@ -59,13 +59,19 @@ export function useMapLocation() {
 
       // Reverso do endereço inicial
       const address = await getAddressFromCoordinates({ latitude, longitude });
-      if (isMounted && address) {
-        const fullAddr = [
+      let fullAddr = "";
+      if (address) {
+        fullAddr = [
           `${address.street}${address.number ? ', ' + address.number : ''}`,
           address.neighborhood,
           address.city,
         ].filter(Boolean).join(' - ');
-        setCurrentAddress(fullAddr);
+      }
+
+      if (isMounted) {
+        if (fullAddr) {
+          setCurrentAddress(fullAddr);
+        }
       }
 
       // Monitorar movimentação em tempo real
