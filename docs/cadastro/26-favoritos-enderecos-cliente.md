@@ -157,3 +157,69 @@ Regras:
 5. Salvar `Casa`, `Trabalho` e um favorito comum.
 6. Tocar em `Casa`, `Trabalho` ou `Favoritos` e confirmar preenchimento automático.
 7. Confirmar que favoritos aparecem apenas para o usuário autenticado.
+
+## Detalhes da entrega - cálculo e pagamento
+
+A tela `DeliveryDetails` agora recalcula o preço pelo backend sempre que:
+
+- a tela abre com origem e destino completos;
+- o usuário troca o tipo de veículo;
+- o usuário inverte coleta e entrega;
+- o usuário altera o tipo do item.
+
+Endpoint usado pelo app:
+
+- `POST /api/rides/calculate-price`
+
+Payload principal enviado para cálculo:
+
+```ts
+{
+  serviceType: "delivery";
+  vehicleType: "motorcycle" | "car" | "van" | "truck";
+  pickup: {
+    address: string;
+    latitude: number;
+    longitude: number;
+  };
+  dropoff: {
+    address: string;
+    latitude: number;
+    longitude: number;
+  };
+  deliveryType?: string;
+}
+```
+
+O backend usa as configurações salvas em `PlatformConfig`, incluindo `vehiclePricing`, para calcular o valor por tipo de veículo. Se não existir regra específica de cidade/preço, o backend usa `vehiclePricing` como fallback global.
+
+## Troca de veículo
+
+Ao tocar no card `Entrega Moto`, `Entrega Carro`, `Entrega Van` ou `Entrega Truck`, a tela abre um seletor local de veículo. Ao selecionar outro veículo:
+
+- atualiza o veículo exibido;
+- dispara novo cálculo no backend;
+- atualiza o total exibido no rodapé.
+
+## Detalhes do item
+
+Ao tocar em `Inserir detalhes do item`, abre um painel de detalhes com:
+
+- tipo do item;
+- valor do item;
+- observações da entrega;
+- campo extra quando o tipo escolhido é `Outros`.
+
+Ao confirmar, o painel fecha e o resumo aparece no card de detalhes do item.
+
+## Métodos de pagamento
+
+Ao tocar na linha de pagamento do rodapé, abre a tela local de métodos de pagamento com:
+
+- saldo 99Pay;
+- botão `Depositar via Pix`;
+- opção de adicionar cartão;
+- opção `Dinheiro`;
+- opção `Maquininha de cartão`.
+
+Ao tocar em `Depositar via Pix`, abre a tela de depósito. Ao tocar no texto de vantagens, abre a tela de verificação. Se o usuário voltar nessa tela de verificação sem concluir, aparece o modal perguntando por que ele não terminou o cadastro.

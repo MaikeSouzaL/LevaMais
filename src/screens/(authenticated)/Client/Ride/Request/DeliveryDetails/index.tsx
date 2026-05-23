@@ -1,5 +1,6 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Animated,
   Easing,
@@ -10,6 +11,7 @@ import {
   SafeAreaView,
   ScrollView,
   StatusBar,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
@@ -28,6 +30,7 @@ import {
   KeyRound,
   Package,
   Pill,
+  Plus,
   Shirt,
   ShieldCheck,
   Smartphone,
@@ -39,6 +42,7 @@ import {
 } from "lucide-react-native";
 
 import { ClientStackParamList, DeliveryAddressProfile, DeliveryVehicleType } from "../../../types/navigation";
+import rideService, { CalculatePriceResponse } from "@/services/ride.service";
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -56,26 +60,26 @@ const vehicleImages: Record<DeliveryVehicleType, ImageSourcePropType> = {
 const vehicleCopy: Record<DeliveryVehicleType, { title: string; subtitle: string; details: string; price: string }> = {
   motorcycle: {
     title: "Entrega Moto",
-    subtitle: "Entregas r?pidas",
-    details: "40?34?36cm ? 10kg",
+    subtitle: "Entregas rápidas",
+    details: "40×34×36cm • 10kg",
     price: "R$16,80",
   },
   car: {
     title: "Entrega Carro",
-    subtitle: "Pacotes m?dios",
-    details: "Itens m?dios ? porta-malas",
+    subtitle: "Pacotes médios",
+    details: "Itens médios • porta-malas",
     price: "R$16,80",
   },
   van: {
     title: "Entrega Van",
     subtitle: "Volumes maiores",
-    details: "Cargas maiores ? van",
+    details: "Cargas maiores • van",
     price: "R$16,80",
   },
   truck: {
     title: "Entrega Truck",
     subtitle: "Cargas grandes",
-    details: "Carga pesada ? caminh?o",
+    details: "Carga pesada • caminhão",
     price: "R$16,80",
   },
 };
@@ -84,18 +88,24 @@ const itemTypes: Array<{ id: ItemTypeId; label: string; icon: React.ComponentTyp
   { id: "personal", label: "Itens pessoais", icon: User },
   { id: "food", label: "Alimentação", icon: Soup },
   { id: "clothing", label: "Vestuário", icon: Shirt },
-  { id: "electronics", label: "Eletr?nicos", icon: Smartphone },
+  { id: "electronics", label: "Eletrônicos", icon: Smartphone },
   { id: "documents", label: "Documentos", icon: Package },
   { id: "keys", label: "Chaves", icon: KeyRound },
   { id: "medicine", label: "Medicamentos", icon: Pill },
   { id: "other", label: "Outros", icon: SquareStack },
 ];
 
+const deliveryVehicles: DeliveryVehicleType[] = ["motorcycle", "car", "van", "truck"];
+
+const formatBRL = (value: number) =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(value || 0));
+
 export default function DeliveryDetailsScreen() {
   const navigation = useNavigation<NavigationProp<ClientStackParamList>>();
   const route = useRoute<RouteProp<ClientStackParamList, "DeliveryDetails">>();
   const insets = useSafeAreaInsets();
   const { pickupProfile, dropoffProfile, vehicleType } = route.params;
+  const [selectedVehicleType, setSelectedVehicleType] = useState<DeliveryVehicleType>(vehicleType);
   const [routeProfiles, setRouteProfiles] = useState<{
     pickupProfile: DeliveryAddressProfile;
     dropoffProfile: DeliveryAddressProfile;
@@ -108,10 +118,20 @@ export default function DeliveryDetailsScreen() {
   const [itemValue, setItemValue] = useState("");
   const [itemNotes, setItemNotes] = useState("");
   const [savedItemSummary, setSavedItemSummary] = useState<string | null>(null);
+  const [showVehicleSelector, setShowVehicleSelector] = useState(false);
+  const [showPaymentMethods, setShowPaymentMethods] = useState(false);
+  const [showDepositPix, setShowDepositPix] = useState(false);
+  const [showVerificationBenefits, setShowVerificationBenefits] = useState(false);
+  const [showExitReason, setShowExitReason] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "card_machine">("cash");
+  const [exitReason, setExitReason] = useState<string | null>(null);
+  const [priceData, setPriceData] = useState<CalculatePriceResponse | null>(null);
+  const [loadingPricing, setLoadingPricing] = useState(false);
+  const [pricingError, setPricingError] = useState<string | null>(null);
   const swapRotation = useRef(new Animated.Value(0)).current;
 
-  const vehicle = useMemo(() => vehicleCopy[vehicleType] || vehicleCopy.motorcycle, [vehicleType]);
-  const total = vehicle.price;
+  const vehicle = useMemo(() => vehicleCopy[selectedVehicleType] || vehicleCopy.motorcycle, [selectedVehicleType]);
+  const total = priceData?.pricing?.total ? formatBRL(priceData.pricing.total) : vehicle.price;
   const topInset = Math.max(insets.top, 18);
   const animatedSwapStyle = {
     transform: [
@@ -125,6 +145,65 @@ export default function DeliveryDetailsScreen() {
   };
 
   const selectedItemLabel = itemTypes.find((item) => item.id === selectedItemType)?.label;
+
+  useEffect(() => {
+    let mounted = true;
+
+    const calculatePrice = async () => {
+      const pickup = routeProfiles.pickupProfile.addressCoords;
+      const dropoff = routeProfiles.dropoffProfile.addressCoords;
+      if (!pickup || !dropoff) {
+        setPriceData(null);
+        setPricingError("Coordenadas incompletas para calcular a entrega.");
+        return;
+      }
+
+      try {
+        setLoadingPricing(true);
+        setPricingError(null);
+        const response = await rideService.calculatePrice({
+          serviceType: "delivery",
+          vehicleType: selectedVehicleType,
+          pickup: {
+            address: routeProfiles.pickupProfile.address,
+            latitude: pickup.latitude,
+            longitude: pickup.longitude,
+          },
+          dropoff: {
+            address: routeProfiles.dropoffProfile.address,
+            latitude: dropoff.latitude,
+            longitude: dropoff.longitude,
+          },
+          deliveryType: selectedItemType || "standard",
+        });
+        if (mounted) {
+          setPriceData(response);
+        }
+      } catch (error: any) {
+        if (mounted) {
+          setPriceData(null);
+          setPricingError(error?.message || "Falha ao calcular a entrega.");
+        }
+      } finally {
+        if (mounted) {
+          setLoadingPricing(false);
+        }
+      }
+    };
+
+    calculatePrice();
+
+    return () => {
+      mounted = false;
+    };
+  }, [
+    routeProfiles.pickupProfile.address,
+    routeProfiles.pickupProfile.addressCoords,
+    routeProfiles.dropoffProfile.address,
+    routeProfiles.dropoffProfile.addressCoords,
+    selectedVehicleType,
+    selectedItemType,
+  ]);
 
   const handleBackHome = () => {
     navigation.dispatch(
@@ -163,44 +242,39 @@ export default function DeliveryDetailsScreen() {
       : selectedItemLabel || "Item";
     const valueText = itemValue.trim() ? `R$ ${itemValue.trim()}` : null;
     const noteText = itemNotes.trim() ? itemNotes.trim() : null;
-    setSavedItemSummary([typeText, valueText, noteText].filter(Boolean).join(" ? "));
+    setSavedItemSummary([typeText, valueText, noteText].filter(Boolean).join(" • "));
     setShowItemDetails(false);
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-[#f4f4f4]">
+    <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#f4f4f4" />
 
-      <View
-        className="flex-row items-center justify-between px-5 pb-2.5"
-        style={{ paddingTop: topInset, height: 62 + topInset }}
-      >
-        <TouchableOpacity className="h-[42px] w-[42px] items-center justify-center" onPress={handleBackHome} activeOpacity={0.75}>
+      <View style={[styles.header, { paddingTop: topInset, height: 62 + topInset }]}>
+        <TouchableOpacity style={styles.headerButton} onPress={handleBackHome} activeOpacity={0.75}>
           <ChevronLeft size={28} color="#111827" strokeWidth={2.7} />
         </TouchableOpacity>
-        <Text className="flex-1 text-center text-[21px] font-black tracking-[-0.4px] text-[#111827]">
-          Detalhes da entrega
-        </Text>
-        <View className="h-[42px] w-[42px]" />
+        <Text style={styles.headerTitle}>Detalhes da entrega</Text>
+        <View style={styles.headerButton} />
       </View>
 
       <ScrollView
-        className="flex-1"
-        contentContainerClassName="gap-3 px-[18px] pb-[142px]"
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <View className="min-h-[232px] flex-row rounded-[22px] bg-white px-[18px] py-[18px]">
-          <View className="relative w-[30px] items-center pb-1 pt-[5px]">
+        <View style={styles.routeCard}>
+          <View style={styles.routeRail}>
             <Circle size={12} color="#10d79a" strokeWidth={3} />
-            <View className="my-[5px] w-[2px] flex-1 bg-[#e4e8ee]" />
-            <View className="my-[5px] w-[2px] flex-1 bg-[#e4e8ee]" />
+            <View style={styles.routeLine} />
+            <View style={styles.routeLine} />
             <Circle size={12} color="#ff7a32" strokeWidth={3} />
             <TouchableOpacity
-              className="absolute top-1/2 -mt-[13.5px] h-[27px] w-[27px] items-center justify-center rounded-full bg-[#f5f6f8] shadow-sm"
+              style={styles.routeSwapBadge}
               onPress={handleSwapAddresses}
               activeOpacity={0.75}
               accessibilityRole="button"
-              accessibilityLabel="Inverter endere?os de coleta e entrega"
+              accessibilityLabel="Inverter endereços de coleta e entrega"
             >
               <Animated.View style={animatedSwapStyle}>
                 <ArrowDownUp size={14} color="#111827" strokeWidth={3} />
@@ -208,17 +282,17 @@ export default function DeliveryDetailsScreen() {
             </TouchableOpacity>
           </View>
 
-          <View className="flex-1 pl-2.5">
-            <TouchableOpacity activeOpacity={0.85} className="min-h-[91px] flex-row items-center">
-              <View className="flex-1 pr-2">
-                <Text className="text-[18px] font-black leading-6 tracking-[-0.2px] text-[#111827]" numberOfLines={2}>
+          <View style={styles.routeBody}>
+            <TouchableOpacity activeOpacity={0.85} style={styles.routeRow}>
+              <View style={styles.routeTextWrap}>
+                <Text style={styles.addressText} numberOfLines={2}>
                   {routeProfiles.pickupProfile.address}
                 </Text>
-                <Text className="mt-2 text-[15px] font-semibold text-[#6b7280]" numberOfLines={1}>
-                  {routeProfiles.pickupProfile.contactName} ? {routeProfiles.pickupProfile.contactPhone}
+                <Text style={styles.contactText} numberOfLines={1}>
+                  {routeProfiles.pickupProfile.contactName} • {routeProfiles.pickupProfile.contactPhone}
                 </Text>
                 {!!routeProfiles.pickupProfile.details && (
-                  <Text className="mt-[7px] text-sm font-bold text-[#6b7280]" numberOfLines={1}>
+                  <Text style={styles.detailsText} numberOfLines={1}>
                     {routeProfiles.pickupProfile.details}
                   </Text>
                 )}
@@ -226,18 +300,18 @@ export default function DeliveryDetailsScreen() {
               <ChevronRight size={23} color="#7b7f86" />
             </TouchableOpacity>
 
-            <View className="my-2 h-px bg-[#eef1f5]" />
+            <View style={styles.routeDivider} />
 
-            <TouchableOpacity activeOpacity={0.85} className="min-h-[91px] flex-row items-center">
-              <View className="flex-1 pr-2">
-                <Text className="text-[18px] font-black leading-6 tracking-[-0.2px] text-[#111827]" numberOfLines={3}>
+            <TouchableOpacity activeOpacity={0.85} style={styles.routeRow}>
+              <View style={styles.routeTextWrap}>
+                <Text style={styles.addressText} numberOfLines={3}>
                   {routeProfiles.dropoffProfile.address}
                 </Text>
-                <Text className="mt-2 text-[15px] font-semibold text-[#6b7280]" numberOfLines={1}>
-                  {routeProfiles.dropoffProfile.contactName} ? {routeProfiles.dropoffProfile.contactPhone}
+                <Text style={styles.contactText} numberOfLines={1}>
+                  {routeProfiles.dropoffProfile.contactName} • {routeProfiles.dropoffProfile.contactPhone}
                 </Text>
                 {!!routeProfiles.dropoffProfile.details && (
-                  <Text className="mt-[7px] text-sm font-bold text-[#6b7280]" numberOfLines={1}>
+                  <Text style={styles.detailsText} numberOfLines={1}>
                     {routeProfiles.dropoffProfile.details}
                   </Text>
                 )}
@@ -247,81 +321,74 @@ export default function DeliveryDetailsScreen() {
           </View>
         </View>
 
-        <TouchableOpacity activeOpacity={0.9} className="min-h-[86px] flex-row items-center rounded-[22px] bg-white px-5" onPress={() => setShowItemDetails(true)}>
-          <View className="w-9 items-start">
+        <TouchableOpacity activeOpacity={0.9} style={styles.cardRow} onPress={() => setShowItemDetails(true)}>
+          <View style={styles.iconSlot}>
             <Package size={19} color="#667085" />
           </View>
-          <View className="flex-1">
-            <Text className="text-[17px] font-black tracking-[-0.2px] text-[#111827]">Inserir detalhes do item</Text>
-            <Text className="mt-2 text-[15px] font-semibold text-[#6b7280]" numberOfLines={2}>
+          <View style={styles.cardTextWrap}>
+            <Text style={styles.cardTitle}>Inserir detalhes do item</Text>
+            <Text style={styles.cardSubtitle} numberOfLines={2}>
               {savedItemSummary || "Adicionar uma observação na entrega"}
             </Text>
           </View>
           <ChevronRight size={23} color="#7b7f86" />
         </TouchableOpacity>
 
-        <TouchableOpacity activeOpacity={0.9} className="min-h-[108px] flex-row items-center rounded-[22px] bg-white px-[18px] py-4">
-          <Image source={vehicleImages[vehicleType]} className="mr-3 h-[58px] w-[58px]" resizeMode="contain" />
-          <View className="flex-1">
-            <View className="flex-row items-center gap-[5px]">
-              <Text className="text-[17px] font-black tracking-[-0.2px] text-[#111827]">{vehicle.title}</Text>
+        <TouchableOpacity activeOpacity={0.9} style={styles.vehicleCard} onPress={() => setShowVehicleSelector(true)}>
+          <Image source={vehicleImages[selectedVehicleType]} style={styles.vehicleImage} resizeMode="contain" />
+          <View style={styles.vehicleTextWrap}>
+            <View style={styles.vehicleTitleRow}>
+              <Text style={styles.cardTitle}>{vehicle.title}</Text>
               <Info size={14} color="#c2c6cc" />
             </View>
-            <Text className="mt-2 text-[15px] font-semibold text-[#6b7280]">{vehicle.subtitle}</Text>
-            <Text className="mt-1.5 text-[15px] font-bold text-[#6b7280]">{vehicle.details}</Text>
+            <Text style={styles.cardSubtitle}>{vehicle.subtitle}</Text>
+            <Text style={styles.vehicleDetails}>{vehicle.details}</Text>
+            {!!pricingError && <Text style={styles.pricingError}>{pricingError}</Text>}
           </View>
-          <View className="ml-2 flex-row items-center gap-2.5">
-            <Text className="text-lg font-black text-[#111827]">{vehicle.price}</Text>
-            <View className="h-[11px] w-[11px] rounded-full bg-[#111827]" />
+          <View style={styles.vehiclePriceWrap}>
+            {loadingPricing ? <ActivityIndicator color="#111827" /> : <Text style={styles.priceText}>{total}</Text>}
+            <View style={styles.radioDot} />
           </View>
         </TouchableOpacity>
 
-        <View className="min-h-[168px] rounded-[22px] bg-white px-[22px] pb-5 pt-6">
-          <View className="mb-[23px] flex-row items-center gap-1.5">
-            <Text className="text-[17px] font-black tracking-[-0.2px] text-[#111827]">Verificar com PIN</Text>
+        <View style={styles.pinCard}>
+          <View style={styles.pinHeader}>
+            <Text style={styles.cardTitle}>Verificar com PIN</Text>
             <Info size={14} color="#c2c6cc" />
           </View>
 
-          <TouchableOpacity className="h-[45px] flex-row items-center justify-between" onPress={() => setUsePickupPin((value) => !value)} activeOpacity={0.8}>
-            <Text className="text-base font-semibold text-[#4b5563]">Usar c?digo de coleta</Text>
-            <View className={
-              usePickupPin
-                ? "h-[21px] w-[21px] items-center justify-center rounded-[5px] border-[1.8px] border-[#111827] bg-[#111827]"
-                : "h-[21px] w-[21px] items-center justify-center rounded-[5px] border-[1.8px] border-[#d1d5db] bg-white"
-            }>
+          <TouchableOpacity style={styles.pinOption} onPress={() => setUsePickupPin((value) => !value)} activeOpacity={0.8}>
+            <Text style={styles.pinText}>Usar código de coleta</Text>
+            <View style={[styles.checkbox, usePickupPin && styles.checkboxActive]}>
               {usePickupPin && <Check size={16} color="#fff" strokeWidth={3.2} />}
             </View>
           </TouchableOpacity>
 
-          <TouchableOpacity className="h-[45px] flex-row items-center justify-between" onPress={() => setUseDropoffPin((value) => !value)} activeOpacity={0.8}>
-            <Text className="text-base font-semibold text-[#4b5563]">Usar c?digo de entrega</Text>
-            <View className={
-              useDropoffPin
-                ? "h-[21px] w-[21px] items-center justify-center rounded-[5px] border-[1.8px] border-[#111827] bg-[#111827]"
-                : "h-[21px] w-[21px] items-center justify-center rounded-[5px] border-[1.8px] border-[#d1d5db] bg-white"
-            }>
+          <TouchableOpacity style={styles.pinOption} onPress={() => setUseDropoffPin((value) => !value)} activeOpacity={0.8}>
+            <Text style={styles.pinText}>Usar código de entrega</Text>
+            <View style={[styles.checkbox, useDropoffPin && styles.checkboxActive]}>
               {useDropoffPin && <Check size={16} color="#fff" strokeWidth={3.2} />}
             </View>
           </TouchableOpacity>
         </View>
       </ScrollView>
 
-      <View className="absolute bottom-0 left-0 right-0 border-t border-[#eceff3] bg-white px-5 pb-[15px] pt-3.5">
-        <TouchableOpacity className="h-9 flex-row items-center" activeOpacity={0.8}>
-          <View className="mr-2 h-[19px] w-6 items-center justify-center rounded-[5px] bg-[#ffae00]">
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 15) }]}>
+        <TouchableOpacity style={styles.paymentRow} activeOpacity={0.8} onPress={() => setShowPaymentMethods(true)}>
+          <View style={styles.cashBadge}>
             <Wallet size={15} color="#fff" />
           </View>
-          <Text className="text-[15px] font-black text-[#111827]">Dinheiro</Text>
-          <View className="flex-1" />
-          <Text className="text-sm font-semibold text-[#4b5563]">Use saldo e poupe R$4,00</Text>
+          <Text style={styles.paymentLabel}>Dinheiro</Text>
+          <View style={styles.paymentSpacer} />
+          <Text style={styles.discountText}>Use saldo e poupe R$4,00</Text>
           <ChevronRight size={18} color="#9ca3af" />
         </TouchableOpacity>
 
-        <View className="mt-2 flex-row items-center justify-between">
-          <Text className="text-[22px] font-black text-[#111827]">{total}</Text>
-          <TouchableOpacity className="h-[60px] min-w-[184px] flex-row items-center justify-center gap-2 rounded-[22px] bg-[#ffd400]" onPress={handleConfirm} activeOpacity={0.9}>
+        <View style={styles.footerBottom}>
+          <Text style={styles.totalText}>{total}</Text>
+          <TouchableOpacity style={styles.confirmButton} onPress={handleConfirm} activeOpacity={0.9}>
             <ShieldCheck size={21} color="#111" />
-            <Text className="text-[22px] font-black text-[#111827]">Confirmar</Text>
+            <Text style={styles.confirmText}>Confirmar</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -386,7 +453,7 @@ export default function DeliveryDetailsScreen() {
                   className="h-11 flex-1 rounded-lg bg-[#f7f7f9] px-4 text-base text-[#111827]"
                 />
               </View>
-              <Text className="mb-8 text-[15px] leading-5 text-[#111827]">A 99 n?o sugere envio de itens com valor superior a R$500</Text>
+              <Text className="mb-8 text-[15px] leading-5 text-[#111827]">A 99 não sugere envio de itens com valor superior a R$500</Text>
 
               <Text className="mb-4 text-xl font-black text-[#111827]">Observações da entrega</Text>
               <View className="mb-10 min-h-[126px] rounded-lg bg-[#f7f7f9] px-4 py-3">
@@ -409,6 +476,507 @@ export default function DeliveryDetailsScreen() {
           </View>
         </View>
       )}
+
+      {showVehicleSelector && (
+        <View className="absolute inset-0 z-50 bg-black/35">
+          <TouchableOpacity className="flex-1" activeOpacity={1} onPress={() => setShowVehicleSelector(false)} />
+          <View className="rounded-t-[26px] bg-white px-6 pb-7 pt-5">
+            <View className="mb-5 flex-row items-center justify-between">
+              <Text className="text-[24px] font-black text-[#111827]">Tipo de entrega</Text>
+              <TouchableOpacity className="h-9 w-9 items-center justify-center rounded-full bg-[#f1f2f4]" onPress={() => setShowVehicleSelector(false)} activeOpacity={0.8}>
+                <X size={22} color="#9ca3af" strokeWidth={3} />
+              </TouchableOpacity>
+            </View>
+
+            <View className="gap-3">
+              {deliveryVehicles.map((type) => {
+                const option = vehicleCopy[type];
+                const active = selectedVehicleType === type;
+                return (
+                  <TouchableOpacity
+                    key={type}
+                    className={active ? "flex-row items-center rounded-[20px] border-2 border-[#02de95] bg-[#ecfff8] px-4 py-4" : "flex-row items-center rounded-[20px] border border-[#eef1f5] bg-white px-4 py-4"}
+                    activeOpacity={0.88}
+                    onPress={() => {
+                      setSelectedVehicleType(type);
+                      setShowVehicleSelector(false);
+                    }}
+                  >
+                    <Image source={vehicleImages[type]} className="mr-4 h-[52px] w-[52px]" resizeMode="contain" />
+                    <View className="flex-1">
+                      <Text className="text-[17px] font-black text-[#111827]">{option.title}</Text>
+                      <Text className="mt-1 text-sm font-semibold text-[#6b7280]">{option.subtitle}</Text>
+                      <Text className="mt-1 text-sm font-bold text-[#6b7280]">{option.details}</Text>
+                    </View>
+                    {active ? (
+                      <View className="h-6 w-6 items-center justify-center rounded-full bg-[#02de95]">
+                        <Check size={16} color="#111827" strokeWidth={3} />
+                      </View>
+                    ) : (
+                      <ChevronRight size={22} color="#9ca3af" />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        </View>
+      )}
+
+      {showPaymentMethods && (
+        <View className="absolute inset-0 z-50 bg-[#f4f4f4]">
+          <View className="flex-row items-center justify-between px-6 pb-4" style={{ paddingTop: topInset }}>
+            <TouchableOpacity className="h-10 w-10 justify-center" onPress={() => setShowPaymentMethods(false)} activeOpacity={0.8}>
+              <ChevronLeft size={28} color="#111827" strokeWidth={2.7} />
+            </TouchableOpacity>
+            <Text className="flex-1 text-[20px] font-black text-[#111827]">Métodos de pagamento</Text>
+            <View className="h-10 w-10" />
+          </View>
+
+          <ScrollView contentContainerStyle={{ paddingHorizontal: 26, paddingBottom: 34 }}>
+            <View className="mb-5 overflow-hidden rounded-[22px] border-2 border-[#ffd400] bg-white">
+              <View className="bg-[#ffd400] px-4 py-2">
+                <Text className="text-sm font-black text-[#111827]">99Pay</Text>
+              </View>
+              <View className="flex-row items-center px-4 py-5">
+                <View className="mr-3 h-6 w-8 items-center justify-center rounded bg-[#ffd400]">
+                  <Text className="text-[9px] font-black text-[#111827]">99Pay</Text>
+                </View>
+                <View className="flex-1">
+                  <Text className="text-[17px] font-black text-[#111827]">Saldo na 99</Text>
+                  <Text className="mt-2 text-base text-[#9ca3af]">R$0,00</Text>
+                  <Text className="mt-1 text-sm text-[#9ca3af]">Saldo insuficiente</Text>
+                  <View className="mt-1 self-start rounded-md bg-[#2ec66d] px-2 py-1">
+                    <Text className="text-sm font-bold text-white">-R$4,00</Text>
+                  </View>
+                </View>
+                <TouchableOpacity className="rounded-[14px] bg-[#ffd400] px-5 py-3" onPress={() => { setShowPaymentMethods(false); setShowDepositPix(true); }} activeOpacity={0.9}>
+                  <Text className="text-base font-black text-[#111827]">Depositar via Pix</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <TouchableOpacity className="mb-5 flex-row items-center rounded-[22px] bg-white px-5 py-5" activeOpacity={0.85}>
+              <View className="mr-4 h-7 w-7 items-center justify-center rounded-lg bg-[#f1f2f4]">
+                <Plus size={18} color="#111827" strokeWidth={3} />
+              </View>
+              <Text className="flex-1 text-[17px] font-bold text-[#111827]">Ad. cartão crédito/débito</Text>
+              <ChevronRight size={25} color="#111827" />
+            </TouchableOpacity>
+
+            <View className="rounded-[22px] bg-white px-5 py-4">
+              <TouchableOpacity className="flex-row items-center py-4" onPress={() => setPaymentMethod("cash")} activeOpacity={0.85}>
+                <View className="mr-4 h-6 w-8 items-center justify-center rounded-md bg-[#ffae00]">
+                  <Wallet size={16} color="#fff" />
+                </View>
+                <Text className="flex-1 text-[17px] font-semibold text-[#111827]">Dinheiro</Text>
+                <View className={paymentMethod === "cash" ? "h-6 w-6 rounded-full border-[7px] border-[#111827]" : "h-6 w-6 rounded-full border-2 border-[#d1d5db]"} />
+              </TouchableOpacity>
+              <TouchableOpacity className="flex-row items-center py-4" onPress={() => setPaymentMethod("card_machine")} activeOpacity={0.85}>
+                <View className="mr-4 h-6 w-8 items-center justify-center rounded-md bg-[#ff6b35]">
+                  <Wallet size={16} color="#fff" />
+                </View>
+                <Text className="flex-1 text-[17px] font-semibold text-[#111827]">Maquininha de cartão</Text>
+                <View className={paymentMethod === "card_machine" ? "h-6 w-6 rounded-full border-[7px] border-[#111827]" : "h-6 w-6 rounded-full border-2 border-[#d1d5db]"} />
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </View>
+      )}
+
+      {showDepositPix && (
+        <View className="absolute inset-0 z-50 bg-[#f8f8fa]">
+          <View className="flex-row items-center justify-between px-6 pb-4" style={{ paddingTop: topInset }}>
+            <TouchableOpacity className="h-10 w-10 justify-center" onPress={() => setShowDepositPix(false)} activeOpacity={0.8}>
+              <ChevronLeft size={28} color="#111827" strokeWidth={2.7} />
+            </TouchableOpacity>
+            <Text className="flex-1 text-[20px] font-black text-[#111827]">Depósito</Text>
+            <Text className="text-base font-semibold text-[#111827]">Histórico</Text>
+          </View>
+
+          <ScrollView contentContainerStyle={{ paddingHorizontal: 28, paddingBottom: 120 }}>
+            <View className="mb-8 mt-5 items-center">
+              <View className="h-[72px] w-[72px] items-center justify-center rounded-[24px] bg-[#20c987]">
+                <Wallet size={42} color="#fff" strokeWidth={2.5} />
+              </View>
+            </View>
+            <Text className="text-[24px] font-black leading-8 text-[#111827]">Deposite no saldo 99Pay para usar quando quiser</Text>
+            <Text className="mt-3 text-base leading-6 text-[#8b929f]">
+              Só para corridas e pedidos na 99Food. Depósitos são reembolsáveis. Verifique sua conta para desbloquear
+              <Text className="font-semibold text-[#8b929f]" onPress={() => setShowVerificationBenefits(true)}> mais vantagens &gt;</Text>
+            </Text>
+
+            <Text className="mb-3 mt-9 text-center text-base text-[#8b929f]">Valor</Text>
+            <View className="mb-5 h-[135px] items-center justify-center rounded-[18px] bg-white">
+              <Text className="text-[42px] font-black text-[#111827]">{total}</Text>
+            </View>
+
+            <View className="flex-row gap-2">
+              {[total, "R$30,00", "R$50,00"].map((amount, index) => (
+                <TouchableOpacity key={String(amount)} className={index === 0 ? "h-[86px] flex-1 items-center justify-center rounded-xl border border-[#02de95] bg-white" : "h-[86px] flex-1 items-center justify-center rounded-xl bg-white"} activeOpacity={0.85}>
+                  {index === 2 && <Text className="absolute -top-3 right-1 rounded bg-[#d9fae8] px-2 py-0.5 text-[10px] font-bold text-[#11a060]">Recomendado</Text>}
+                  <Text className="text-xl font-black text-[#111827]">{amount}</Text>
+                  {index === 0 && <Text className="mt-1 text-sm font-semibold text-[#111827]">A pagar</Text>}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+
+          <View className="absolute bottom-0 left-0 right-0 bg-[#f8f8fa] px-8 pb-7 pt-4">
+            <TouchableOpacity className="h-[56px] items-center justify-center rounded-[22px] bg-[#ffd400]" activeOpacity={0.9}>
+              <Text className="text-[21px] font-black text-[#111827]">Depositar com Pix</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {showVerificationBenefits && (
+        <View className="absolute inset-0 z-[60] bg-white">
+          <View className="px-6 pb-4" style={{ paddingTop: topInset }}>
+            <TouchableOpacity className="h-10 w-10 justify-center" onPress={() => setShowExitReason(true)} activeOpacity={0.8}>
+              <ChevronLeft size={28} color="#111827" strokeWidth={2.7} />
+            </TouchableOpacity>
+          </View>
+          <View className="h-[300px] bg-[#ded2c8]" />
+          <View className="-mt-12 flex-1 rounded-t-[50px] bg-white px-7 pt-14">
+            <Text className="text-[32px] font-black leading-[42px] text-black">Faça a verificação e ganhe até R$275,00 de recompensas</Text>
+            <Text className="mt-6 text-lg leading-7 text-[#9ca3af]">
+              Para cadastrar, insira suas informações, faça uma verificação facial e envie seu RG, CNH ou RNE
+            </Text>
+            <Text className="mt-2 text-lg leading-7 text-[#9ca3af]">
+              Ao mesmo tempo, também enviaremos uma solicitação de crédito para você
+            </Text>
+            <View className="flex-1" />
+            <Text className="mb-4 text-center text-sm leading-5 text-[#9ca3af]">
+              Ao continuar, você concorda com nossos <Text className="text-[#ff7a32]">Termos de Uso de Pagamento</Text> e <Text className="text-[#ff7a32]">Termos de Uso de Crédito</Text>
+            </Text>
+            <TouchableOpacity className="mb-7 h-[58px] items-center justify-center rounded-[16px] bg-[#ffd400]" activeOpacity={0.9}>
+              <Text className="text-[21px] font-black text-black">Concordar e continuar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {showExitReason && (
+        <View className="absolute inset-0 z-[70] justify-end bg-black/55">
+          <View className="rounded-t-[24px] bg-white px-8 pb-7 pt-6">
+            <View className="mb-6 flex-row items-start justify-between">
+              <Text className="flex-1 text-[27px] font-black leading-9 text-black">Por que você não terminou o cadastro?</Text>
+              <TouchableOpacity className="h-9 w-9 items-center justify-center" onPress={() => setShowExitReason(false)}>
+                <X size={24} color="#111827" strokeWidth={2.6} />
+              </TouchableOpacity>
+            </View>
+            {[
+              "Eu fiquei preocupado(a) que poderia demorar muito",
+              "Eu continuarei minha solicitação mais tarde",
+              "Eu não sabia por que tinha que concluir a verificação de identidade",
+            ].map((reason) => (
+              <TouchableOpacity key={reason} className="flex-row items-center border-b border-[#eef1f5] py-4" onPress={() => setExitReason(reason)} activeOpacity={0.85}>
+                <Text className="flex-1 text-base leading-5 text-black">{reason}</Text>
+                <View className={exitReason === reason ? "h-6 w-6 rounded-full border-[7px] border-[#111827]" : "h-6 w-6 rounded-full border-2 border-[#d1d5db]"} />
+              </TouchableOpacity>
+            ))}
+            <View className="mt-5 min-h-[118px] rounded-xl bg-[#f1f2f4] px-4 py-3">
+              <TextInput placeholder="Outro (especifique)" placeholderTextColor="#c3c7ce" multiline className="min-h-[78px] text-base text-[#111827]" />
+              <Text className="self-end text-sm text-[#b7bcc5]">0/200</Text>
+            </View>
+            <TouchableOpacity className={exitReason ? "mt-6 h-[56px] items-center justify-center rounded-[16px] bg-[#ffd400]" : "mt-6 h-[56px] items-center justify-center rounded-[16px] bg-[#f1f0f4]"} activeOpacity={0.9}>
+              <Text className={exitReason ? "text-xl font-black text-black" : "text-xl font-black text-[#d5d2d8]"}>Confirmar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#f4f4f4",
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingBottom: 10,
+  },
+  headerButton: {
+    width: 42,
+    height: 42,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: {
+    flex: 1,
+    textAlign: "center",
+    color: "#111827",
+    fontSize: 21,
+    fontWeight: "900",
+    letterSpacing: -0.4,
+  },
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 18,
+    paddingBottom: 142,
+    gap: 12,
+  },
+  routeCard: {
+    minHeight: 232,
+    flexDirection: "row",
+    backgroundColor: "#fff",
+    borderRadius: 22,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+  },
+  routeRail: {
+    position: "relative",
+    width: 30,
+    alignItems: "center",
+    paddingTop: 5,
+    paddingBottom: 4,
+  },
+  routeLine: {
+    width: 2,
+    flex: 1,
+    backgroundColor: "#e4e8ee",
+    marginVertical: 5,
+  },
+  routeSwapBadge: {
+    position: "absolute",
+    top: "50%",
+    marginTop: -13.5,
+    width: 27,
+    height: 27,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#f5f6f8",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  routeBody: {
+    flex: 1,
+    paddingLeft: 10,
+  },
+  routeRow: {
+    minHeight: 91,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  routeTextWrap: {
+    flex: 1,
+    paddingRight: 8,
+  },
+  addressText: {
+    fontSize: 18,
+    lineHeight: 24,
+    fontWeight: "900",
+    letterSpacing: -0.2,
+    color: "#111827",
+  },
+  contactText: {
+    marginTop: 8,
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#6b7280",
+  },
+  detailsText: {
+    marginTop: 7,
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#6b7280",
+  },
+  routeDivider: {
+    height: 1,
+    backgroundColor: "#eef1f5",
+    marginVertical: 8,
+  },
+  cardRow: {
+    minHeight: 86,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: 22,
+    paddingHorizontal: 20,
+  },
+  iconSlot: {
+    width: 36,
+    alignItems: "flex-start",
+  },
+  cardTextWrap: {
+    flex: 1,
+  },
+  cardTitle: {
+    fontSize: 17,
+    fontWeight: "900",
+    letterSpacing: -0.2,
+    color: "#111827",
+  },
+  cardSubtitle: {
+    marginTop: 8,
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#6b7280",
+  },
+  vehicleCard: {
+    minHeight: 108,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: 22,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+  },
+  vehicleImage: {
+    width: 58,
+    height: 58,
+    marginRight: 12,
+  },
+  vehicleTextWrap: {
+    flex: 1,
+  },
+  vehicleTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  vehicleDetails: {
+    marginTop: 6,
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#6b7280",
+  },
+  pricingError: {
+    marginTop: 4,
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#ff7a32",
+  },
+  vehiclePriceWrap: {
+    marginLeft: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  priceText: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: "#111827",
+  },
+  radioDot: {
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+    backgroundColor: "#111827",
+  },
+  pinCard: {
+    minHeight: 168,
+    backgroundColor: "#fff",
+    borderRadius: 22,
+    paddingHorizontal: 22,
+    paddingTop: 24,
+    paddingBottom: 20,
+  },
+  pinHeader: {
+    marginBottom: 23,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  pinOption: {
+    height: 45,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  pinText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#4b5563",
+  },
+  checkbox: {
+    width: 21,
+    height: 21,
+    borderRadius: 5,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.8,
+    borderColor: "#d1d5db",
+    backgroundColor: "#fff",
+  },
+  checkboxActive: {
+    borderColor: "#111827",
+    backgroundColor: "#111827",
+  },
+  footer: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderTopWidth: 1,
+    borderTopColor: "#eceff3",
+    backgroundColor: "#fff",
+    paddingHorizontal: 20,
+    paddingTop: 14,
+  },
+  paymentRow: {
+    height: 36,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  cashBadge: {
+    marginRight: 8,
+    width: 24,
+    height: 19,
+    borderRadius: 5,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#ffae00",
+  },
+  paymentLabel: {
+    fontSize: 15,
+    fontWeight: "900",
+    color: "#111827",
+  },
+  paymentSpacer: {
+    flex: 1,
+  },
+  discountText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#4b5563",
+  },
+  footerBottom: {
+    marginTop: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  totalText: {
+    fontSize: 22,
+    fontWeight: "900",
+    color: "#111827",
+  },
+  confirmButton: {
+    height: 60,
+    minWidth: 184,
+    borderRadius: 22,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#ffd400",
+  },
+  confirmText: {
+    fontSize: 22,
+    fontWeight: "900",
+    color: "#111827",
+  },
+});
