@@ -729,7 +729,7 @@ export default function DeliveryDetailsScreen() {
                   className="h-11 flex-1 rounded-lg bg-[#f7f7f9] px-4 text-base text-[#111827]"
                 />
               </View>
-              <Text className="mb-8 text-[15px] leading-5 text-[#111827]">A 99 não sugere envio de itens com valor superior a R$500</Text>
+              <Text className="mb-8 text-[15px] leading-5 text-[#111827]">A LevaMais não sugere envio de itens com valor superior a R$500</Text>
 
               <Text className="mb-4 text-xl font-black text-[#111827]">Observações da entrega</Text>
               <View className="mb-10 min-h-[126px] rounded-lg bg-[#f7f7f9] px-4 py-3">
@@ -810,24 +810,24 @@ export default function DeliveryDetailsScreen() {
           </View>
 
           <ScrollView contentContainerStyle={{ paddingHorizontal: 26, paddingBottom: 34 }}>
-            <View className="mb-5 overflow-hidden rounded-[22px] border-2 border-[#ffd400] bg-white">
-              <View className="bg-[#ffd400] px-4 py-2">
-                <Text className="text-sm font-black text-[#111827]">99Pay</Text>
+            <View className="mb-5 overflow-hidden rounded-[22px] border-2 border-[#02de95] bg-white">
+              <View className="bg-[#02de95] px-4 py-2">
+                <Text className="text-sm font-black text-[#111827]">LevaPay</Text>
               </View>
               <View className="flex-row items-center px-4 py-5">
-                <View className="mr-3 h-6 w-8 items-center justify-center rounded bg-[#ffd400]">
-                  <Text className="text-[9px] font-black text-[#111827]">99Pay</Text>
+                <View className="mr-3 h-6 w-[54px] items-center justify-center rounded bg-[#02de95]">
+                  <Text className="text-[9px] font-black text-[#111827]">LevaPay</Text>
                 </View>
                 <View className="flex-1">
-                  <Text className="text-[17px] font-black text-[#111827]">Saldo na 99</Text>
+                  <Text className="text-[17px] font-black text-[#111827]">Saldo na LevaPay</Text>
                   <Text className="mt-2 text-base text-[#9ca3af]">R$0,00</Text>
                   <Text className="mt-1 text-sm text-[#9ca3af]">Saldo insuficiente</Text>
                   <View className="mt-1 self-start rounded-md bg-[#2ec66d] px-2 py-1">
                     <Text className="text-sm font-bold text-white">-R$4,00</Text>
                   </View>
                 </View>
-                <TouchableOpacity className="rounded-[14px] bg-[#ffd400] px-5 py-3" onPress={() => { setShowPaymentMethods(false); setShowDepositPix(true); }} activeOpacity={0.9}>
-                  <Text className="text-base font-black text-[#111827]">Depositar via Pix</Text>
+                <TouchableOpacity className="rounded-[14px] bg-[#111827] px-4 py-3" onPress={() => { setShowPaymentMethods(false); setShowDepositPix(true); }} activeOpacity={0.9}>
+                  <Text className="text-base font-black text-[#02de95]">Depositar via Pix</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -876,9 +876,9 @@ export default function DeliveryDetailsScreen() {
                 <Wallet size={42} color="#fff" strokeWidth={2.5} />
               </View>
             </View>
-            <Text className="text-[24px] font-black leading-8 text-[#111827]">Deposite no saldo 99Pay para usar quando quiser</Text>
+            <Text className="text-[24px] font-black leading-8 text-[#111827]">Deposite no saldo LevaPay para usar quando quiser</Text>
             <Text className="mt-3 text-base leading-6 text-[#8b929f]">
-              Só para corridas e pedidos na 99Food. Depósitos são reembolsáveis. Verifique sua conta para desbloquear
+              Só para corridas e entregas na LevaMais. Depósitos são reembolsáveis. Verifique sua conta para desbloquear
               <Text className="font-semibold text-[#8b929f]" onPress={() => setShowVerificationBenefits(true)}> mais vantagens &gt;</Text>
             </Text>
 
