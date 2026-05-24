@@ -153,6 +153,9 @@ export type ClientStackParamList = {
         flow?: "send" | "receive" | string;
         pickupProfile?: DeliveryAddressProfile | null;
         dropoffProfile?: DeliveryAddressProfile | null;
+        mapPickedAddress?: string;
+        mapPickedLatitude?: number;
+        mapPickedLongitude?: number;
       }
     | undefined;
   SelectVehicle:
@@ -207,6 +210,14 @@ export type ClientStackParamList = {
         initialLatitude?: number;
         initialLongitude?: number;
         returnField?: string;
+        returnScreen?: "DeliverySenderInfo" | "FavoriteAddressFlow";
+        favoriteInitialSearchMode?: "home" | "work" | "favorite";
+        selectionMode?: boolean;
+        returnMode?: "sender" | "receiver";
+        vehicleType?: DeliveryVehicleType | string;
+        flow?: "send" | "receive" | string;
+        pickupProfile?: DeliveryAddressProfile | null;
+        dropoffProfile?: DeliveryAddressProfile | null;
       }
     | undefined;
   EditDeliveryAddress:

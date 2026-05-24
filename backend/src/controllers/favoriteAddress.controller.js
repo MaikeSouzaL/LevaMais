@@ -53,7 +53,12 @@ function serializeFavorite(favorite) {
 class FavoriteAddressController {
   async list(req, res) {
     try {
-      const favorites = await Favorite.find({ userId: req.user.id }).sort({ createdAt: -1 });
+      const filter = { userId: req.user.id };
+      const category = String(req.query?.category || "").trim().toLowerCase();
+      if (["home", "work", "favorite"].includes(category)) {
+        filter.icon = category;
+      }
+      const favorites = await Favorite.find(filter).sort({ createdAt: -1 });
       return res.json({
         success: true,
         favorites: favorites.map(serializeFavorite),
@@ -89,9 +94,11 @@ class FavoriteAddressController {
       const duplicate = await Favorite.findOne({
         userId: req.user.id,
         name: nameValue,
+        icon: normalizeText(payload.icon) || "favorite",
+        address: addressValue,
       });
       if (duplicate) {
-        return sendError(res, 409, `Voce ja possui um favorito com o nome "${nameValue}"`);
+        return sendError(res, 409, "Este endereco ja esta salvo nos seus favoritos");
       }
 
       const favorite = await Favorite.create({

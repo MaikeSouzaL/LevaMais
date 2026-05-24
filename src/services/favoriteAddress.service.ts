@@ -62,9 +62,9 @@ export interface UpdateFavoriteAddressRequest {
 
 class FavoriteAddressService {
   // Listar favoritos
-  async list(): Promise<FavoriteAddress[]> {
+  async list(params?: { category?: "home" | "work" | "favorite" }): Promise<FavoriteAddress[]> {
     try {
-      const response = await api.get("/favorite-addresses");
+      const response = await api.get("/favorite-addresses", { params });
       return response.data.favorites || [];
     } catch (error: any) {
       console.error("Erro ao listar favoritos:", error);

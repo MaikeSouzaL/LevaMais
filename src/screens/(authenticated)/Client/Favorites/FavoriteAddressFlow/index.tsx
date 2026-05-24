@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Keyboard,
   SafeAreaView,
   ScrollView,
@@ -17,10 +16,17 @@ import { Briefcase, ChevronLeft, ChevronRight, Flame, Home as HomeIcon, MapPin, 
 
 import favoriteAddressService, { FavoriteAddress } from "@/services/favoriteAddress.service";
 import { getPlaceDetails, PlaceAutocompleteResult, searchPlaces } from "@/services/googlePlaces.service";
-import rideService from "@/services/ride.service";
+import addressHistoryService from "@/services/addressHistory.service";
 import { ClientStackParamList } from "../../types/navigation";
 
 type Mode = "home" | "work" | "favorite" | "favoritesList" | "favoriteName";
+type FavoriteFilter = "home" | "work" | "favorite" | null;
+type FavoriteDraft = {
+  address: string;
+  latitude: number;
+  longitude: number;
+  icon: "home" | "work" | "favorite";
+};
 
 const nearbySuggestions = [
   {
@@ -53,55 +59,73 @@ export default function FavoriteAddressFlowScreen() {
   const returnScreen = route.params?.returnScreen || "DeliverySenderInfo";
   const isSender = route.params?.isSender || route.params?.returnMode === "sender" || false;
   const returnMode = route.params?.returnMode || (isSender ? "sender" : "receiver");
+  const initialScope = ["home", "work", "favorite"].includes(String(route.params?.initialSearchMode))
+    ? (route.params?.initialSearchMode as Exclude<FavoriteFilter, null>)
+    : null;
 
   const [mode, setMode] = useState<Mode>(
-    route.params?.initialSearchMode || (isSelectionMode ? "favorite" : "favoritesList")
+    initialScope ? "favoritesList" : route.params?.initialSearchMode || (isSelectionMode ? "favorite" : "favoritesList")
   );
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PlaceAutocompleteResult[]>([]);
   const [favorites, setFavorites] = useState<FavoriteAddress[]>([]);
+  const [favoriteFilter, setFavoriteFilter] = useState<FavoriteFilter>(initialScope);
   const [historyAddresses, setHistoryAddresses] = useState<any[]>([]);
+  const [favoritesLoaded, setFavoritesLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [draft, setDraft] = useState<{ address: string; latitude: number; longitude: number } | null>(null);
+  const [draft, setDraft] = useState<FavoriteDraft | null>(null);
   const [favoriteName, setFavoriteName] = useState("");
+  const [favoriteDetails, setFavoriteDetails] = useState("");
+  const [contactName, setContactName] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
   const searchTimeout = useRef<any>(null);
 
   const loadFavorites = useCallback(async () => {
-    const list = await favoriteAddressService.list();
+    const list = await favoriteAddressService.list(initialScope ? { category: initialScope } : undefined);
     setFavorites(list || []);
+    setFavoritesLoaded(true);
 
     try {
-      const history = await rideService.getHistory({ limit: 5 });
-      if (history?.rides) {
-        const histList: any[] = [];
-        const seen = new Set((list || []).map(f => f.formattedAddress || f.address));
-        
-        history.rides.forEach(ride => {
-          const addLocation = (loc: any, type: string) => {
-            if (loc && loc.address && !seen.has(loc.address)) {
-              seen.add(loc.address);
-              histList.push({
-                _id: `hist_${ride._id}_${type}`,
-                name: ride.details?.recipientName || "Endereço recente",
-                address: loc.address,
-                formattedAddress: loc.address,
-                latitude: loc.latitude,
-                longitude: loc.longitude,
-              });
-            }
-          };
-          addLocation(ride.dropoff, "dropoff");
-          addLocation(ride.pickup, "pickup");
-        });
-        setHistoryAddresses(histList);
-      }
+      const context = route.params?.returnMode === "sender" || route.params?.returnMode === "receiver"
+        ? route.params.returnMode
+        : "general";
+      const history = await addressHistoryService.list({ context, limit: 8 });
+      setHistoryAddresses(history);
     } catch {}
-  }, []);
+  }, [initialScope, route.params?.returnMode]);
 
   useEffect(() => {
     loadFavorites().catch(() => setFavorites([]));
   }, [loadFavorites]);
+
+  useEffect(() => {
+    if (!favoritesLoaded || !initialScope || mode !== "favoritesList" || favorites.length > 0) return;
+    setMode(initialScope);
+  }, [favorites.length, favoritesLoaded, initialScope, mode]);
+
+  useEffect(() => {
+    if (!route.params?.mapPickedAddress) return;
+    const icon = initialScope || "favorite";
+    setDraft({
+      address: route.params.mapPickedAddress,
+      latitude: Number(route.params.mapPickedLatitude || 0),
+      longitude: Number(route.params.mapPickedLongitude || 0),
+      icon,
+    });
+    setFavoriteName(icon === "home" ? "Casa" : icon === "work" ? "Trabalho" : "");
+    setFavoriteDetails("");
+    setContactName("");
+    setContactPhone("");
+    setQuery("");
+    setResults([]);
+    setMode("favoriteName");
+  }, [
+    initialScope,
+    route.params?.mapPickedAddress,
+    route.params?.mapPickedLatitude,
+    route.params?.mapPickedLongitude,
+  ]);
 
   useEffect(() => {
     if (mode === "favoritesList" || mode === "favoriteName") return;
@@ -125,9 +149,11 @@ export default function FavoriteAddressFlowScreen() {
     };
   }, [mode, query]);
 
+  const scopedTitle = favoriteFilter === "home" ? "Casa" : favoriteFilter === "work" ? "Trabalho" : favoriteFilter === "favorite" ? "Favoritos extras" : "Favoritos";
+  const scopedAddLabel = favoriteFilter === "home" ? "Adicionar casa" : favoriteFilter === "work" ? "Adicionar trabalho" : "Adicionar favorito";
   const title = isSelectionMode
-    ? (isSender ? "Buscar local para remetente" : "Buscar local para destinatário")
-    : (mode === "favoriteName" ? "Nome do local" : mode === "favoritesList" ? "Favoritos" : "Favoritos");
+    ? (favoriteFilter ? scopedTitle : isSender ? "Buscar local para remetente" : "Buscar local para destinatário")
+    : (mode === "favoriteName" ? "Dados do local" : scopedTitle);
 
   const placeholder = isSelectionMode
     ? (isSender ? "Buscar local para remetente" : "Buscar local para destinatário")
@@ -139,9 +165,23 @@ export default function FavoriteAddressFlowScreen() {
     longitude: number;
     name?: string;
     phone?: string;
+    contactName?: string;
     details?: string;
+    source?: "search" | "favorite" | "manual";
   }) => {
     if (!isSelectionMode) return false;
+    void addressHistoryService.create({
+      context: returnMode,
+      name: payload.name,
+      address: payload.address,
+      formattedAddress: payload.address,
+      latitude: payload.latitude,
+      longitude: payload.longitude,
+      details: payload.details,
+      contactName: payload.contactName,
+      contactPhone: payload.phone,
+      source: payload.source || "search",
+    });
     navigation.dispatch(StackActions.replace(returnScreen as any, {
       mode: returnMode,
       vehicleType: route.params?.vehicleType,
@@ -151,39 +191,75 @@ export default function FavoriteAddressFlowScreen() {
       mapPickedAddress: payload.address,
       mapPickedLatitude: payload.latitude,
       mapPickedLongitude: payload.longitude,
-      mapPickedName: payload.name,
+      mapPickedName: payload.contactName || payload.name,
       mapPickedPhone: payload.phone || "",
       mapPickedDetails: payload.details || "",
     }));
     return true;
   };
 
-  const saveAddress = async (name: string, icon: "home" | "work" | "favorite", address: string, latitude: number, longitude: number) => {
+  const resetDraftForm = () => {
+    setDraft(null);
+    setFavoriteName("");
+    setFavoriteDetails("");
+    setContactName("");
+    setContactPhone("");
+  };
+
+  const saveAddress = async (payload: {
+    name: string;
+    icon: "home" | "work" | "favorite";
+    address: string;
+    latitude: number;
+    longitude: number;
+    details?: string;
+    contactName?: string;
+    contactPhone?: string;
+  }) => {
     setSaving(true);
     try {
       const created = await favoriteAddressService.create({
-        name,
-        icon,
-        address,
-        formattedAddress: address,
-        latitude,
-        longitude,
+        name: payload.name,
+        icon: payload.icon,
+        address: payload.address,
+        formattedAddress: payload.address,
+        latitude: payload.latitude,
+        longitude: payload.longitude,
+        details: payload.details,
+        contactName: payload.contactName,
+        contactPhone: payload.contactPhone,
+      });
+      await addressHistoryService.create({
+        context: returnMode,
+        name: payload.name,
+        address: payload.address,
+        formattedAddress: payload.address,
+        latitude: payload.latitude,
+        longitude: payload.longitude,
+        details: payload.details,
+        contactName: payload.contactName,
+        contactPhone: payload.contactPhone,
+        source: "favorite",
       });
       if (created && returnPickedAddress({
         address: created.formattedAddress || created.address,
         latitude: Number(created.latitude),
         longitude: Number(created.longitude),
         name: created.name,
+        contactName: created.contactName,
         phone: (created as any).contactPhone,
         details: created.details,
+        source: "favorite",
       })) {
         return;
       }
       await loadFavorites();
       setQuery("");
       setResults([]);
-      setDraft(null);
-      setFavoriteName("");
+      resetDraftForm();
+      if (!isSelectionMode) {
+        setFavoriteFilter(payload.icon);
+      }
       setMode("favoritesList");
     } finally {
       setSaving(false);
@@ -195,6 +271,38 @@ export default function FavoriteAddressFlowScreen() {
     try {
       const details = await getPlaceDetails(item.placeId);
       if (!details) return;
+      if (mode === "home") {
+        setDraft({
+          address: details.formattedAddress,
+          latitude: details.latitude,
+          longitude: details.longitude,
+          icon: "home",
+        });
+        setFavoriteName("Casa");
+        setFavoriteDetails("");
+        setContactName("");
+        setContactPhone("");
+        setQuery("");
+        setResults([]);
+        setMode("favoriteName");
+        return;
+      }
+      if (mode === "work") {
+        setDraft({
+          address: details.formattedAddress,
+          latitude: details.latitude,
+          longitude: details.longitude,
+          icon: "work",
+        });
+        setFavoriteName("Trabalho");
+        setFavoriteDetails("");
+        setContactName("");
+        setContactPhone("");
+        setQuery("");
+        setResults([]);
+        setMode("favoriteName");
+        return;
+      }
       if (isSelectionMode) {
         returnPickedAddress({
           address: details.formattedAddress,
@@ -204,20 +312,16 @@ export default function FavoriteAddressFlowScreen() {
         });
         return;
       }
-      if (mode === "home") {
-        await saveAddress("Casa", "home", details.formattedAddress, details.latitude, details.longitude);
-        return;
-      }
-      if (mode === "work") {
-        await saveAddress("Trabalho", "work", details.formattedAddress, details.latitude, details.longitude);
-        return;
-      }
       setDraft({
         address: details.formattedAddress,
         latitude: details.latitude,
         longitude: details.longitude,
+        icon: "favorite",
       });
       setFavoriteName(item.mainText || details.street || details.formattedAddress);
+      setFavoriteDetails("");
+      setContactName("");
+      setContactPhone("");
       setQuery("");
       setResults([]);
       setMode("favoriteName");
@@ -227,14 +331,39 @@ export default function FavoriteAddressFlowScreen() {
   };
 
   const handleSaveFavoriteName = async () => {
-    if (!draft || !favoriteName.trim()) return;
-    await saveAddress(favoriteName.trim(), "favorite", draft.address, draft.latitude, draft.longitude);
+    if (!draft?.address.trim() || !favoriteName.trim() || !contactName.trim() || !contactPhone.trim()) return;
+    await saveAddress({
+      name: favoriteName.trim(),
+      icon: draft.icon,
+      address: draft.address,
+      latitude: draft.latitude,
+      longitude: draft.longitude,
+      details: favoriteDetails.trim(),
+      contactName: contactName.trim(),
+      contactPhone: contactPhone.trim(),
+    });
+  };
+
+  const handleDraftAddressChange = (address: string) => {
+    setDraft((current) => current ? { ...current, address } : current);
+  };
+
+  const openScopedCreateMode = () => {
+    if (favoriteFilter === "home") {
+      setMode("home");
+      return;
+    }
+    if (favoriteFilter === "work") {
+      setMode("work");
+      return;
+    }
+    setMode("favorite");
   };
 
   const handleBack = () => {
     Keyboard.dismiss();
     if (mode === "favoriteName") {
-      setMode("favorite");
+      setMode(draft?.icon || "favorite");
       return;
     }
     if (mode !== "favoritesList") {
@@ -253,49 +382,19 @@ export default function FavoriteAddressFlowScreen() {
       returnPickedAddress({
         address: fav.formattedAddress || fav.address,
         latitude: Number(fav.latitude),
-        longitude: Number(fav.longitude),
-        name: fav.name,
-        phone: (fav as any).contactPhone,
-        details: fav.details,
-      });
+          longitude: Number(fav.longitude),
+          name: fav.name,
+          contactName: fav.contactName,
+          phone: (fav as any).contactPhone,
+          details: fav.details,
+          source: "favorite",
+        });
       return;
     }
-    Alert.alert(
-      fav.name,
-      fav.formattedAddress || fav.address,
-      [
-        {
-          text: "Usar endereço",
-          onPress: () => {
-            navigation.navigate("DestinationSearch", {
-              initialVehicle: "car",
-              serviceType: "ride",
-              pickup: {
-                address: fav.formattedAddress || fav.address,
-                latitude: fav.latitude,
-                longitude: fav.longitude,
-              }
-            });
-          }
-        },
-        {
-          text: "Excluir favorito",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await favoriteAddressService.delete(fav._id);
-              await loadFavorites();
-            } catch (err) {
-              Alert.alert("Erro", "Não foi possível excluir o favorito.");
-            }
-          }
-        },
-        {
-          text: "Cancelar",
-          style: "cancel"
-        }
-      ]
-    );
+    navigation.navigate("EditDeliveryAddress", {
+      addressId: fav._id,
+      addressData: fav,
+    });
   };
 
   const renderSearchIcon = () => {
@@ -304,8 +403,47 @@ export default function FavoriteAddressFlowScreen() {
     return <Star size={18} color="#6b7280" fill="#6b7280" style={{ marginRight: 12 }} />;
   };
 
-  const casaFav = favorites.find(f => f.name.toLowerCase() === "casa" || f.icon === "home");
-  const trabalhoFav = favorites.find(f => f.name.toLowerCase() === "trabalho" || f.icon === "work");
+  const getFavoriteKind = (fav: FavoriteAddress): "home" | "work" | "favorite" => {
+    const icon = String(fav.icon || "").toLowerCase();
+    const name = String(fav.name || "").toLowerCase();
+    if (icon === "home" || name === "casa") return "home";
+    if (icon === "work" || name === "trabalho") return "work";
+    return "favorite";
+  };
+
+  const favoritesForFilter = favoriteFilter
+    ? favorites.filter((fav) => getFavoriteKind(fav) === favoriteFilter)
+    : favorites;
+
+  const getShortcutLabel = (kind: "home" | "work" | "favorite", fallback: string) => {
+    const list = favorites.filter((fav) => getFavoriteKind(fav) === kind);
+    if (list.length !== 1) return fallback;
+    const address = list[0].formattedAddress || list[0].address || list[0].name;
+    return address.split(/[,\s]+/).filter(Boolean).slice(0, 2).join(" ") || fallback;
+  };
+
+  const handleShortcut = (kind: "home" | "work" | "favorite") => {
+    const list = favorites.filter((fav) => getFavoriteKind(fav) === kind);
+    setFavoriteFilter(kind);
+    setMode(list.length === 0 ? kind : "favoritesList");
+  };
+
+  const currentCreateIcon: "home" | "work" | "favorite" =
+    mode === "home" ? "home" : mode === "work" ? "work" : favoriteFilter || "favorite";
+
+  const handleOpenMapPicker = () => {
+    navigation.navigate("DeliveryMapPicker", {
+      returnScreen: "FavoriteAddressFlow",
+      returnField: currentCreateIcon,
+      favoriteInitialSearchMode: currentCreateIcon,
+      selectionMode: isSelectionMode,
+      returnMode,
+      vehicleType: route.params?.vehicleType,
+      flow: route.params?.flow,
+      pickupProfile: route.params?.pickupProfile || null,
+      dropoffProfile: route.params?.dropoffProfile || null,
+    });
+  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
@@ -321,7 +459,7 @@ export default function FavoriteAddressFlowScreen() {
 
       {mode === "favoritesList" ? (
         <View style={{ flex: 1 }}>
-          {favorites.length === 0 ? (
+          {favoritesForFilter.length === 0 ? (
             <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 }}>
               <View style={{ width: 128, height: 128, borderRadius: 64, backgroundColor: "#f0f4f8", alignItems: "center", justifyContent: "center", marginBottom: 28, overflow: 'hidden', position: 'relative' }}>
                 {/* Decorative background circles */}
@@ -336,22 +474,24 @@ export default function FavoriteAddressFlowScreen() {
                   </View>
                 </View>
               </View>
-              <Text style={{ color: "#0f172a", fontSize: 25, fontWeight: "900", marginBottom: 12 }}>Locais favoritos</Text>
+              <Text style={{ color: "#0f172a", fontSize: 25, fontWeight: "900", marginBottom: 12 }}>{scopedTitle}</Text>
               <Text style={{ color: "#333", textAlign: "center", fontSize: 16, lineHeight: 22, marginBottom: 28 }}>
-                É mais fácil chegar a um destino se ele já estiver salvo
+                Salve e gerencie apenas os endereços deste grupo.
               </Text>
               <TouchableOpacity
-                onPress={() => setMode("favorite")}
+                onPress={() => {
+                  openScopedCreateMode();
+                }}
                 activeOpacity={0.85}
                 style={{ height: 56, paddingHorizontal: 34, borderRadius: 28, backgroundColor: "#02de95", alignItems: "center", justifyContent: "center" }}
               >
-                <Text style={{ color: "#091A2F", fontSize: 19, fontWeight: "900" }}>Adicionar favorito</Text>
+                <Text style={{ color: "#091A2F", fontSize: 19, fontWeight: "900" }}>{scopedAddLabel}</Text>
               </TouchableOpacity>
             </View>
           ) : (
             <View style={{ flex: 1 }}>
               <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-                {favorites.map((fav) => (
+                {favoritesForFilter.map((fav) => (
                   <TouchableOpacity key={fav._id} onPress={() => handleFavoritePress(fav)} style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 24, paddingVertical: 16 }}>
                     <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "#9ca3af", alignItems: "center", justifyContent: "center", marginRight: 16 }}>
                       <MapPin size={20} color="#fff" fill="#fff" />
@@ -364,7 +504,9 @@ export default function FavoriteAddressFlowScreen() {
                 ))}
               </ScrollView>
               <TouchableOpacity
-                onPress={() => setMode("favorite")}
+                onPress={() => {
+                  openScopedCreateMode();
+                }}
                 style={{ position: "absolute", right: 24, bottom: 28, width: 64, height: 64, borderRadius: 32, backgroundColor: "#02de95", alignItems: "center", justifyContent: "center", shadowColor: '#02de95', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 4 }}
               >
                 <Text style={{ color: "#091A2F", fontSize: 42, lineHeight: 46, fontWeight: "300" }}>+</Text>
@@ -373,34 +515,91 @@ export default function FavoriteAddressFlowScreen() {
           )}
         </View>
       ) : mode === "favoriteName" ? (
-        <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 34 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 32 }}>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 28, paddingBottom: 32 }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 28 }}>
             <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "#9ca3af", alignItems: "center", justifyContent: "center", marginRight: 16 }}>
               <MapPin size={20} color="#fff" fill="#fff" />
             </View>
-            <Text style={{ flex: 1, color: "#4b5563", fontSize: 14, lineHeight: 19 }} numberOfLines={2}>{draft?.address}</Text>
+            <Text style={{ flex: 1, color: "#4b5563", fontSize: 14, lineHeight: 19 }} numberOfLines={2}>
+              Confirme o endereço e complete os dados deste local.
+            </Text>
           </View>
-          <View style={{ backgroundColor: "#fff", borderRadius: 18, paddingHorizontal: 18, paddingVertical: 12, borderWidth: 1, borderColor: "#f3f4f6", shadowColor: "#000", shadowOpacity: 0.08, shadowRadius: 10, elevation: 2 }}>
+          <View style={{ backgroundColor: "#fff", borderRadius: 18, paddingHorizontal: 18, paddingVertical: 12, borderWidth: 1, borderColor: "#f3f4f6", shadowColor: "#000", shadowOpacity: 0.08, shadowRadius: 10, elevation: 2, marginBottom: 14 }}>
+            <Text style={{ color: "#6b7280", fontSize: 12, marginBottom: 4 }}>Endereço completo</Text>
+            <TextInput
+              value={draft?.address || ""}
+              onChangeText={handleDraftAddressChange}
+              multiline
+              placeholder="Edite rua, número, bairro ou nome do local"
+              placeholderTextColor="#c4c4c8"
+              style={{ color: "#111827", fontSize: 16, fontWeight: "600", minHeight: 58, textAlignVertical: "top" }}
+            />
+          </View>
+          <View style={{ backgroundColor: "#fff", borderRadius: 18, paddingHorizontal: 18, paddingVertical: 12, borderWidth: 1, borderColor: "#f3f4f6", shadowColor: "#000", shadowOpacity: 0.08, shadowRadius: 10, elevation: 2, marginBottom: 14 }}>
             <Text style={{ color: "#6b7280", fontSize: 12, marginBottom: 4 }}>Nome do local</Text>
             <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <TextInput value={favoriteName} onChangeText={setFavoriteName} autoFocus style={{ flex: 1, color: "#111827", fontSize: 17, fontWeight: "600" }} />
+              <TextInput
+                value={favoriteName}
+                onChangeText={setFavoriteName}
+                autoFocus={draft?.icon === "favorite"}
+                editable={draft?.icon === "favorite"}
+                placeholder="Ex.: Casa, Trabalho, Academia"
+                placeholderTextColor="#c4c4c8"
+                style={{ flex: 1, color: "#111827", fontSize: 17, fontWeight: "600", opacity: draft?.icon === "favorite" ? 1 : 0.75 }}
+              />
               {favoriteName.length > 0 && (
-                <TouchableOpacity onPress={() => setFavoriteName("")}>
+                <TouchableOpacity onPress={() => setFavoriteName("")} disabled={draft?.icon !== "favorite"}>
                   <X size={18} color="#c7c7c7" />
                 </TouchableOpacity>
               )}
             </View>
           </View>
+          <View style={{ backgroundColor: "#fff", borderRadius: 18, paddingHorizontal: 18, paddingVertical: 12, borderWidth: 1, borderColor: "#f3f4f6", shadowColor: "#000", shadowOpacity: 0.08, shadowRadius: 10, elevation: 2, marginBottom: 14 }}>
+            <Text style={{ color: "#6b7280", fontSize: 12, marginBottom: 4 }}>Detalhes do endereço</Text>
+            <TextInput
+              value={favoriteDetails}
+              onChangeText={setFavoriteDetails}
+              placeholder="Ex.: bloco A, apartamento 201"
+              placeholderTextColor="#c4c4c8"
+              style={{ color: "#111827", fontSize: 16, fontWeight: "600", minHeight: 42 }}
+            />
+          </View>
+          <View style={{ backgroundColor: "#fff", borderRadius: 18, paddingHorizontal: 18, paddingVertical: 12, borderWidth: 1, borderColor: "#f3f4f6", shadowColor: "#000", shadowOpacity: 0.08, shadowRadius: 10, elevation: 2, marginBottom: 14 }}>
+            <Text style={{ color: "#6b7280", fontSize: 12, marginBottom: 4 }}>Nome para contato</Text>
+            <TextInput
+              value={contactName}
+              onChangeText={setContactName}
+              placeholder="Quem atende neste endereço"
+              placeholderTextColor="#c4c4c8"
+              style={{ color: "#111827", fontSize: 16, fontWeight: "600", minHeight: 42 }}
+            />
+          </View>
+          <View style={{ backgroundColor: "#fff", borderRadius: 18, paddingHorizontal: 18, paddingVertical: 12, borderWidth: 1, borderColor: "#f3f4f6", shadowColor: "#000", shadowOpacity: 0.08, shadowRadius: 10, elevation: 2 }}>
+            <Text style={{ color: "#6b7280", fontSize: 12, marginBottom: 4 }}>Número de telefone</Text>
+            <TextInput
+              value={contactPhone}
+              onChangeText={setContactPhone}
+              keyboardType="phone-pad"
+              placeholder="(00) 00000-0000"
+              placeholderTextColor="#c4c4c8"
+              style={{ color: "#111827", fontSize: 16, fontWeight: "600", minHeight: 42 }}
+            />
+          </View>
           <View style={{ alignItems: "flex-end", marginTop: 32 }}>
             <TouchableOpacity
               onPress={handleSaveFavoriteName}
-              disabled={saving || !draft || !favoriteName.trim()}
-              style={{ height: 58, paddingHorizontal: 34, borderRadius: 29, backgroundColor: "#02de95", opacity: saving || !favoriteName.trim() ? 0.55 : 1, alignItems: "center", justifyContent: "center" }}
+              disabled={saving || !draft?.address.trim() || !favoriteName.trim() || !contactName.trim() || !contactPhone.trim()}
+              style={{ height: 58, paddingHorizontal: 34, borderRadius: 29, backgroundColor: "#02de95", opacity: saving || !draft?.address.trim() || !favoriteName.trim() || !contactName.trim() || !contactPhone.trim() ? 0.55 : 1, alignItems: "center", justifyContent: "center" }}
             >
               <Text style={{ color: "#091A2F", fontSize: 20, fontWeight: "900" }}>{saving ? "Salvando..." : "Salvar"}</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </ScrollView>
       ) : (
         <View style={{ flex: 1 }}>
           <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 14, gap: 12 }}>
@@ -425,64 +624,61 @@ export default function FavoriteAddressFlowScreen() {
           </View>
 
           {/* Quick search shortcuts horizontal bar */}
+          {!favoriteFilter && (
           <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 24, paddingVertical: 12, gap: 10, borderBottomWidth: 1, borderBottomColor: "#f1f1f1" }}>
             <TouchableOpacity
-              onPress={() => {
-                if (casaFav) {
-                  returnPickedAddress({
-                    address: casaFav.formattedAddress || casaFav.address,
-                    latitude: Number(casaFav.latitude),
-                    longitude: Number(casaFav.longitude),
-                    name: casaFav.name,
-                    phone: (casaFav as any).contactPhone,
-                    details: casaFav.details,
-                  });
-                } else {
-                  setMode("home");
-                }
-              }}
+              onPress={() => handleShortcut("home")}
               style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#f9fafb", borderWidth: 1, borderColor: "#f3f4f6", borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, gap: 6 }}
             >
               <HomeIcon size={14} color="#666" />
-              <Text style={{ color: "#374151", fontSize: 13, fontWeight: "700" }}>Casa</Text>
+              <Text style={{ color: "#374151", fontSize: 13, fontWeight: "700", maxWidth: 86 }} numberOfLines={1}>
+                {getShortcutLabel("home", "Casa")}
+              </Text>
               <ChevronRight size={12} color="#ccc" />
             </TouchableOpacity>
 
             <TouchableOpacity
-              onPress={() => {
-                if (trabalhoFav) {
-                  returnPickedAddress({
-                    address: trabalhoFav.formattedAddress || trabalhoFav.address,
-                    latitude: Number(trabalhoFav.latitude),
-                    longitude: Number(trabalhoFav.longitude),
-                    name: trabalhoFav.name,
-                    phone: (trabalhoFav as any).contactPhone,
-                    details: trabalhoFav.details,
-                  });
-                } else {
-                  setMode("work");
-                }
-              }}
+              onPress={() => handleShortcut("work")}
               style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#f9fafb", borderWidth: 1, borderColor: "#f3f4f6", borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, gap: 6 }}
             >
               <Briefcase size={14} color="#666" />
-              <Text style={{ color: "#374151", fontSize: 13, fontWeight: "700" }}>Trabalho</Text>
+              <Text style={{ color: "#374151", fontSize: 13, fontWeight: "700", maxWidth: 86 }} numberOfLines={1}>
+                {getShortcutLabel("work", "Trabalho")}
+              </Text>
               <ChevronRight size={12} color="#ccc" />
             </TouchableOpacity>
 
             <TouchableOpacity
-              onPress={() => {
-                setMode("favoritesList");
-              }}
+              onPress={() => handleShortcut("favorite")}
               style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#f9fafb", borderWidth: 1, borderColor: "#f3f4f6", borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, gap: 6 }}
             >
               <Star size={14} color="#F59E0B" fill="#F59E0B" />
-              <Text style={{ color: "#374151", fontSize: 13, fontWeight: "700" }}>Favorit...</Text>
+              <Text style={{ color: "#374151", fontSize: 13, fontWeight: "700", maxWidth: 86 }} numberOfLines={1}>
+                {getShortcutLabel("favorite", "Favoritos")}
+              </Text>
               <ChevronRight size={12} color="#ccc" />
             </TouchableOpacity>
           </View>
+          )}
 
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <TouchableOpacity
+              onPress={handleOpenMapPicker}
+              style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 24, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: "#f3f4f6" }}
+            >
+              <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: "#e6fff6", alignItems: "center", justifyContent: "center", marginRight: 14 }}>
+                <MapPin size={20} color="#02b77c" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: "#111827", fontSize: 16, fontWeight: "900" }} numberOfLines={1}>
+                  Escolher no mapa
+                </Text>
+                <Text style={{ color: "#6b7280", fontSize: 13, marginTop: 2 }} numberOfLines={2}>
+                  Arraste o marcador para o ponto exato e confirme o endereço.
+                </Text>
+              </View>
+              <ChevronRight size={18} color="#c7c7c7" />
+            </TouchableOpacity>
             {loading && <ActivityIndicator color="#02de95" style={{ marginVertical: 18 }} />}
             {results.map((item) => (
               <TouchableOpacity key={item.placeId} onPress={() => handleSelectResult(item)} style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 24, paddingVertical: 12 }}>
@@ -495,10 +691,10 @@ export default function FavoriteAddressFlowScreen() {
                 </View>
               </TouchableOpacity>
             ))}
-            {query.length === 0 && !isSelectionMode && favorites.length > 0 && (
+            {query.length === 0 && !isSelectionMode && favoritesForFilter.length > 0 && (
               <View style={{ borderBottomWidth: 1, borderBottomColor: "#f3f4f6", paddingBottom: 8 }}>
-                <Text style={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: 6, color: "#9ca3af", fontSize: 12, fontWeight: "900", textTransform: "uppercase", letterSpacing: 1 }}>Meus Favoritos</Text>
-                {favorites.map((fav) => (
+                <Text style={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: 6, color: "#9ca3af", fontSize: 12, fontWeight: "900", textTransform: "uppercase", letterSpacing: 1 }}>{scopedTitle}</Text>
+                {favoritesForFilter.map((fav) => (
                   <TouchableOpacity
                     key={fav._id}
                     onPress={() => handleFavoritePress(fav)}
@@ -553,7 +749,7 @@ export default function FavoriteAddressFlowScreen() {
               </View>
             )}
 
-            {query.length === 0 && nearbySuggestions.map((item) => (
+            {query.length === 0 && !favoriteFilter && nearbySuggestions.map((item) => (
               <TouchableOpacity
                 key={item.title}
                 onPress={() => {
@@ -566,8 +762,11 @@ export default function FavoriteAddressFlowScreen() {
                     });
                     return;
                   }
-                  setDraft({ address: `${item.title} - ${item.subtitle}`, latitude: 0, longitude: 0 });
+                  setDraft({ address: `${item.title} - ${item.subtitle}`, latitude: 0, longitude: 0, icon: "favorite" });
                   setFavoriteName(item.title);
+                  setFavoriteDetails("");
+                  setContactName("");
+                  setContactPhone("");
                   setMode("favoriteName");
                 }}
                 style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 24, paddingVertical: 12 }}

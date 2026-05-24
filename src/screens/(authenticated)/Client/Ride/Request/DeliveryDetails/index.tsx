@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   Easing,
   Image,
@@ -18,6 +17,7 @@ import {
   UIManager,
   View,
 } from "react-native";
+import Toast from "react-native-toast-message";
 import { CommonActions, NavigationProp, RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -42,7 +42,7 @@ import {
 } from "lucide-react-native";
 
 import { ClientStackParamList, DeliveryAddressProfile, DeliveryVehicleType } from "../../../types/navigation";
-import rideService, { CalculatePriceResponse } from "@/services/ride.service";
+import rideService, { CalculatePriceResponse, CreateRideRequest } from "@/services/ride.service";
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -128,6 +128,7 @@ export default function DeliveryDetailsScreen() {
   const [priceData, setPriceData] = useState<CalculatePriceResponse | null>(null);
   const [loadingPricing, setLoadingPricing] = useState(false);
   const [pricingError, setPricingError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const swapRotation = useRef(new Animated.Value(0)).current;
 
   const vehicle = useMemo(() => vehicleCopy[selectedVehicleType] || vehicleCopy.motorcycle, [selectedVehicleType]);
@@ -214,11 +215,85 @@ export default function DeliveryDetailsScreen() {
     );
   };
 
-  const handleConfirm = () => {
-    Alert.alert(
-      "Entrega pronta",
-      "Payload montado com coleta, entrega e tipo de veículo. A criação real do pedido será ligada na próxima etapa.",
-    );
+  const handleConfirm = async () => {
+    if (submitting) return;
+    const pickupCoords = routeProfiles.pickupProfile.addressCoords;
+    const dropoffCoords = routeProfiles.dropoffProfile.addressCoords;
+    if (!pickupCoords || !dropoffCoords) {
+      Toast.show({ type: "error", text1: "Enderecos incompletos", text2: "Selecione coleta e entrega com localizacao valida." });
+      return;
+    }
+    if (!priceData?.pricing || !priceData?.distance || !priceData?.duration) {
+      Toast.show({ type: "error", text1: "Preco indisponivel", text2: "Aguarde o calculo da entrega antes de confirmar." });
+      return;
+    }
+
+    const pickupPin = usePickupPin ? String(Math.floor(1000 + Math.random() * 9000)) : undefined;
+    const deliveryPin = useDropoffPin ? String(Math.floor(1000 + Math.random() * 9000)) : undefined;
+    const itemType = selectedItemType === "other"
+      ? customItemType.trim() || "other"
+      : selectedItemType || "standard";
+    const paymentType = paymentMethod === "card_machine" ? "credit_card" : "cash";
+
+    const payload: CreateRideRequest = {
+      serviceType: "delivery",
+      vehicleType: selectedVehicleType,
+      pickup: {
+        address: routeProfiles.pickupProfile.address,
+        latitude: pickupCoords.latitude,
+        longitude: pickupCoords.longitude,
+      },
+      dropoff: {
+        address: routeProfiles.dropoffProfile.address,
+        latitude: dropoffCoords.latitude,
+        longitude: dropoffCoords.longitude,
+      },
+      pricing: priceData.pricing,
+      distance: priceData.distance,
+      duration: priceData.duration,
+      routeCoordinates: [
+        { latitude: pickupCoords.latitude, longitude: pickupCoords.longitude },
+        { latitude: dropoffCoords.latitude, longitude: dropoffCoords.longitude },
+      ],
+      details: {
+        itemType,
+        pickupComplement: routeProfiles.pickupProfile.details,
+        dropoffComplement: routeProfiles.dropoffProfile.details,
+        recipientName: routeProfiles.dropoffProfile.contactName,
+        recipientPhone: routeProfiles.dropoffProfile.contactPhone,
+        recipientInstructions: itemNotes.trim(),
+        pickupPin,
+        deliveryPin,
+        specialInstructions: savedItemSummary || itemNotes.trim(),
+      },
+      payment: {
+        method: {
+          type: paymentType,
+        },
+      },
+      negotiation: {
+        enabled: true,
+        clientOffer: priceData.pricing.total,
+      },
+    };
+
+    try {
+      setSubmitting(true);
+      const created = await rideService.create(payload);
+      if (created?.status === "scheduled") {
+        navigation.navigate("ActiveOrders");
+        return;
+      }
+      navigation.navigate("OrderSent", { rideId: created._id });
+    } catch (error: any) {
+      Toast.show({
+        type: "error",
+        text1: "Erro ao solicitar entrega",
+        text2: error?.response?.data?.error || error?.response?.data?.message || error?.message || "Tente novamente.",
+      });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleSwapAddresses = () => {
@@ -386,9 +461,14 @@ export default function DeliveryDetailsScreen() {
 
         <View style={styles.footerBottom}>
           <Text style={styles.totalText}>{total}</Text>
-          <TouchableOpacity style={styles.confirmButton} onPress={handleConfirm} activeOpacity={0.9}>
-            <ShieldCheck size={21} color="#111" />
-            <Text style={styles.confirmText}>Confirmar</Text>
+          <TouchableOpacity
+            style={[styles.confirmButton, (submitting || loadingPricing) && styles.confirmButtonDisabled]}
+            onPress={handleConfirm}
+            activeOpacity={0.9}
+            disabled={submitting || loadingPricing}
+          >
+            {submitting ? <ActivityIndicator color="#111" /> : <ShieldCheck size={21} color="#111" />}
+            <Text style={styles.confirmText}>{submitting ? "Enviando" : "Confirmar"}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -973,6 +1053,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 8,
     backgroundColor: "#ffd400",
+  },
+  confirmButtonDisabled: {
+    opacity: 0.6,
   },
   confirmText: {
     fontSize: 22,

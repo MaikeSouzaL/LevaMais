@@ -56,7 +56,8 @@ favoriteSchema.pre("validate", function (next) {
   next();
 });
 
-favoriteSchema.index({ userId: 1, name: 1 }, { unique: false });
+favoriteSchema.index({ userId: 1, icon: 1, createdAt: -1 });
+favoriteSchema.index({ userId: 1, name: 1, icon: 1, address: 1 }, { unique: false });
 
 const Favorite = mongoose.model("Favorite", favoriteSchema, "favoritos");
 

@@ -372,7 +372,7 @@ export default function HomeScreen() {
   }, [navigation, currentAddress, userRegion, region]);
 
   const handleOpenFavoriteShortcut = useCallback(
-    (mode: "home" | "work" | "favorite" | "favoritesList") => {
+    (mode: "home" | "work" | "favorite") => {
       navigation.navigate("FavoriteAddressFlow", {
         initialSearchMode: mode,
       });
@@ -598,7 +598,7 @@ export default function HomeScreen() {
 
                     <TouchableOpacity
                       className="flex-row items-center bg-[#11253E] px-3.5 py-2 rounded-[20px] border border-white/[0.03]"
-                      onPress={() => handleOpenFavoriteShortcut("favoritesList")}
+                      onPress={() => handleOpenFavoriteShortcut("favorite")}
                     >
                       <View className="w-6 h-6 rounded-full bg-[#02de95]/10 items-center justify-center mr-2">
                         <Sparkles size={14} color="#02de95" />
@@ -812,7 +812,7 @@ export default function HomeScreen() {
 
                 <TouchableOpacity
                   className="flex-row items-center bg-white px-3.5 py-2 rounded-[20px]"
-                  onPress={() => handleOpenFavoriteShortcut("favoritesList")}
+                  onPress={() => handleOpenFavoriteShortcut("favorite")}
                 >
                   <View className="w-6 h-6 rounded-full bg-[#091A2F]/10 items-center justify-center mr-2">
                     <Sparkles size={14} color="#091A2F" />

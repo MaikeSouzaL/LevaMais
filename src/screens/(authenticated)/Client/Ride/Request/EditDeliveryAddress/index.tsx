@@ -46,7 +46,7 @@ export default function EditDeliveryAddressScreen() {
         const fav = route.params.addressData;
         setAddress(fav.formattedAddress || fav.address || "");
         setAddressDetails(fav.details || "");
-        setContactName(fav.contactName || fav.name || "");
+        setContactName(fav.contactName || "");
         setContactPhone(fav.contactPhone || fav.contactPhone === "" ? fav.contactPhone : "");
         return;
       }
@@ -55,7 +55,7 @@ export default function EditDeliveryAddressScreen() {
       if (fav) {
         setAddress(fav.formattedAddress || fav.address || "");
         setAddressDetails(fav.details || "");
-        setContactName(fav.contactName || fav.name || "");
+        setContactName(fav.contactName || "");
         setContactPhone(fav.contactPhone || "");
       }
     } catch (e) {
@@ -73,6 +73,7 @@ export default function EditDeliveryAddressScreen() {
           address,
           formattedAddress: address,
           details: addressDetails,
+          contactName,
           contactPhone,
           latitude: route.params?.addressData?.latitude || 0,
           longitude: route.params?.addressData?.longitude || 0,

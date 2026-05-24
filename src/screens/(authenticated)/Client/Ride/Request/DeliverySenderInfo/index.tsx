@@ -13,15 +13,14 @@ import {
   Modal as RNModal,
   Dimensions,
 } from "react-native";
-import { CommonActions, NavigationProp, RouteProp, StackActions, useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
+import { NavigationProp, RouteProp, StackActions, useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import { ChevronLeft, ChevronRight, MapPin, Edit3, X, Home as HomeIcon, Briefcase, Star, Phone, User, Flame, Plus, Pencil, History } from "lucide-react-native";
 import { MotiView } from "moti";
 import { ClientStackParamList, DeliveryAddressProfile, DeliveryVehicleType } from "../../../types/navigation";
 import { useAuthStore } from "@/context/authStore";
 import { useMapLocation } from "../../../Shared/hooks/useMapLocation";
 import favoriteAddressService, { FavoriteAddress } from "@/services/favoriteAddress.service";
-import senderService from "@/services/sender.service";
-import rideService from "@/services/ride.service";
+import addressHistoryService from "@/services/addressHistory.service";
 import { searchPlaces, getPlaceDetails, PlaceAutocompleteResult } from "@/services/googlePlaces.service";
 
 export default function DeliverySenderInfoScreen() {
@@ -68,6 +67,7 @@ export default function DeliverySenderInfoScreen() {
 
   // Recent addresses / favorites
   const [recentAddresses, setRecentAddresses] = useState<FavoriteAddress[]>([]);
+  const [historyAddresses, setHistoryAddresses] = useState<any[]>([]);
   const nearbySuggestions = [
     {
       title: "Supermercado Irmãos Gonçalves",
@@ -156,17 +156,26 @@ export default function DeliverySenderInfoScreen() {
     };
   }, [closeAddressSearch]);
 
-  // Load recent / favorite addresses
+  // Load shortcuts and address history
   useFocusEffect(
     useCallback(() => {
-      const loadFavorites = async () => {
+      const loadAddressData = async () => {
         try {
           const favs = await favoriteAddressService.list();
           setRecentAddresses(favs || []);
         } catch {}
+        try {
+          const history = await addressHistoryService.list({
+            context: isSender ? "sender" : "receiver",
+            limit: 8,
+          });
+          setHistoryAddresses(history);
+        } catch {
+          setHistoryAddresses([]);
+        }
       };
-      loadFavorites();
-    }, [])
+      loadAddressData();
+    }, [isSender])
   );
 
   // Search addresses with debounce
@@ -199,6 +208,17 @@ export default function DeliverySenderInfoScreen() {
   ) => {
     setAddress(pickedAddress);
     if (coords) setAddressCoords(coords);
+    if (coords) {
+      void addressHistoryService.create({
+        context: isSender ? "sender" : "receiver",
+        name: pickedAddress.split(",")[0],
+        address: pickedAddress,
+        formattedAddress: pickedAddress,
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        source: options?.saveAs ? "favorite" : "search",
+      });
+    }
     if (options?.saveAs && coords) {
       try {
         await favoriteAddressService.create({
@@ -261,18 +281,20 @@ export default function DeliverySenderInfoScreen() {
     setIsSearchingAddress(false);
     setSearchMode("address");
     setSearchQuery("");
-  };
-
-  const findFavoriteByShortcut = (shortcut: "home" | "work") => {
-    const expectedName = shortcut === "home" ? "casa" : "trabalho";
-    return recentAddresses.find((fav) => {
-      const icon = String((fav as any).icon || "").toLowerCase();
-      const name = String(fav.name || (fav as any).label || "").toLowerCase();
-      return icon === shortcut || name === expectedName;
+    void addressHistoryService.create({
+      context: isSender ? "sender" : "receiver",
+      name: fav.name,
+      address: fav.formattedAddress || fav.address || "",
+      formattedAddress: fav.formattedAddress || fav.address || "",
+      latitude: Number(fav.latitude),
+      longitude: Number(fav.longitude),
+      details: fav.details,
+      contactName: (fav as any).contactName,
+      contactPhone: (fav as any).contactPhone,
+      source: String(fav._id || "").startsWith("hist_") ? "search" : "favorite",
     });
   };
-
-  const openFavoriteFlow = (initialSearchMode: "home" | "work" | "favorite" | "favoritesList") => {
+  const openFavoriteFlow = (initialSearchMode: "home" | "work" | "favorite") => {
     setIsSearchingAddress(false);
     setSearchQuery("");
     setSearchResults([]);
@@ -290,11 +312,6 @@ export default function DeliverySenderInfoScreen() {
   };
 
   const handleShortcutPress = (shortcut: "home" | "work") => {
-    const favorite = findFavoriteByShortcut(shortcut);
-    if (favorite) {
-      handleSelectRecent(favorite);
-      return;
-    }
     openFavoriteFlow(shortcut);
   };
 
@@ -381,21 +398,12 @@ export default function DeliverySenderInfoScreen() {
     const nextDropoffProfile = isSender ? route.params?.dropoffProfile || null : profile;
 
     if (!nextPickupProfile || !nextDropoffProfile) {
-      navigation.dispatch(CommonActions.reset({
-        index: 0,
-        routes: [
-          {
-            name: "Home",
-            params: {
-              deliveryDraftProfile: {
-                role: isSender ? "pickup" : "dropoff",
-                profile,
-                vehicleType,
-                flow,
-              },
-            },
-          },
-        ],
+      navigation.dispatch(StackActions.replace("DeliverySenderInfo", {
+        mode: isSender ? "receiver" : "sender",
+        vehicleType,
+        flow,
+        pickupProfile: nextPickupProfile,
+        dropoffProfile: nextDropoffProfile,
       }));
       return;
     }
@@ -445,7 +453,6 @@ export default function DeliverySenderInfoScreen() {
               onPress={() => {
                 navigation.navigate("FavoriteAddressFlow", {
                   selectionMode: true,
-                  initialSearchMode: "favorite",
                   returnScreen: "DeliverySenderInfo",
                   returnMode: mode,
                   vehicleType,
@@ -537,15 +544,11 @@ export default function DeliverySenderInfoScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Seus Favoritos */}
+          {/* Historico */}
           <View className="pt-7 px-5">
-            <Text className="text-gray-500 text-[14px] font-semibold mb-3">Seus Favoritos</Text>
+            <Text className="text-gray-500 text-[14px] font-semibold mb-3">Historico de enderecos</Text>
 
-            {recentAddresses.map((fav) => {
-              const nameLower = (fav.name || "").toLowerCase();
-              const isHome = nameLower.includes("casa");
-              const isWork = nameLower.includes("trabalho") || nameLower.includes("work");
-              
+            {historyAddresses.map((fav) => {
               return (
                 <TouchableOpacity
                   key={fav._id}
@@ -553,13 +556,7 @@ export default function DeliverySenderInfoScreen() {
                   className="flex-row items-center py-3.5 border-b border-gray-50"
                 >
                   <View className="w-[36px] h-[36px] rounded-full bg-orange-50 items-center justify-center mr-3">
-                    {isHome ? (
-                      <HomeIcon size={18} color="#ff7a3d" />
-                    ) : isWork ? (
-                      <Briefcase size={18} color="#ff7a3d" />
-                    ) : (
-                      <Star size={18} color="#ff7a3d" fill="#ff7a3d" />
-                    )}
+                    <History size={18} color="#ff7a3d" />
                   </View>
                   <View className="flex-1">
                     <Text className="text-gray-900 text-[15px] font-semibold" numberOfLines={1}>
@@ -577,9 +574,9 @@ export default function DeliverySenderInfoScreen() {
                 </TouchableOpacity>
               );
             })}
-            {recentAddresses.length === 0 && (
+            {historyAddresses.length === 0 && (
               <View className="py-4 items-center justify-center">
-                <Text className="text-gray-400 text-[13px]">Nenhum local favorito salvo.</Text>
+                <Text className="text-gray-400 text-[13px]">Nenhum endereco usado recentemente.</Text>
               </View>
             )}
           </View>
@@ -819,7 +816,7 @@ export default function DeliverySenderInfoScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 className="flex-row items-center gap-1.5"
-                onPress={() => openFavoriteFlow("favoritesList")}
+                onPress={() => openFavoriteFlow("favorite")}
               >
                 <Star size={14} color="#F59E0B" />
                 <Text className="text-gray-700 text-[13px] font-semibold">Favorit...</Text>
@@ -990,7 +987,7 @@ export default function DeliverySenderInfoScreen() {
                   onPress={() => {
                     setIsSearchingAddress(false);
                     setSearchQuery("");
-                    openFavoriteFlow("favoritesList");
+                    openFavoriteFlow("favorite");
                   }}
                 >
                   <View className="w-[36px] h-[36px] rounded-full bg-gray-100 items-center justify-center mr-3">

@@ -6,17 +6,28 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from "react-native";
-import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
+import { RouteProp, StackActions, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { ChevronLeft, MapPin, Edit3, Navigation } from "lucide-react-native";
+import { ChevronLeft } from "lucide-react-native";
 import { GlobalMap } from "@/components/GlobalMap";
-import MapView, { Marker } from "react-native-maps";
-import { darkMapStyle } from "@/utils/mapStyle";
+import MapView from "react-native-maps";
 import { MapActionButtons } from "@/components/MapActionButtons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Location from "expo-location";
 import { ClientStackParamList } from "../../../types/navigation";
-import { reverseGeocode } from "@/services/googlePlaces.service";
+import { reverseGeocode, type PlaceDetails } from "@/services/googlePlaces.service";
+
+function formatPinAddress(details: PlaceDetails): string {
+  const streetLine = [details.street, details.streetNumber].filter(Boolean).join(", ");
+  const parts = [
+    streetLine || details.formattedAddress,
+    details.neighborhood,
+    details.city,
+    details.stateCode || details.state,
+  ].filter(Boolean);
+
+  return parts.join(" - ") || details.formattedAddress;
+}
 
 export default function DeliveryMapPickerScreen() {
   const navigation = useNavigation<
@@ -28,6 +39,7 @@ export default function DeliveryMapPickerScreen() {
   const initialLat = route.params?.initialLatitude ?? -11.6722;
   const initialLng = route.params?.initialLongitude ?? -61.1936;
   const returnField = route.params?.returnField || "address";
+  const returnScreen = route.params?.returnScreen;
 
   const [region, setRegion] = useState({
     latitude: initialLat,
@@ -42,7 +54,7 @@ export default function DeliveryMapPickerScreen() {
   });
 
   const [address, setAddress] = useState("Carregando endereço...");
-  const [cityName, setCityName] = useState("");
+  const [fullAddress, setFullAddress] = useState("");
   const [isGeocodingPin, setIsGeocodingPin] = useState(false);
   const [useDarkMap, setUseDarkMap] = useState(true);
   const [isSwitchingMapStyle, setIsSwitchingMapStyle] = useState(false);
@@ -65,15 +77,15 @@ export default function DeliveryMapPickerScreen() {
     try {
       const details = await reverseGeocode(lat, lng);
       if (details) {
-        const shortAddress = details.street && details.streetNumber
-          ? `${details.street}, ${details.streetNumber}`
-          : details.formattedAddress;
-        setAddress(shortAddress || details.formattedAddress);
-        setCityName(details.city || "");
+        const detailedAddress = formatPinAddress(details);
+        setFullAddress(detailedAddress || details.formattedAddress || "");
+        setAddress(detailedAddress || details.formattedAddress);
       } else {
+        setFullAddress("");
         setAddress(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
       }
     } catch {
+      setFullAddress("");
       setAddress(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
     }
     setIsGeocodingPin(false);
@@ -135,9 +147,27 @@ export default function DeliveryMapPickerScreen() {
   };
 
   const handleConfirm = () => {
+    const selectedAddress = fullAddress || address;
+    if (returnScreen === "FavoriteAddressFlow") {
+      navigation.dispatch(StackActions.replace("FavoriteAddressFlow", {
+        initialSearchMode: route.params?.favoriteInitialSearchMode || "favorite",
+        selectionMode: route.params?.selectionMode,
+        returnScreen: "DeliverySenderInfo",
+        returnMode: route.params?.returnMode,
+        vehicleType: route.params?.vehicleType,
+        flow: route.params?.flow,
+        pickupProfile: route.params?.pickupProfile || null,
+        dropoffProfile: route.params?.dropoffProfile || null,
+        mapPickedAddress: selectedAddress,
+        mapPickedLatitude: pinCoord.latitude,
+        mapPickedLongitude: pinCoord.longitude,
+      }));
+      return;
+    }
+
     // Navigate back with the selected location data
     navigation.navigate("DeliverySenderInfo", {
-      mapPickedAddress: address,
+      mapPickedAddress: selectedAddress,
       mapPickedLatitude: pinCoord.latitude,
       mapPickedLongitude: pinCoord.longitude,
     } as any);
@@ -197,8 +227,8 @@ export default function DeliveryMapPickerScreen() {
             {isGeocodingPin ? (
               <ActivityIndicator size="small" color="#02de95" style={{ alignSelf: "flex-start" }} />
             ) : (
-              <Text style={styles.addressText} numberOfLines={1}>
-                {cityName || address}
+              <Text style={styles.addressText} numberOfLines={2}>
+                {address}
               </Text>
             )}
           </View>
