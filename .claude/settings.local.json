@@ -10,7 +10,8 @@
       "Bash(echo \"EXIT: $?\")",
       "Bash(git checkout *)",
       "Bash(Get-ChildItem -Recurse -Directory -Depth 4 -Path \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\Leva_Mais\\\\backend\\\\src\")",
-      "Bash(Select-Object FullName)"
+      "Bash(Select-Object FullName)",
+      "Bash(Get-ChildItem *)"
     ]
   }
 }

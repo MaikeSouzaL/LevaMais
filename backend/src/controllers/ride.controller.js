@@ -4,6 +4,7 @@ const DriverLocation = require("../models/DriverLocation");
 const User = require("../models/User");
 const Promotion = require("../models/Promotion");
 const { getRuntimeConfig } = require("../services/platformConfig.service");
+const { calculateDeliveryPricingSnapshot } = require("../services/delivery-pricing.service");
 
 // mixins (rating + proofs)
 const ratingProofMixin = require("./ride.ratingProof.mixin");
@@ -1072,9 +1073,30 @@ class RideController {
         runtimeConfig?.appFeePercentage || DEFAULT_APP_FEE_PERCENTAGE,
       );
 
-      const safePricing = {
-        ...(pricing || {}),
-      };
+      const isDeliveryRequest = String(serviceType || "").toLowerCase() === "delivery";
+      let pricingSnapshot = null;
+      let safePricing = { ...(pricing || {}) };
+      let resolvedDistance = distance;
+      let resolvedDuration = duration;
+
+      if (isDeliveryRequest) {
+        pricingSnapshot = await calculateDeliveryPricingSnapshot({
+          serviceType: "delivery",
+          vehicleType,
+          pickup,
+          dropoff,
+          deliveryType: details?.itemType || req.body.deliveryType,
+          cargoSize: details?.cargoSize || req.body.cargoSize,
+          approximateWeightKg: details?.approximateWeightKg || req.body.approximateWeightKg,
+          isFragile: details?.isFragile ?? req.body.isFragile,
+          needsHelper: details?.needsHelper ?? req.body.needsHelper,
+          priority: details?.priority ?? req.body.priority,
+          runtimeConfig,
+        });
+        safePricing = { ...pricingSnapshot.pricing };
+        resolvedDistance = pricingSnapshot.distance;
+        resolvedDuration = pricingSnapshot.duration;
+      }
 
       const subtotal = toMoney(Number(safePricing.total || 0));
       if (!Number.isFinite(subtotal) || subtotal <= 0) {
@@ -1109,19 +1131,33 @@ class RideController {
       safePricing.promotionCode = appliedPromotion?.code || undefined;
       safePricing.total = finalTotal;
 
-      const suggestedMinPrice = calculateSuggestedMinPrice(
-        finalTotal,
-        runtimeConfig?.suggestedMinPricePercent ?? 0.8,
-      );
+      const suggestedMinPrice = isDeliveryRequest
+        ? toMoney(
+            Number(
+              pricingSnapshot?.smartPricing?.minimumPrice ||
+                pricingSnapshot?.pricing?.subtotal ||
+                finalTotal,
+            ),
+          )
+        : calculateSuggestedMinPrice(
+            finalTotal,
+            runtimeConfig?.suggestedMinPricePercent ?? 0.8,
+          );
       const requestedOffer = Number(negotiation?.clientOffer);
       const wantsNegotiation = Boolean(negotiation?.enabled) && Number.isFinite(requestedOffer);
       if (wantsNegotiation && requestedOffer <= 0) {
         return sendError(res, 400, "Oferta do cliente invalida");
       }
+      if (isDeliveryRequest && wantsNegotiation && requestedOffer < suggestedMinPrice) {
+        return sendError(res, 400, "Oferta abaixo do minimo permitido para esta entrega", {
+          suggestedMinPrice,
+          requestedOffer: toMoney(requestedOffer),
+        });
+      }
 
       // 2. Calcula Taxa da Plataforma (Valor Bruto que sai do motorista)
       const total = finalTotal;
-      const platformFee = total * (appFeePercentage / 100);
+      const platformFee = toMoney(total * (appFeePercentage / 100));
       const driverValue = toMoney(total - platformFee);
 
       // 3. Verifica Split com Representante (Se houver)
@@ -1172,8 +1208,8 @@ class RideController {
         dropoff,
         pricing: safePricing,
         splitDetails,
-        distance,
-        duration,
+        distance: resolvedDistance,
+        duration: resolvedDuration,
         routeCoordinates: sanitizeRouteCoordinates(routeCoordinates, pickup, dropoff),
         details: resolvedDetails,
         searchTimeoutSeconds: Number(
@@ -2912,6 +2948,23 @@ class RideController {
 
       if (!pickup || !dropoff) {
         return sendError(res, 400, "Origem e destino sao obrigatorios");
+      }
+
+      if (String(serviceType || "").toLowerCase() === "delivery") {
+        const snapshot = await calculateDeliveryPricingSnapshot({
+          serviceType: "delivery",
+          vehicleType,
+          pickup,
+          dropoff,
+          deliveryType: req.body.deliveryType,
+          cargoSize: req.body.cargoSize,
+          approximateWeightKg: req.body.approximateWeightKg,
+          isFragile: req.body.isFragile,
+          needsHelper: req.body.needsHelper,
+          priority: req.body.priority,
+        });
+        const { runtimeConfig, ...response } = snapshot;
+        return res.json(response);
       }
 
       // Validar se cityId foi enviado (agora ÃƒÆ’Ã‚Â© obrigatÃƒÆ’Ã‚Â³rio para preÃƒÆ’Ã‚Â§o preciso)
