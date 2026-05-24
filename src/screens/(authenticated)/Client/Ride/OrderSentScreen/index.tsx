@@ -164,13 +164,13 @@ export default function OrderSentScreen() {
                 width: 40,
                 height: 40,
                 borderRadius: 20,
-                backgroundColor: "rgba(245,158,11,0.15)",
+                backgroundColor: "rgba(255,255,255,0.12)",
                 alignItems: "center",
                 justifyContent: "center",
                 marginRight: 12,
               }}
             >
-              <Clock size={18} color="#F59E0B" />
+              <Clock size={18} color="#fff" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={{ color: "#fff", fontWeight: "700", fontSize: 13 }}>
@@ -218,7 +218,7 @@ export default function OrderSentScreen() {
             marginTop: 10,
           }}
         >
-          Um banner amarelo aparecerá na tela inicial quando você receber propostas
+          Um banner branco aparecerá na tela inicial quando você receber propostas
         </Text>
       </MotiView>
     </View>
