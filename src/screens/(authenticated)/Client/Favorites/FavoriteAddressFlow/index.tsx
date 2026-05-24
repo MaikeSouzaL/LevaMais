@@ -196,6 +196,7 @@ export default function FavoriteAddressFlowScreen() {
       mapPickedName: payload.contactName || payload.name,
       mapPickedPhone: payload.phone || "",
       mapPickedDetails: payload.details || "",
+      isFromMapSelection: !!route.params?.isFromMapSelection,
     }));
     return true;
   };

@@ -1,6 +1,6 @@
 import React from "react";
 import { View, StyleSheet } from "react-native";
-import { MapPin, Flag } from "lucide-react-native";
+import { Flag } from "lucide-react-native";
 
 interface PremiumMapMarkerProps {
   type: "origin" | "destination";
@@ -12,74 +12,68 @@ export const PremiumMapMarker = ({ type }: PremiumMapMarkerProps) => {
 
   return (
     <View style={styles.container}>
-      {/* Halo pulsação de fundo estável de alta visibilidade */}
+      {/* Core Hub (Apenas a Bandeira Transparente e Colorida) */}
+      <View style={styles.coreHub}>
+        <Flag size={20} color={markerColor} fill={markerColor} style={{ marginLeft: 13 }} />
+      </View>
+
+      {/* Haste do alfinete */}
       <View
         style={[
-          styles.pulseCircle,
+          styles.pinStem,
           {
             backgroundColor: markerColor,
-            opacity: 0.22,
           },
         ]}
       />
 
-      {/* Core Hub - Círculo sólido central */}
+      {/* Bolinha no pé do alfinete */}
       <View
         style={[
-          styles.coreHub,
+          styles.pinBaseDot,
           {
-            borderColor: markerColor,
+            backgroundColor: markerColor,
           },
         ]}
-      >
-        {isOrigin ? (
-          <Flag size={12} color="#ffffff" fill="#ffffff" />
-        ) : (
-          <MapPin size={12} color="#ffffff" fill="#ffffff" />
-        )}
-      </View>
-
-      {/* Base drop perspective shadow anchor */}
-      <View style={styles.shadowAnchor} />
+      />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    width: 44,
-    height: 44,
     alignItems: "center",
-    justifyContent: "center",
     position: "relative",
-  },
-  pulseCircle: {
-    position: "absolute",
+    height: 60, // Mantém a altura de 60px para consistência do ponto central
     width: 34,
-    height: 34,
-    borderRadius: 17,
+    justifyContent: "flex-start",
   },
   coreHub: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    position: "absolute",
+    top: 4, // Alinha verticalmente com o topo
+    width: 26,
+    height: 26,
     alignItems: "center",
     justifyContent: "center",
     zIndex: 10,
-    borderWidth: 2,
-    backgroundColor: "#11253E",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
-    elevation: 5,
   },
-  shadowAnchor: {
+  pinStem: {
     position: "absolute",
-    bottom: 2,
-    width: 10,
-    height: 3,
-    backgroundColor: "rgba(0, 0, 0, 0.4)",
-    borderRadius: 5,
+    top: 25,
+    width: 3,
+    height: 8,
+    borderBottomLeftRadius: 1,
+    borderBottomRightRadius: 1,
+    zIndex: 9,
+  },
+  pinBaseDot: {
+    position: "absolute",
+    top: 32,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    borderWidth: 1,
+    borderColor: "#ffffff",
+    zIndex: 12,
   },
 });

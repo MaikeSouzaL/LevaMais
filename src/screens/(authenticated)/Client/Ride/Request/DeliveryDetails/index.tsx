@@ -28,6 +28,7 @@ import {
   Circle,
   Info,
   KeyRound,
+  Locate,
   Package,
   Pill,
   Plus,
@@ -43,6 +44,10 @@ import {
 
 import { ClientStackParamList, DeliveryAddressProfile, DeliveryVehicleType } from "../../../types/navigation";
 import rideService, { CalculatePriceResponse, CreateRideRequest } from "@/services/ride.service";
+import { GlobalMap } from "@/components/GlobalMap";
+import MapView, { Marker, PROVIDER_GOOGLE, Polyline } from "react-native-maps";
+import MapViewDirections from "react-native-maps-directions";
+import { PremiumMapMarker } from "@/components/maps/PremiumMapMarker";
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -100,6 +105,8 @@ const deliveryVehicles: DeliveryVehicleType[] = ["motorcycle", "car", "van", "tr
 const formatBRL = (value: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(value || 0));
 
+const GOOGLE_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || "";
+
 export default function DeliveryDetailsScreen() {
   const navigation = useNavigation<NavigationProp<ClientStackParamList>>();
   const route = useRoute<RouteProp<ClientStackParamList, "DeliveryDetails">>();
@@ -129,6 +136,46 @@ export default function DeliveryDetailsScreen() {
   const [loadingPricing, setLoadingPricing] = useState(false);
   const [pricingError, setPricingError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const mapRef = useRef<MapView>(null);
+  const [routeCoords, setRouteCoords] = useState<Array<{ latitude: number; longitude: number }>>([]);
+  const [animatedVehicleCoord, setAnimatedVehicleCoord] = useState<{ latitude: number; longitude: number } | null>(null);
+  const routeCoordsRef = useRef<Array<{ latitude: number; longitude: number }>>([]);
+
+  const onDirectionsReady = (res: any) => {
+    const coords = res.coordinates;
+    setRouteCoords(coords);
+    routeCoordsRef.current = coords;
+
+    mapRef.current?.fitToCoordinates(coords, {
+      edgePadding: { top: 40, right: 40, bottom: 40, left: 40 },
+      animated: true,
+    });
+  };
+
+  const handleRecenterRoute = () => {
+    if (routeCoordsRef.current.length > 0) {
+      mapRef.current?.fitToCoordinates(routeCoordsRef.current, {
+        edgePadding: { top: 40, right: 40, bottom: 40, left: 40 },
+        animated: true,
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (routeCoords.length === 0) return;
+    
+    let index = 0;
+    setAnimatedVehicleCoord(routeCoords[0]);
+    
+    const interval = setInterval(() => {
+      if (routeCoordsRef.current.length === 0) return;
+      index = (index + 1) % routeCoordsRef.current.length;
+      setAnimatedVehicleCoord(routeCoordsRef.current[index]);
+    }, 150);
+    
+    return () => clearInterval(interval);
+  }, [routeCoords]);
+
   const swapRotation = useRef(new Animated.Value(0)).current;
 
   const vehicle = useMemo(() => vehicleCopy[selectedVehicleType] || vehicleCopy.motorcycle, [selectedVehicleType]);
@@ -305,6 +352,8 @@ export default function DeliveryDetailsScreen() {
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
+    setRouteCoords([]);
+    setAnimatedVehicleCoord(null);
     setRouteProfiles((current) => ({
       pickupProfile: current.dropoffProfile,
       dropoffProfile: current.pickupProfile,
@@ -322,15 +371,143 @@ export default function DeliveryDetailsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <View style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#f4f4f4" />
 
-      <View style={[styles.header, { paddingTop: topInset, height: 62 + topInset }]}>
+      {/* Standard Header */}
+      <View style={[styles.header, { paddingTop: topInset, height: 62 + topInset, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#eef1f5" }]}>
         <TouchableOpacity style={styles.headerButton} onPress={handleBackHome} activeOpacity={0.75}>
           <ChevronLeft size={28} color="#111827" strokeWidth={2.7} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Detalhes da entrega</Text>
         <View style={styles.headerButton} />
+      </View>
+
+      {/* Top Route Map (Below Header) */}
+      <View style={{ height: 210, width: "100%", position: "relative", overflow: "hidden", borderBottomWidth: 1, borderBottomColor: "#eef1f5" }}>
+        <GlobalMap
+          ref={mapRef}
+          style={{ width: "100%", height: "100%" }}
+          useDarkStyle={true}
+          showsCompass={false}
+          initialRegion={{
+            latitude: routeProfiles.pickupProfile.addressCoords?.latitude || -23.5505,
+            longitude: routeProfiles.pickupProfile.addressCoords?.longitude || -46.6333,
+            latitudeDelta: 0.02,
+            longitudeDelta: 0.02,
+          }}
+        >
+          {/* Pickup Marker */}
+          {!!routeProfiles.pickupProfile.addressCoords && (
+            <Marker coordinate={routeProfiles.pickupProfile.addressCoords} anchor={{ x: 0.3, y: 0.5 }}>
+              <PremiumMapMarker type="origin" />
+            </Marker>
+          )}
+
+          {/* Dropoff Marker */}
+          {!!routeProfiles.dropoffProfile.addressCoords && (
+            <Marker coordinate={routeProfiles.dropoffProfile.addressCoords} anchor={{ x: 0.3, y: 0.5 }}>
+              <PremiumMapMarker type="destination" />
+            </Marker>
+          )}
+
+          {/* Polyline Route */}
+          {routeCoords.length >= 2 && (
+            <Polyline coordinates={routeCoords} strokeColor="#020202ff" strokeWidth={5.5} />
+          )}
+
+          {/* Animated Walking Delivery Marker */}
+          {!!animatedVehicleCoord && (
+            <Marker coordinate={animatedVehicleCoord} anchor={{ x: 0.3, y: 0.6 }}>
+              <View style={{ alignItems: "center", position: "relative", height: 70, width: 34, justifyContent: "flex-start" }}>
+                {/* Core Hub (Just Transparent Image) */}
+                <View style={{ position: "absolute", top: 2, width: 26, height: 26, alignItems: "center", justifyContent: "center", zIndex: 10 }}>
+                  <Image
+                    source={selectedVehicleType === "motorcycle" ? require("../../../../../../assets/Logo/leva_moto.png") : vehicleImages[selectedVehicleType]}
+                    style={{ width: 24, height: 24 }}
+                    resizeMode="contain"
+                  />
+                </View>
+
+                {/* Haste do alfinete (mais alta e preta) */}
+                <View style={{ position: "absolute", top: 24, width: 3, height: 12, backgroundColor: "#111827", borderBottomLeftRadius: 1, borderBottomRightRadius: 1, zIndex: 9 }} />
+
+                {/* Bolinha no pé do alfinete (preta) */}
+                <View style={{ position: "absolute", top: 32, width: 6, height: 6, borderRadius: 3, backgroundColor: "#111827", borderWidth: 1, borderColor: "#ffffff", zIndex: 12 }} />
+              </View>
+            </Marker>
+          )}
+
+          {/* Directions calculation */}
+          {!!routeProfiles.pickupProfile.addressCoords && !!routeProfiles.dropoffProfile.addressCoords && (
+            <MapViewDirections
+              origin={routeProfiles.pickupProfile.addressCoords}
+              destination={routeProfiles.dropoffProfile.addressCoords}
+              apikey={GOOGLE_API_KEY}
+              mode="DRIVING"
+              strokeWidth={0}
+              strokeColor="transparent"
+              onReady={onDirectionsReady}
+            />
+          )}
+        </GlobalMap>
+
+        {/* Floating Recenter Route Button */}
+        {routeCoords.length > 0 && (
+          <TouchableOpacity
+            style={{
+              position: "absolute",
+              bottom: 12,
+              right: 12,
+              backgroundColor: "#ffffff",
+              width: 36,
+              height: 36,
+              borderRadius: 18,
+              alignItems: "center",
+              justifyContent: "center",
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.25,
+              shadowRadius: 3,
+              elevation: 5,
+              zIndex: 99,
+            }}
+            onPress={handleRecenterRoute}
+            activeOpacity={0.85}
+          >
+            <Locate size={18} color="#111827" strokeWidth={2.5} />
+          </TouchableOpacity>
+        )}
+
+        {/* Floating Info Pill Card (KM and Duration) */}
+        {!!priceData?.distance && (
+          <View
+            style={{
+              position: "absolute",
+              top: 12,
+              left: 12,
+              backgroundColor: "rgba(17, 24, 39, 0.9)",
+              paddingHorizontal: 12,
+              paddingVertical: 7,
+              borderRadius: 100,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 6,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.25,
+              shadowRadius: 3,
+              elevation: 5,
+              zIndex: 99,
+            }}
+          >
+            <Locate size={13} color="#02de95" strokeWidth={3} />
+            <Text style={{ color: "#ffffff", fontSize: 12, fontWeight: "900", letterSpacing: -0.1 }}>
+              {priceData.distance.text}
+              {priceData?.duration?.text ? ` • ${priceData.duration.text}` : ""}
+            </Text>
+          </View>
+        )}
       </View>
 
       <ScrollView
@@ -380,7 +557,8 @@ export default function DeliveryDetailsScreen() {
                 <View style={{ flex: 1, height: 1, backgroundColor: "#eef1f5" }} />
                 <View style={{ backgroundColor: "#ecfff8", borderRadius: 20, paddingHorizontal: 12, paddingVertical: 4, marginHorizontal: 10, borderWidth: 1, borderColor: "#02de95" }}>
                   <Text style={{ color: "#02de95", fontSize: 12, fontWeight: "900" }}>
-                    {priceData.distance.text || `${(priceData.distance.value / 1000).toFixed(1)} km`}
+                    {priceData.distance.text}
+                    {priceData?.duration?.text ? ` • ${priceData.duration.text}` : ""}
                   </Text>
                 </View>
                 <View style={{ flex: 1, height: 1, backgroundColor: "#eef1f5" }} />
@@ -472,7 +650,13 @@ export default function DeliveryDetailsScreen() {
         </TouchableOpacity>
 
         <View style={styles.footerBottom}>
-          <Text style={styles.totalText}>{total}</Text>
+          {loadingPricing ? (
+            <View style={{ height: 32, justifyContent: "center", alignItems: "flex-start", width: 80 }}>
+              <ActivityIndicator color="#02de95" size="small" />
+            </View>
+          ) : (
+            <Text style={styles.totalText}>{total}</Text>
+          )}
           <TouchableOpacity
             style={[styles.confirmButton, (submitting || loadingPricing) && styles.confirmButtonDisabled]}
             onPress={handleConfirm}
@@ -715,7 +899,7 @@ export default function DeliveryDetailsScreen() {
           </ScrollView>
 
           <View className="absolute bottom-0 left-0 right-0 bg-[#f8f8fa] px-8 pb-7 pt-4">
-            <TouchableOpacity className="h-[56px] items-center justify-center rounded-[22px] bg-[#ffd400]" activeOpacity={0.9}>
+            <TouchableOpacity className="h-[56px] items-center justify-center rounded-[22px] bg-[#02de95]" activeOpacity={0.9}>
               <Text className="text-[21px] font-black text-[#111827]">Depositar com Pix</Text>
             </TouchableOpacity>
           </View>
@@ -742,7 +926,7 @@ export default function DeliveryDetailsScreen() {
             <Text className="mb-4 text-center text-sm leading-5 text-[#9ca3af]">
               Ao continuar, você concorda com nossos <Text className="text-[#ff7a32]">Termos de Uso de Pagamento</Text> e <Text className="text-[#ff7a32]">Termos de Uso de Crédito</Text>
             </Text>
-            <TouchableOpacity className="mb-7 h-[58px] items-center justify-center rounded-[16px] bg-[#ffd400]" activeOpacity={0.9}>
+            <TouchableOpacity className="mb-7 h-[58px] items-center justify-center rounded-[16px] bg-[#02de95]" activeOpacity={0.9}>
               <Text className="text-[21px] font-black text-black">Concordar e continuar</Text>
             </TouchableOpacity>
           </View>
@@ -772,13 +956,13 @@ export default function DeliveryDetailsScreen() {
               <TextInput placeholder="Outro (especifique)" placeholderTextColor="#c3c7ce" multiline className="min-h-[78px] text-base text-[#111827]" />
               <Text className="self-end text-sm text-[#b7bcc5]">0/200</Text>
             </View>
-            <TouchableOpacity className={exitReason ? "mt-6 h-[56px] items-center justify-center rounded-[16px] bg-[#ffd400]" : "mt-6 h-[56px] items-center justify-center rounded-[16px] bg-[#f1f0f4]"} activeOpacity={0.9}>
+            <TouchableOpacity className={exitReason ? "mt-6 h-[56px] items-center justify-center rounded-[16px] bg-[#02de95]" : "mt-6 h-[56px] items-center justify-center rounded-[16px] bg-[#f1f0f4]"} activeOpacity={0.9}>
               <Text className={exitReason ? "text-xl font-black text-black" : "text-xl font-black text-[#d5d2d8]"}>Confirmar</Text>
             </TouchableOpacity>
           </View>
         </View>
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -1064,7 +1248,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: "#ffd400",
+    backgroundColor: "#02de95",
   },
   confirmButtonDisabled: {
     opacity: 0.6,

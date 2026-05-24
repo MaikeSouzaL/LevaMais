@@ -64,6 +64,7 @@ export default function DeliverySenderInfoScreen() {
   const [contactName, setContactName] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [savedSenderProfile, setSavedSenderProfile] = useState<any>(null);
+  const [isFromMapSelection, setIsFromMapSelection] = useState(false);
 
   // Address search state
   const [isSearchingAddress, setIsSearchingAddress] = useState(false);
@@ -114,12 +115,14 @@ export default function DeliverySenderInfoScreen() {
     setAddressDetails(existingProfile?.details || "");
     setContactName(existingProfile?.contactName || "");
     setContactPhone(existingProfile?.contactPhone || "");
+    setIsFromMapSelection(false);
     isInitialized.current = true;
   }, [isSender, route.params?.dropoffProfile, route.params?.pickupProfile]);
 
   useEffect(() => {
     if (route.params?.mapPickedAddress) {
       setAddress(route.params.mapPickedAddress);
+      setIsFromMapSelection(!!(route.params as any)?.isFromMapSelection);
       if (route.params.mapPickedLatitude && route.params.mapPickedLongitude) {
         setAddressCoords({
           latitude: route.params.mapPickedLatitude,
@@ -145,7 +148,8 @@ export default function DeliverySenderInfoScreen() {
     route.params?.mapPickedLongitude,
     route.params?.mapPickedName,
     route.params?.mapPickedPhone,
-    route.params?.mapPickedDetails
+    route.params?.mapPickedDetails,
+    (route.params as any)?.isFromMapSelection
   ]);
 
   useEffect(() => {
@@ -226,6 +230,7 @@ export default function DeliverySenderInfoScreen() {
     options?: { saveAs?: "Casa" | "Trabalho" },
   ) => {
     setAddress(pickedAddress);
+    setIsFromMapSelection(false);
     if (coords) setAddressCoords(coords);
     if (coords) {
       void addressHistoryService.create({
@@ -285,9 +290,12 @@ export default function DeliverySenderInfoScreen() {
   const handleSelectRecent = (fav: FavoriteAddress) => {
     setAddress(fav.formattedAddress || fav.address || "");
     setAddressCoords({ latitude: Number(fav.latitude), longitude: Number(fav.longitude) });
+    setIsFromMapSelection(false);
     
     // Fill contact details if available
-    if (fav.name && fav.name !== "Endereço recente" && fav.name !== "Casa" && fav.name !== "Trabalho") {
+    if ((fav as any).contactName) {
+      setContactName((fav as any).contactName);
+    } else if (fav.name && fav.name !== "Endereço recente" && fav.name !== "Casa" && fav.name !== "Trabalho") {
       setContactName(fav.name);
     }
     if ((fav as any).contactPhone) {
@@ -404,6 +412,25 @@ export default function DeliverySenderInfoScreen() {
   // Handle confirm
   const handleConfirm = async () => {
     if (!address || !contactName || !contactPhone) return;
+
+    if (addressCoords) {
+      try {
+        await addressHistoryService.create({
+          context: isSender ? "sender" : "receiver",
+          name: contactName || address.split(",")[0],
+          address: address,
+          formattedAddress: address,
+          latitude: addressCoords.latitude,
+          longitude: addressCoords.longitude,
+          details: addressDetails,
+          contactName: contactName,
+          contactPhone: contactPhone,
+          source: "manual",
+        });
+      } catch (err) {
+        console.error("Erro ao salvar historico de endereco ao confirmar:", err);
+      }
+    }
 
     const profile: DeliveryAddressProfile = {
       address,
@@ -531,7 +558,7 @@ export default function DeliverySenderInfoScreen() {
           </View>
 
           {/* Aviso sobre o número do endereço */}
-          {!!address && (
+          {!!address && isFromMapSelection && (
             <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#fef3c7", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, marginHorizontal: 20, marginTop: 10, gap: 10, borderWidth: 1, borderColor: "#fde68a" }}>
               <AlertTriangle size={18} color="#d97706" />
               <Text style={{ color: "#b45309", fontSize: 12, fontWeight: "700", flex: 1, lineHeight: 16 }}>

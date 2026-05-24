@@ -206,6 +206,7 @@ export default function DeliveryMapPickerScreen() {
         mapPickedAddress: selectedAddress,
         mapPickedLatitude: pinCoord.latitude,
         mapPickedLongitude: pinCoord.longitude,
+        isFromMapSelection: true,
       }));
       return;
     }
@@ -220,6 +221,7 @@ export default function DeliveryMapPickerScreen() {
       mapPickedAddress: selectedAddress,
       mapPickedLatitude: pinCoord.latitude,
       mapPickedLongitude: pinCoord.longitude,
+      isFromMapSelection: true,
     } as any);
   };
 
