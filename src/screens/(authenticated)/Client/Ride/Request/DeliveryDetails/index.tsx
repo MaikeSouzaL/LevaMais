@@ -375,7 +375,19 @@ export default function DeliveryDetailsScreen() {
               <ChevronRight size={23} color="#7b7f86" />
             </TouchableOpacity>
 
-            <View style={styles.routeDivider} />
+            {priceData?.distance ? (
+              <View style={{ flexDirection: "row", alignItems: "center", marginVertical: 8 }}>
+                <View style={{ flex: 1, height: 1, backgroundColor: "#eef1f5" }} />
+                <View style={{ backgroundColor: "#ecfff8", borderRadius: 20, paddingHorizontal: 12, paddingVertical: 4, marginHorizontal: 10, borderWidth: 1, borderColor: "#02de95" }}>
+                  <Text style={{ color: "#02de95", fontSize: 12, fontWeight: "900" }}>
+                    {priceData.distance.text || `${(priceData.distance.value / 1000).toFixed(1)} km`}
+                  </Text>
+                </View>
+                <View style={{ flex: 1, height: 1, backgroundColor: "#eef1f5" }} />
+              </View>
+            ) : (
+              <View style={styles.routeDivider} />
+            )}
 
             <TouchableOpacity activeOpacity={0.85} style={styles.routeRow}>
               <View style={styles.routeTextWrap}>

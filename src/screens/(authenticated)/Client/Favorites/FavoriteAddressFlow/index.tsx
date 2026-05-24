@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RouteProp, StackActions, useNavigation, useRoute } from "@react-navigation/native";
-import { Briefcase, ChevronLeft, ChevronRight, Flame, Home as HomeIcon, MapPin, Star, X, History } from "lucide-react-native";
+import { Briefcase, ChevronLeft, ChevronRight, Flame, Home as HomeIcon, MapPin, Star, X, History, AlertTriangle } from "lucide-react-native";
 
 import favoriteAddressService, { FavoriteAddress } from "@/services/favoriteAddress.service";
 import { getPlaceDetails, PlaceAutocompleteResult, searchPlaces } from "@/services/googlePlaces.service";
@@ -151,9 +151,11 @@ export default function FavoriteAddressFlowScreen() {
 
   const scopedTitle = favoriteFilter === "home" ? "Casa" : favoriteFilter === "work" ? "Trabalho" : favoriteFilter === "favorite" ? "Favoritos extras" : "Favoritos";
   const scopedAddLabel = favoriteFilter === "home" ? "Adicionar casa" : favoriteFilter === "work" ? "Adicionar trabalho" : "Adicionar favorito";
-  const title = isSelectionMode
-    ? (favoriteFilter ? scopedTitle : isSender ? "Buscar local para remetente" : "Buscar local para destinatário")
-    : (mode === "favoriteName" ? "Dados do local" : scopedTitle);
+  const title = mode === "favoriteName"
+    ? (draft?.icon === "home" ? "Casa" : draft?.icon === "work" ? "Trabalho" : "Favoritos extras")
+    : (isSelectionMode
+      ? (favoriteFilter ? scopedTitle : isSender ? "Buscar local para remetente" : "Buscar local para destinatário")
+      : scopedTitle);
 
   const placeholder = isSelectionMode
     ? (isSender ? "Buscar local para remetente" : "Buscar local para destinatário")
@@ -432,8 +434,12 @@ export default function FavoriteAddressFlowScreen() {
     mode === "home" ? "home" : mode === "work" ? "work" : favoriteFilter || "favorite";
 
   const handleOpenMapPicker = () => {
+    // Se estiver em modo de seleção e o modo atual for genérico,
+    // significa que clicou direto em "Escolher no mapa" sem selecionar Casa/Trabalho primeiro.
+    const isDirectSelection = isSelectionMode && (mode === "favorite" || mode === "favoritesList");
+
     navigation.navigate("DeliveryMapPicker", {
-      returnScreen: "FavoriteAddressFlow",
+      returnScreen: isDirectSelection ? "DeliverySenderInfo" : "FavoriteAddressFlow",
       returnField: currentCreateIcon,
       favoriteInitialSearchMode: currentCreateIcon,
       selectionMode: isSelectionMode,
@@ -522,8 +528,27 @@ export default function FavoriteAddressFlowScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 28 }}>
-            <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "#9ca3af", alignItems: "center", justifyContent: "center", marginRight: 16 }}>
-              <MapPin size={20} color="#fff" fill="#fff" />
+            <View style={{
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              backgroundColor: draft?.icon === "home" ? "#e6fff6" : draft?.icon === "work" ? "#eff6ff" : "#fef3c7",
+              alignItems: "center",
+              justifyContent: "center",
+              marginRight: 16,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.05,
+              shadowRadius: 4,
+              elevation: 2,
+            }}>
+              {draft?.icon === "home" ? (
+                <HomeIcon size={22} color="#02de95" />
+              ) : draft?.icon === "work" ? (
+                <Briefcase size={22} color="#3b82f6" />
+              ) : (
+                <Star size={22} color="#f59e0b" fill="#f59e0b" />
+              )}
             </View>
             <Text style={{ flex: 1, color: "#4b5563", fontSize: 14, lineHeight: 19 }} numberOfLines={2}>
               Confirme o endereço e complete os dados deste local.
@@ -540,20 +565,108 @@ export default function FavoriteAddressFlowScreen() {
               style={{ color: "#111827", fontSize: 16, fontWeight: "600", minHeight: 58, textAlignVertical: "top" }}
             />
           </View>
+          {/* Aviso sobre o número do endereço */}
+          {!!draft?.address && (
+            <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#fef3c7", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 18, gap: 10, borderWidth: 1, borderColor: "#fde68a" }}>
+              <AlertTriangle size={18} color="#d97706" />
+              <Text style={{ color: "#b45309", fontSize: 12, fontWeight: "700", flex: 1, lineHeight: 16 }}>
+                Atenção: O número do endereço obtido pelo mapa pode não estar 100% correto. Por favor, revise e confirme o número do endereço acima!
+              </Text>
+            </View>
+          )}
+
+          {/* Seletor de Tipo de Favorito */}
+          <View style={{ marginBottom: 18 }}>
+            <Text style={{ color: "#6b7280", fontSize: 13, fontWeight: "700", marginBottom: 10 }}>
+              Salvar endereço como:
+            </Text>
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <TouchableOpacity
+                onPress={() => {
+                  setDraft(curr => curr ? { ...curr, icon: "home" } : null);
+                  setFavoriteName("Casa");
+                }}
+                style={{
+                  flex: 1,
+                  height: 48,
+                  borderRadius: 12,
+                  backgroundColor: draft?.icon === "home" ? "#e6fff6" : "#fff",
+                  borderWidth: 1.5,
+                  borderColor: draft?.icon === "home" ? "#02de95" : "#e5e7eb",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                }}
+              >
+                <HomeIcon size={18} color={draft?.icon === "home" ? "#02de95" : "#6b7280"} />
+                <Text style={{ color: draft?.icon === "home" ? "#091A2F" : "#4b5563", fontSize: 14, fontWeight: "800" }}>
+                  Casa
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => {
+                  setDraft(curr => curr ? { ...curr, icon: "work" } : null);
+                  setFavoriteName("Trabalho");
+                }}
+                style={{
+                  flex: 1,
+                  height: 48,
+                  borderRadius: 12,
+                  backgroundColor: draft?.icon === "work" ? "#e6fff6" : "#fff",
+                  borderWidth: 1.5,
+                  borderColor: draft?.icon === "work" ? "#02de95" : "#e5e7eb",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                }}
+              >
+                <Briefcase size={18} color={draft?.icon === "work" ? "#02de95" : "#6b7280"} />
+                <Text style={{ color: draft?.icon === "work" ? "#091A2F" : "#4b5563", fontSize: 14, fontWeight: "800" }}>
+                  Trabalho
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => {
+                  setDraft(curr => curr ? { ...curr, icon: "favorite" } : null);
+                  setFavoriteName("");
+                }}
+                style={{
+                  flex: 1,
+                  height: 48,
+                  borderRadius: 12,
+                  backgroundColor: draft?.icon === "favorite" ? "#e6fff6" : "#fff",
+                  borderWidth: 1.5,
+                  borderColor: draft?.icon === "favorite" ? "#02de95" : "#e5e7eb",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                }}
+              >
+                <Star size={18} color={draft?.icon === "favorite" ? "#02de95" : "#6b7280"} fill={draft?.icon === "favorite" ? "#02de95" : "none"} />
+                <Text style={{ color: draft?.icon === "favorite" ? "#091A2F" : "#4b5563", fontSize: 14, fontWeight: "800" }}>
+                  Outros
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
           <View style={{ backgroundColor: "#fff", borderRadius: 18, paddingHorizontal: 18, paddingVertical: 12, borderWidth: 1, borderColor: "#f3f4f6", shadowColor: "#000", shadowOpacity: 0.08, shadowRadius: 10, elevation: 2, marginBottom: 14 }}>
             <Text style={{ color: "#6b7280", fontSize: 12, marginBottom: 4 }}>Nome do local</Text>
             <View style={{ flexDirection: "row", alignItems: "center" }}>
               <TextInput
                 value={favoriteName}
                 onChangeText={setFavoriteName}
-                autoFocus={draft?.icon === "favorite"}
-                editable={draft?.icon === "favorite"}
                 placeholder="Ex.: Casa, Trabalho, Academia"
                 placeholderTextColor="#c4c4c8"
-                style={{ flex: 1, color: "#111827", fontSize: 17, fontWeight: "600", opacity: draft?.icon === "favorite" ? 1 : 0.75 }}
+                style={{ flex: 1, color: "#111827", fontSize: 17, fontWeight: "600" }}
               />
               {favoriteName.length > 0 && (
-                <TouchableOpacity onPress={() => setFavoriteName("")} disabled={draft?.icon !== "favorite"}>
+                <TouchableOpacity onPress={() => setFavoriteName("")}>
                   <X size={18} color="#c7c7c7" />
                 </TouchableOpacity>
               )}
@@ -590,13 +703,28 @@ export default function FavoriteAddressFlowScreen() {
               style={{ color: "#111827", fontSize: 16, fontWeight: "600", minHeight: 42 }}
             />
           </View>
-          <View style={{ alignItems: "flex-end", marginTop: 32 }}>
+          <View style={{ marginTop: 28, paddingBottom: 16 }}>
             <TouchableOpacity
               onPress={handleSaveFavoriteName}
               disabled={saving || !draft?.address.trim() || !favoriteName.trim() || !contactName.trim() || !contactPhone.trim()}
-              style={{ height: 58, paddingHorizontal: 34, borderRadius: 29, backgroundColor: "#02de95", opacity: saving || !draft?.address.trim() || !favoriteName.trim() || !contactName.trim() || !contactPhone.trim() ? 0.55 : 1, alignItems: "center", justifyContent: "center" }}
+              style={{
+                height: 54,
+                borderRadius: 16,
+                backgroundColor: "#02de95",
+                opacity: saving || !draft?.address.trim() || !favoriteName.trim() || !contactName.trim() || !contactPhone.trim() ? 0.55 : 1,
+                alignItems: "center",
+                justifyContent: "center",
+                width: "100%",
+                shadowColor: "#02de95",
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.2,
+                shadowRadius: 6,
+                elevation: 3,
+              }}
             >
-              <Text style={{ color: "#091A2F", fontSize: 20, fontWeight: "900" }}>{saving ? "Salvando..." : "Salvar"}</Text>
+              <Text style={{ color: "#091A2F", fontSize: 17, fontWeight: "900" }}>
+                {saving ? "Confirmando..." : "Confirmar"}
+              </Text>
             </TouchableOpacity>
           </View>
         </ScrollView>

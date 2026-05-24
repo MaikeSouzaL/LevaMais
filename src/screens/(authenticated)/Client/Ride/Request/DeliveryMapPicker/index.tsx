@@ -16,6 +16,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Location from "expo-location";
 import { ClientStackParamList } from "../../../types/navigation";
 import { reverseGeocode, type PlaceDetails } from "@/services/googlePlaces.service";
+import AddressAutocomplete from "@/components/AddressAutocomplete";
 
 function formatPinAddress(details: PlaceDetails): string {
   const streetLine = [details.street, details.streetNumber].filter(Boolean).join(", ");
@@ -41,7 +42,7 @@ export default function DeliveryMapPickerScreen() {
   const returnField = route.params?.returnField || "address";
   const returnScreen = route.params?.returnScreen;
 
-  const [region, setRegion] = useState({
+  const [region] = useState({
     latitude: initialLat,
     longitude: initialLng,
     latitudeDelta: 0.006,
@@ -56,14 +57,22 @@ export default function DeliveryMapPickerScreen() {
   const [address, setAddress] = useState("Carregando endereço...");
   const [fullAddress, setFullAddress] = useState("");
   const [isGeocodingPin, setIsGeocodingPin] = useState(false);
-  const [useDarkMap, setUseDarkMap] = useState(true);
+  const [mapStyleMode, setMapStyleMode] = useState<"light" | "dark" | "satellite">("light");
   const [isSwitchingMapStyle, setIsSwitchingMapStyle] = useState(false);
   const [isCentering, setIsCentering] = useState(false);
+  const [isSearchingAddress, setIsSearchingAddress] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const searchTimeoutRef = useRef<any>(null);
+  const reverseGeocodeSeqRef = useRef(0);
+  const lastReversePointRef = useRef<{ latitude: number; longitude: number } | null>(null);
 
   // Load map style pref
   useEffect(() => {
     AsyncStorage.getItem("mapStylePref").then((pref) => {
-      if (pref) setUseDarkMap(pref === "dark");
+      if (pref === "dark" || pref === "light" || pref === "satellite") {
+        setMapStyleMode(pref as any);
+      }
     }).catch(() => {});
   }, []);
 
@@ -72,49 +81,90 @@ export default function DeliveryMapPickerScreen() {
     geocodeCurrentPin(initialLat, initialLng);
   }, []);
 
-  const geocodeCurrentPin = async (lat: number, lng: number) => {
+  const geocodeCurrentPin = async (lat: number, lng: number, seq?: number) => {
     setIsGeocodingPin(true);
     try {
       const details = await reverseGeocode(lat, lng);
+      if (seq && seq !== reverseGeocodeSeqRef.current) return;
+      
       if (details) {
         const detailedAddress = formatPinAddress(details);
         setFullAddress(detailedAddress || details.formattedAddress || "");
         setAddress(detailedAddress || details.formattedAddress);
+        lastReversePointRef.current = { latitude: lat, longitude: lng };
       } else {
         setFullAddress("");
         setAddress(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
       }
     } catch {
+      if (seq && seq !== reverseGeocodeSeqRef.current) return;
       setFullAddress("");
       setAddress(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
     }
     setIsGeocodingPin(false);
   };
 
-  const handleMapRegionChange = (newRegion: any) => {
-    setRegion(newRegion);
-    // Update pin to center of map
+  const handleMapRegionComplete = (newRegion: any) => {
     setPinCoord({
       latitude: newRegion.latitude,
       longitude: newRegion.longitude,
     });
+
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    const prev = lastReversePointRef.current;
+    if (prev) {
+      const dLat = newRegion.latitude - prev.latitude;
+      const dLng = newRegion.longitude - prev.longitude;
+      // Approx 15 meters threshold to avoid geocoding on micro-jitters
+      const movedMetersApprox = Math.sqrt(dLat * dLat + dLng * dLng) * 111000;
+      if (movedMetersApprox < 15) {
+        return;
+      }
+    }
+
+    searchTimeoutRef.current = setTimeout(async () => {
+      const seq = ++reverseGeocodeSeqRef.current;
+      geocodeCurrentPin(newRegion.latitude, newRegion.longitude, seq);
+    }, 450);
   };
 
-  const handleMapRegionComplete = (newRegion: any) => {
-    setRegion(newRegion);
-    setPinCoord({
-      latitude: newRegion.latitude,
-      longitude: newRegion.longitude,
-    });
-    geocodeCurrentPin(newRegion.latitude, newRegion.longitude);
+  const handleSelectSearchedAddress = (details: PlaceDetails) => {
+    const lat = details.latitude;
+    const lng = details.longitude;
+
+    if (lat && lng) {
+      const target = { latitude: lat, longitude: lng };
+      setPinCoord(target);
+      
+      const detailedAddress = formatPinAddress(details);
+      setFullAddress(detailedAddress || details.formattedAddress || "");
+      setAddress(detailedAddress || details.formattedAddress);
+      
+      lastReversePointRef.current = target;
+
+      mapRef.current?.animateToRegion({
+        ...target,
+        latitudeDelta: 0.005,
+        longitudeDelta: 0.005,
+      }, 800);
+
+      setIsSearchingAddress(false);
+    }
   };
 
   const handleToggleMapStyle = () => {
     if (isSwitchingMapStyle) return;
     setIsSwitchingMapStyle(true);
-    setUseDarkMap((prev) => {
-      const next = !prev;
-      AsyncStorage.setItem("mapStylePref", next ? "dark" : "light").catch(() => {});
+    setMapStyleMode((prev) => {
+      let next: "light" | "dark" | "satellite" = "light";
+      if (prev === "light") next = "dark";
+      else if (prev === "dark") next = "satellite";
+      else next = "light";
+
+      AsyncStorage.setItem("mapStylePref", next).catch(() => {});
       return next;
     });
     setTimeout(() => setIsSwitchingMapStyle(false), 300);
@@ -130,11 +180,6 @@ export default function DeliveryMapPickerScreen() {
           longitude: pos.coords.longitude,
         };
         setPinCoord(target);
-        setRegion((r) => ({
-          ...r,
-          latitude: target.latitude,
-          longitude: target.longitude,
-        }));
         mapRef.current?.animateToRegion({
           ...target,
           latitudeDelta: 0.005,
@@ -167,6 +212,11 @@ export default function DeliveryMapPickerScreen() {
 
     // Navigate back with the selected location data
     navigation.navigate("DeliverySenderInfo", {
+      mode: route.params?.returnMode,
+      vehicleType: route.params?.vehicleType,
+      flow: route.params?.flow,
+      pickupProfile: route.params?.pickupProfile || null,
+      dropoffProfile: route.params?.dropoffProfile || null,
       mapPickedAddress: selectedAddress,
       mapPickedLatitude: pinCoord.latitude,
       mapPickedLongitude: pinCoord.longitude,
@@ -179,17 +229,16 @@ export default function DeliveryMapPickerScreen() {
       <GlobalMap
         ref={mapRef}
         style={styles.map}
-        region={region}
-        onRegionChange={handleMapRegionChange}
+        initialRegion={region}
         onRegionChangeComplete={handleMapRegionComplete}
-        useDarkStyle={useDarkMap}
+        mapStyleMode={mapStyleMode}
         showsUserLocation
         showsMyLocationButton={false}
       />
 
       {/* Fixed center pin (not draggable — moves with map) */}
       <View style={styles.centerPin} pointerEvents="none">
-        <View style={styles.pinShadow} />
+        <View style={styles.pinBaseDot} />
         <View style={styles.pinHead}>
           <View style={styles.pinDot} />
         </View>
@@ -201,18 +250,46 @@ export default function DeliveryMapPickerScreen() {
         style={styles.backButton}
         onPress={() => navigation.goBack()}
       >
-        <ChevronLeft size={24} color="#fff" strokeWidth={2.5} />
+        <ChevronLeft size={24} color="#091A2F" strokeWidth={2.5} />
       </TouchableOpacity>
+
+      {/* Floating instruction toast */}
+      <View style={styles.instructionContainer} pointerEvents="none">
+        <View style={styles.instructionContent}>
+          <Text style={styles.instructionText}>
+            Arraste o mapa para escolher o local desejado
+          </Text>
+        </View>
+      </View>
+
+      {/* Search Input Overlay */}
+      {isSearchingAddress && (
+        <View style={styles.searchOverlay}>
+          <AddressAutocomplete
+            query={searchQuery}
+            setQuery={setSearchQuery}
+            onSelect={handleSelectSearchedAddress}
+            placeholder="Buscar novo endereço..."
+            label=""
+            containerStyle={{ marginBottom: 0 }}
+          />
+          <TouchableOpacity
+            style={styles.cancelSearchBtn}
+            onPress={() => setIsSearchingAddress(false)}
+          >
+            <Text style={styles.cancelSearchText}>Cancelar</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Map action buttons */}
       <MapActionButtons
-        onSosPress={() => {}}
         onLocationPress={handleCenterMyLocation}
         onMapStylePress={handleToggleMapStyle}
-        useDarkMap={useDarkMap}
+        mapStyleMode={mapStyleMode}
         isCentering={isCentering}
         isSwitchingStyle={isSwitchingMapStyle}
-        bottomOffset={200}
+        topOffset={120}
       />
 
       {/* Bottom Card */}
@@ -227,14 +304,19 @@ export default function DeliveryMapPickerScreen() {
             {isGeocodingPin ? (
               <ActivityIndicator size="small" color="#02de95" style={{ alignSelf: "flex-start" }} />
             ) : (
-              <Text style={styles.addressText} numberOfLines={2}>
-                {address}
-              </Text>
+              <View>
+                <Text style={styles.addressText} numberOfLines={2}>
+                  {address}
+                </Text>
+                <Text style={styles.coordinatesText}>
+                  Lat: {pinCoord.latitude.toFixed(6)} | Lng: {pinCoord.longitude.toFixed(6)}
+                </Text>
+              </View>
             )}
           </View>
           <TouchableOpacity
             style={styles.editBtn}
-            onPress={() => navigation.goBack()}
+            onPress={() => setIsSearchingAddress(true)}
           >
             <Text style={styles.editBtnText}>Editar</Text>
           </TouchableOpacity>
@@ -297,13 +379,17 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 2,
     borderBottomRightRadius: 2,
   },
-  pinShadow: {
+
+  pinBaseDot: {
     position: "absolute",
     bottom: -4,
-    width: 16,
+    width: 6,
     height: 6,
-    borderRadius: 8,
-    backgroundColor: "rgba(0,0,0,0.2)",
+    borderRadius: 3,
+    backgroundColor: "#02de95", // bolinha menor verde
+    borderWidth: 1,
+    borderColor: "#fff",
+    zIndex: 12,
   },
   backButton: {
     position: "absolute",
@@ -312,10 +398,74 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "rgba(255,255,255,0.15)",
+    backgroundColor: "#fff",
     alignItems: "center",
     justifyContent: "center",
-    zIndex: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 4,
+    zIndex: 100,
+  },
+  instructionContainer: {
+    position: "absolute",
+    top: 52,
+    left: 76,
+    right: 76,
+    alignItems: "center",
+    zIndex: 99,
+  },
+  instructionContent: {
+    backgroundColor: "rgba(9, 26, 47, 0.85)",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  instructionText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  searchOverlay: {
+    position: "absolute",
+    top: 50,
+    left: 16,
+    right: 16,
+    zIndex: 50,
+    backgroundColor: "#11253E",
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "rgba(2,222,149,0.2)",
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    flexDirection: "column",
+    gap: 8,
+  },
+  cancelSearchBtn: {
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+    marginTop: 8,
+  },
+  cancelSearchText: {
+    color: "#9abcb0",
+    fontSize: 14,
+    fontWeight: "700",
   },
   bottomCard: {
     position: "absolute",
@@ -356,6 +506,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
     color: "#333",
+  },
+  coordinatesText: {
+    fontSize: 12,
+    color: "#777",
+    marginTop: 4,
+    fontWeight: "500",
   },
   editBtn: {
     paddingHorizontal: 14,

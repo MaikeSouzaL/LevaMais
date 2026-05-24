@@ -12,9 +12,10 @@ import {
   Keyboard,
   Modal as RNModal,
   Dimensions,
+  BackHandler,
 } from "react-native";
 import { NavigationProp, RouteProp, StackActions, useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
-import { ChevronLeft, ChevronRight, MapPin, Edit3, X, Home as HomeIcon, Briefcase, Star, Phone, User, Flame, Plus, Pencil, History } from "lucide-react-native";
+import { ChevronLeft, ChevronRight, MapPin, Edit3, X, Home as HomeIcon, Briefcase, Star, Phone, User, Flame, Plus, Pencil, History, AlertTriangle } from "lucide-react-native";
 import { MotiView } from "moti";
 import { ClientStackParamList, DeliveryAddressProfile, DeliveryVehicleType } from "../../../types/navigation";
 import { useAuthStore } from "@/context/authStore";
@@ -37,6 +38,24 @@ export default function DeliverySenderInfoScreen() {
     ? route.params?.vehicleType
     : "motorcycle") as DeliveryVehicleType;
 
+
+  // Reset navigation to Home on back press (Android hardware back)
+  useEffect(() => {
+    const backAction = () => {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "Home" as any }],
+      });
+      return true;
+    };
+
+    const backHandler = BackHandler.addEventListener(
+      "hardwareBackPress",
+      backAction
+    );
+
+    return () => backHandler.remove();
+  }, [navigation]);
 
   // Form fields
   const [address, setAddress] = useState("");
@@ -426,7 +445,12 @@ export default function DeliverySenderInfoScreen() {
       {/* Header */}
       <View className="flex-row items-center px-4 py-4 border-b border-gray-100">
         <TouchableOpacity
-          onPress={() => navigation.goBack()}
+          onPress={() => {
+            navigation.reset({
+              index: 0,
+              routes: [{ name: "Home" as any }],
+            });
+          }}
           className="w-[36px] h-[36px] items-center justify-center mr-3"
         >
           <ChevronLeft size={26} color="#111" strokeWidth={2.5} />
@@ -435,12 +459,14 @@ export default function DeliverySenderInfoScreen() {
       </View>
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "padding"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 40}
+
         className="flex-1"
       >
         <ScrollView
           className="flex-1"
-          contentContainerStyle={{ paddingBottom: 40 }}
+          contentContainerStyle={{ paddingBottom: 120 }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
@@ -449,30 +475,70 @@ export default function DeliverySenderInfoScreen() {
             <Text className="text-gray-500 text-[13px] font-semibold mb-1">
               Endereço<Text className="text-[#02de95]">*</Text>
             </Text>
-            <TouchableOpacity
-              onPress={() => {
-                navigation.navigate("FavoriteAddressFlow", {
-                  selectionMode: true,
-                  returnScreen: "DeliverySenderInfo",
-                  returnMode: mode,
-                  vehicleType,
-                  flow,
-                  pickupProfile: route.params?.pickupProfile,
-                  dropoffProfile: route.params?.dropoffProfile,
-                  isSender,
-                });
-              }}
-              className="flex-row items-center justify-between py-3 border-b border-gray-200"
-            >
-              <Text
-                className={`text-[16px] flex-1 ${address ? "text-gray-900 font-semibold" : "text-gray-300"}`}
-                numberOfLines={1}
+            {address ? (
+              <View className="flex-row items-center border-b border-gray-200">
+                <TextInput
+                  value={address}
+                  onChangeText={setAddress}
+                  placeholder={isSender ? "Selecionar endereço de coleta" : "Selecionar endereço de entrega"}
+                  placeholderTextColor="#ccc"
+                  className="flex-1 text-[16px] text-gray-900 py-3 font-semibold"
+                  multiline={false}
+                />
+                <TouchableOpacity
+                  onPress={() => {
+                    navigation.navigate("FavoriteAddressFlow", {
+                      selectionMode: true,
+                      returnScreen: "DeliverySenderInfo",
+                      returnMode: mode,
+                      vehicleType,
+                      flow,
+                      pickupProfile: route.params?.pickupProfile,
+                      dropoffProfile: route.params?.dropoffProfile,
+                      isSender,
+                    });
+                  }}
+                  style={{ padding: 10 }}
+                >
+                  <Pencil size={18} color="#9ca3af" />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                onPress={() => {
+                  navigation.navigate("FavoriteAddressFlow", {
+                    selectionMode: true,
+                    returnScreen: "DeliverySenderInfo",
+                    returnMode: mode,
+                    vehicleType,
+                    flow,
+                    pickupProfile: route.params?.pickupProfile,
+                    dropoffProfile: route.params?.dropoffProfile,
+                    isSender,
+                  });
+                }}
+                className="flex-row items-center justify-between py-3 border-b border-gray-200"
               >
-                {address || (isSender ? "Selecionar endereço de coleta" : "Selecionar endereço de entrega")}
-              </Text>
-              <ChevronRight size={20} color="#ccc" />
-            </TouchableOpacity>
+                <Text
+                  className="text-[16px] flex-1 text-gray-300"
+                  numberOfLines={1}
+                >
+                  {isSender ? "Selecionar endereço de coleta" : "Selecionar endereço de entrega"}
+                </Text>
+                <ChevronRight size={20} color="#ccc" />
+              </TouchableOpacity>
+            )}
           </View>
+
+          {/* Aviso sobre o número do endereço */}
+          {!!address && (
+            <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#fef3c7", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, marginHorizontal: 20, marginTop: 10, gap: 10, borderWidth: 1, borderColor: "#fde68a" }}>
+              <AlertTriangle size={18} color="#d97706" />
+              <Text style={{ color: "#b45309", fontSize: 12, fontWeight: "700", flex: 1, lineHeight: 16 }}>
+                Atenção: O número do endereço obtido pelo mapa pode não ser exato. Por favor, confira e ajuste o número se necessário!
+              </Text>
+            </View>
+          )}
 
           {/* Address Details */}
           <View className="px-5 pt-5">
