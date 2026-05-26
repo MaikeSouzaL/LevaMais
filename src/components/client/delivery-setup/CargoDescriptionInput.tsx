@@ -15,7 +15,7 @@ export const CargoDescriptionInput = ({ value, onChange }: CargoDescriptionInput
         <Text className="text-slate-400 text-[11px] font-bold uppercase tracking-widest">Descrição</Text>
       </View>
       
-      <View className="w-full bg-[#1E2D3D] border border-white/[0.03] rounded-2xl p-4 focus:border-primary/40 shadow-sm">
+      <View className="w-full bg-[#1E2D3D] border border-white/[0.03] rounded-2xl p-4 shadow-sm">
         <TextInput
           value={value}
           onChangeText={onChange}

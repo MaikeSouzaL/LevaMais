@@ -31,6 +31,7 @@ import { OTPIllustration } from "../../../components/auth/OTPIllustration";
 import { OTPInput } from "../../../components/auth/OTPInput";
 import { BackgroundMap } from "../../../components/visuals/BackgroundMap";
 import { Particles } from "../../../components/visuals/Particles";
+import { PhoneAlreadyRegisteredModal } from "../../../components/auth/PhoneAlreadyRegisteredModal";
 
 export default function PhoneVerificationScreen() {
   const navigation = useNavigation<any>();
@@ -49,6 +50,7 @@ export default function PhoneVerificationScreen() {
   const [sending, setSending] = useState(false);
   const [countdown, setCountdown] = useState(codeSent ? 60 : 0);
   const [hasSentInitialCode, setHasSentInitialCode] = useState(codeSent);
+  const [showRegisteredModal, setShowRegisteredModal] = useState(false);
 
   // Effect: Safeguard missing phone reference
   useEffect(() => {
@@ -80,11 +82,15 @@ export default function PhoneVerificationScreen() {
           });
           return;
         }
-        Toast.show({
-          type: "error",
-          text1: "Falha ao enviar código",
-          text2: response.message || "Tente novamente",
-        });
+        if (response.message && (response.message.includes("já cadastrado") || response.message.includes("ja cadastrado"))) {
+          setShowRegisteredModal(true);
+        } else {
+          Toast.show({
+            type: "error",
+            text1: "Falha ao enviar código",
+            text2: response.message || "Tente novamente",
+          });
+        }
       } catch (e: any) {
         Toast.show({
           type: "error",
@@ -145,11 +151,15 @@ export default function PhoneVerificationScreen() {
     try {
       const response = await sendPhoneVerification(phone);
       if (!response.success) {
-        Toast.show({
-          type: "error",
-          text1: "Erro",
-          text2: response.message || "Não foi possível reenviar",
-        });
+        if (response.message && (response.message.includes("já cadastrado") || response.message.includes("ja cadastrado"))) {
+          setShowRegisteredModal(true);
+        } else {
+          Toast.show({
+            type: "error",
+            text1: "Erro",
+            text2: response.message || "Não foi possível reenviar",
+          });
+        }
         return;
       }
       setCountdown(60);
@@ -350,6 +360,16 @@ export default function PhoneVerificationScreen() {
           </MotiView>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <PhoneAlreadyRegisteredModal
+        visible={showRegisteredModal}
+        phone={phone}
+        onClose={() => setShowRegisteredModal(false)}
+        onLogin={() => {
+          setShowRegisteredModal(false);
+          navigation.navigate("SignIn");
+        }}
+      />
     </View>
   );
 }

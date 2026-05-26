@@ -1,7 +1,6 @@
 import React from "react";
 import { StyleSheet, View, TouchableOpacity, ActivityIndicator, ViewStyle } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
-import { ShieldAlert, Layers } from "lucide-react-native";
+import { ShieldAlert, Layers, LocateFixed } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface MapActionButtonsProps {
@@ -9,6 +8,7 @@ interface MapActionButtonsProps {
   onLocationPress?: () => void;
   onMapStylePress?: () => void;
   useDarkMap?: boolean;
+  mapStyleMode?: "light" | "dark" | "satellite";
   isCentering?: boolean;
   isSwitchingStyle?: boolean;
   containerStyle?: ViewStyle;
@@ -21,6 +21,7 @@ export function MapActionButtons({
   onLocationPress,
   onMapStylePress,
   useDarkMap = true,
+  mapStyleMode,
   isCentering = false,
   isSwitchingStyle = false,
   containerStyle,
@@ -73,7 +74,7 @@ export function MapActionButtons({
           {isCentering ? (
             <ActivityIndicator size="small" color="#02de95" />
           ) : (
-            <MaterialIcons name="my-location" size={24} color="#02de95" />
+            <LocateFixed size={22} color="#02de95" />
           )}
         </TouchableOpacity>
       )}
@@ -84,15 +85,12 @@ export function MapActionButtons({
           onPress={onMapStylePress}
           disabled={isSwitchingStyle}
           activeOpacity={0.8}
-          style={[
-            styles.layerFab,
-            !useDarkMap && styles.layerFabActive,
-          ]}
+          style={styles.layerFab}
         >
           {isSwitchingStyle ? (
-            <ActivityIndicator size="small" color={useDarkMap ? "#FFF" : "#091A2F"} />
+            <ActivityIndicator size="small" color="#02de95" />
           ) : (
-            <Layers size={22} color={!useDarkMap ? "#091A2F" : "#FFF"} />
+            <Layers size={22} color="#02de95" />
           )}
         </TouchableOpacity>
       )}

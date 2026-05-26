@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -15,7 +15,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { MotiView } from "moti";
 import { Phone, User, Mail, Lock } from "lucide-react-native";
-import * as Location from "expo-location";
 import Toast from "react-native-toast-message";
 
 // React Hook Form + Zod
@@ -31,9 +30,7 @@ import {
   isErrorWithCode,
   statusCodes,
 } from "@react-native-google-signin/google-signin";
-import { getCurrentLocationAndAddress } from "../../../utils/location";
-import LocationPermissionScreen from "../LocationPermissionScreen";
-import { googleAuth } from "../../../services/auth.service";
+import { checkEmailExists, googleAuth } from "../../../services/auth.service";
 import { useAuthStore } from "../../../context/authStore";
 
 // Unified System & Components
@@ -69,26 +66,14 @@ const signUpSchema = z.object({
 
 type SignUpFormValues = z.infer<typeof signUpSchema>;
 
-interface SignUpParams {
-  phone?: string;
-  city?: string;
-}
-
 export default function SignUpScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const insets = useSafeAreaInsets();
 
   // Params Handover
-  const params = (route.params || {}) as SignUpParams;
-  const initialPhone = params.phone || "";
-  const initialCity = params.city || "";
-
-  // 🔄 Functional Local States (Location, Permissions)
-  const [detectedCity, setDetectedCity] = useState(initialCity);
-  const [showPermissionScreen, setShowPermissionScreen] = useState(false);
-  const [hasCheckedPermission, setHasCheckedPermission] = useState(false);
-  const [locationLoading, setLocationLoading] = useState(false);
+  const routeParams = (route.params || {}) as { phone?: string };
+  const initialPhone = routeParams.phone || "";
 
   // 🔄 Loading States
   const [loading, setLoading] = useState(false);
@@ -109,80 +94,6 @@ export default function SignUpScreen() {
   // Listen for password to pass strength feedback
   const watchedPassword = watch("password", "");
 
-  // 📍 Location Logic Callbacks
-  const handleGetLocation = useCallback(async () => {
-    setLocationLoading(true);
-    try {
-      const result = await getCurrentLocationAndAddress();
-      if (result?.address?.city) {
-        setDetectedCity(result.address.city);
-        Toast.show({
-          type: "success",
-          text1: "Localização detectada",
-          text2: `Cidade: ${result.address.city}`,
-        });
-      }
-    } catch (error) {
-          } finally {
-      setLocationLoading(false);
-    }
-  }, []);
-
-  // Effects hooks logic: Config, and Location Validation logic preserved exactly.
-
-  useEffect(() => {
-    let isMounted = true;
-    async function checkPermission() {
-      if (initialCity) {
-        if (isMounted) setHasCheckedPermission(true);
-        return;
-      }
-      try {
-        const { status } = await Location.getForegroundPermissionsAsync();
-        if (isMounted) {
-          if (status === "granted") {
-            setShowPermissionScreen(false);
-            setHasCheckedPermission(true);
-            await handleGetLocation();
-          } else {
-            setShowPermissionScreen(true);
-            setHasCheckedPermission(true);
-          }
-        }
-      } catch (err) {
-                if (isMounted) {
-          setShowPermissionScreen(true);
-          setHasCheckedPermission(true);
-        }
-      }
-    }
-    checkPermission();
-    return () => { isMounted = false; };
-  }, [initialCity, handleGetLocation]);
-
-  async function handleAllowLocation() {
-    setShowPermissionScreen(false);
-    setLocationLoading(true);
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        Toast.show({ type: "error", text1: "Permissão negada" });
-        setShowPermissionScreen(true);
-        setLocationLoading(false);
-        return;
-      }
-      await handleGetLocation();
-    } catch (err) {
-      Toast.show({ type: "error", text1: "Erro ao solicitar permissão" });
-      setShowPermissionScreen(true);
-      setLocationLoading(false);
-    }
-  }
-
-  function handleSkipLocation() {
-    setShowPermissionScreen(false);
-  }
-
   // 💼 Modern Google Signup Logic (Aligned with Backend & Social Flows)
   async function handleGoogleSignUp() {
     setGoogleLoading(true);
@@ -191,6 +102,11 @@ export default function SignUpScreen() {
       console.log("[GoogleSignUp] Verificando Play Services");
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
       
+      // Force account picker by signing out first
+      try {
+        await GoogleSignin.signOut();
+      } catch (e) {}
+
       console.log("[GoogleSignUp] Iniciando signIn()");
       const userInfo = await GoogleSignin.signIn();
       console.log("[GoogleSignUp] SignIn realizado com sucesso", userInfo);
@@ -211,7 +127,8 @@ export default function SignUpScreen() {
       });
 
       if (response.success && response.data) {
-        const { user: userData, token, isNewUser } = response.data;
+        const userCity = "";
+        const { user: userData, token } = response.data;
         const {
           _id,
           name: userName,
@@ -223,7 +140,6 @@ export default function SignUpScreen() {
           acceptedTerms,
         } = userData;
 
-        const userCity = initialCity || detectedCity || "";
 
         // 🚨 Force Phone Capture if missing
         if (!phone) {
@@ -246,8 +162,8 @@ export default function SignUpScreen() {
           return;
         }
 
-        // 🚀 If it's a NEW user, they MUST go to SelectProfile to choose between Client or Driver!
-        if (isNewUser || !userType) {
+        // 🚀 New users (no userType) or users without type MUST go to SelectProfile
+        if (!userType) {
           const generatedPassword = `${userEmail}-${id}`;
           navigation.navigate("SelectProfile", {
             user: {
@@ -339,6 +255,17 @@ export default function SignUpScreen() {
     
     setLoading(true);
     try {
+      const emailCheck = await checkEmailExists(data.email);
+      if (emailCheck?.success && emailCheck?.data?.exists) {
+        Toast.show({
+          type: "error",
+          text1: "E-mail já cadastrado",
+          text2: "Faça login para continuar com este e-mail.",
+        });
+        navigation.navigate("SignIn");
+        return;
+      }
+
       // Wrap into structure required by downstream routing
       const userData = {
         _id: "",
@@ -346,7 +273,7 @@ export default function SignUpScreen() {
         email: data.email.trim().toLowerCase(),
         password: data.password,
         phone: sanitizedPhone,
-        city: initialCity || detectedCity || undefined,
+        city: undefined,
         userType: undefined,
         googleId: undefined,
         profilePhoto: undefined,
@@ -356,7 +283,7 @@ export default function SignUpScreen() {
       // Handover to verification routing
       navigation.navigate("PhoneVerification", {
         phone: sanitizedPhone,
-        nextScreen: "SelectProfile",
+        nextScreen: "PhoneLocationSetup",
         nextParams: {
           user: userData,
           token: "",
@@ -370,14 +297,6 @@ export default function SignUpScreen() {
   };
 
   // Handle conditional overlay first if needed.
-  if (showPermissionScreen && hasCheckedPermission) {
-    return (
-      <LocationPermissionScreen
-        onAllow={handleAllowLocation}
-        onSkip={handleSkipLocation}
-      />
-    );
-  }
 
   return (
     <View style={styles.container}>

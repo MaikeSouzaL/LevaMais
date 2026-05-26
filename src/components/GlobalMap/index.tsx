@@ -14,7 +14,7 @@ import MapView, {
 import { MaterialIcons } from "@expo/vector-icons";
 import { darkMapStyle } from "@/utils/mapStyle";
 
-export interface GlobalMapProps extends Omit<MapViewProps, "customMapStyle"> {
+export interface GlobalMapProps extends Omit<MapViewProps, "customMapStyle" | "mapType"> {
   initialRegion?: Region;
   region?: Region;
   showsUserLocation?: boolean;
@@ -24,6 +24,7 @@ export interface GlobalMapProps extends Omit<MapViewProps, "customMapStyle"> {
    * - false: usa o estilo padrão do provider
    */
   useDarkStyle?: boolean;
+  mapStyleMode?: "light" | "dark" | "satellite";
   onMapRef?: (ref: MapView | null) => void;
   onPressMyLocation?: () => void;
   /**
@@ -38,6 +39,7 @@ export const GlobalMap = forwardRef<MapView, GlobalMapProps>(({
   region,
   showsUserLocation = true,
   useDarkStyle = true,
+  mapStyleMode,
   onMapRef,
   onPressMyLocation,
   animateTo3DOnReady = false,
@@ -80,10 +82,13 @@ export const GlobalMap = forwardRef<MapView, GlobalMapProps>(({
     }
   };
 
+  const resolvedMapType = mapStyleMode === "satellite" ? "hybrid" : "standard";
+  const resolvedCustomMapStyle = mapStyleMode === "dark" ? darkMapStyle : (mapStyleMode === "light" ? undefined : (useDarkStyle ? darkMapStyle : undefined));
+
   return (
     <View style={{ flex: 1 }}>
       <MapView
-        key={useDarkStyle ? "map-dark" : "map-light"}
+        key="global-map"
         ref={mapRef}
         provider={
           Platform.OS === "android" ? PROVIDER_GOOGLE : PROVIDER_DEFAULT
@@ -91,7 +96,8 @@ export const GlobalMap = forwardRef<MapView, GlobalMapProps>(({
         style={StyleSheet.absoluteFillObject}
         initialRegion={initialRegion}
         region={region}
-        customMapStyle={useDarkStyle ? darkMapStyle : undefined}
+        mapType={resolvedMapType}
+        customMapStyle={resolvedCustomMapStyle}
         showsUserLocation={showsUserLocation}
         showsMyLocationButton={false}
         showsCompass={false}

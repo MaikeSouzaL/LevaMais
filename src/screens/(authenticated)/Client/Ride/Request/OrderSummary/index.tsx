@@ -18,6 +18,7 @@ type FinalOrderSummaryData = {
   pickupLatLng?: { latitude: number; longitude: number };
   dropoffAddress: string;
   dropoffLatLng?: { latitude: number; longitude: number };
+  routeCoordinates?: Array<{ latitude: number; longitude: number }>;
   etaMinutes?: number;
   etaText?: string;
   servicePurposeLabel?: string;

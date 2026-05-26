@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, TextInput, Modal, Alert, Image } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, TextInput, Modal, Alert, Image, KeyboardAvoidingView, Platform } from "react-native";
 import { MotiView, AnimatePresence } from "moti";
 import { NavigationContext } from "@react-navigation/native";
-import { CheckCircle2, Clock, ChevronRight, FileText, ShieldCheck, Car, MessageSquare, LogOut, AlertCircle, RefreshCw, Sparkles, TrendingUp, Compass, User } from "lucide-react-native";
+import { CheckCircle2, Clock, ChevronRight, FileText, ShieldCheck, Car, MessageSquare, LogOut, AlertCircle, RefreshCw, Sparkles, TrendingUp, Compass, User, DollarSign } from "lucide-react-native";
 import { BlurView } from "expo-blur";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 
 import userService from "@/services/user.service";
 import driverService from "@/services/driver.service";
+import webSocketService from "@/services/websocket.service";
 import { useAuthStore } from "@/context/authStore";
 import { colors } from "@/theme/colors";
 import { getCurrentLocationAndAddress } from "@/utils/location";
@@ -26,6 +27,8 @@ export default function DriverOnboardingDashboard() {
   const [hasPersonalDocs, setHasPersonalDocs] = useState(false);
   const [driverStatus, setDriverStatus] = useState("none");
   const [progress, setProgress] = useState(0);
+  const [driverBalance, setDriverBalance] = useState(0);
+  const [hasBalance, setHasBalance] = useState(false);
 
   // Modal PF/PJ Registration States
   const [showModal, setShowModal] = useState(false);
@@ -193,6 +196,7 @@ export default function DriverOnboardingDashboard() {
       ]);
 
       let vStatus: "none" | "pending" | "approved" | "rejected" = "none";
+      let isDocsSubmitted = false;
 
       if (profile) {
         updateUserData({
@@ -205,6 +209,9 @@ export default function DriverOnboardingDashboard() {
           companyName: profile.companyName || "",
           companyEmail: profile.companyEmail || "",
           companyPhone: profile.companyPhone || "",
+          driverStatus: profile.driverStatus || "none",
+          vehicleType: profile.vehicleType || null,
+          vehicleInfo: profile.vehicleInfo || null,
         });
 
         // Seed fields
@@ -232,20 +239,27 @@ export default function DriverOnboardingDashboard() {
         const d = profile.driverDocuments || {};
         const hasCNH = Boolean(d.cnhFront && d.cnhBack);
         const hasSelfie = Boolean(d.selfie);
-        setHasPersonalDocs(hasCNH && hasSelfie);
+        isDocsSubmitted = hasCNH && hasSelfie;
+        setHasPersonalDocs(isDocsSubmitted);
         setDriverStatus(profile.driverStatus || "none");
       }
 
-      if (fleetData && fleetData.vehicles && fleetData.vehicles.length > 0) {
-        const list = fleetData.vehicles;
+      let isVehicleSubmitted = false;
+      const vehiclesList = (fleetData?.vehicles && fleetData.vehicles.length > 0)
+        ? fleetData.vehicles
+        : ((profile as any)?.vehicles || []);
+
+      if (vehiclesList && vehiclesList.length > 0) {
+        const list = vehiclesList;
         if (list.some((v: any) => v.status === "approved")) {
           vStatus = "approved";
-        } else if (list.some((v: any) => v.status === "pending")) {
+        } else if (list.some((v: any) => v.status === "pending" || v.status === "analyzing" || v.status === "in_analysis" || v.status === "em_analise")) {
           vStatus = "pending";
         } else if (list.every((v: any) => v.status === "rejected")) {
           vStatus = "rejected";
         }
         setHasVehicle(true);
+        isVehicleSubmitted = true;
       } else {
         setHasVehicle(false);
       }
@@ -253,18 +267,32 @@ export default function DriverOnboardingDashboard() {
 
       // Calculate custom completion scale
       let completedSteps = 1; // Step 1: Cadastro Básico is always done.
-      
+
       const hasCPFOrCNPJ = Boolean(profile?.cpf || profile?.cnpj);
       if (hasCPFOrCNPJ) completedSteps += 1;
-      if (hasPersonalDocs) completedSteps += 1;
-      if (hasVehicle) completedSteps += 1;
-      
+      if (isDocsSubmitted || profile?.driverStatus === "pending") completedSteps += 1;
+      if (isVehicleSubmitted || vStatus === "pending") completedSteps += 1;
+
+      // Verificar saldo
+      let hasBalance = false;
+      try {
+        const balanceData = await driverService.getBalance();
+        const bal = Number(balanceData?.balance || 0);
+        hasBalance = bal > 0;
+        setDriverBalance(bal);
+        setHasBalance(hasBalance);
+      } catch {
+        setHasBalance(false);
+      }
+      if (hasBalance) completedSteps += 1;
+
+      const ALL_STEPS = 5; // 1-Basic, 2-Cadastral, 3-Docs, 4-Vehicle, 5-Balance
+
       if (profile?.driverStatus === "approved" && vStatus === "approved" && hasCPFOrCNPJ) {
-        completedSteps += 1;
         setShowCongrats(true);
       }
 
-      setProgress(Math.round((completedSteps / 5) * 100));
+      setProgress(Math.round((completedSteps / ALL_STEPS) * 100));
     } catch (err) {
       console.warn("[Onboarding] Error compiling checklist status:", err);
     } finally {
@@ -277,6 +305,21 @@ export default function DriverOnboardingDashboard() {
       loadOnboardingStatus();
     }
   }, [isFocused]);
+
+  useEffect(() => {
+    const onDriverVerificationUpdated = (data: any) => {
+      const nextDriverStatus = String(data?.driverStatus || "none");
+      setDriverStatus(nextDriverStatus);
+      updateUserData({ driverStatus: nextDriverStatus as any });
+      loadOnboardingStatus();
+    };
+
+    webSocketService.connect().catch(() => {});
+    webSocketService.on("driver-verification-updated", onDriverVerificationUpdated);
+    return () => {
+      webSocketService.off("driver-verification-updated", onDriverVerificationUpdated);
+    };
+  }, [updateUserData]);
 
   const hasCPFOrCNPJ = Boolean(userData?.cpf || userData?.cnpj);
 
@@ -297,7 +340,9 @@ export default function DriverOnboardingDashboard() {
             ? `Pessoa Física (CPF: ${userData?.cpf})` 
             : `Pessoa Jurídica (CNPJ: ${userData?.cnpj})`)
         : "Cadastre seu CPF ou CNPJ para segurança",
-      status: hasCPFOrCNPJ ? "completed" : "pending",
+      status: hasCPFOrCNPJ 
+        ? (driverStatus === "approved" ? "completed" : "analyzing") 
+        : "pending",
       icon: FileText,
       action: () => setShowModal(true),
     },
@@ -308,10 +353,10 @@ export default function DriverOnboardingDashboard() {
         ? "Documentos aprovados"
         : driverStatus === "rejected"
         ? "Documentos rejeitados - Clique para revisar"
-        : hasPersonalDocs
+        : (hasPersonalDocs || driverStatus === "pending")
         ? "Documentos em análise operacional"
         : "Habilitação (CNH) e Selfie facial",
-      status: hasPersonalDocs 
+      status: (hasPersonalDocs || driverStatus === "pending") 
         ? (driverStatus === "approved" ? "completed" : driverStatus === "rejected" ? "rejected" : "analyzing") 
         : "pending",
       icon: FileText,
@@ -324,34 +369,26 @@ export default function DriverOnboardingDashboard() {
         ? "Veículo aprovado e ativado"
         : vehicleStatus === "rejected"
         ? "Veículo rejeitado - Clique para revisar"
-        : vehicleStatus === "pending"
+        : (vehicleStatus === "pending" || hasVehicle)
         ? "Veículo em análise operacional"
         : "Cadastrar dados e documento do carro/moto",
-      status: hasVehicle
+      status: (hasVehicle || vehicleStatus === "pending")
         ? (vehicleStatus === "approved" ? "completed" : vehicleStatus === "rejected" ? "rejected" : "analyzing")
         : "pending",
       icon: Car,
       action: () => navigation ? (navigation as any).navigate("DriverVehicle") : null,
     },
     {
-      id: "approval",
-      title: "Aprovação do Perfil",
-      desc: (driverStatus === "approved" && vehicleStatus === "approved")
-        ? "Perfil ativo e pronto para trabalhar"
-        : (driverStatus === "rejected" || vehicleStatus === "rejected")
-        ? "Revisão de documentos pendente"
-        : (driverStatus === "pending" || vehicleStatus === "pending")
-        ? "Em análise operacional final"
-        : "Aguardando envio de itens",
-      status: (driverStatus === "approved" && vehicleStatus === "approved")
-        ? "completed"
-        : (driverStatus === "rejected" || vehicleStatus === "rejected")
-        ? "rejected"
-        : (driverStatus === "pending" || vehicleStatus === "pending")
-        ? "processing"
-        : "locked",
-      icon: Clock,
-      action: null,
+      id: "balance",
+      title: "Saldo para Trabalhar",
+      desc: hasBalance
+        ? `Saldo para trabalhar: R$ ${Number(driverBalance || 0).toFixed(2)}`
+        : "Adicione saldo para trabalhar e pagar a taxa da plataforma",
+      status: hasBalance ? "completed" : (driverStatus === "approved" && vehicleStatus === "approved" ? "pending" : "locked"),
+      icon: DollarSign,
+      action: () => {
+        try { (navigation as any).navigate("DriverFinance", { screen: "DriverEarnings" }); } catch {}
+      },
     },
   ];
 
@@ -929,7 +966,10 @@ export default function DriverOnboardingDashboard() {
         transparent={true}
         onRequestClose={() => setShowModal(false)}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalOverlay}
+        >
           <MotiView
             from={{ opacity: 0, scale: 0.95, translateY: 30 }}
             animate={{ opacity: 1, scale: 1, translateY: 0 }}
@@ -1090,7 +1130,7 @@ export default function DriverOnboardingDashboard() {
               </TouchableOpacity>
             </View>
           </MotiView>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Sleek Basic Data Display Modal */}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, StyleSheet, TouchableOpacity, ActivityIndicator, Modal, Text, TextInput, Alert, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
+import { RouteProp, StackActions, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { GlobalMap } from "@/components/GlobalMap";
 import MapView, { Marker, Region } from 'react-native-maps';
@@ -26,7 +26,21 @@ import { ClientStackParamList } from '../../../types/navigation';
 export default function AddressPickerScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<ClientStackParamList, "LocationPicker">>();
   const route = useRoute<RouteProp<ClientStackParamList, "LocationPicker">>();
-  const { selectionMode, returnScreen, initialLocation, favoriteId, favoriteData, initialVehicle, initialService } = route.params || {};
+  const {
+    selectionMode,
+    returnScreen,
+    returnMode,
+    senderData,
+    initialLocation,
+    favoriteId,
+    favoriteData,
+    initialVehicle,
+    initialService,
+    vehicleType,
+    flow,
+    pickupProfile,
+    dropoffProfile,
+  } = route.params || {};
   const isEditMode = !!favoriteId;
   
   const mapLocation = useMapLocation();
@@ -257,6 +271,21 @@ export default function AddressPickerScreen() {
       return;
     }
 
+    if (returnScreen === "DeliverySenderInfo") {
+      navigation.dispatch(StackActions.replace("DeliverySenderInfo", {
+        mode: returnMode || "sender",
+        vehicleType: vehicleType || initialVehicle,
+        flow,
+        pickupProfile: pickupProfile || null,
+        dropoffProfile: dropoffProfile || null,
+        senderData,
+        mapPickedAddress: resolvedAddress,
+        mapPickedLatitude: Number(finalLat),
+        mapPickedLongitude: Number(finalLng),
+      }));
+      return;
+    }
+
     
     // Fluxo: Veiculo -> Destino -> Tipo de servico
     if (initialVehicle && (selectionMode === "dropoff" || selectionMode === "home_dropoff")) {
@@ -385,13 +414,8 @@ export default function AddressPickerScreen() {
           
           setModalVisible(false);
           
-          if (selectionMode === 'favorite_creation' || isEditMode) {
-              // Se o fluxo era apenas criar/editar favorito, voltamos direto
-              if (returnScreen === "Home") {
-                navigation.navigate("Home", { favorite_creation: true });
-              } else {
-                navigation.goBack();
-              }
+          if (isEditMode) {
+              navigation.goBack();
           } else {
               Alert.alert('Sucesso', 'Endereço salvo nos favoritos!');
           }
@@ -478,8 +502,8 @@ export default function AddressPickerScreen() {
                          {selectedAddress || "Arraste o mapa para ajustar"}
                      </Text>
                  </View>
-                 {/* Botão Salvar Favorito (Apenas para Origem ou Criação) */}
-                 {['currentLocation', 'favorite_creation', 'pickup'].includes(selectionMode || '') && (
+                 {/* Edição de favorito existente. Novos favoritos usam o fluxo único de DeliverySenderInfo. */}
+                 {isEditMode && (
                     <TouchableOpacity 
                         onPress={handleOpenFavModal} 
                         style={styles.favBtnIcon}
@@ -684,6 +708,5 @@ const styles = StyleSheet.create({
       fontWeight: 'bold'
   }
 });
-
 
 

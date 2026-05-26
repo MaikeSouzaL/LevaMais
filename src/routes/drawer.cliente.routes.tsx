@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, TouchableOpacity } from "react-native";
+import { View, Text, TouchableOpacity, Image } from "react-native";
 import {
   createDrawerNavigator,
   DrawerContentScrollView,
@@ -13,6 +13,7 @@ import { colors } from "@/theme";
 
 type DrawerClienteRoutesProps = {
   initialRideId?: string | null;
+  onActivated?: () => void;
 };
 
 const Drawer = createDrawerNavigator();
@@ -36,8 +37,11 @@ const menuItems = [
   { route: "Settings", label: "Configurações", icon: "cog" },
 ];
 
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
 function CustomDrawerContent(props: DrawerContentComponentProps) {
   const { userData, logout } = useAuthStore();
+  const insets = useSafeAreaInsets();
 
   const nestedState = (props.state.routes[props.state.index] as any)?.state;
   const nestedRoutes = nestedState?.routes || [];
@@ -48,84 +52,123 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
     (props.navigation as any).navigate("ClientMain", { screen: screenName });
   };
 
+  const displayName = userData?.name || userData?.nome || "Cliente";
+  const initials = displayName.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase();
+
+  const profileImageUrl = userData?.fotoPerfil || userData?.profilePhoto;
+
   return (
-    <DrawerContentScrollView
-      {...props}
-      contentContainerStyle={{ flexGrow: 1, backgroundColor: colors.background.primary }}
-    >
-      <View style={{ paddingHorizontal: 20, paddingVertical: 24 }}>
-        <Text style={{ color: "white", fontSize: 20, fontWeight: "800" }}>
-          {userData?.name || userData?.nome || "Cliente"}
-        </Text>
-        <Text style={{ color: "rgba(255,255,255,0.7)", marginTop: 4 }}>
-          {userData?.email || "Bem-vindo"}
-        </Text>
+    <View style={{ flex: 1, backgroundColor: colors.background.primary }}>
+      {/* Fixed Header */}
+      <View style={{ paddingTop: insets.top + 20, paddingHorizontal: 20, paddingBottom: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <View style={{ flex: 1, paddingRight: 12 }}>
+          <Text style={{ color: "white", fontSize: 22, fontWeight: "900" }} numberOfLines={1}>
+            {displayName}
+          </Text>
+          <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 13, marginTop: 2 }} numberOfLines={1}>
+            {userData?.email || "Bem-vindo"}
+          </Text>
+          <TouchableOpacity 
+            onPress={() => navigateToStackScreen("Profile")} 
+            style={{ marginTop: 6, flexDirection: 'row', alignItems: 'center' }}
+            activeOpacity={0.7}
+          >
+            <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, fontWeight: "600" }}>
+              Editar minhas informações
+            </Text>
+            <MaterialCommunityIcons name="chevron-right" size={14} color="rgba(255,255,255,0.5)" style={{ marginLeft: 2 }} />
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity 
+          onPress={() => navigateToStackScreen("Profile")}
+          activeOpacity={0.8}
+        >
+          {profileImageUrl ? (
+            <Image 
+              source={{ uri: profileImageUrl }} 
+              style={{ width: 56, height: 56, borderRadius: 28, borderWidth: 2, borderColor: colors.primary[500] }} 
+            />
+          ) : (
+            <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: "rgba(2,222,149,0.12)", alignItems: 'center', justifyContent: 'center', borderWidth: 2.5, borderColor: "rgba(2,222,149,0.35)" }}>
+              <Text style={{ color: "#02de95", fontSize: 20, fontWeight: "900" }}>{initials}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
       </View>
 
       <View style={{ borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.08)" }} />
 
-      <View style={{ paddingVertical: 12 }}>
-        {menuItems.map((item) => {
-          const active = activeNestedRoute === item.route;
-          return (
-            <TouchableOpacity
-              key={item.route}
-              onPress={() => navigateToStackScreen(item.route)}
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                paddingHorizontal: 20,
-                paddingVertical: 12,
-                backgroundColor: active ? "rgba(2,222,149,0.12)" : "transparent",
-                borderLeftWidth: active ? 3 : 0,
-                borderLeftColor: colors.primary[500],
-              }}
-              activeOpacity={0.8}
-            >
-              <MaterialCommunityIcons
-                name={item.icon as any}
-                size={22}
-                color={active ? colors.primary[500] : colors.text.secondary}
-              />
-              <Text
+      {/* Scrollable Navigation Items */}
+      <DrawerContentScrollView
+        {...props}
+        contentContainerStyle={{ flexGrow: 1 }}
+        style={{ flex: 1 }}
+      >
+        <View style={{ paddingVertical: 12 }}>
+          {menuItems.map((item) => {
+            const active = activeNestedRoute === item.route;
+            return (
+              <TouchableOpacity
+                key={item.route}
+                onPress={() => navigateToStackScreen(item.route)}
                 style={{
-                  marginLeft: 12,
-                  color: active ? colors.primary[500] : colors.text.primary,
-                  fontWeight: "700",
-                  fontSize: 15,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  paddingHorizontal: 20,
+                  paddingVertical: 12,
+                  backgroundColor: active ? "rgba(2,222,149,0.12)" : "transparent",
+                  borderLeftWidth: active ? 3 : 0,
+                  borderLeftColor: colors.primary[500],
                 }}
+                activeOpacity={0.8}
               >
-                {item.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+                <MaterialCommunityIcons
+                  name={item.icon as any}
+                  size={22}
+                  color={active ? colors.primary[500] : colors.text.secondary}
+                />
+                <Text
+                  style={{
+                    marginLeft: 12,
+                    color: active ? colors.primary[500] : colors.text.primary,
+                    fontWeight: "700",
+                    fontSize: 15,
+                  }}
+                >
+                  {item.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
-      <View style={{ marginTop: "auto", paddingHorizontal: 20, paddingBottom: 24 }}>
-        <TouchableOpacity
-          onPress={logout}
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            paddingVertical: 12,
-            borderTopWidth: 1,
-            borderTopColor: "rgba(255,255,255,0.08)",
-          }}
-          activeOpacity={0.8}
-        >
-          <MaterialCommunityIcons name="logout" size={22} color={colors.error} />
-          <Text style={{ marginLeft: 12, color: colors.error, fontWeight: "700" }}>
-            Sair
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </DrawerContentScrollView>
+        <View style={{ marginTop: "auto", paddingHorizontal: 20, paddingBottom: 24 }}>
+          <TouchableOpacity
+            onPress={logout}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              paddingVertical: 12,
+              borderTopWidth: 1,
+              borderTopColor: "rgba(255,255,255,0.08)",
+            }}
+            activeOpacity={0.8}
+          >
+            <MaterialCommunityIcons name="logout" size={22} color={colors.error} />
+            <Text style={{ marginLeft: 12, color: colors.error, fontWeight: "700" }}>
+              Sair
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </DrawerContentScrollView>
+    </View>
   );
 }
 
 export default function DrawerClienteRoutes({
   initialRideId,
+  onActivated: _onActivated,
 }: DrawerClienteRoutesProps) {
   return (
     <Drawer.Navigator
@@ -142,10 +185,10 @@ export default function DrawerClienteRoutes({
     >
       <Drawer.Screen
         name="ClientMain"
+        component={ClientStackRoutes}
         options={{ title: "Leva Mais" }}
-      >
-        {() => <ClientStackRoutes initialRideId={initialRideId} />}
-      </Drawer.Screen>
+        initialParams={{ initialRideId }}
+      />
     </Drawer.Navigator>
   );
 }

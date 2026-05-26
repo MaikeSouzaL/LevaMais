@@ -9,9 +9,10 @@ interface PriceInputCardProps {
 }
 
 export const PriceInputCard = ({ value, onChange }: PriceInputCardProps) => {
-  const increment = () => onChange(value + 1);
+  const safeValue = Number.isFinite(Number(value)) ? Number(value) : 5;
+  const increment = () => onChange(safeValue + 1);
   const decrement = () => {
-    if (value > 5) onChange(value - 1);
+    if (safeValue > 5) onChange(safeValue - 1);
   };
 
   return (
@@ -35,7 +36,7 @@ export const PriceInputCard = ({ value, onChange }: PriceInputCardProps) => {
           <TouchableOpacity
             onPress={decrement}
             activeOpacity={0.7}
-            className="w-12 h-12 rounded-full bg-white/5 border border-white/10 items-center justify-center active:bg-white/10"
+            className="w-12 h-12 rounded-full bg-white/5 border border-white/10 items-center justify-center"
           >
             <Minus size={20} color="#fff" />
           </TouchableOpacity>
@@ -43,14 +44,14 @@ export const PriceInputCard = ({ value, onChange }: PriceInputCardProps) => {
           <View className="items-center flex-row items-baseline">
             <Text className="text-slate-400 text-xl font-bold mr-1.5">R$</Text>
             <Text className="text-white text-5xl font-bold tracking-tighter">
-              {value.toFixed(2).replace(".", ",")}
+              {safeValue.toFixed(2).replace(".", ",")}
             </Text>
           </View>
 
           <TouchableOpacity
             onPress={increment}
             activeOpacity={0.7}
-            className="w-12 h-12 rounded-full bg-white/5 border border-white/10 items-center justify-center active:bg-white/10"
+            className="w-12 h-12 rounded-full bg-white/5 border border-white/10 items-center justify-center"
           >
             <Plus size={20} color="#fff" />
           </TouchableOpacity>

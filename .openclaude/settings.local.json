@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls \"C:/Users/Administrator/Desktop/Leva_Mais/src/screens/\\(authenticated\\)/Client/\")",
+      "Bash(find \"C:/Users/Administrator/Desktop/Leva_Mais/src/screens/\\(authenticated\\)/Client\" -type f -name \"*.tsx\" -o -name \"*.ts\")",
+      "Bash(xargs grep:*)",
+      "Bash(ls:*)",
+      "Bash(find C:UsersAdministratorDesktopLeva_Maisbackend -path *config* -type f)",
+      "Bash(find C:UsersAdministratorDesktopLeva_Maisleva-mais-web -maxdepth 2 -name *.tsx -o -name *.ts)",
+      "Bash(find C:UsersAdministratorDesktopLeva_Maissrc -type f -name *.ts -o -name *.tsx -o -name *.js -o -name *.jsx)",
+      "Bash(grep -rn Request/Payment C:UsersAdministratorDesktopLeva_Maissrc --include=*.ts --include=*.tsx --include=*.js)",
+      "Bash(ls \"src/screens/\\(authenticated\\)/Client/Ride/Request/Payment\")",
+      "Bash(find:*)",
+      "Bash(find C:/Users/Administrator/Desktop/Leva_Mais/src -type f \\\\\\(-iname *address* -o -iname *favorite* \\\\\\))",
+      "Bash(dir:*)",
+      "Read(//d C:/Users/Administrator/Desktop/**)",
+      "Bash(findstr /sipn \"pricePerKm\\\\|minFee\\\\|minKm\\\\|platformFee\\\\|deduction\\\\|appFee\\\\|calculatePrice\\\\|suggestedPrice\\\\|minimumPrice\\\\|priorityPrice\\\\|pricing\" backendsrccontrollersride.controller.js)",
+      "Bash(powershell -Command \"Get-ChildItem -Path ''backend\\\\src\\\\models'' -Filter ''*.js'' -Name\")",
+      "Bash(powershell -Command \"Get-ChildItem -Path ''backend\\\\src\\\\services'' -Filter ''*.js'' -Name\")",
+      "Bash(powershell -Command \"Get-ChildItem -Path ''backend\\\\src\\\\controllers'' -Filter ''*.js'' -Name\")",
+      "Bash(powershell -Command \"Select-String -Path ''backend\\\\src\\\\controllers\\\\ride.controller.js'' -Pattern ''pricePerKm|minFee|minKm|platformFee|deduction|appFee|calculatePrice|suggestedPrice|minimumPrice|priorityPrice|pricing|PricingEngine'' -SimpleMatch\")",
+      "Bash(powershell -Command \"\\(Select-String -Path ''backend\\\\src\\\\controllers\\\\ride.controller.js'' -Pattern ''calculatePrice'' -SimpleMatch\\).LineNumber\")",
+      "Bash(powershell -Command \"Select-String -Path ''backend\\\\src\\\\controllers\\\\ride.controller.js'' -Pattern ''function haversineDistance|haversineDistance'' -SimpleMatch | Select-Object -First 5\")",
+      "Bash(powershell -Command \"Select-String -Path ''backend\\\\src\\\\controllers\\\\ride.controller.js'' -Pattern ''haversine'' -SimpleMatch\")",
+      "Bash(powershell -Command \"Select-String -Path ''backend\\\\src\\\\controllers\\\\ride.controller.js'' -Pattern ''create|store|applyFinal|deduction|appFee|splitDetails|driverValue|pricing'' -SimpleMatch | Select-Object -First 40\")",
+      "Bash(powershell -Command \"Select-String -Path ''backend\\\\src\\\\controllers\\\\ride.controller.js'' -Pattern ''create'' -SimpleMatch | Select-Object -First 20\")",
+      "Bash(powershell -Command \"Select-String -Path ''backend\\\\src\\\\controllers\\\\ride.controller.js'' -Pattern ''wallet|deduction|completeRide|cancelRide|cancellationFee'' -SimpleMatch | Select-Object -First 20\")",
+      "Bash(powershell -Command \"Select-String -Path ''backend\\\\src\\\\controllers\\\\ride.controller.js'' -Pattern ''wallet|deduction'' -SimpleMatch\")",
+      "Bash(powershell -Command \"Get-ChildItem -Path ''backend\\\\src\\\\routes'' -Filter ''*.js'' -Recurse -Name\")"
+    ]
+  }
+}

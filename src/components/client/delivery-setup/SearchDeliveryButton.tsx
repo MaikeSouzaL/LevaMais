@@ -7,9 +7,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 interface SearchDeliveryButtonProps {
   onPress: () => void;
   loading?: boolean;
+  label?: string;
 }
 
-export const SearchDeliveryButton = ({ onPress, loading = false }: SearchDeliveryButtonProps) => {
+export const SearchDeliveryButton = ({ onPress, loading = false, label = "Buscar Entregadores" }: SearchDeliveryButtonProps) => {
   const insets = useSafeAreaInsets();
 
   return (
@@ -21,7 +22,7 @@ export const SearchDeliveryButton = ({ onPress, loading = false }: SearchDeliver
         onPress={onPress}
         disabled={loading}
         activeOpacity={0.85}
-        className="h-14 w-full rounded-[20px] bg-primary overflow-hidden shadow-2xl shadow-primary/30 elevation-12 items-center justify-center active:scale-[0.97]"
+        className="h-14 w-full rounded-[20px] bg-primary overflow-hidden shadow-2xl shadow-primary/30 elevation-12 items-center justify-center"
       >
         {!loading && (
           <MotiView
@@ -38,7 +39,7 @@ export const SearchDeliveryButton = ({ onPress, loading = false }: SearchDeliver
           <View className="flex-row items-center gap-2.5">
             <PackageSearch size={20} color="#0f172a" strokeWidth={2.5} />
             <Text className="text-slate-900 text-base font-extrabold tracking-widest uppercase">
-              Buscar Entregadores
+              {label}
             </Text>
           </View>
         )}

@@ -6,7 +6,6 @@ import Toast from "react-native-toast-message";
 import { GlobalMap } from "@/components/GlobalMap";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import MapViewDirections from "react-native-maps-directions";
-import { NavigationProp, RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { Car, Bike } from "lucide-react-native";
 
 import { darkMapStyle } from "@/utils/mapStyle";
@@ -25,7 +24,6 @@ import { MapActionButtons } from "@/components/MapActionButtons";
 import { PremiumMapMarker } from "@/components/maps/PremiumMapMarker";
 import { PremiumDottedRoute } from "@/components/routes/PremiumDottedRoute";
 import { MotiView } from "moti";
-import { ClientStackParamList } from "../../../types/navigation";
 
 const { width, height } = Dimensions.get("window");
 const GOOGLE_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || "";
@@ -38,9 +36,7 @@ interface RealtimeVehicle {
   rotation: number;
 }
 
-export default function DestinationSearchScreen() {
-  const navigation = useNavigation<NavigationProp<ClientStackParamList>>();
-  const route = useRoute<RouteProp<ClientStackParamList, "DestinationSearch">>();
+export default function DestinationSearchScreen({ navigation, route }: any) {
   const params = route.params || {};
 
   const { userRegion, currentAddress, region, mapRef, centerOnUser } = useMapLocation();
@@ -116,8 +112,7 @@ export default function DestinationSearchScreen() {
       : null
   );
 
-  // Automatically feed initial location if none set yet (DISABLED AS REQUESTED - NOW USER FORCED TO CHOOSE)
-  /*
+  // Preenche origem automaticamente se o usuário ainda não digitou nada
   useEffect(() => {
     if (!originDetails && !originTxt && currentAddress && userRegion) {
       setOriginTxt(currentAddress);
@@ -129,7 +124,25 @@ export default function DestinationSearchScreen() {
       });
     }
   }, [userRegion, currentAddress]);
-  */
+
+  // Reset selected details and route readiness when user clears the search texts
+  useEffect(() => {
+    if (!destinationTxt.trim()) {
+      setDestinationDetails(null);
+      setIsReadyToContinue(false);
+      setRouteCoordinates([]);
+      setDistanceStr("");
+      setDurationStr("");
+      setDistanceRaw(null);
+      setDurationRaw(null);
+    }
+  }, [destinationTxt]);
+
+  useEffect(() => {
+    if (!originTxt.trim()) {
+      setOriginDetails(null);
+    }
+  }, [originTxt]);
 
   const origin = {
     latitude: originDetails?.latitude || userRegion?.latitude || region?.latitude || -23.55,
@@ -259,6 +272,7 @@ export default function DestinationSearchScreen() {
         preferScheduled: Boolean(params.preferScheduled),
         pickup: pickupData,
         dropoff: dropoffData,
+        routeCoordinates,
         initialDistanceKm: distanceRaw,
         initialDurationMin: durationRaw,
       });
@@ -267,6 +281,7 @@ export default function DestinationSearchScreen() {
         vehicleType: (params.initialVehicle as any) || "car",
         pickup: pickupData,
         dropoff: dropoffData,
+        routeCoordinates,
       });
     }
   };
@@ -361,7 +376,10 @@ export default function DestinationSearchScreen() {
 
       {/* 💎 Overlaid User Controls without styleSheet */}
       <View className="absolute inset-0 z-[100]" pointerEvents="box-none">
-        <DestinationHeader />
+        <DestinationHeader 
+          onBack={navigation.goBack}
+          title={params.serviceType === "delivery" ? "Definir endereços" : "Para onde vamos?"} 
+        />
 
         {/* 📡 Absolute Map Controls Right Wing (Placed first to render behind input cards!) */}
         <MapActionButtons 

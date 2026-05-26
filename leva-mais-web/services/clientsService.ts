@@ -1,137 +1,64 @@
 import axios from "axios";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
-const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || "dev-admin-key";
-
-// Criar instância do axios com configurações padrão
-const api = axios.create({
-  baseURL: API_URL,
-  timeout: 10000,
-  headers: {
-    "Content-Type": "application/json",
-    ...(ADMIN_API_KEY ? { "x-admin-key": ADMIN_API_KEY } : {}),
-  },
-});
-
 export interface Client {
   _id: string;
   name: string;
   email: string;
   phone: string;
-  city: string;
   cpf?: string;
-  userType: "client";
-  profilePhoto?: string;
+  userType?: "client";
   isActive: boolean;
-  emailVerified: boolean;
-  phoneVerified: boolean;
-  acceptedTerms: boolean;
   createdAt: string;
-  updatedAt: string;
+  city?: string;
+  emailVerified?: boolean;
+  clientVerification?: {
+    status?: string;
+    cpfStatus?: string;
+    selfieStatus?: string;
+    documents?: {
+      selfie?: string;
+    };
+    rejectionReason?: string;
+    submittedAt?: string;
+    reviewedAt?: string;
+  };
+  lastLocation?: {
+    type: "Point";
+    coordinates: [number, number];
+    updatedAt: string;
+  };
 }
 
-export interface ClientStats {
-  total: number;
-  active: number;
-  verified: number;
-  newThisMonth: number;
-}
+const _RAW_API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001/api";
+const API_URL = _RAW_API_URL.replace("localhost", "127.0.0.1");
+const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || "dev-admin-key";
 
-class ClientsService {
-  /**
-   * Buscar todos os clientes
-   */
+export const clientsService = {
   async getAll(): Promise<Client[]> {
     try {
-      const response = await api.get("/auth/users", {
-        params: { userType: "client" },
+      const res = await axios.get(`${API_URL}/auth/users?userType=client`, {
+        headers: { "x-admin-key": ADMIN_API_KEY }
       });
-
-      return response.data.users || [];
+      return res.data?.users || [];
     } catch (error) {
-      console.error("Erro ao buscar clientes:", error);
-      if (axios.isAxiosError(error)) {
-        throw new Error(
-          error.response?.data?.message || "Erro ao buscar clientes"
-        );
-      }
-      throw error;
+      console.error("Error fetching clients:", error);
+      return [];
     }
+  },
+
+  async updateStatus(id: string, isActive: boolean): Promise<unknown> {
+    const res = await axios.patch(
+      `${API_URL}/auth/users/${id}`,
+      { isActive },
+      { headers: { "x-admin-key": ADMIN_API_KEY } }
+    );
+    return res.data;
+  },
+
+  async delete(id: string): Promise<unknown> {
+    const res = await axios.delete(`${API_URL}/auth/users/${id}`, {
+      headers: { "x-admin-key": ADMIN_API_KEY }
+    });
+    return res.data;
   }
-
-  /**
-   * Buscar cliente por ID
-   */
-  async getById(id: string): Promise<Client> {
-    try {
-      const response = await api.get(`/auth/users/${id}`);
-
-      return response.data.user;
-    } catch (error) {
-      console.error("Erro ao buscar cliente:", error);
-      if (axios.isAxiosError(error)) {
-        throw new Error(
-          error.response?.data?.message || "Cliente não encontrado"
-        );
-      }
-      throw error;
-    }
-  }
-
-  /**
-   * Atualizar status do cliente
-   */
-  async updateStatus(id: string, isActive: boolean): Promise<Client> {
-    try {
-      const response = await api.patch(`/auth/users/${id}`, { isActive });
-
-      return response.data.user;
-    } catch (error) {
-      console.error("Erro ao atualizar status:", error);
-      if (axios.isAxiosError(error)) {
-        throw new Error(
-          error.response?.data?.message || "Erro ao atualizar status"
-        );
-      }
-      throw error;
-    }
-  }
-
-  /**
-   * Deletar cliente
-   */
-  async delete(id: string): Promise<void> {
-    try {
-      await api.delete(`/auth/users/${id}`);
-    } catch (error) {
-      console.error("Erro ao deletar cliente:", error);
-      if (axios.isAxiosError(error)) {
-        throw new Error(
-          error.response?.data?.message || "Erro ao deletar cliente"
-        );
-      }
-      throw error;
-    }
-  }
-
-  /**
-   * Calcular estatísticas dos clientes
-   */
-  calculateStats(clients: Client[]): ClientStats {
-    const now = new Date();
-    const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-
-    return {
-      total: clients.length,
-      active: clients.filter((c) => c.isActive).length,
-      verified: clients.filter((c) => c.emailVerified || c.phoneVerified)
-        .length,
-      newThisMonth: clients.filter(
-        (c) => new Date(c.createdAt) >= firstDayOfMonth
-      ).length,
-    };
-  }
-}
-
-export const clientsService = new ClientsService();
-
+};

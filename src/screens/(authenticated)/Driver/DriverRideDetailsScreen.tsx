@@ -108,10 +108,10 @@ export default function DriverRideDetailsScreen() {
             liteMode={false} // Full interactivity
           >
             <Marker coordinate={details.pickup} title="Retirada" anchor={{ x: 0.5, y: 1 }}>
-              <MapMarker type="pickup" size={46} />
+              <MapMarker type="pickup" size={32} />
             </Marker>
             <Marker coordinate={details.dropoff} title="Entrega" anchor={{ x: 0.5, y: 1 }}>
-              <MapMarker type="dropoff" size={46} />
+              <MapMarker type="dropoff" size={32} />
             </Marker>
             <Polyline
                 coordinates={[

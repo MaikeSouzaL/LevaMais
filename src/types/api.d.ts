@@ -47,6 +47,7 @@ export interface User {
   profilePhoto?: string;
   acceptedTerms: boolean;
   driverStatus?: "none" | "pending" | "approved" | "rejected";
+  tourSeen?: boolean;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -55,5 +56,4 @@ export interface User {
 export interface AuthResponse {
   user: User;
   token: string;
-  isNewUser?: boolean;
 }

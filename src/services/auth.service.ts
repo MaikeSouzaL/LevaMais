@@ -366,10 +366,11 @@ export async function removePushToken(
 
 export async function sendPhoneVerification(
   phone: string,
+  userId?: string,
 ): Promise<ApiResponse<{ message: string }>> {
   try {
     let normalizedPhone = String(phone || "").replace(/\D/g, "");
-    
+
     // Remove leading zero (comum em discagem interurbana no Brasil: 0 + DDD)
     if ((normalizedPhone.length === 11 || normalizedPhone.length === 12) && normalizedPhone.startsWith("0")) {
       normalizedPhone = normalizedPhone.substring(1);
@@ -386,7 +387,7 @@ export async function sendPhoneVerification(
 
     const response = await apiPost<ApiResponse<{ message: string }>>(
       "/auth/send-phone-code",
-      { phone: normalizedPhone },
+      { phone: normalizedPhone, userId: userId || undefined },
     );
     return response.data;
   } catch (error: any) {
@@ -609,6 +610,27 @@ export async function submitDriverVerification(
     return {
       success: false,
       message: error.response?.data?.message || "Erro ao enviar documentos.",
+      error: error.message,
+    };
+  }
+}
+
+// Atualizar localizacao do usuario no backend
+export async function updateLocation(
+  latitude: number,
+  longitude: number
+): Promise<ApiResponse<{ message: string }>> {
+  try {
+    const response = await apiPatch<ApiResponse<{ message: string }>>(
+      "/auth/location",
+      { latitude, longitude }
+    );
+    return response.data;
+  } catch (error: any) {
+    if (error.response?.data) return error.response.data;
+    return {
+      success: false,
+      message: error.message || "Erro ao atualizar localizacao",
       error: error.message,
     };
   }

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, TouchableOpacity, Linking, ActivityIndicator, ScrollView, Alert, Dimensions, StatusBar } from "react-native";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -67,13 +67,24 @@ function OperationalBackground({ currentLoc }: OperationalBackgroundProps) {
 
 type RideRequestItem = {
   rideId: string;
+  status?: string;
   pickup?: { address?: string; latitude?: number; longitude?: number };
   dropoff?: { address?: string; latitude?: number; longitude?: number };
-  pricing?: { total?: number };
+  pricing?: { total?: number; platformFee?: number; serviceFee?: number };
   distance?: { text?: string };
   duration?: { text?: string };
   serviceType?: string;
   vehicleType?: string;
+  payment?: {
+    method?: {
+      type?: string;
+    } | string;
+  };
+  financialRisk?: {
+    requiredBalance?: number;
+    estimatedPlatformFee?: number;
+  };
+  driverBalance?: number;
   details?: {
     itemType?: string;
     priority?: number;
@@ -97,7 +108,7 @@ export default function DriverRequestsScreen() {
   const route = useRoute<any>();
   const insets = useSafeAreaInsets();
 
-  // 🔐 Lock native header to implement premium transparent operational HUD
+  // Ã°Å¸â€Â Lock native header to implement premium transparent operational HUD
   useEffect(() => {
     navigation.setOptions({ headerShown: false });
   }, [navigation]);
@@ -110,10 +121,8 @@ export default function DriverRequestsScreen() {
     serviceTypes: string[];
   }>({ serviceTypes: [] });
   
-  const requestedInitialTab = route.params?.initialTab || "queue";
-  const [activeTab, setActiveTab] = useState<"queue" | "realtime" | "negotiation" | "scheduled">(
-    requestedInitialTab as any
-  );
+  const requestedInitialTab = route.params?.initialTab === "scheduled" ? "scheduled" : "realtime";
+  const [activeTab, setActiveTab] = useState<"realtime" | "scheduled">(requestedInitialTab as any);
   const [pendingNegotiations, setPendingNegotiations] = useState<RideRequestItem[]>([]);
   const [scheduledRides, setScheduledRides] = useState<any[]>([]);
   const [scheduledFilterInfo, setScheduledFilterInfo] = useState<{
@@ -122,8 +131,23 @@ export default function DriverRequestsScreen() {
   }>({ serviceTypes: [] });
   const [loadingScheduled, setLoadingScheduled] = useState(false);
   const [showNoBalanceModal, setShowNoBalanceModal] = useState(false);
+  const [driverBalance, setDriverBalance] = useState<number>(0);
 
-  const loadPendingNegotiations = async () => {
+  const loadDriverBalance = async (): Promise<number> => {
+    try {
+      const balanceData = await driverService.getBalance();
+      const nextBalance = Number(balanceData?.balance || 0);
+      setDriverBalance(nextBalance);
+      return nextBalance;
+    } catch {
+      setDriverBalance(0);
+      return 0;
+    }
+  };
+
+  const loadPendingNegotiations = async (balanceSnapshot?: number) => {
+    const effectiveBalance =
+      typeof balanceSnapshot === "number" ? balanceSnapshot : driverBalance;
     try {
       const res = await rideService.getPendingNegotiations();
       setPendingNegotiations(
@@ -136,6 +160,9 @@ export default function DriverRequestsScreen() {
           duration: item.duration,
           serviceType: item.serviceType,
           vehicleType: item.vehicleType,
+          payment: item.payment,
+          financialRisk: item.financialRisk,
+          driverBalance: effectiveBalance,
           details: item.details,
           negotiation: {
             enabled: item?.negotiation?.enabled,
@@ -204,8 +231,10 @@ export default function DriverRequestsScreen() {
       })();
 
       // Sempre recarrega os agendamentos quando focar a tela
+      loadDriverBalance().then((balance) => {
+        loadPendingNegotiations(balance);
+      });
       loadScheduledRides();
-      loadPendingNegotiations();
 
       return () => {
         active = false;
@@ -217,6 +246,7 @@ export default function DriverRequestsScreen() {
     let mounted = true;
     const syncAvailableRequests = async () => {
       try {
+        const balanceSnapshot = await loadDriverBalance();
         const available = await rideService.getAvailableRequests();
         const me = await driverLocationService.getMe().catch(() => null);
         if (me) {
@@ -237,12 +267,15 @@ export default function DriverRequestsScreen() {
             duration: item.duration,
             serviceType: item.serviceType,
             vehicleType: item.vehicleType,
+            payment: item.payment,
+            financialRisk: item.financialRisk,
+            driverBalance: balanceSnapshot,
             details: item.details,
             isWaitingInQueue: item.isWaitingInQueue,
             negotiation: item.negotiation,
           })),
         );
-        await loadPendingNegotiations();
+        await loadPendingNegotiations(balanceSnapshot);
       } catch {
         // ignora para manter a tela responsiva em reconexao
       }
@@ -267,9 +300,9 @@ export default function DriverRequestsScreen() {
 
         if (!isOnline || !hasAnyService) {
           Toast.show({
-            type: "info",
+            type: "error",
             text1: "Fique online para receber solicitações",
-            text2: "Ative o modo online na tela inicial do motorista.",
+            text2: "Você precisa iniciar seu turno para responder às ofertas.",
           });
 
           try {
@@ -281,7 +314,7 @@ export default function DriverRequestsScreen() {
         await syncAvailableRequests();
       } catch {
         Toast.show({
-          type: "info",
+          type: "error",
           text1: "Atualize sua localização primeiro",
           text2: "Volte para a tela inicial e ative o modo online.",
         });
@@ -303,6 +336,9 @@ export default function DriverRequestsScreen() {
         duration: payload?.duration,
         serviceType: payload?.serviceType,
         vehicleType: payload?.vehicleType,
+        payment: payload?.payment,
+        financialRisk: payload?.financialRisk,
+        driverBalance,
         details: payload?.details,
         isWaitingInQueue: payload?.isWaitingInQueue,
         negotiation: payload?.negotiation,
@@ -343,6 +379,21 @@ export default function DriverRequestsScreen() {
       setRequests((prev) => prev.filter((r) => r.rideId !== cancelledId));
     };
 
+    const onRideOfferIncreased = async (payload: any) => {
+      if (!mounted) return;
+      const increasedId = payload?.rideId;
+      if (!increasedId) return;
+
+      await syncAvailableRequests().catch(() => {});
+      setActiveTab("realtime");
+
+      try {
+        await driverAlertService.start();
+      } catch (e) {
+        console.error("Error playing driver alert:", e);
+      }
+    };
+
     const onSocketConnected = () => {
       syncAvailableRequests().catch(() => {});
     };
@@ -355,6 +406,7 @@ export default function DriverRequestsScreen() {
         webSocketService.on("ride-taken", onRideTaken);
         webSocketService.on("ride-expired", onRideExpired);
         webSocketService.on("ride-cancelled", onRideCancelled);
+        webSocketService.on("queue-ride-offer-increased", onRideOfferIncreased);
        } catch (e) {
         console.error("Error connecting to websocket:", e);
       }
@@ -373,6 +425,7 @@ export default function DriverRequestsScreen() {
       webSocketService.off("ride-taken", onRideTaken);
       webSocketService.off("ride-expired", onRideExpired);
       webSocketService.off("ride-cancelled", onRideCancelled);
+      webSocketService.off("queue-ride-offer-increased", onRideOfferIncreased);
       webSocketService.off("connect", onSocketConnected);
       driverAlertService.stop().catch(() => {});
     };
@@ -384,8 +437,41 @@ export default function DriverRequestsScreen() {
     }
   }, [requests.length]);
 
+  const handleOpenDetail = (item: any) => {
+    (navigation as any).navigate("DeliveryOfferDetail", {
+      offer: {
+        rideId: item.rideId,
+        pickup: item.pickup,
+        dropoff: item.dropoff,
+        pricing: item.pricing,
+        distance: item.distance,
+        duration: item.duration,
+        serviceType: item.serviceType,
+        vehicleType: item.vehicleType,
+        payment: item.payment,
+        details: item.details,
+        negotiation: item.negotiation,
+      },
+      onAccept: () => accept(item.rideId),
+      onReject: () => reject(item.rideId),
+    });
+  };
+
   const accept = async (rideId: string) => {
     const request = requests.find((item) => item.rideId === rideId);
+    const baseValue = Number(
+      request?.negotiation?.clientOffer ??
+        request?.pricing?.total ??
+        0,
+    );
+    const requiredBalance = Number(
+      request?.financialRisk?.requiredBalance ?? Number((baseValue * 0.2).toFixed(2)),
+    );
+    const currentBalance = Number(driverBalance || 0);
+    if (currentBalance < requiredBalance) {
+      setShowNoBalanceModal(true);
+      return;
+    }
     if (request?.negotiation?.enabled) {
       let sent = false;
       try {
@@ -416,7 +502,7 @@ export default function DriverRequestsScreen() {
             return [updatedReq as any, ...prev];
           });
           setRequests((prev) => prev.filter((r) => r.rideId !== rideId));
-          setActiveTab("negotiation");
+          setActiveTab("realtime");
           driverAlertService.stop().catch(() => {});
         }
       }
@@ -464,54 +550,69 @@ export default function DriverRequestsScreen() {
   };
 
   const counterOffer = async (rideId: string) => {
-    const request = requests.find((item) => item.rideId === rideId);
+    const request = requests.find((item) => item.rideId === rideId) || pendingNegotiations.find((item) => item.rideId === rideId);
+    if (!request) return;
     if (!request?.negotiation?.enabled) return;
-
-    const base = Number(request.negotiation.suggestedMinPrice || request.negotiation.clientOffer || 0);
-    const amount = Number((base + 5).toFixed(2));
-
-    try {
-      await rideService.respondToOffer(rideId, {
-        action: "counter",
-        amount,
-        message: "Contraoferta enviada automaticamente pelo app.",
-      });
-      Toast.show({
-        type: "success",
-        text1: "Contraoferta enviada",
-        text2: `Valor sugerido: ${formatBRL(amount)}`,
-      });
-      const updatedReq = {
-        ...request,
-        negotiation: {
-          ...request.negotiation,
-          myOffer: { amount, status: 'pending' }
-        }
-      };
-      setPendingNegotiations((prev) => {
-        if (prev.some(p => p.rideId === rideId)) return prev;
-        return [updatedReq as any, ...prev];
-      });
-      setRequests((prev) => prev.filter((r) => r.rideId !== rideId));
-      setActiveTab("negotiation");
-      driverAlertService.stop().catch(() => {});
-    } catch (e: any) {
-      Toast.show({
-        type: "error",
-        text1: "Falha na contraoferta",
-        text2: e?.response?.data?.error || e?.message || "Tente novamente",
-      });
+    const baseValue = Number(
+      request?.negotiation?.clientOffer ??
+        request?.pricing?.total ??
+        0,
+    );
+    const requiredBalance = Number(
+      request?.financialRisk?.requiredBalance ?? Number((baseValue * 0.2).toFixed(2)),
+    );
+    const currentBalance = Number(driverBalance || 0);
+    if (currentBalance < requiredBalance) {
+      setShowNoBalanceModal(true);
+      return;
     }
+
+    // Navegar para a tela de negociação para ajustar o valor
+    const offerParam = {
+      _id: request.rideId,
+      offeredValue: request.negotiation?.clientOffer || request.pricing?.total || 0,
+      pickup: request.pickup,
+      destination: request.dropoff,
+      dropoff: request.dropoff,
+      distance: request.distance,
+      duration: request.duration,
+      pricing: request.pricing,
+      client: {
+        name: "Cliente Leva Mais",
+        rating: "5.0"
+      },
+      cargoType: {
+        food: "Delivery",
+        doc: "Documentos",
+        market: "Mercado",
+        box: "Caixa",
+        material: "Material",
+        furniture: "Móveis",
+        moving: "Mudança",
+        other: "Outros"
+      }[request.details?.itemType as string] || "Encomenda"
+    };
+
+    (navigation as any).navigate("DriverNegotiation", {
+      offer: offerParam
+    });
   };
 
   const reject = async (rideId: string) => {
     try {
       await rideService.reject(rideId, "driver_rejected");
       await driverAlertService.stop();
+      Toast.show({
+        type: "success",
+        text1: "Proposta cancelada! 🛑",
+        text2: "Sua oferta foi cancelada com sucesso.",
+        position: "top"
+      });
     } catch (e) {
       console.error("Error rejecting ride:", e);
     } finally {
       setRequests((prev) => prev.filter((r) => r.rideId !== rideId));
+      setPendingNegotiations((prev) => prev.filter((r) => r.rideId !== rideId));
     }
   };
 
@@ -528,12 +629,25 @@ export default function DriverRequestsScreen() {
             try {
               const ride = scheduledRides.find((r) => String(r._id) === String(rideId));
               const rideValue = Number(ride?.pricing?.total || 0);
+              const requiredBalance = Number(
+                ride?.financialRisk?.requiredBalance ?? Number((rideValue * 0.2).toFixed(2)),
+              );
+              const currentBalance = Number(driverBalance || 0);
+              if (currentBalance < requiredBalance) {
+                Toast.show({
+                  type: "error",
+                  text1: "Saldo insuficiente",
+                  text2: `Necessario: ${formatBRL(requiredBalance)} - Saldo atual: ${formatBRL(currentBalance)}`,
+                });
+                return;
+              }
+
               const canAccept = await driverService.canAcceptRide(rideValue);
               if (!canAccept) {
                 Toast.show({
                   type: "error",
                   text1: "Saldo insuficiente",
-                  text2: "Você precisa recarregar seu saldo para aceitar um agendamento.",
+                  text2: "Voce precisa recarregar seu saldo para aceitar um agendamento.",
                 });
                 return;
               }
@@ -564,30 +678,37 @@ export default function DriverRequestsScreen() {
     Linking.openURL(url);
   };
 
-  // 🔀 Advanced Operational Filtration System
-  const pendingIds = new Set(pendingNegotiations.map((n) => n.rideId));
-  const activeRequests = requests.filter((r) => !pendingIds.has(r.rideId));
+  // Ã°Å¸â€â‚¬ Advanced Operational Filtration System
+  const offersFeed = useMemo(() => {
+    // Na aba "Ofertas", mostrar apenas solicitações ativas realmente disponíveis em tempo real.
+    // Itens recusados/perdidos/cancelados devem aparecer somente no Histórico.
+    return requests.filter((item) => {
+      const status = String(item?.status || "requesting");
+      const myOfferStatus = String(item?.negotiation?.myOffer?.status || "");
+      const isTerminalRide = [
+        "completed",
+        "cancelled",
+        "cancelled_by_client",
+        "cancelled_by_driver",
+        "cancelled_no_driver",
+        "no_drivers_available",
+        "expired",
+      ].includes(status);
+      const isRejectedByMe = myOfferStatus === "rejected";
+      return !isTerminalRide && !isRejectedByMe;
+    });
+  }, [requests]);
 
-  const queueRequests = activeRequests.filter((r) => r.isWaitingInQueue === true);
-  const realtimeRequests = activeRequests.filter((r) => r.isWaitingInQueue !== true);
-
-  const currentTabCount =
-    activeTab === "queue"
-      ? queueRequests.length
-      : activeTab === "realtime"
-      ? realtimeRequests.length
-      : activeTab === "negotiation"
-      ? pendingNegotiations.length
-      : scheduledRides.length;
+  const currentTabCount = activeTab === "realtime" ? offersFeed.length : scheduledRides.length;
 
   return (
     <View style={{ flex: 1, backgroundColor: "#091A2F" }}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
-      {/* 📡 Live Operational Ground Control Map */}
+      {/* Ã°Å¸â€œÂ¡ Live Operational Ground Control Map */}
       <OperationalBackground />
 
-      {/* 🛡️ Premium HUD Top Command Terminal */}
+      {/* Ã°Å¸â€ºÂ¡Ã¯Â¸Â Premium HUD Top Command Terminal */}
       <View 
         style={{ 
           paddingTop: Math.max(insets.top, 16),
@@ -622,12 +743,12 @@ export default function DriverRequestsScreen() {
                 Solicitações
               </Text>
               <Text style={{ color: "rgba(255, 255, 255, 0.4)", fontSize: 11, fontWeight: "700", letterSpacing: 0.3, textTransform: "uppercase", marginTop: 1 }}>
-                Central de Negociação Realtime
+                Central de Ofertas em Tempo Real
               </Text>
             </View>
           </View>
 
-          {/* 🟢 Live Operations Active Capsule Pod */}
+          {/* Ã°Å¸Å¸Â¢ Live Operations Active Capsule Pod */}
           <MotiView
             from={{ scale: 0.95, opacity: 0.9 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -651,58 +772,39 @@ export default function DriverRequestsScreen() {
         </View>
       </View>
 
-      {/* 🧬 Glassmorphic Operational Tabs Matrix */}
+      {/* Ã°Å¸Â§Â¬ Glassmorphic Operational Tabs Matrix */}
       <View style={{ paddingHorizontal: 16, marginTop: 16, zIndex: 98 }}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{
+        <View
+          style={{
             flexDirection: "row",
             backgroundColor: "rgba(11, 26, 42, 0.4)",
             borderRadius: 20,
             padding: 5,
             borderWidth: 1,
             borderColor: "rgba(255, 255, 255, 0.05)",
-            gap: 4
+            gap: 4,
+            width: "100%",
           }}
         >
-          {(["queue", "realtime", "negotiation", "scheduled"] as const).map((tab) => {
+          {(["realtime", "scheduled"] as const).map((tab) => {
             const isActive = activeTab === tab;
             const tabLabels = {
-              queue: "Fila",
-              realtime: "Chamadas",
-              negotiation: "Negociações",
+              realtime: "Ofertas",
               scheduled: "Agendados",
-            };
+          };
             const tabCounts = {
-              queue: queueRequests.length,
-              realtime: realtimeRequests.length,
-              negotiation: pendingNegotiations.length,
-              scheduled: scheduledRides.length,
-            };
-
-            const isClientCounteredTab = tab === "negotiation" && pendingNegotiations.some((item: any) => 
-              item.negotiation?.offers?.some((o: any) => 
-                o.driverId?.toString() === currentDriverId && o.status === "client_countered"
-              )
-            );
-
-            const getLabelColor = () => {
-              if (isActive) return "#091A2F";
-              if (isClientCounteredTab) return "#F59E0B";
-              return "rgba(255, 255, 255, 0.45)";
-            };
+              realtime: offersFeed.length, scheduled: scheduledRides.length,
+          };
 
             return (
               <TouchableOpacity
                 key={tab}
                 onPress={() => {
                   setActiveTab(tab);
-                  if (tab === "negotiation") loadPendingNegotiations();
                   if (tab === "scheduled") loadScheduledRides();
                 }}
                 style={{
-                  paddingHorizontal: 16,
+                  flex: 1,
                   height: 42,
                   alignItems: "center",
                   justifyContent: "center",
@@ -722,9 +824,9 @@ export default function DriverRequestsScreen() {
                       left: 0,
                       right: 0,
                       bottom: 0,
-                      backgroundColor: isClientCounteredTab ? "#F59E0B" : "#02de95",
+                      backgroundColor: "#02de95",
                       borderRadius: 16,
-                      shadowColor: isClientCounteredTab ? "#F59E0B" : "#02de95",
+                      shadowColor: "#02de95",
                       shadowOffset: { width: 0, height: 4 },
                       shadowOpacity: 0.3,
                       shadowRadius: 8,
@@ -734,31 +836,9 @@ export default function DriverRequestsScreen() {
                   />
                 )}
                 
-                {/* Small pulsing indicator dot on non-active countered tab */}
-                {!isActive && isClientCounteredTab && (
-                  <MotiView
-                    from={{ scale: 0.5, opacity: 0.5 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{
-                      type: "timing",
-                      duration: 1000,
-                      loop: true,
-                    }}
-                    style={{
-                      position: "absolute",
-                      top: 6,
-                      right: 8,
-                      width: 6,
-                      height: 6,
-                      borderRadius: 3,
-                      backgroundColor: "#F59E0B",
-                    }}
-                  />
-                )}
-
                 <Text
                   style={{
-                    color: getLabelColor(),
+                    color: isActive ? "#091A2F" : "rgba(255, 255, 255, 0.45)",
                     fontWeight: "900",
                     fontSize: 10.5,
                     textTransform: "uppercase",
@@ -766,82 +846,31 @@ export default function DriverRequestsScreen() {
                   }}
                   numberOfLines={1}
                 >
-                  {tabLabels[tab]} ({tabCounts[tab]}){isClientCounteredTab ? " 🔔" : ""}
+                  {tabLabels[tab]} ({tabCounts[tab]})
                 </Text>
               </TouchableOpacity>
             );
           })}
-        </ScrollView>
-      </View>
-
-      {/* 🚨 Active Profile Filter Blueprint */}
-      <View
-        style={{
-          backgroundColor: "rgba(11, 26, 42, 0.35)",
-          borderWidth: 1,
-          borderColor: "rgba(255, 255, 255, 0.03)",
-          borderRadius: 16,
-          paddingHorizontal: 16,
-          paddingVertical: 12,
-          marginHorizontal: 16,
-          marginTop: 12,
-          marginBottom: 8,
-        }}
-      >
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
-          <Layers size={12} color="rgba(255, 255, 255, 0.3)" />
-          <Text style={{ color: "rgba(255, 255, 255, 0.3)", fontSize: 9.5, fontWeight: "800", letterSpacing: 0.5, textTransform: "uppercase" }}>
-            Parâmetros de Varredura Ativos
-          </Text>
         </View>
-        <Text style={{ color: "rgba(255, 255, 255, 0.7)", fontSize: 11.5, fontWeight: "600" }}>
-          Status: <Text style={{ color: "#02de95", fontWeight: "800" }}>{driverFilterInfo.status || "offline"}</Text> • {driverFilterInfo.vehicleType || "nao definido"} • {driverFilterInfo.serviceTypes.join(", ") || "nenhum"}
-        </Text>
       </View>
 
-      {/* 🧬 Main Dynamic Operations Feed Scroll Matrix */}
+
+
+      {/* Ã°Å¸Â§Â¬ Main Dynamic Operations Feed Scroll Matrix */}
       <ScrollView 
         style={{ flex: 1 }} 
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120, gap: 16, paddingTop: 8 }}
       >
         <AnimatePresence exitBeforeEnter>
-          {activeTab === "queue" && (
-            queueRequests.length === 0 ? (
-              <MotiView from={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                <DriverEmptyState title="Nenhuma solicitação na fila de espera." />
-              </MotiView>
-            ) : (
-              queueRequests.map((r, i) => (
-                <MotiView key={r.rideId} from={{ opacity: 0, translateY: 15 }} animate={{ opacity: 1, translateY: 0 }} transition={{ delay: i * 80 }}>
-                  <DriverRequestCard item={r} onAccept={accept} onReject={reject} onCounterOffer={counterOffer} />
-                </MotiView>
-              ))
-            )
-          )}
-
           {activeTab === "realtime" && (
-            realtimeRequests.length === 0 ? (
+            offersFeed.length === 0 ? (
               <MotiView from={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                <DriverEmptyState title="Nenhuma solicitação direta no momento." />
+                <DriverEmptyState title="Nenhuma oferta no momento." />
               </MotiView>
             ) : (
-              realtimeRequests.map((r, i) => (
+              offersFeed.map((r, i) => (
                 <MotiView key={r.rideId} from={{ opacity: 0, translateY: 15 }} animate={{ opacity: 1, translateY: 0 }} transition={{ delay: i * 80 }}>
-                  <DriverRequestCard item={r} onAccept={accept} onReject={reject} onCounterOffer={counterOffer} />
-                </MotiView>
-              ))
-            )
-          )}
-
-          {activeTab === "negotiation" && (
-            pendingNegotiations.length === 0 ? (
-              <MotiView from={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                <DriverEmptyState title="Nenhuma negociação ativa pendente." />
-              </MotiView>
-            ) : (
-              pendingNegotiations.map((r, i) => (
-                <MotiView key={r.rideId} from={{ opacity: 0, translateY: 15 }} animate={{ opacity: 1, translateY: 0 }} transition={{ delay: i * 80 }}>
-                  <DriverRequestCard item={r} onAccept={accept} onReject={reject} onCounterOffer={counterOffer} />
+                  <DriverRequestCard item={r} onAccept={accept} onReject={reject} onCounterOffer={counterOffer} onOpenDetail={handleOpenDetail} />
                 </MotiView>
               ))
             )
@@ -877,6 +906,22 @@ export default function DriverRequestsScreen() {
                     elevation: 6,
                   }}
                 >
+                  {(() => {
+                    const rideValue = Number(ride?.pricing?.total || 0);
+                    const requiredBalance = Number(
+                      ride?.financialRisk?.requiredBalance ?? Number((rideValue * 0.2).toFixed(2)),
+                    );
+                    const estimatedPlatformFee = Number(
+                      ride?.financialRisk?.estimatedPlatformFee ??
+                        ride?.pricing?.platformFee ??
+                        ride?.pricing?.serviceFee ??
+                        Number((rideValue * 0.2).toFixed(2)),
+                    );
+                    const currentBalance = Number(driverBalance || 0);
+                    const hasEnoughBalance = currentBalance >= requiredBalance;
+
+                    return (
+                      <>
                   <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                       <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: "rgba(2, 222, 149, 0.1)", alignItems: "center", justifyContent: "center" }}>
@@ -922,6 +967,31 @@ export default function DriverRequestsScreen() {
                     </View>
                   </View>
 
+                  <View
+                    style={{
+                      backgroundColor: hasEnoughBalance ? "rgba(2, 222, 149, 0.08)" : "rgba(239, 68, 68, 0.12)",
+                      borderRadius: 14,
+                      paddingHorizontal: 12,
+                      paddingVertical: 10,
+                      borderWidth: 1,
+                      borderColor: hasEnoughBalance ? "rgba(2, 222, 149, 0.2)" : "rgba(239, 68, 68, 0.3)",
+                      marginBottom: 14,
+                    }}
+                  >
+                    <Text style={{ color: hasEnoughBalance ? "#86efac" : "#fca5a5", fontSize: 10, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                      Risco Financeiro
+                    </Text>
+                    <Text style={{ color: "#fff", fontSize: 12, marginTop: 3 }}>
+                      Taxa estimada plataforma: {formatBRL(estimatedPlatformFee)}
+                    </Text>
+                    <Text style={{ color: "#fff", fontSize: 12, marginTop: 2 }}>
+                      Saldo necessario: {formatBRL(requiredBalance)}
+                    </Text>
+                    <Text style={{ color: hasEnoughBalance ? "#86efac" : "#fca5a5", fontSize: 12, marginTop: 2, fontWeight: "700" }}>
+                      Saldo atual: {formatBRL(currentBalance)}
+                    </Text>
+                  </View>
+
                   {/* Actions Buttons */}
                   <View style={{ flexDirection: "row", gap: 12 }}>
                     <TouchableOpacity
@@ -946,11 +1016,12 @@ export default function DriverRequestsScreen() {
 
                     <TouchableOpacity
                       onPress={() => handleAcceptScheduled(ride._id)}
+                      disabled={!hasEnoughBalance}
                       style={{
                         flex: 1.3,
                         height: 48,
                         borderRadius: 14,
-                        backgroundColor: "#02de95",
+                        backgroundColor: hasEnoughBalance ? "#02de95" : "rgba(2,222,149,0.28)",
                         alignItems: "center",
                         justifyContent: "center",
                         flexDirection: "row",
@@ -958,14 +1029,20 @@ export default function DriverRequestsScreen() {
                         shadowColor: "#02de95",
                         shadowOpacity: 0.3,
                         shadowRadius: 6,
-                        elevation: 4
+                        elevation: 4,
+                        opacity: hasEnoughBalance ? 1 : 0.7,
                       }}
                       activeOpacity={0.8}
                     >
                       <Check size={18} color="#091A2F" strokeWidth={3} />
-                      <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 12, textTransform: "uppercase" }}>Reservar</Text>
+                      <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 12, textTransform: "uppercase" }}>
+                        {hasEnoughBalance ? "Reservar" : "Saldo insuficiente"}
+                      </Text>
                     </TouchableOpacity>
                   </View>
+                      </>
+                    );
+                  })()}
                 </MotiView>
               ))
             )
@@ -973,7 +1050,7 @@ export default function DriverRequestsScreen() {
         </AnimatePresence>
       </ScrollView>
 
-      {/* ⚠️ No Balance Modal Wrapper */}
+      {/* Ã¢Å¡Â Ã¯Â¸Â No Balance Modal Wrapper */}
       <Modal
         visible={showNoBalanceModal}
         title="Saldo Insuficiente"
@@ -989,3 +1066,4 @@ export default function DriverRequestsScreen() {
     </View>
   );
 }
+

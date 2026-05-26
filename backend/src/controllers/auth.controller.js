@@ -1,12 +1,23 @@
 const User = require("../models/User");
-const PlatformConfig = require("../models/PlatformConfig");
 const PasswordReset = require("../models/PasswordReset");
 const PhoneVerification = require("../models/PhoneVerification");
 const Ride = require("../models/Ride");
+const RideHistory = require("../models/RideHistory");
+const {
+  DEFAULT_PLATFORM_CONFIG,
+  mergeConfig,
+  ensureConfigDocument,
+  getRuntimeConfig,
+} = require("../services/platformConfig.service");
 const jwt = require("jsonwebtoken");
 const emailService = require("../services/email.service");
 const crypto = require("crypto");
 const mongoose = require("mongoose");
+const path = require("path");
+const fs = require("fs");
+const { getIO } = require("../config/websocket");
+
+
 const ACTIVE_RIDE_STATUSES = [
   "requesting",
   "driver_assigned",
@@ -88,11 +99,12 @@ function normalizeNameForCompare(name) {
 
 async function validateCPFWithFreeAPI(cpf) {
   try {
-    const config = await PlatformConfig.findOne().catch(() => null);
-    const isDev = config ? config.isDevelopmentMode : true;
-    if (isDev) {
+    const config = await getRuntimeConfig();
+    const isDevelopmentMode = !!config.isDevelopmentMode;
+    console.log("[CPF API Validation] isDevelopmentMode:", isDevelopmentMode, "| cpf:", String(cpf || "").replace(/\D/g, ""));
+    if (isDevelopmentMode) {
       console.log("[CPF API Validation] Development Mode is ACTIVE. Bypassing external API validation.");
-      return { valid: true, name: null };
+      return { valid: true, name: null, isFallback: true };
     }
 
     if (!validateCPFAlgorithm(cpf)) {
@@ -112,6 +124,7 @@ async function validateCPFWithFreeAPI(cpf) {
     if (response && response.ok) {
       const data = await response.json().catch(() => null);
       if (data) {
+        console.log("[CPF API Validation] Payload recebido:", JSON.stringify(data, null, 2));
         if (data.valid === false || data.valido === false) {
           return { valid: false };
         }
@@ -120,6 +133,11 @@ async function validateCPFWithFreeAPI(cpf) {
           name: data.name || data.nome || null
         };
       }
+    }
+    if (!response) {
+      console.warn("[CPF API Validation] Sem resposta da API externa, usando fallback.");
+    } else if (!response.ok) {
+      console.warn("[CPF API Validation] API externa retornou status:", response.status, "-> fallback.");
     }
     return { valid: true, isFallback: true };
   } catch (error) {
@@ -166,11 +184,12 @@ function validateCNPJAlgorithm(cnpj) {
 
 async function validateCNPJWithFreeAPI(cnpj) {
   try {
-    const config = await PlatformConfig.findOne().catch(() => null);
-    const isDev = config ? config.isDevelopmentMode : true;
-    if (isDev) {
+    const config = await getRuntimeConfig();
+    const isDevelopmentMode = !!config.isDevelopmentMode;
+    console.log("[CNPJ API Validation] isDevelopmentMode:", isDevelopmentMode, "| cnpj:", String(cnpj || "").replace(/\D/g, ""));
+    if (isDevelopmentMode) {
       console.log("[CNPJ API Validation] Development Mode is ACTIVE. Bypassing external API validation.");
-      return { valid: true, razaoSocial: null };
+      return { valid: true, razaoSocial: null, isFallback: true };
     }
 
     if (!validateCNPJAlgorithm(cnpj)) {
@@ -190,6 +209,7 @@ async function validateCNPJWithFreeAPI(cnpj) {
     if (response && response.ok) {
       const data = await response.json().catch(() => null);
       if (data) {
+        console.log("[CNPJ API Validation] Payload recebido:", JSON.stringify(data, null, 2));
         if (data.message || data.error) {
           return { valid: false };
         }
@@ -202,6 +222,11 @@ async function validateCNPJWithFreeAPI(cnpj) {
           status: data.descricao_situacao_cadastral || data.situacao_cadastral || null
         };
       }
+    }
+    if (!response) {
+      console.warn("[CNPJ API Validation] Sem resposta da API externa, usando fallback.");
+    } else if (!response.ok) {
+      console.warn("[CNPJ API Validation] API externa retornou status:", response.status, "-> fallback.");
     }
     return { valid: true, isFallback: true };
   } catch (error) {
@@ -260,7 +285,73 @@ function getCompatibleServiceTypes(vehicleType, serviceTypes) {
   return normalized.filter((item) => item !== "ride");
 }
 
+function normalizeClientVerificationStatus(cpfStatus, selfieStatus) {
+  if (cpfStatus === "valid" && selfieStatus === "approved") return "approved";
+  if (cpfStatus === "invalid" || selfieStatus === "rejected") return "rejected";
+  return "pending";
+}
+
+function normalizeDriverStatusFromDocs(driverDocuments = {}) {
+  const cnhFrontStatus = String(driverDocuments?.cnhFrontStatus || "pending");
+  const cnhBackStatus = String(driverDocuments?.cnhBackStatus || "pending");
+  const selfieStatus = String(driverDocuments?.selfieStatus || "pending");
+
+  if ([cnhFrontStatus, cnhBackStatus, selfieStatus].includes("rejected")) return "rejected";
+  if (cnhFrontStatus === "approved" && cnhBackStatus === "approved" && selfieStatus === "approved") {
+    return "approved";
+  }
+  return "pending";
+}
+
 class AuthController {
+  async getPlatformConfig(req, res) {
+    try {
+      const config = await ensureConfigDocument();
+      return res.json({ success: true, data: mergeConfig(config.toObject()) });
+    } catch (error) {
+      return sendError(res, 500, "Erro ao buscar configuracoes da plataforma", {
+        details: error.message,
+      });
+    }
+  }
+
+  async updatePlatformConfig(req, res) {
+    try {
+      const config = await ensureConfigDocument();
+
+      const allowedFields = [
+        "isDevelopmentMode",
+        "appFeePercentage",
+        "rideSearchTimeoutSeconds",
+        "driverDailyGoalRides",
+        "driverDailyBonusAmount",
+        "appTimeZone",
+        "suggestedMinPricePercent",
+        "vehiclePricing",
+        "logisticsMultipliers",
+        "supportChannels",
+        "policyVersions",
+      ];
+
+      for (const field of allowedFields) {
+        if (req.body[field] !== undefined) {
+          config[field] = req.body[field];
+        }
+      }
+
+      await config.save();
+      return res.json({
+        success: true,
+        data: mergeConfig(config.toObject()),
+        defaults: DEFAULT_PLATFORM_CONFIG,
+      });
+    } catch (error) {
+      return sendError(res, 500, "Erro ao atualizar configuracoes da plataforma", {
+        details: error.message,
+      });
+    }
+  }
+
   // Gerar token JWT
   generateToken(user) {
     const userId = typeof user === "string" ? user : user?._id;
@@ -355,9 +446,6 @@ class AuthController {
         password,
         userType: resolvedUserType,
         acceptedTerms: consentAccepted,
-        consentVersion: CURRENT_CONSENT_VERSION,
-        termsVersion: CURRENT_CONSENT_VERSION,
-        privacyPolicyVersion: CURRENT_CONSENT_VERSION,
       };
 
       if (consentTimestamp) {
@@ -537,8 +625,6 @@ class AuthController {
         $or: [{ googleId }, { email: email.toLowerCase() }],
       });
 
-      let isNewUser = false;
-
       if (user) {
         // Se o usuário já existe, atualizar informações do Google se necessário
         if (!user.googleId) {
@@ -547,31 +633,20 @@ class AuthController {
         if (profilePhoto && !user.profilePhoto) {
           user.profilePhoto = profilePhoto;
         }
-        
         // Se um userType foi enviado e o usuário ainda não tem um definido ou se queremos permitir trocar agora
         if (userType && ["client", "driver"].includes(userType)) {
           user.userType = userType;
         }
-        
+
         await user.save();
       } else {
-        // Criar novo usuário
-        isNewUser = true;
-        
-        const resolvedUserType = ["client", "driver"].includes(String(userType || ""))
-          ? String(userType)
-          : "client";
 
         user = await User.create({
           googleId,
           email: email.toLowerCase(),
           name,
           profilePhoto,
-          userType: resolvedUserType,
-          acceptedTerms: false,
-          consentVersion: CURRENT_CONSENT_VERSION,
-          termsVersion: CURRENT_CONSENT_VERSION,
-          privacyPolicyVersion: CURRENT_CONSENT_VERSION,
+          phone: null,
         });
       }
       const token = this.generateToken(user);
@@ -582,7 +657,6 @@ class AuthController {
         data: {
           user,
           token,
-          isNewUser,
         },
       });
     } catch (error) {
@@ -631,12 +705,14 @@ class AuthController {
         preferredPayment,
         notificationsEnabled,
         enableMapAnimation,
+        mapTheme,
         queueRedispatchInterval,
         userType, // <-- Added userType
         // driver
         vehicleType,
         vehicleInfo,
         gpsQuality,
+        driverPreferences, // <-- Added driverPreferences
         // compliance
         acceptedTerms,
         // CPF/CNPJ & Company Details
@@ -682,6 +758,7 @@ class AuthController {
           }
 
           user.isCpfVerified = true;
+          user.cpfVerifiedByAPI = !cpfValidationResult.isFallback;
           if (cpfValidationResult.name) {
             user.officialCpfName = cpfValidationResult.name;
             
@@ -726,6 +803,7 @@ class AuthController {
           }
 
           user.isCnpjVerified = true;
+          user.cnpjVerifiedByAPI = !cnpjValidationResult.isFallback;
           if (cnpjValidationResult.razaoSocial) {
             user.officialCnpjRazaoSocial = cnpjValidationResult.razaoSocial;
             user.officialCnpjNomeFantasia = cnpjValidationResult.nomeFantasia;
@@ -753,6 +831,11 @@ class AuthController {
       if (enableMapAnimation !== undefined) {
         user.enableMapAnimation = !!enableMapAnimation;
       }
+      if (mapTheme !== undefined) {
+        if (["light", "dark"].includes(mapTheme)) {
+          user.mapTheme = mapTheme;
+        }
+      }
 
       if (acceptedTerms === true) {
         user.acceptedTerms = true;
@@ -765,6 +848,31 @@ class AuthController {
       }
 
       if (user.userType === "driver") {
+        if (driverPreferences !== undefined) {
+          user.driverPreferences = user.driverPreferences || {
+            serviceTypes: ["ride", "delivery"],
+            selectedVehicles: [],
+            searchRadiusKm: 15,
+            autoAccept: false,
+          };
+          if (driverPreferences.serviceTypes !== undefined) {
+            user.driverPreferences.serviceTypes = driverPreferences.serviceTypes;
+          }
+          if (driverPreferences.selectedVehicles !== undefined) {
+            user.driverPreferences.selectedVehicles = driverPreferences.selectedVehicles;
+          }
+          if (driverPreferences.searchRadiusKm !== undefined) {
+            user.driverPreferences.searchRadiusKm = Number(driverPreferences.searchRadiusKm);
+          }
+          if (driverPreferences.autoAccept !== undefined) {
+            user.driverPreferences.autoAccept = Boolean(driverPreferences.autoAccept);
+          }
+          user.driverPreferences.serviceTypes = getCompatibleServiceTypes(
+            user.vehicleType || vehicleType,
+            user.driverPreferences.serviceTypes,
+          );
+        }
+
         if (vehicleType !== undefined) {
           user.vehicleType = vehicleType;
           user.driverPreferences = user.driverPreferences || {
@@ -1505,6 +1613,10 @@ class AuthController {
   async sendPhoneCode(req, res) {
     try {
       const normalizedPhone = normalizePhone(req.body?.phone);
+      const userId = req.body?.userId || null;
+      const method = ["sms", "whatsapp", "voice", "manual"].includes(String(req.body?.method || "sms"))
+        ? String(req.body?.method || "sms")
+        : "sms";
 
       if (!normalizedPhone) {
         return sendError(res, 400, "Telefone e obrigatorio");
@@ -1514,25 +1626,18 @@ class AuthController {
         return sendError(res, 400, "Telefone invalido");
       }
 
-      // Extrair e verificar token opcional para saber se é um update do próprio usuário
-      let currentUserId = null;
-      const authHeader = req.headers["authorization"];
-      if (authHeader) {
-        const [scheme, token] = authHeader.split(" ");
-        if (String(scheme || "").toLowerCase() === "bearer" && token) {
-          try {
-            const decoded = jwt.verify(token, process.env.JWT_SECRET || "secret");
-            currentUserId = decoded.id;
-          } catch (err) {
-            // Ignorar erro do JWT opcional
-          }
+      // Se tem userId, verifica se o usuário existe
+      if (userId) {
+        const user = await User.findById(userId);
+        if (!user) {
+          return sendError(res, 404, "Usuário não encontrado");
         }
       }
 
       // Verificar se o telefone já está cadastrado em outra conta
       const query = { phone: normalizedPhone };
-      if (currentUserId) {
-        query._id = { $ne: currentUserId };
+      if (userId) {
+        query._id = { $ne: userId };
       }
       const existingPhoneUser = await User.findOne(query);
       if (existingPhoneUser) {
@@ -1559,13 +1664,15 @@ class AuthController {
 
       await PhoneVerification.create({
         phone: normalizedPhone,
+        userId: userId || undefined,
+        method,
         code,
         expiresAt,
       });
 
       const isProd = process.env.NODE_ENV === "production";
       console.log(
-        `[PhoneVerification] code generated for ${normalizedPhone}: ${code}`,
+        `[PhoneVerification] code ${code} for ${normalizedPhone} userId=${userId || "anon"}`,
       );
 
       return res.json({
@@ -1617,6 +1724,34 @@ class AuthController {
       verification.used = true;
       verification.verifiedAt = new Date();
       await verification.save();
+
+      // Se tem userId vinculado, atualiza User com phone e phoneVerified
+      if (verification.userId) {
+        const user = await User.findByIdAndUpdate(
+          verification.userId,
+          {
+            phone: normalizedPhone,
+            phoneVerified: true,
+            phoneVerifiedAt: verification.verifiedAt || new Date(),
+            lastPhoneVerificationMethod: verification.method || "sms",
+          },
+          { new: true },
+        );
+
+        if (user) {
+          const token = this.generateToken(user);
+          return res.json({
+            success: true,
+            message: "Telefone verificado com sucesso",
+            data: {
+              verified: true,
+              phone: normalizedPhone,
+              user,
+              token,
+            },
+          });
+        }
+      }
 
       return res.json({
         success: true,
@@ -1781,6 +1916,7 @@ class AuthController {
         "driverStatus",
         "driverDocuments",
         "vehicles",
+        "clientVerification",
       ];
 
       const payload = req.body || {};
@@ -1805,6 +1941,25 @@ class AuthController {
         return sendError(res, 404, "Usuário não encontrado");
       }
 
+      try {
+        const io = getIO();
+        if (updates.clientVerification && user.userType === "client") {
+          io.to(`client-${user._id}`).emit("client-verification-updated", {
+            userId: String(user._id),
+            clientVerification: user.clientVerification || null,
+            approved: user?.clientVerification?.status === "approved",
+            isActive: user.isActive === true,
+          });
+        }
+        if (Object.prototype.hasOwnProperty.call(updates, "driverStatus") && user.userType === "driver") {
+          io.to(`driver-${user._id}`).emit("driver-verification-updated", {
+            userId: String(user._id),
+            driverStatus: user.driverStatus,
+            approved: user.driverStatus === "approved",
+          });
+        }
+      } catch {}
+
       return res.json({
         success: true,
         message: "Usuário atualizado com sucesso",
@@ -1813,6 +1968,140 @@ class AuthController {
     } catch (error) {
       console.error("Erro ao atualizar usuário:", error);
       return sendError(res, 400, "Erro ao atualizar usuário", { details: error.message });
+    }
+  }
+
+
+  async updateClientVerificationByAdmin(req, res) {
+    try {
+      const { id } = req.params;
+      const { field, status, reason } = req.body || {};
+
+      if (!["cpfStatus", "selfieStatus"].includes(String(field || ""))) {
+        return sendError(res, 400, "Campo invalido. Use cpfStatus ou selfieStatus");
+      }
+
+      const allowedStatusByField = {
+        cpfStatus: ["unchecked", "pending", "manual_review", "valid", "invalid"],
+        selfieStatus: ["none", "pending", "approved", "rejected"],
+      };
+      if (!allowedStatusByField[field].includes(String(status || ""))) {
+        return sendError(res, 400, "Status invalido para o campo informado");
+      }
+
+      const user = await User.findById(id);
+      if (!user) return sendError(res, 404, "Usuário não encontrado");
+      if (String(user.userType || "").toLowerCase() !== "client") {
+        return sendError(res, 400, "Apenas clientes possuem verificacao de cliente");
+      }
+
+      user.clientVerification = user.clientVerification || {};
+      user.clientVerification.documents = user.clientVerification.documents || {};
+      user.clientVerification[field] = status;
+
+      if (reason && ["invalid", "rejected"].includes(String(status))) {
+        user.clientVerification.rejectionReason = String(reason).trim();
+      } else if (["valid", "approved"].includes(String(status))) {
+        user.clientVerification.rejectionReason = "";
+      }
+
+      user.clientVerification.status = normalizeClientVerificationStatus(
+        user.clientVerification.cpfStatus || "unchecked",
+        user.clientVerification.selfieStatus || "none",
+      );
+      user.clientVerification.reviewedAt = new Date();
+      user.clientVerification.reviewedBy = req.user?.id || "admin";
+
+      await user.save();
+
+      try {
+        const io = getIO();
+        io.to(`client-${user._id}`).emit("client-verification-updated", {
+          userId: String(user._id),
+          clientVerification: user.clientVerification || null,
+          approved: user?.clientVerification?.status === "approved",
+          isActive: user.isActive === true,
+        });
+      } catch {}
+
+      return res.json({
+        success: true,
+        message: "Verificacao do cliente atualizada com sucesso",
+        user: {
+          _id: user._id,
+          clientVerification: user.clientVerification,
+        },
+      });
+    } catch (error) {
+      console.error("Erro ao atualizar verificacao de cliente (admin):", error);
+      return sendError(res, 500, "Erro ao atualizar verificacao de cliente", { details: error.message });
+    }
+  }
+
+  async updateDriverVerificationByAdmin(req, res) {
+    try {
+      const { id } = req.params;
+      const { field, status, reason } = req.body || {};
+
+      if (!["cnhFrontStatus", "cnhBackStatus", "selfieStatus"].includes(String(field || ""))) {
+        return sendError(res, 400, "Campo invalido. Use cnhFrontStatus, cnhBackStatus ou selfieStatus");
+      }
+      if (!["none", "pending", "approved", "rejected"].includes(String(status || ""))) {
+        return sendError(res, 400, "Status invalido para o campo informado");
+      }
+
+      const user = await User.findById(id);
+      if (!user) return sendError(res, 404, "Usuário não encontrado");
+      if (String(user.userType || "").toLowerCase() !== "driver") {
+        return sendError(res, 400, "Apenas motoristas possuem verificacao de motorista");
+      }
+
+      user.driverDocuments = user.driverDocuments || {};
+      user.driverDocuments[field] = status;
+      user.driverDocuments.reviewedAt = new Date();
+      user.driverDocuments.reviewedBy = req.user?.id || "admin";
+      user.driverDocuments.reviewHistory = Array.isArray(user.driverDocuments.reviewHistory)
+        ? user.driverDocuments.reviewHistory
+        : [];
+      user.driverDocuments.reviewHistory.push({
+        documentType: field,
+        action: status === "rejected" ? "rejected" : "approved",
+        reason: reason ? String(reason).trim() : "",
+        reviewedBy: req.user?.id || undefined,
+        reviewedAt: new Date(),
+      });
+
+      if (reason && status === "rejected") {
+        user.driverDocuments.rejectionReason = String(reason).trim();
+      } else if (status === "approved") {
+        user.driverDocuments.rejectionReason = "";
+      }
+
+      user.driverStatus = normalizeDriverStatusFromDocs(user.driverDocuments);
+      await user.save();
+
+      try {
+        const io = getIO();
+        io.to(`driver-${user._id}`).emit("driver-verification-updated", {
+          userId: String(user._id),
+          driverStatus: user.driverStatus,
+          driverDocuments: user.driverDocuments || null,
+          approved: user.driverStatus === "approved",
+        });
+      } catch {}
+
+      return res.json({
+        success: true,
+        message: "Verificacao do motorista atualizada com sucesso",
+        user: {
+          _id: user._id,
+          driverStatus: user.driverStatus,
+          driverDocuments: user.driverDocuments,
+        },
+      });
+    } catch (error) {
+      console.error("Erro ao atualizar verificacao de motorista (admin):", error);
+      return sendError(res, 500, "Erro ao atualizar verificacao de motorista", { details: error.message });
     }
   }
 
@@ -1902,13 +2191,27 @@ class AuthController {
       if (!req.file) {
         return sendError(res, 400, "Nenhuma imagem foi enviada");
       }
-
+      
       const protocol = req.headers["x-forwarded-proto"] || req.protocol;
       const host = req.get("host");
       const baseUrl = `${protocol}://${host}/uploads/drivers`;
       const photoUrl = `${baseUrl}/${req.file.filename}`;
 
+      // Deletar foto anterior se existir
+      if (user.profilePhoto) {
+        try {
+          const oldFilename = user.profilePhoto.split("/").pop();
+          const oldFilePath = path.join(__dirname, "../../uploads/drivers", oldFilename);
+          if (fs.existsSync(oldFilePath)) {
+            fs.unlinkSync(oldFilePath);
+          }
+        } catch (err) {
+          console.error("Erro ao deletar foto anterior:", err);
+        }
+      }
+
       user.profilePhoto = photoUrl;
+
       await user.save();
 
       return res.json({
@@ -1918,12 +2221,106 @@ class AuthController {
           user: {
             _id: user._id,
             profilePhoto: user.profilePhoto,
+            clientVerification: user.clientVerification || undefined,
           },
         },
       });
     } catch (error) {
       console.error("Erro ao atualizar foto de perfil:", error);
       return sendError(res, 500, "Erro ao salvar foto de perfil", { details: error.message });
+    }
+  }
+
+  // Verificacao de documentos do cliente (selfie, RG)
+  async submitClientVerification(req, res) {
+    try {
+      const userId = req.user.id;
+      const user = await User.findById(userId);
+
+      if (!user) {
+        return sendError(res, 404, "Usuário não encontrado");
+      }
+
+      if (user.userType !== "client") {
+        return sendError(res, 400, "Verificação de cliente disponível apenas para usuários cliente");
+      }
+
+      if (!req.files || Object.keys(req.files).length === 0) {
+        return sendError(res, 400, "Nenhum documento foi enviado");
+      }
+
+      const protocol = req.headers["x-forwarded-proto"] || req.protocol;
+      const host = req.get("host");
+      const baseUrl = `${protocol}://${host}/uploads/drivers`;
+
+      if (!user.clientVerification) {
+        user.clientVerification = {};
+      }
+      user.clientVerification.documents = user.clientVerification.documents || {};
+
+      if (req.files.selfie && req.files.selfie[0]) {
+        // --- MOCK DE VERIFICAÇÃO FACIAL ---
+        // Aqui também validariamos a selfie com AWS/Google Cloud.
+        // --- FIM MOCK ---
+
+        user.clientVerification.documents.selfie = `${baseUrl}/${req.files.selfie[0].filename}`;
+        user.clientVerification.selfieStatus = "pending";
+      }
+      if (req.files.rgFront && req.files.rgFront[0]) {
+        user.clientVerification.documents.rgFront = `${baseUrl}/${req.files.rgFront[0].filename}`;
+      }
+      if (req.files.rgBack && req.files.rgBack[0]) {
+        user.clientVerification.documents.rgBack = `${baseUrl}/${req.files.rgBack[0].filename}`;
+      }
+
+      user.clientVerification.submittedAt = new Date();
+      user.clientVerification.status = "pending";
+
+      await user.save();
+
+      return res.json({
+        success: true,
+        message: "Documentos enviados com sucesso. Aguardando análise.",
+        data: {
+          clientVerification: user.clientVerification,
+        },
+      });
+    } catch (error) {
+      console.error("Erro ao enviar documentos do cliente:", error);
+      return sendError(res, 500, "Erro ao processar verificação", { details: error.message });
+    }
+  }
+
+  // Atualizar a localizacao em tempo real do usuario (cliente ou motorista)
+  async updateLocation(req, res) {
+    try {
+      const userId = req.user.id;
+      const { latitude, longitude } = req.body;
+
+      if (latitude === undefined || longitude === undefined) {
+        return sendError(res, 400, "Latitude e longitude sao obrigatorios");
+      }
+
+      const user = await User.findById(userId);
+      if (!user) {
+        return sendError(res, 404, "Usuario nao encontrado");
+      }
+
+      user.lastLocation = {
+        type: "Point",
+        coordinates: [longitude, latitude],
+        updatedAt: new Date()
+      };
+
+      await user.save();
+
+      return res.json({
+        success: true,
+        message: "Localizacao atualizada com sucesso"
+      });
+    } catch (error) {
+      console.error("Erro ao atualizar localizacao do usuario:", error);
+      return sendError(res, 500, "Erro ao atualizar localizacao", { details: error.message });
     }
   }
 }

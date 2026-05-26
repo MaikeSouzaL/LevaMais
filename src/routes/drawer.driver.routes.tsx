@@ -21,6 +21,7 @@ import DriverSettingsScreen from "../screens/(authenticated)/Driver/DriverSettin
 import DriverWithdrawScreen from "../screens/(authenticated)/Driver/DriverWithdrawScreen";
 import DriverStatementScreen from "../screens/(authenticated)/Driver/DriverStatementScreen";
 import DriverRideDetailsScreen from "../screens/(authenticated)/Driver/DriverRideDetailsScreen";
+import DriverHistoryRideDetailsScreen from "../screens/(authenticated)/Driver/DriverHistoryRideDetailsScreen";
 import DriverHelpScreen from "../screens/(authenticated)/Driver/DriverHelpScreen";
 import DriverChatScreen from "../screens/(authenticated)/Driver/DriverChatScreen";
 import DriverSafetyScreen from "../screens/(authenticated)/Driver/DriverSafetyScreen";
@@ -32,6 +33,8 @@ import DriverRatingsScreen from "../screens/(authenticated)/Driver/DriverRatings
 import DriverSupportCenterScreen from "../screens/(authenticated)/Driver/DriverSupportCenterScreen";
 import DriverShiftOffersScreen from "../screens/(authenticated)/Driver/DriverShiftOffersScreen";
 import DeliveryOfferScreen from "../screens/(authenticated)/Driver/DeliveryOfferScreen";
+import DriverNegotiationScreen from "../screens/(authenticated)/Driver/DriverNegotiationScreen";
+import DeliveryOfferDetailScreen from "../screens/(authenticated)/Driver/DeliveryOfferDetailScreen";
 
 import { useAuthStore } from "../context/authStore";
 
@@ -234,7 +237,10 @@ export default function DrawerDriverRoutes({ initialRideId }: DrawerDriverRoutes
       <Drawer.Screen name="DriverRateClient" component={DriverRateClientScreen} options={HiddenScreenOptions} />
       <Drawer.Screen name="DriverCancelRide" component={DriverCancelRideScreen} options={HiddenScreenOptions} />
       <Drawer.Screen name="DriverChat" component={DriverChatScreen} options={HiddenScreenOptions} />
+      <Drawer.Screen name="DriverNegotiation" component={DriverNegotiationScreen} options={HiddenScreenOptions} />
       <Drawer.Screen name="DeliveryOfferScreen" component={DeliveryOfferScreen} options={HiddenScreenOptions} />
+      <Drawer.Screen name="DeliveryOfferDetail" component={DeliveryOfferDetailScreen} options={HiddenScreenOptions} />
+      <Drawer.Screen name="DriverHistoryRideDetails" component={DriverHistoryRideDetailsScreen} options={HiddenScreenOptions} />
     </Drawer.Navigator>
   );
 }

@@ -4,6 +4,8 @@
 
 export type RideStatus =
   | 'requesting'
+  | 'payment_pending'
+  | 'payment_failed'
   | 'driver_assigned'
   | 'accepted'
   | 'driver_arriving'

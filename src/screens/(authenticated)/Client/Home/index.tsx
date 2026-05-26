@@ -1,12 +1,13 @@
 import React, { useCallback, useState, useEffect } from "react";
-import { StyleSheet, StatusBar, Alert, View, Text, TouchableOpacity } from "react-native";
+import { StatusBar, Alert, View, Text, TouchableOpacity, ScrollView, Image } from "react-native";
 import { NavigationProp, RouteProp, useNavigation, useFocusEffect, useRoute } from "@react-navigation/native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { MotiView } from "moti";
-import { Info } from "lucide-react-native";
+import { Info, Search, QrCode, Percent, CreditCard, ChevronRight, User, Bell, Shield, ArrowRight, Car, Package, Wallet, Gift, Home as HomeIcon, Briefcase, Sparkles, Bike, Check } from "lucide-react-native";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import Toast from "react-native-toast-message";
 
-// 📍 Custom Hooks / Global System
+// 📌 Custom Hooks / Global System
 import { useAuthStore } from "@/context/authStore";
 import favoriteAddressService from "@/services/favoriteAddress.service";
 import rideService from "@/services/ride.service";
@@ -15,31 +16,31 @@ import { LocationLoadingScreen } from "@/components/ui/LocationLoadingScreen";
 
 // 🛠️ Reused Domain Hooks from Original Flow
 import { useMapLocation } from "../Shared/hooks/useMapLocation";
+import { useFavorites } from "../Shared/hooks/useFavorites";
+import { useAvailability } from "../Shared/hooks/useAvailability";
+import { useActiveRideMonitor } from "../Shared/hooks/useActiveRideMonitor";
 
 // 🎨 Premium Visual Shell Components
 import { ClientRealtimeMap } from "@/components/client/home/ClientRealtimeMap";
 import {Modal} from "@/components/Modal";
-import { ClientFloatingHeader } from "@/components/client/home/ClientFloatingHeader";
-import { ClientBottomSheet } from "@/components/client/home/ClientBottomSheet";
-import { MapActionButtons } from "@/components/MapActionButtons";
 import { colors } from "@/theme";
-import { ClientStackParamList } from "../types/navigation";
+import { ClientStackParamList, DeliveryAddressProfile } from "../types/navigation";
 
 export default function HomeScreen() {
   const navigation = useNavigation<NavigationProp<ClientStackParamList>>();
   const route = useRoute<RouteProp<ClientStackParamList, "Home">>();
   const { userData: user } = useAuthStore();
-  
+
   const [showHomeSuccessModal, setShowHomeSuccessModal] = useState(false);
+  const [showNoDriversModal, setShowNoDriversModal] = useState(false);
 
   useEffect(() => {
     if (route.params?.showSuccessQueueModal) {
        setShowHomeSuccessModal(true);
-       // Consumes the param so it doesn't retrigger on subsequent renders
        navigation.setParams({ showSuccessQueueModal: undefined });
     }
   }, [route.params]);
-  
+
   // Mapping Engine Instance & Actions
   const {
     mapRef,
@@ -50,141 +51,73 @@ export default function HomeScreen() {
     handleRegionChangeComplete
   } = useMapLocation();
 
-  // Component States
-  const [favorites, setFavorites] = useState<any[]>([]);
-  const [sheetSnapIndex, setSheetSnapIndex] = useState(0);
-  const [waitingQueueCount, setWaitingQueueCount] = useState<number>(0);
-  const [negotiationRideId, setNegotiationRideId] = useState<string | null>(null);
-  const [availability, setAvailability] = useState<{
-    rideDrivers: number;
-    deliveryDrivers: number;
-    totalNearby: number;
-  }>({
-    rideDrivers: 0,
-    deliveryDrivers: 0,
-    totalNearby: 0,
+  // Custom Hooks para lógica complexa
+  const { favorites, loading: favoritesLoading } = useFavorites();
+  const { availability, loading: availabilityLoading, error: availabilityError } = useAvailability({
+    region,
+    userRegion,
   });
-  
+  const {
+    negotiationRideId,
+    activeRequestingRideId,
+    waitingQueueCount,
+    showCancelledModal,
+    dismissCancelledModal,
+    confirmExpiredAction,
+    setActiveRequestingRideId,
+  } = useActiveRideMonitor();
+
+  // Component States
+  const [sheetSnapIndex, setSheetSnapIndex] = useState(0);
+
   // Map Operational Visual States 🎨
   const [useDarkMap, setUseDarkMap] = useState(true);
   const [isSwitchingStyle, setIsSwitchingStyle] = useState(false);
   const [isCentering, setIsCentering] = useState(false);
 
-  // 🛰️ Background monitoring of active ride (Redirect if driver offers or accepts)
-  useEffect(() => {
-    let isMounted = true;
-    let pollInterval: any = null;
-
-    const checkActiveRide = async () => {
-      try {
-        // 1. Sincroniza a lista completa de corridas do cliente
-        const res = await rideService.getActiveList();
-        if (!isMounted) return;
-        
-        const activeRides = res?.rides || [];
-        
-        // Find if any ride has active negotiations/offers
-        const rideWithOffers = activeRides.find(ride => (ride.negotiation?.offers?.length || 0) > 0);
-        if (rideWithOffers) {
-           setNegotiationRideId(rideWithOffers._id);
-        } else {
-           setNegotiationRideId(null);
-        }
-
-        // 2. Filtra Fila de Espera Geral (isWaitingInQueue)
-        const queuedRides = activeRides.filter(ride => ride.isWaitingInQueue === true && ride.status === "requesting");
-        setWaitingQueueCount(queuedRides.length);
-
-        // 3. Busca um pedido primário (que NÃO esteja em fila silenciosa)
-        const primaryRide = activeRides.find(ride => !ride.isWaitingInQueue);
-
-        if (primaryRide) {
-          // Motorista aceitou? VAI DIRETO AO TRACKING/MAPA DE CORRIDA!
-          if (primaryRide.driverId && ["accepted", "driver_arriving", "arrived", "in_progress"].includes(primaryRide.status)) {
-             navigation.reset({
-               index: 0,
-               routes: [{ name: "RideTracking", params: { rideId: primaryRide._id } }],
-             });
-             return;
-          }
-        }
-        
-      } catch (err) {
-        // Captura silenciosa de rede
-      }
-    };
-
-    // ⚡ Add Socket Listener to check instantaneously when backend notifies ANY update!
-    webSocketService.connect().then(() => {
-       webSocketService.on("ride-status-updated", checkActiveRide);
-       // Re-check on connect
-       checkActiveRide();
-    }).catch(() => {});
-
-    // Polling fallback every 8 seconds for perfect safety
-    pollInterval = setInterval(checkActiveRide, 8000);
-    
-    return () => {
-      isMounted = false;
-      if (pollInterval) clearInterval(pollInterval);
-      webSocketService.off("ride-status-updated", checkActiveRide);
-    };
-  }, [navigation]);
-
-  // Load context on focus
-  useFocusEffect(
-    useCallback(() => {
-      (async () => {
-        try {
-          const favs = await favoriteAddressService.list();
-          setFavorites(favs || []);
-        } catch (e) {
-          setFavorites([]);
-        }
-      })();
-    }, [])
-  );
+  // Active Service view state & Delivery configurations
+  const [activeService, setActiveService] = useState<"ride" | "delivery" | "pay">("ride");
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [deliveryMode, setDeliveryMode] = useState<"send" | "receive">("send");
+  const [selectedDeliveryVehicle, setSelectedDeliveryVehicle] = useState<"motorcycle" | "car" | "van" | "truck">("motorcycle");
+  const [pickupProfile, setPickupProfile] = useState<DeliveryAddressProfile | null>(null);
+  const [dropoffProfile, setDropoffProfile] = useState<DeliveryAddressProfile | null>(null);
 
   useEffect(() => {
-    let mounted = true;
+    const draft = route.params?.deliveryDraftProfile;
+    if (!draft) return;
 
-    const loadNearbyAvailability = async () => {
-      try {
-        const lat = userRegion?.latitude || region?.latitude;
-        const lng = userRegion?.longitude || region?.longitude;
-        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-        const safeLat = lat as number;
-        const safeLng = lng as number;
+    setActiveService("delivery");
+    if (draft.flow === "send" || draft.flow === "receive") {
+      setDeliveryMode(draft.flow);
+    }
+    if (["motorcycle", "car", "van", "truck"].includes(String(draft.vehicleType))) {
+      setSelectedDeliveryVehicle(draft.vehicleType as "motorcycle" | "car" | "van" | "truck");
+    }
+    if (draft.role === "pickup") {
+      setPickupProfile(draft.profile);
+    } else {
+      setDropoffProfile(draft.profile);
+    }
 
-        const drivers = await rideService.getNearbyDrivers(safeLat, safeLng, 7000);
-        if (!mounted) return;
+    navigation.setParams({ deliveryDraftProfile: undefined });
+  }, [navigation, route.params?.deliveryDraftProfile]);
 
-        const rideDrivers = drivers.filter((d) =>
-          Array.isArray(d.serviceTypes) && d.serviceTypes.includes("ride"),
-        ).length;
-        const deliveryDrivers = drivers.filter((d) =>
-          Array.isArray(d.serviceTypes) && d.serviceTypes.includes("delivery"),
-        ).length;
+  useEffect(() => {
+    setIsTransitioning(true);
+    const timer = setTimeout(() => {
+      setIsTransitioning(false);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [activeService]);
 
-        setAvailability({
-          rideDrivers,
-          deliveryDrivers,
-          totalNearby: drivers.length,
-        });
-      } catch {
-        if (!mounted) return;
-        setAvailability((prev) => prev);
-      }
-    };
-
-    loadNearbyAvailability();
-    const interval = setInterval(loadNearbyAvailability, 15000);
-
-    return () => {
-      mounted = false;
-      clearInterval(interval);
-    };
-  }, [region?.latitude, region?.longitude, userRegion?.latitude, userRegion?.longitude]);
+  // Lida com parâmetros da rota (ex: activeRideId vindo de OrderSentScreen)
+  useEffect(() => {
+    if (route.params?.activeRideId) {
+      setActiveRequestingRideId(route.params.activeRideId);
+      navigation.setParams({ activeRideId: undefined });
+    }
+  }, [route.params, setActiveRequestingRideId, navigation]);
 
   // Drawer Open
   const handleMenuPress = useCallback(() => {
@@ -204,21 +137,93 @@ export default function HomeScreen() {
       type: "ride" | "delivery",
       options?: { preferScheduled?: boolean },
     ) => {
-    const defaultVehicle = type === "ride" ? "car" : "motorcycle";
+    if (type === "delivery") {
+      setActiveService("delivery");
+      setSelectedDeliveryVehicle("motorcycle");
+      return;
+    }
+    const isScheduled = Boolean(options?.preferScheduled);
+    const defaultVehicle = "car";
     
     navigation.navigate("DestinationSearch", {
       initialVehicle: defaultVehicle,
-      preferScheduled: Boolean(options?.preferScheduled),
+      preferScheduled: isScheduled,
       serviceType: type,
-      // REMOVED pre-filled pickup to force user verification
     });
-  }, [navigation, currentAddress, userRegion, region]);
+  }, [navigation]);
+
+    // Quick Links handlers
+  const handleActiveOrders = useCallback(() => {
+    navigation.navigate("ActiveOrders");
+  }, [navigation]);
+
+  const handleWallet = useCallback(() => {
+    navigation.navigate("Wallet");
+  }, [navigation]);
+
+  const handleSupport = useCallback(() => {
+    navigation.navigate("SupportCenter");
+  }, [navigation]);
 
   const handleSearchPress = useCallback(() => {
     navigation.navigate("DestinationSearch", {
       // REMOVED pre-filled pickup to force user verification
     });
   }, [navigation, currentAddress, userRegion, region]);
+
+  const handleOpenFavoriteShortcut = useCallback(
+    (mode: "home" | "work" | "favorite") => {
+      navigation.navigate("FavoriteAddressFlow", {
+        initialSearchMode: mode,
+      });
+    },
+    [navigation],
+  );
+
+  const openDeliveryAddressInfo = useCallback(
+    (role: "pickup" | "dropoff") => {
+      navigation.navigate("DeliverySenderInfo", {
+        mode: role === "pickup" ? "sender" : "receiver",
+        vehicleType: selectedDeliveryVehicle,
+        flow: deliveryMode,
+        pickupProfile,
+        dropoffProfile,
+      });
+    },
+    [deliveryMode, dropoffProfile, navigation, pickupProfile, selectedDeliveryVehicle],
+  );
+
+  const formatDeliveryContact = (profile: DeliveryAddressProfile | null) => {
+    if (!profile) return "Toque para preencher as informações";
+    return [profile.contactName, profile.contactPhone].filter(Boolean).join(" • ");
+  };
+
+  const deliveryVehicles = [
+    {
+      id: "motorcycle" as const,
+      title: "Moto Entrega",
+      subtitle: "Rápido • Econômico",
+      image: require("../../../../assets/Logo/leva_moto.png"),
+    },
+    {
+      id: "car" as const,
+      title: "Carro Entrega",
+      subtitle: "Pacotes médios",
+      image: require("../../../../assets/Logo/leva-carro.png"),
+    },
+    {
+      id: "van" as const,
+      title: "Van Entrega",
+      subtitle: "Volumes maiores",
+      image: require("../../../../assets/Logo/leva_van.png"),
+    },
+    {
+      id: "truck" as const,
+      title: "Baú entrega",
+      subtitle: "Cargas grandes",
+      image: require("../../../../assets/Logo/leva_bau.png"),
+    },
+  ];
 
   const handleWalletPress = useCallback(() => {
     // Example route - if specific wallet exists
@@ -243,164 +248,845 @@ export default function HomeScreen() {
   }, [centerOnUser, isCentering]);
 
   const handleSOS = useCallback(() => {
-    try {
-      // Navigates seamlessly to client-specific safety zone! 🛡️
-      navigation.navigate("SafetyCenter");
-    } catch {
-      Alert.alert("SOS", "Ativando modo de emergência do passageiro...");
-    }
+    navigation.navigate("SafetyCenter");
   }, [navigation]);
 
-  // ⏳ Loading Guard while Map Logic warms up
+  // Loading Guard while Map Logic warms up
   if (!region) {
     return <LocationLoadingScreen />;
   }
 
-
   return (
     <ErrorBoundary componentName="ClientHomeScreen">
-      <GestureHandlerRootView style={styles.screen}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-      
-      {/* 1. Background Map Layer (The World View) */}
-      <ClientRealtimeMap 
-        mapRef={mapRef}
-        region={region}
-        userRegion={userRegion}
-        onRegionChangeComplete={handleRegionChangeComplete}
-        useDarkStyle={useDarkMap}
-      />
+      <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#091A2F" }}>
+        <StatusBar barStyle={activeService === "ride" ? "dark-content" : "light-content"} backgroundColor="transparent" translucent />
+        
+        {activeService === "ride" && (
+          <View className="flex-1 pb-[110px]" style={{ paddingTop: StatusBar.currentHeight || 20 }}>
+            {/* Green Background behind Header and top of Map */}
+            <View className="absolute top-0 left-0 right-0 h-[220px] bg-[#02de95]" style={{ borderBottomLeftRadius: 32, borderBottomRightRadius: 32 }} />
 
-      {/* 2. Floating Controls Layer */}
-      <ClientFloatingHeader 
-        onMenuPress={handleMenuPress}
-        onSearchPress={handleSearchPress}
-        onWalletPress={handleWalletPress}
-        currentAddress={currentAddress}
-      />
+            {/* 1. Header (Greeting & Actions) */}
+            <View className="flex-row justify-between items-center px-5 pb-0 mt-2 relative z-10">
+              <View className="flex-row items-center gap-3">
+                <TouchableOpacity onPress={handleMenuPress} className="relative">
+                  {user?.fotoPerfil || user?.profilePhoto ? (
+                    <Image source={{ uri: user.fotoPerfil || user.profilePhoto }} className="w-11 h-11 rounded-full border-[2px] border-white" />
+                  ) : (
+                    <View className="w-11 h-11 rounded-full bg-[#091A2F]/10 items-center justify-center border-[1.5px] border-[#091A2F]/20">
+                      <User size={20} color="#091A2F" />
+                    </View>
+                  )}
+                  <View className="absolute top-0 right-0 w-2.5 h-2.5 rounded-full bg-[#ef4444] border-[1.5px] border-[#02de95]" />
+                </TouchableOpacity>
+                <Text className="text-[#091A2F] text-[22px] font-bold">Olá, <Text className="text-[#091A2F] font-black">{user?.name || "Cliente"}</Text>!</Text>
+              </View>
+              <View className="flex-row items-center gap-3">
+                <TouchableOpacity className="bg-[#091A2F]/10 px-3 py-1 rounded-xl border border-[#091A2F]/20">
+                  <Text className="text-[#091A2F] text-xs font-bold">Pix</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={handleSOS} className="w-10 h-10 rounded-full bg-[#091A2F]/10 items-center justify-center border border-[#091A2F]/20">
+                  <QrCode size={20} color="#091A2F" />
+                </TouchableOpacity>
+              </View>
+            </View>
 
-      {/* 🌟 Yellow Active Proposals Banner */}
-      {negotiationRideId && (
-        <MotiView
-          from={{ opacity: 0, translateY: -20 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          style={{ position: 'absolute', top: 135, left: 16, right: 16, zIndex: 50, elevation: 10 }}
+            {/* 2. Map Card */}
+            <View className="flex-1 mx-5 mt-4 rounded-[24px] overflow-hidden border border-white/5 relative z-10">
+              <ClientRealtimeMap
+                mapRef={mapRef}
+                region={region}
+                userRegion={userRegion}
+                onRegionChangeComplete={handleRegionChangeComplete}
+                useDarkStyle={user?.mapTheme === "dark"}
+                avatarUrl={user?.fotoPerfil || user?.profilePhoto || undefined}
+                rideDrivers={availability.rideDrivers}
+                deliveryDrivers={availability.deliveryDrivers}
+                totalNearby={availability.totalNearby}
+                availabilityLoading={availabilityLoading}
+                availabilityError={availabilityError}
+              />
+            </View>
+            
+            {/* 3. Overlapping Search Bar */}
+            <TouchableOpacity 
+              activeOpacity={0.95}
+              onPress={handleSearchPress}
+              className="bg-[#02de95] mx-5 h-[64px] rounded-[36px] flex-row items-center px-6 -mt-16 z-20"
+              style={{ 
+                shadowColor: "#000", 
+                shadowOffset: { width: 0, height: 6 }, 
+                shadowOpacity: 0.22, 
+                shadowRadius: 12, 
+                elevation: 10 
+              }}
+            >
+              <Search size={28} color="#091A2F" style={{ marginRight: 14 }} />
+              <Text className="text-[#091A2F] text-xl font-black">Para onde vamos?</Text>
+            </TouchableOpacity>
+
+            {/* Quick Favorites Pills */}
+            <View className="mt-[15px] px-5">
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false} 
+                contentContainerStyle={{ gap: 10, paddingRight: 20 }}
+              >
+                {favorites.length > 0 && (
+                  favorites.slice(0, 3).map((fav, index) => (
+                    <TouchableOpacity
+                      key={fav.id || index}
+                      className="flex-row items-center bg-[#11253E] px-3.5 py-2 rounded-[20px] border border-white/[0.03]"
+                      onPress={() => {
+                        navigation.navigate("DestinationSearch", {
+                          pickup: { 
+                            address: currentAddress || "Localização Atual",
+                            latitude: userRegion?.latitude || region.latitude,
+                            longitude: userRegion?.longitude || region.longitude,
+                          },
+                          dropoff: {
+                            address: fav.formattedAddress || fav.address,
+                            latitude: Number(fav.latitude),
+                            longitude: Number(fav.longitude),
+                          }
+                        });
+                      }}
+                    >
+                      <View className="w-6 h-6 rounded-full bg-[#02de95]/10 items-center justify-center mr-2">
+                        {fav.name?.toLowerCase() === "casa" ? (
+                          <HomeIcon size={14} color="#02de95" />
+                        ) : fav.name?.toLowerCase() === "trabalho" ? (
+                          <Briefcase size={14} color="#02de95" />
+                        ) : (
+                          <Sparkles size={14} color="#02de95" />
+                        )}
+                      </View>
+                      <Text className="text-white text-xs font-bold" numberOfLines={1}>
+                        {fav.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))
+                )}
+                <>
+                    <TouchableOpacity
+                      className="flex-row items-center bg-[#11253E] px-3.5 py-2 rounded-[20px] border border-white/[0.03]"
+                      onPress={() => handleOpenFavoriteShortcut("home")}
+                    >
+                      <View className="w-6 h-6 rounded-full bg-[#02de95]/10 items-center justify-center mr-2">
+                        <HomeIcon size={14} color="#02de95" />
+                      </View>
+                      <Text className="text-white text-xs font-bold">Adicionar Casa</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      className="flex-row items-center bg-[#11253E] px-3.5 py-2 rounded-[20px] border border-white/[0.03]"
+                      onPress={() => handleOpenFavoriteShortcut("work")}
+                    >
+                      <View className="w-6 h-6 rounded-full bg-[#02de95]/10 items-center justify-center mr-2">
+                        <Briefcase size={14} color="#02de95" />
+                      </View>
+                      <Text className="text-white text-xs font-bold">Adicionar Trabalho</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      className="flex-row items-center bg-[#11253E] px-3.5 py-2 rounded-[20px] border border-white/[0.03]"
+                      onPress={() => handleOpenFavoriteShortcut("favorite")}
+                    >
+                      <View className="w-6 h-6 rounded-full bg-[#02de95]/10 items-center justify-center mr-2">
+                        <Sparkles size={14} color="#02de95" />
+                      </View>
+                      <Text className="text-white text-xs font-bold">Adicionar Favorito</Text>
+                    </TouchableOpacity>
+                  </>
+              </ScrollView>
+            </View>
+
+            {/* 4. Horizontal Gallery (Promo + Finance Cards) */}
+            <View className="mt-5 px-5 mb-2.5">
+              <Text className="text-white text-sm font-bold mb-2.5">Destaques Leva+</Text>
+              
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 12, paddingRight: 20 }}
+              >
+                {/* Promo Card */}
+                <TouchableOpacity 
+                  activeOpacity={0.9}
+                  onPress={() => handleServiceSelect("ride")}
+                  className="w-[325px] h-[135px] bg-[#11253E] rounded-[24px] p-4 flex-row items-center border border-white/[0.04] overflow-hidden"
+                >
+                  <View className="flex-1 justify-between h-full pr-1">
+                    <View className="self-start bg-[#02de95]/10 border border-[#02de95]/20 px-2 py-0.5 rounded-md">
+                      <Text className="text-[#02de95] text-[9px] font-black tracking-widest uppercase">Leva+</Text>
+                    </View>
+                    <View className="mt-1">
+                      <Text className="text-[#02de95] text-lg font-black tracking-tight mb-0.5">Vá com a Leva+</Text>
+                      <Text className="text-white/60 text-[11px] leading-[15px]" numberOfLines={2}>
+                        Escolha entre entrega ou corrida com preço justo.
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Rich Right Graphic Container */}
+                  <View className="flex-row items-center ml-2 h-full">
+                    {/* Stylized Glowing Illustration */}
+                    <View className="w-[70px] h-[70px] justify-center items-center relative mr-3">
+                      <View className="absolute w-[68px] h-[68px] rounded-full border border-[#02de95]/15 bg-[#02de95]/5" />
+                      <View className="absolute w-[50px] h-[50px] rounded-full bg-[#02de95]/10 opacity-70" />
+                      <Car size={32} color="#02de95" strokeWidth={1.5} style={{ opacity: 0.8, transform: [{ translateY: -6 }, { translateX: -6 }] }} />
+                      <Package size={28} color="#ffffff" strokeWidth={2} style={{ position: 'absolute', bottom: 10, right: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 4 }} />
+                    </View>
+
+                    {/* Small circular chevron indicator */}
+                    <View className="w-8 h-8 rounded-full bg-white/[0.03] border border-white/10 items-center justify-center">
+                      <ChevronRight size={16} color="#02de95" strokeWidth={3} />
+                    </View>
+                  </View>
+                </TouchableOpacity>
+
+                {/* Indique e Ganhe Card */}
+                <TouchableOpacity 
+                  activeOpacity={0.9}
+                  onPress={() => Alert.alert("Indique e Ganhe", "Em breve: Indique amigos e ganhe créditos!")}
+                  className="w-[325px] h-[135px] bg-[#11253E] rounded-[24px] p-4 flex-row items-center border border-white/[0.04] overflow-hidden"
+                >
+                  <View className="flex-1 justify-between h-full pr-1">
+                    <View className="self-start bg-[#02de95]/10 border border-[#02de95]/20 px-2 py-0.5 rounded-md">
+                      <Text className="text-[#02de95] text-[9px] font-black tracking-widest uppercase">Promoção</Text>
+                    </View>
+                    <View className="mt-1">
+                      <Text className="text-[#02de95] text-lg font-black tracking-tight mb-0.5">Indique & Ganhe</Text>
+                      <Text className="text-white/60 text-[11px] leading-[15px]" numberOfLines={2}>
+                        Ative sua conta e ganhe cupons compartilhando!
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Rich Right Graphic Container */}
+                  <View className="flex-row items-center ml-2 h-full">
+                    {/* Stylized Glowing Illustration */}
+                    <View className="w-[70px] h-[70px] justify-center items-center relative mr-3">
+                      <View className="absolute w-[68px] h-[68px] rounded-full border border-[#02de95]/15 bg-[#02de95]/5" />
+                      <View className="absolute w-[50px] h-[50px] rounded-full bg-[#02de95]/10 opacity-70" />
+                      <Gift size={32} color="#02de95" strokeWidth={1.5} style={{ opacity: 0.8, transform: [{ translateY: -2 }] }} />
+                      <Sparkles size={16} color="#ffffff" style={{ position: 'absolute', top: 12, right: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 4 }} />
+                    </View>
+
+                    {/* Small circular chevron indicator */}
+                    <View className="w-8 h-8 rounded-full bg-white/[0.03] border border-white/10 items-center justify-center">
+                      <ChevronRight size={16} color="#02de95" strokeWidth={3} />
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          </View>
+        )}
+
+        {activeService === "delivery" && (
+          <View className="flex-1">
+            {/* Curved Green Header */}
+            <View 
+              className="bg-[#02de95] pb-6 rounded-b-[36px]"
+              style={{ paddingTop: StatusBar.currentHeight ? StatusBar.currentHeight + 16 : 56 }}
+            >
+              <View className="flex-row justify-between items-center px-5 pb-0">
+                <View className="flex-row items-center gap-3">
+                  <TouchableOpacity onPress={handleMenuPress} className="relative">
+                    {user?.fotoPerfil || user?.profilePhoto ? (
+                      <Image source={{ uri: user.fotoPerfil || user.profilePhoto }} className="w-11 h-11 rounded-full border-[1.5px] border-[#091A2F]" />
+                    ) : (
+                      <View className="w-11 h-11 rounded-full bg-[#11253E] items-center justify-center border-[1.5px] border-white/10">
+                        <User size={20} color="#fff" />
+                      </View>
+                    )}
+                    <View className="absolute top-0 right-0 w-2.5 h-2.5 rounded-full bg-[#ef4444] border-[1.5px] border-[#02de95]" />
+                  </TouchableOpacity>
+                  <Text className="text-[#091A2F] text-[22px] font-bold">Olá, <Text className="text-[#091A2F] font-black">{user?.name || "Cliente"}</Text>!</Text>
+                </View>
+                <View className="flex-row items-center gap-3">
+                  <TouchableOpacity className="bg-[#091A2F]/10 px-3 py-1 rounded-xl border border-[#091A2F]/15">
+                    <Text className="text-[#091A2F] text-xs font-bold">Pix</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={handleSOS} className="w-10 h-10 rounded-full bg-[#091A2F]/10 items-center justify-center border border-[#091A2F]/15">
+                    <QrCode size={20} color="#091A2F" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+
+            {/* O QUE VAMOS ENVIAR HOJE? -> Leva+ Logo & Entrega (Centered & Highlighted) */}
+            <View className="px-5 mt-[120px] mb-9 items-center justify-center">
+              <Text className="text-white/80 text-[14px] font-black tracking-[4px] uppercase text-center">O QUE VAMOS ENVIAR HOJE?</Text>
+              <View className="flex-row items-center justify-center mt-3">
+                <Image 
+                  source={require("../../../../assets/Logo/logo.png")} 
+                  style={{ width: 120, height: 35 }} 
+                  resizeMode="contain"
+                />
+                <Text className="text-white text-[28px] font-black tracking-tight ml-2.5">
+                  Entrega
+                </Text>
+              </View>
+            </View>
+
+            {/* Vehicle selector */}
+            <View className="mb-6">
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 12, paddingHorizontal: 20, paddingRight: 28 }}
+              >
+                {deliveryVehicles.map((vehicle) => {
+                  const isSelected = selectedDeliveryVehicle === vehicle.id;
+                  return (
+                    <TouchableOpacity
+                      key={vehicle.id}
+                      activeOpacity={0.88}
+                      onPress={() => setSelectedDeliveryVehicle(vehicle.id)}
+                      className="w-[150px] rounded-[24px] p-3 border"
+                      style={{
+                        backgroundColor: "transparent",
+                        borderColor: isSelected ? "#02de95" : "transparent",
+                      }}
+                    >
+                      <View
+                        className="absolute top-2 right-2 z-20 w-6.5 h-6.5 rounded-full items-center justify-center"
+                        style={{ backgroundColor: isSelected ? "#02de95" : "rgba(255,255,255,0.08)" }}
+                      >
+                        {isSelected ? (
+                          <Check size={14} color="#091A2F" strokeWidth={3.5} />
+                        ) : (
+                          <View className="w-2 h-2 rounded-full bg-white/20" />
+                        )}
+                      </View>
+                      <View className="h-[104px] items-center justify-center mb-2">
+                        <Image
+                          source={vehicle.image}
+                          style={{ width: 132, height: 104 }}
+                          resizeMode="contain"
+                        />
+                      </View>
+                      <Text className="text-white text-[15px] font-black mb-0.5 text-center" numberOfLines={1}>{vehicle.title}</Text>
+                      <Text className="text-white/40 text-[11px] font-bold text-center" numberOfLines={1}>{vehicle.subtitle}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+
+            <View className="px-5 mb-4">
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 10, paddingRight: 20 }}
+              >
+                <TouchableOpacity
+                  className="flex-row items-center bg-white px-3.5 py-2 rounded-[20px]"
+                  onPress={() => handleOpenFavoriteShortcut("home")}
+                >
+                  <View className="w-6 h-6 rounded-full bg-[#091A2F]/10 items-center justify-center mr-2">
+                    <HomeIcon size={14} color="#091A2F" />
+                  </View>
+                  <Text className="text-[#091A2F] text-xs font-bold">Adicionar Casa</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  className="flex-row items-center bg-white px-3.5 py-2 rounded-[20px]"
+                  onPress={() => handleOpenFavoriteShortcut("work")}
+                >
+                  <View className="w-6 h-6 rounded-full bg-[#091A2F]/10 items-center justify-center mr-2">
+                    <Briefcase size={14} color="#091A2F" />
+                  </View>
+                  <Text className="text-[#091A2F] text-xs font-bold">Adicionar Trabalho</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  className="flex-row items-center bg-white px-3.5 py-2 rounded-[20px]"
+                  onPress={() => handleOpenFavoriteShortcut("favorite")}
+                >
+                  <View className="w-6 h-6 rounded-full bg-[#091A2F]/10 items-center justify-center mr-2">
+                    <Sparkles size={14} color="#091A2F" />
+                  </View>
+                  <Text className="text-[#091A2F] text-xs font-bold">Adicionar Favorito</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+
+            {/* Delivery Card with tabs Enviar / Receber */}
+            <View className="bg-[#11253E] mx-5 rounded-[24px] p-5 border border-white/[0.03]" style={{ shadowColor: "#000", shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.2, shadowRadius: 10, elevation: 8 }}>
+              <View className="flex-row border-b border-white/[0.05] mb-5">
+                <TouchableOpacity 
+                  onPress={() => setDeliveryMode("send")}
+                  className="py-2.5 px-4 relative"
+                >
+                  <Text className={`text-base font-bold ${deliveryMode === 'send' ? 'text-[#02de95]' : 'text-white/40'}`}>
+                    Enviar
+                  </Text>
+                  {deliveryMode === "send" && <View className="absolute bottom-[-1px] left-4 right-4 h-[3px] bg-[#02de95] rounded-t-full" />}
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  onPress={() => setDeliveryMode("receive")}
+                  className="py-2.5 px-4 relative"
+                >
+                  <Text className={`text-base font-bold ${deliveryMode === 'receive' ? 'text-[#02de95]' : 'text-white/40'}`}>
+                    Receber
+                  </Text>
+                  {deliveryMode === "receive" && <View className="absolute bottom-[-1px] left-4 right-4 h-[3px] bg-[#02de95] rounded-t-full" />}
+                </TouchableOpacity>
+              </View>
+
+              <View className="flex-row pl-2 h-[110px] relative overflow-hidden">
+                {/* Fixed Bullet Indicators (Left) */}
+                <View className="w-[18px] items-center relative mr-3">
+                  {/* Decorative connecting vertical line */}
+                  <View className="absolute left-[8px] top-[14px] bottom-[14px] w-[1.5px] bg-white/[0.1] z-0" />
+                  
+                  {/* Top Green Bullet */}
+                  <View className="w-[8px] h-[8px] rounded-full bg-[#02de95] mt-[20px] z-10" style={{ shadowColor: '#02de95', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.5, shadowRadius: 3 }} />
+                  
+                  {/* Bottom Orange Bullet */}
+                  <View className="w-[8px] h-[8px] rounded-full bg-[#F59E0B] absolute bottom-[20px] z-10" style={{ shadowColor: '#F59E0B', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.5, shadowRadius: 3 }} />
+                </View>
+
+                {/* Animated Contents (Right) */}
+                <View className="flex-1 relative h-full py-1">
+                  {/* Divider line fixed in the middle */}
+                  <View className="absolute left-0 right-0 top-[55px] h-[1px] bg-white/[0.05] z-0" />
+
+                  {/* Slot A: origem/coleta */}
+                  <MotiView
+                    animate={{ translateY: 0 }}
+                    transition={{ type: "timing", duration: 350 }}
+                    style={{ position: 'absolute', left: 0, right: 0, height: 48, top: 4, justifyContent: 'center' }}
+                    className="z-10"
+                  >
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      className="flex-1 justify-center"
+                      onPress={() => openDeliveryAddressInfo("pickup")}
+                    >
+                      <Text className="text-[9px] font-black uppercase tracking-wider mb-0.5 text-[#02de95]">
+                        RETIRADA (ORIGEM)
+                      </Text>
+                      <Text className="text-white text-sm font-bold mb-0.5" numberOfLines={1}>
+                        {pickupProfile ? pickupProfile.address : (deliveryMode === "receive" ? "Enviar de" : "Selecionar local de retirada")}
+                      </Text>
+                      <Text className="text-white/40 text-[11px] font-bold" numberOfLines={1}>
+                        {formatDeliveryContact(pickupProfile)}
+                      </Text>
+                    </TouchableOpacity>
+                  </MotiView>
+
+                  {/* Slot B: destino/entrega */}
+                  <MotiView
+                    animate={{ translateY: 0 }}
+                    transition={{ type: "timing", duration: 350 }}
+                    style={{ position: 'absolute', left: 0, right: 0, height: 48, bottom: 4 }}
+                    className="z-10"
+                  >
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={() => openDeliveryAddressInfo("dropoff")}
+                      className="flex-row items-center h-full justify-between"
+                    >
+                      <View className="flex-1 justify-center pr-3">
+                        <Text className="text-[9px] font-black uppercase tracking-wider mb-0.5 text-[#F59E0B]">
+                          ENTREGA (DESTINO)
+                        </Text>
+                        <Text className="text-white text-base font-black" numberOfLines={1}>
+                          {dropoffProfile ? dropoffProfile.address : (deliveryMode === "receive" ? "Receber em" : "Entregar para")}
+                        </Text>
+                        <Text className="text-white/40 text-[11px] font-bold" numberOfLines={1}>
+                          {formatDeliveryContact(dropoffProfile)}
+                        </Text>
+                      </View>
+                      <View className="w-[30px] h-[30px] rounded-full bg-[#02de95] items-center justify-center" style={{ shadowColor: '#02de95', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 6, elevation: 4 }}>
+                        <ArrowRight size={18} color="#091A2F" strokeWidth={4.5} />
+                      </View>
+                    </TouchableOpacity>
+                  </MotiView>
+                </View>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {activeService === "pay" && (
+          <ScrollView 
+            className="flex-1" 
+            contentContainerStyle={{ paddingTop: StatusBar.currentHeight ? StatusBar.currentHeight + 10 : 50, paddingBottom: 280 }}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Header */}
+            <View className="flex-row justify-between items-center px-5 pb-0">
+              <View className="flex-row items-center gap-3">
+                <TouchableOpacity onPress={handleMenuPress} className="relative">
+                  {user?.fotoPerfil || user?.profilePhoto ? (
+                    <Image source={{ uri: user.fotoPerfil || user.profilePhoto }} className="w-11 h-11 rounded-full border-[1.5px] border-[#02de95]" />
+                  ) : (
+                    <View className="w-11 h-11 rounded-full bg-[#11253E] items-center justify-center border-[1.5px] border-white/10">
+                      <User size={20} color="#fff" />
+                    </View>
+                  )}
+                  <View className="absolute top-0 right-0 w-2.5 h-2.5 rounded-full bg-[#ef4444] border-[1.5px] border-[#091A2F]" />
+                </TouchableOpacity>
+                <Text className="text-white text-[22px] font-bold">Olá, <Text className="text-[#02de95] font-black">{user?.name || "Cliente"}</Text>!</Text>
+              </View>
+              <View className="flex-row items-center gap-3">
+                <TouchableOpacity onPress={handleSOS} className="w-10 h-10 rounded-full bg-[#11253E] items-center justify-center border border-white/5">
+                  <QrCode size={20} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Wallet Balance Card */}
+            <View className="bg-[#11253E] mx-5 mt-3.5 rounded-[24px] p-6 border border-white/[0.03]">
+              <Text className="text-white/50 text-[13px] font-bold uppercase tracking-[0.5px] mb-1.5">Saldo Disponível</Text>
+              <Text className="text-white text-3xl font-bold mb-5">R$ 0,00</Text>
+              
+              <View className="flex-row gap-3">
+                <TouchableOpacity 
+                  className="flex-1 bg-[#02de95] h-12 rounded-2xl items-center justify-center"
+                  onPress={() => Alert.alert("Adicionar Saldo", "Recurso em desenvolvimento.")}
+                >
+                  <Text className="text-[#091A2F] text-sm font-bold">Adicionar Saldo</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  className="flex-1 bg-transparent h-12 rounded-2xl items-center justify-center border border-white/20"
+                  onPress={() => Alert.alert("Transferir", "Recurso em desenvolvimento.")}
+                >
+                  <Text className="text-white text-sm font-bold">Transferir</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Features Card */}
+            <View className="mt-[30px] px-5">
+              <Text className="text-white text-base font-bold mb-3.5">Serviços Financeiros</Text>
+              
+              <TouchableOpacity 
+                className="flex-row items-center bg-[#11253E] rounded-[20px] p-4 mb-3 border border-white/[0.03]"
+                onPress={() => Alert.alert("Pagar Boleto", "Recurso em desenvolvimento.")}
+              >
+                <View className="w-11 h-11 rounded-[14px] bg-[#02de95]/10 items-center justify-center mr-4">
+                  <CreditCard size={20} color="#02de95" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-white text-base font-bold mb-1">Pagar com Pix ou Boleto</Text>
+                  <Text className="text-white/40 text-xs">Parcele em até 12x no cartão de crédito.</Text>
+                </View>
+                <ChevronRight size={18} color="rgba(255, 255, 255, 0.3)" />
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                className="flex-row items-center bg-[#11253E] rounded-[20px] p-4 mb-3 border border-white/[0.03]"
+                onPress={() => Alert.alert("Cartões", "Gerencie seus cartões de crédito salvos.")}
+              >
+                <View className="w-11 h-11 rounded-[14px] bg-[#02de95]/10 items-center justify-center mr-4">
+                  <Wallet size={20} color="#02de95" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-white text-base font-bold mb-1">Cartões de Crédito</Text>
+                  <Text className="text-white/40 text-xs">Gerencie suas formas de pagamento para viagens.</Text>
+                </View>
+                <ChevronRight size={18} color="rgba(255, 255, 255, 0.3)" />
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        )}
+
+        {/* Floating Navigation Tab Bar */}
+        <View 
+          className="absolute bottom-6 h-[72px] bg-white rounded-[36px] flex-row items-center justify-between px-2 z-[100]" 
+          style={{ 
+            width: 250, 
+            alignSelf: "center", 
+            shadowColor: "#000", 
+            shadowOffset: { width: 0, height: 10 }, 
+            shadowOpacity: 0.12, 
+            shadowRadius: 18, 
+            elevation: 12 
+          }}
         >
-          <TouchableOpacity
-            activeOpacity={0.9}
-            onPress={() => navigation.navigate("RideOffersMarketplace", { rideId: negotiationRideId })}
-            style={{
-              backgroundColor: "#F59E0B",
-              borderRadius: 16,
-              padding: 16,
-              flexDirection: "row",
-              alignItems: "center",
-              borderWidth: 1,
-              borderColor: "rgba(255,255,255,0.2)",
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.2,
-              shadowRadius: 8,
-              elevation: 5
+          {/* Fluid Water-Drop Indicator Dot */}
+          <MotiView
+            animate={{
+              translateX: activeService === "ride" ? 0 : activeService === "delivery" ? 78 : 156,
+              scaleX: isTransitioning ? 1.35 : 1,
+              scaleY: isTransitioning ? 0.85 : 1,
             }}
+            transition={{
+              translateX: {
+                type: "spring",
+                damping: 18,
+                mass: 0.8,
+                stiffness: 130,
+              },
+              scaleX: {
+                type: "spring",
+                damping: 10,
+                stiffness: 220,
+              },
+              scaleY: {
+                type: "spring",
+                damping: 10,
+                stiffness: 220,
+              }
+            }}
+            style={{
+              position: "absolute",
+              left: 15,
+              top: 4,
+              width: 64,
+              height: 64,
+              borderRadius: 32,
+              backgroundColor: "#02de95",
+              shadowColor: "#02de95",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.35,
+              shadowRadius: 8,
+              elevation: 5,
+              zIndex: 1,
+            }}
+          />
+
+          {/* Option 1: Corrida */}
+          <TouchableOpacity 
+            onPress={() => setActiveService("ride")}
+            className="flex-1 items-center justify-center h-full z-10"
+            activeOpacity={0.8}
           >
-            <View style={{ backgroundColor: "rgba(9, 26, 47, 0.2)", padding: 8, borderRadius: 12, marginRight: 12 }}>
-               <Info size={20} color="#091A2F" />
-            </View>
-            <View style={{ flex: 1 }}>
-               <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 14, textTransform: "uppercase" }}>
-                 Propostas Recebidas
-               </Text>
-               <Text style={{ color: "rgba(9, 26, 47, 0.8)", fontWeight: "700", fontSize: 12 }}>
-                 Toque para avaliar as ofertas dos motoristas
-               </Text>
-            </View>
-            <View style={{ backgroundColor: "#091A2F", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}>
-               <Text style={{ color: "#F59E0B", fontWeight: "900", fontSize: 10 }}>VER</Text>
-            </View>
+            {activeService === "ride" ? (
+              <View className="w-[64px] h-[64px] items-center justify-center">
+                <Car size={28} color="#091A2F" />
+              </View>
+            ) : (
+              <View className="items-center justify-center">
+                <Car size={24} color="rgba(9, 26, 47, 0.5)" />
+                <Text className="text-[10px] font-bold mt-1 text-[#091A2F]/50">
+                  Corrida
+                </Text>
+              </View>
+            )}
           </TouchableOpacity>
-        </MotiView>
-      )}
 
-      {/* 🚁 Premium Background Queue Awareness Banner */}
-      {waitingQueueCount > 0 && !negotiationRideId && (
-        <MotiView
-          from={{ opacity: 0, translateY: -20 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          style={{ position: 'absolute', top: 135, left: 16, right: 16, zIndex: 50, elevation: 10 }}
-        >
-          <TouchableOpacity
-            activeOpacity={0.9}
-            onPress={() => navigation.navigate("ActiveOrders")}
-            className="bg-[#02de95] rounded-2xl p-4 flex-row items-center border border-white/10 shadow-xl"
+          {/* Option 2: Entrega */}
+          <TouchableOpacity 
+            onPress={() => {
+              setActiveService("delivery");
+              setSelectedDeliveryVehicle("motorcycle");
+            }}
+            className="flex-1 items-center justify-center h-full z-10"
+            activeOpacity={0.8}
           >
-            <View className="bg-[#091A2F]/20 p-2 rounded-xl mr-3">
-               <Info size={20} color="#091A2F" />
-            </View>
-            <View className="flex-1">
-               <Text className="text-[#091A2F] font-black text-sm uppercase">
-                 {waitingQueueCount === 1 ? "1 Pedido em Fila" : `${waitingQueueCount} Pedidos em Fila`}
-               </Text>
-               <Text className="text-[#091A2F]/80 font-bold text-xs">
-                 {waitingQueueCount === 1 ? "Toque para ver detalhes da busca" : "Toque para acompanhar todas as buscas"}
-               </Text>
-            </View>
-            <View className="bg-[#091A2F] rounded-xl px-3 py-2">
-               <Text className="text-white font-black text-[10px]">VER</Text>
-            </View>
+            {activeService === "delivery" ? (
+              <View className="w-[64px] h-[64px] items-center justify-center">
+                <Package size={28} color="#091A2F" />
+              </View>
+            ) : (
+              <View className="items-center justify-center">
+                <Package size={24} color="rgba(9, 26, 47, 0.5)" />
+                <Text className="text-[10px] font-bold mt-1 text-[#091A2F]/50">
+                  Entrega
+                </Text>
+              </View>
+            )}
           </TouchableOpacity>
-        </MotiView>
-      )}
 
-      <MapActionButtons 
-        onLocationPress={handleCenterMyLocation}
-        onSosPress={handleSOS}
-        onMapStylePress={handleToggleMapStyle}
-        useDarkMap={useDarkMap}
-        isCentering={isCentering}
-        isSwitchingStyle={isSwitchingStyle}
-      />
+          {/* Option 3: Pay / Wallet */}
+          <TouchableOpacity 
+            onPress={() => setActiveService("pay")}
+            className="flex-1 items-center justify-center h-full z-10"
+            activeOpacity={0.8}
+          >
+            {activeService === "pay" ? (
+              <View className="w-[64px] h-[64px] items-center justify-center">
+                <Wallet size={28} color="#091A2F" />
+              </View>
+            ) : (
+              <View className="items-center justify-center">
+                <Wallet size={24} color="rgba(9, 26, 47, 0.5)" />
+                <Text className="text-[10px] font-bold mt-1 text-[#091A2F]/50">
+                  Pay
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
 
-      {/* 3. Bottom User-Action Sheet */}
-      <ClientBottomSheet 
-        onSelectService={handleServiceSelect}
-        favorites={favorites}
-        availability={availability}
-        onSelectFavorite={(fav) => {
-          // Emulates handling of legacy favorite flow triggers
-          navigation.navigate("DestinationSearch", {
-            pickup: { 
-              address: currentAddress || "Localização Atual",
-              latitude: userRegion?.latitude || region.latitude,
-              longitude: userRegion?.longitude || region.longitude,
-            },
-            dropoff: {
-              address: fav.formattedAddress || fav.address,
-              latitude: Number(fav.latitude),
-              longitude: Number(fav.longitude),
-            }
-          });
-        }}
-        onChangeSnap={(idx) => setSheetSnapIndex(idx)}
-      />
-      {/* 🏆 Premium Dynamic Success Modal (Transferred Context) */}
-      <Modal
-        visible={showHomeSuccessModal}
-        title="Fila de Espera Ativada!"
-        message="Seu pedido foi para a fila pública. Assim que um motorista aceitar ou enviar uma proposta, você será informado na mesma hora sobre a contraproposta ou negociação para aceitar ou não!"
-        type="success"
-        confirmText="Entendido"
-        onClose={() => setShowHomeSuccessModal(false)}
-      />
-      
-    </GestureHandlerRootView>
+        {/* Active Requesting Ride Banner */}
+        {!!activeRequestingRideId && !negotiationRideId && (
+          <MotiView
+            from={{ opacity: 0, translateY: -20 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            style={{ position: 'absolute', top: 135, left: 16, right: 16, zIndex: 50, elevation: 10 }}
+          >
+            <TouchableOpacity
+              activeOpacity={0.9}
+              onPress={() => navigation.navigate("ActiveOrders")}
+              style={{
+                backgroundColor: "#F59E0B",
+                borderRadius: 16,
+                padding: 16,
+                flexDirection: "row",
+                alignItems: "center",
+                borderWidth: 1,
+                borderColor: "rgba(255,255,255,0.2)",
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.2,
+                shadowRadius: 8,
+                elevation: 5,
+              }}
+            >
+              <View style={{ backgroundColor: "rgba(9, 26, 47, 0.2)", padding: 8, borderRadius: 12, marginRight: 12 }}>
+                 <Info size={20} color="#091A2F" />
+              </View>
+              <View style={{ flex: 1 }}>
+                 <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 14, textTransform: "uppercase" }}>
+                   Oferta Ativa
+                 </Text>
+                 <Text style={{ color: "rgba(9, 26, 47, 0.8)", fontWeight: "700", fontSize: 12 }}>
+                   Aguardando entregadores analisarem seu pedido
+                 </Text>
+              </View>
+              <View style={{ backgroundColor: "#091A2F", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}>
+                 <Text style={{ color: "#F59E0B", fontWeight: "900", fontSize: 10 }}>VER</Text>
+              </View>
+            </TouchableOpacity>
+          </MotiView>
+        )}
+
+        {/* Yellow Active Proposals Banner */}
+        {!!negotiationRideId && (
+          <MotiView
+            from={{ opacity: 0, translateY: -20 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            style={{ position: 'absolute', top: 135, left: 16, right: 16, zIndex: 50, elevation: 10 }}
+          >
+            <TouchableOpacity
+              activeOpacity={0.9}
+              onPress={() => navigation.navigate("RideOffersMarketplace", { rideId: negotiationRideId })}
+              style={{
+                backgroundColor: "#F59E0B",
+                borderRadius: 16,
+                padding: 16,
+                flexDirection: "row",
+                alignItems: "center",
+                borderWidth: 1,
+                borderColor: "rgba(255,255,255,0.2)",
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.2,
+                shadowRadius: 8,
+                elevation: 5
+              }}
+            >
+              <View style={{ backgroundColor: "rgba(9, 26, 47, 0.2)", padding: 8, borderRadius: 12, marginRight: 12 }}>
+                 <Info size={20} color="#091A2F" />
+              </View>
+              <View style={{ flex: 1 }}>
+                 <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 14, textTransform: "uppercase" }}>
+                   Propostas Recebidas
+                 </Text>
+                 <Text style={{ color: "rgba(9, 26, 47, 0.8)", fontWeight: "700", fontSize: 12 }}>
+                   Toque para avaliar as ofertas dos motoristas
+                 </Text>
+              </View>
+              <View style={{ backgroundColor: "#091A2F", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}>
+                 <Text style={{ color: "#F59E0B", fontWeight: "900", fontSize: 10 }}>VER</Text>
+              </View>
+            </TouchableOpacity>
+          </MotiView>
+        )}
+
+        {waitingQueueCount > 0 && !negotiationRideId && !activeRequestingRideId && (
+          <MotiView
+            from={{ opacity: 0, translateY: -20 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            style={{ position: 'absolute', top: 135, left: 16, right: 16, zIndex: 50, elevation: 10 }}
+          >
+            <TouchableOpacity
+              activeOpacity={0.9}
+              onPress={() => navigation.navigate("ActiveOrders")}
+              style={{
+                backgroundColor: "#02de95",
+                borderRadius: 16,
+                padding: 16,
+                flexDirection: "row",
+                alignItems: "center",
+                borderWidth: 1,
+                borderColor: "rgba(255, 255, 255, 0.1)",
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.15,
+                shadowRadius: 6,
+                elevation: 5
+              }}
+            >
+              <View style={{ backgroundColor: "rgba(9, 26, 47, 0.2)", padding: 8, borderRadius: 12, marginRight: 12 }}>
+                 <Info size={20} color="#091A2F" />
+              </View>
+              <View style={{ flex: 1 }}>
+                 <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 14, textTransform: "uppercase" }}>
+                   {waitingQueueCount === 1 ? "1 Pedido em Fila" : `${waitingQueueCount} Pedidos em Fila`}
+                 </Text>
+                 <Text style={{ color: "rgba(9, 26, 47, 0.8)", fontWeight: "700", fontSize: 12 }}>
+                   {waitingQueueCount === 1 ? "Toque para ver detalhes da busca" : "Toque para acompanhar todas as buscas"}
+                 </Text>
+              </View>
+              <View style={{ backgroundColor: "#091A2F", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}>
+                 <Text style={{ color: "#fff", fontWeight: "900", fontSize: 10 }}>VER</Text>
+              </View>
+            </TouchableOpacity>
+          </MotiView>
+        )}
+
+
+
+        <Modal
+          visible={showHomeSuccessModal}
+          title="Fila de Espera Ativada!"
+          message="Seu pedido foi para a fila pública. Assim que um motorista aceitar ou enviar uma proposta, você será informado na mesma hora sobre a contraproposta ou negociação para aceitar ou não!"
+          type="success"
+          confirmText="Entendido"
+          onClose={() => setShowHomeSuccessModal(false)}
+        />
+        <Modal
+          visible={showCancelledModal}
+          title="Pedido Expirado"
+          message="Nenhum entregador aceitou sua oferta dentro do prazo de 10 minutos. Tente novamente com uma oferta mais atrativa ou em outro horario."
+          type="warning"
+          confirmText="Entendido"
+          onClose={dismissCancelledModal}
+          onConfirm={confirmExpiredAction}
+        />
+        <Modal
+          visible={showNoDriversModal}
+          title="Entrega indisponível"
+          message="Não encontramos entregadores online na sua região agora. Tente novamente em alguns minutos."
+          type="warning"
+          confirmText="Entendido"
+          onClose={() => setShowNoDriversModal(false)}
+        />
+        
+      </GestureHandlerRootView>
     </ErrorBoundary>
   );
 }
 
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.background.primary,
-  }
-});
+
+
+
+
+
+
+
+
+
+
+
+

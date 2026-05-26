@@ -2,6 +2,7 @@ import api from "./api";
 
 export interface FavoriteAddress {
   _id: string;
+  id?: string;
   name: string;
   icon: string;
   formattedAddress?: string;
@@ -13,6 +14,9 @@ export interface FavoriteAddress {
   state?: string;
   region?: string;
   postalCode?: string;
+  details?: string;
+  contactName?: string;
+  contactPhone?: string;
   latitude: number;
   longitude: number;
   createdAt: string;
@@ -30,6 +34,9 @@ export interface CreateFavoriteAddressRequest {
   state?: string;
   region?: string;
   postalCode?: string;
+  details?: string;
+  contactName?: string;
+  contactPhone?: string;
   latitude: number;
   longitude: number;
 }
@@ -46,19 +53,22 @@ export interface UpdateFavoriteAddressRequest {
   state?: string;
   region?: string;
   postalCode?: string;
+  details?: string;
+  contactName?: string;
+  contactPhone?: string;
   latitude?: number;
   longitude?: number;
 }
 
 class FavoriteAddressService {
   // Listar favoritos
-  async list(): Promise<FavoriteAddress[]> {
+  async list(params?: { category?: "home" | "work" | "favorite" }): Promise<FavoriteAddress[]> {
     try {
-      const response = await api.get("/favorite-addresses");
+      const response = await api.get("/favorite-addresses", { params });
       return response.data.favorites || [];
     } catch (error: any) {
       console.error("Erro ao listar favoritos:", error);
-      throw error;
+      return [];
     }
   }
 

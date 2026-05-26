@@ -1,42 +1,98 @@
-import React from "react";
-import { View } from "react-native";
-import { MotiView } from "moti";
-import { MapPin, Flag } from "lucide-react-native";
+import { View, StyleSheet, Text } from "react-native";
+import { Flag } from "lucide-react-native";
 
 interface PremiumMapMarkerProps {
   type: "origin" | "destination";
+  letter?: string;
 }
 
-export const PremiumMapMarker = ({ type }: PremiumMapMarkerProps) => {
+export const PremiumMapMarker = ({ type, letter }: PremiumMapMarkerProps) => {
   const isOrigin = type === "origin";
+  const markerColor = isOrigin ? "#02de95" : "#ef4444";
 
   return (
-    <View className="w-10 h-10 items-center justify-center relative">
-      {/* Breath wave animation using nativewind base styling wrapped in Moti */}
-      <MotiView
-        from={{ scale: 1, opacity: 0.7 }}
-        animate={{ scale: 2.4, opacity: 0 }}
-        transition={{
-          loop: true,
-          type: "timing",
-          duration: 2200,
-        }}
-        className={`absolute w-6 h-6 rounded-full ${isOrigin ? 'bg-primary' : 'bg-red-500'}`}
-      />
-
-      {/* Core Hub - Solid visual center */}
-      <View className={`w-7 h-7 rounded-full items-center justify-center z-10 border-2 bg-[#11253E] elevation-5 shadow-xl 
-        ${isOrigin ? 'border-primary' : 'border-red-500'}`}
-      >
-        {isOrigin ? (
-          <Flag size={13} color="#fff" className="fill-white" />
-        ) : (
-          <MapPin size={14} color="#fff" className="fill-red-500" />
+    <View style={styles.container}>
+      {/* Core Hub (Apenas a Bandeira Transparente e Colorida) */}
+      <View style={styles.coreHub}>
+        <Flag size={20} color={markerColor} fill={markerColor} style={{ marginLeft: 13 }} />
+        {letter && (
+          <View style={{
+            position: "absolute",
+            top: -2,
+            right: -6,
+            backgroundColor: "#111827",
+            paddingHorizontal: 3,
+            minWidth: 13,
+            height: 13,
+            borderRadius: 6.5,
+            alignItems: "center",
+            justifyContent: "center",
+            borderWidth: 1,
+            borderColor: "#ffffff",
+            zIndex: 20
+          }}>
+            <Text style={{ color: "#ffffff", fontSize: 7.5, fontWeight: "900", textAlign: "center" }}>{letter}</Text>
+          </View>
         )}
       </View>
 
-      {/* Base drop perspective shadow anchor */}
-      <View className="absolute bottom-1 w-2 h-1 bg-black/50 rounded-full" />
+      {/* Haste do alfinete */}
+      <View
+        style={[
+          styles.pinStem,
+          {
+            backgroundColor: markerColor,
+          },
+        ]}
+      />
+
+      {/* Bolinha no pé do alfinete */}
+      <View
+        style={[
+          styles.pinBaseDot,
+          {
+            backgroundColor: markerColor,
+          },
+        ]}
+      />
     </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    alignItems: "center",
+    position: "relative",
+    height: 60, // Mantém a altura de 60px para consistência do ponto central
+    width: 34,
+    justifyContent: "flex-start",
+  },
+  coreHub: {
+    position: "absolute",
+    top: 4, // Alinha verticalmente com o topo
+    width: 26,
+    height: 26,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 10,
+  },
+  pinStem: {
+    position: "absolute",
+    top: 25,
+    width: 3,
+    height: 8,
+    borderBottomLeftRadius: 1,
+    borderBottomRightRadius: 1,
+    zIndex: 9,
+  },
+  pinBaseDot: {
+    position: "absolute",
+    top: 32,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    borderWidth: 1,
+    borderColor: "#ffffff",
+    zIndex: 12,
+  },
+});

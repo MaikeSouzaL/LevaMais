@@ -1,23 +1,34 @@
 import React, { memo, useEffect, useState } from "react";
-import { StyleSheet, View, Platform } from "react-native";
+import { StyleSheet, View, Platform, Image } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
-import { Car, Bike } from "lucide-react-native";
-import { MotiView } from "moti";
-import { colors } from "@/theme";
+import { Car, Bike, User } from "lucide-react-native";
 
-// Premium Dark Map Style Injection
-const mapDarkStyle = [
-  { "elementType": "geometry", "stylers": [{ "color": "#0f172a" }] },
-  { "elementType": "labels.text.fill", "stylers": [{ "color": "#94a3b8" }] },
-  { "elementType": "labels.text.stroke", "stylers": [{ "color": "#0f172a" }] },
-  { "featureType": "administrative", "elementType": "geometry", "stylers": [{ "color": "#334155" }] },
-  { "featureType": "poi", "elementType": "all", "stylers": [{ "visibility": "off" }] },
-  { "featureType": "road", "elementType": "geometry", "stylers": [{ "color": "#1e293b" }] },
-  { "featureType": "road", "elementType": "labels.text.fill", "stylers": [{ "color": "#64748b" }] },
-  { "featureType": "road.highway", "elementType": "geometry", "stylers": [{ "color": "#334155" }] },
-  { "featureType": "transit", "elementType": "geometry", "stylers": [{ "color": "#1e293b" }] },
-  { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#020617" }] }
+import { colors } from "@/theme";
+import { MotiView } from "moti";
+import { DriverAvailabilityBadge } from "./DriverAvailabilityBadge";
+
+// Mapa sutilmente escuro — casinhas e edifícios visíveis em tom mais claro
+const mapSoftDarkStyle = [
+  { elementType: "geometry", stylers: [{ color: "#1d2c3b" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#8fa8c8" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#1a2535" }] },
+  // Casas e edificios — tom mais claro para se destacar do fundo
+  { featureType: "landscape.man_made", elementType: "geometry", stylers: [{ color: "#2e4560" }] },
+  { featureType: "landscape.man_made", elementType: "geometry.stroke", stylers: [{ color: "#3a5578" }] },
+  { featureType: "landscape.natural", elementType: "geometry", stylers: [{ color: "#1a2d3e" }] },
+  { featureType: "road", elementType: "geometry", stylers: [{ color: "#2a3f57" }] },
+  { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#1a2c3e" }] },
+  { featureType: "road", elementType: "labels.text.fill", stylers: [{ color: "#7a9ab8" }] },
+  { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#3a5570" }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#0f1f2e" }] },
+  { featureType: "water", elementType: "labels.text.fill", stylers: [{ color: "#3d5a74" }] },
+  { featureType: "poi", elementType: "geometry", stylers: [{ color: "#1e3045" }] },
+  { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#1a3428" }] },
+  { featureType: "poi", elementType: "labels.text.fill", stylers: [{ color: "#6a8fa8" }] },
+  { featureType: "transit", elementType: "geometry", stylers: [{ color: "#1e3045" }] },
+  { featureType: "administrative", elementType: "geometry.stroke", stylers: [{ color: "#2d4a65" }] },
 ];
+
 
 interface RealtimeVehicle {
   id: string;
@@ -32,7 +43,13 @@ interface ClientRealtimeMapProps {
   region: any;
   userRegion: any;
   onRegionChangeComplete: (r: any) => void;
-  useDarkStyle?: boolean;
+  useDarkStyle?: boolean; // mantido para compatibilidade, não tem efeito
+  avatarUrl?: string;
+  rideDrivers?: number;
+  deliveryDrivers?: number;
+  totalNearby?: number;
+  availabilityLoading?: boolean;
+  availabilityError?: string | null;
 }
 
 export const ClientRealtimeMap = memo(({
@@ -41,7 +58,15 @@ export const ClientRealtimeMap = memo(({
   userRegion,
   onRegionChangeComplete,
   useDarkStyle = true,
+  avatarUrl,
+  rideDrivers = 0,
+  deliveryDrivers = 0,
+  totalNearby = 0,
+  availabilityLoading = false,
+  availabilityError = null,
 }: ClientRealtimeMapProps) => {
+  const [imageError, setImageError] = useState(false);
+  const showAvatar = !!avatarUrl && !imageError;
 
   const [vehicles, setVehicles] = useState<RealtimeVehicle[]>([]);
 
@@ -71,34 +96,35 @@ export const ClientRealtimeMap = memo(({
     return () => clearInterval(interval);
   }, [userRegion?.latitude, userRegion?.longitude]);
 
+  const [hasCentered, setHasCentered] = useState(false);
+
+  useEffect(() => {
+    if (mapRef.current && userRegion?.latitude && !hasCentered) {
+      mapRef.current.animateToRegion({
+        latitude: userRegion.latitude,
+        longitude: userRegion.longitude,
+        latitudeDelta: 0.003,
+        longitudeDelta: 0.003,
+      }, 1000);
+      setHasCentered(true);
+    }
+  }, [userRegion?.latitude, userRegion?.longitude, hasCentered]);
+
   return (
     <View style={StyleSheet.absoluteFill}>
       <MapView
-        key={useDarkStyle ? "client-dark" : "client-light"}
         ref={mapRef}
         provider={PROVIDER_GOOGLE}
         style={StyleSheet.absoluteFill}
-        customMapStyle={useDarkStyle ? mapDarkStyle : []}
+        customMapStyle={useDarkStyle ? mapSoftDarkStyle : []}
         initialRegion={region}
-        showsUserLocation={false} // Usamos nosso marker custom para controle visual total
+        showsUserLocation={true}
         showsCompass={false}
-        showsPointsOfInterest={false}
-        showsBuildings={false}
-        showsIndoors={false}
+        showsPointsOfInterest={true}
+        showsBuildings={true}
+        showsIndoors={true}
         onRegionChangeComplete={onRegionChangeComplete}
       >
-        {/* 📍 Custom User Location Marker (Premium Glow) */}
-        {userRegion && (
-          <Marker coordinate={userRegion} anchor={{ x: 0.5, y: 0.5 }}>
-            <MotiView
-              from={{ scale: 0.8, opacity: 0.5 }}
-              animate={{ scale: 1.6, opacity: 0 }}
-              transition={{ loop: true, duration: 2000, type: "timing" }}
-              style={styles.userPulse}
-            />
-            <View style={styles.userDot} />
-          </Marker>
-        )}
 
         {/* 🚗 Dynamic Vehicle Markers */}
         {vehicles.map((vehicle) => (
@@ -128,30 +154,44 @@ export const ClientRealtimeMap = memo(({
           </Marker>
         ))}
       </MapView>
+
+      <DriverAvailabilityBadge
+        rideDrivers={rideDrivers}
+        deliveryDrivers={deliveryDrivers}
+        totalNearby={totalNearby}
+        loading={availabilityLoading}
+        error={availabilityError}
+      />
     </View>
   );
 });
 
 const styles = StyleSheet.create({
-  userPulse: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  userPuck: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     backgroundColor: colors.primary[500],
-    position: "absolute",
-  },
-  userDot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: colors.primary[500],
-    borderWidth: 3,
+    borderWidth: 2,
     borderColor: "#FFFFFF",
-    elevation: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 6,
     shadowColor: colors.primary[500],
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 10,
+    shadowOpacity: 0.6,
+    shadowRadius: 6,
+    overflow: "hidden",
+  },
+  userPuckPhoto: {
+    backgroundColor: "#091A2F",
+    borderColor: colors.primary[500],
+  },
+  userAvatar: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 11,
+    resizeMode: "cover",
   },
   vehicleMarkerWrapper: {
     alignItems: "center",

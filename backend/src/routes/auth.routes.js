@@ -41,6 +41,14 @@ router.post(
   authController.submitDriverVerification.bind(authController),
 );
 
+// Verificacao de documentos do cliente
+router.post(
+  "/client-verification",
+  authenticateToken,
+  uploadDriverBundle,
+  authController.submitClientVerification.bind(authController),
+);
+
 // Rotas protegidas (requerem autenticacao)
 router.get(
   "/profile",
@@ -51,6 +59,11 @@ router.patch(
   "/profile",
   authenticateToken,
   authController.updateProfile.bind(authController),
+);
+router.patch(
+  "/location",
+  authenticateToken,
+  authController.updateLocation.bind(authController),
 );
 router.post(
   "/profile-photo",
@@ -131,6 +144,16 @@ router.get(
   authController.listUsers.bind(authController),
 );
 router.get(
+  "/platform-config",
+  requireAdmin,
+  authController.getPlatformConfig.bind(authController),
+);
+router.patch(
+  "/platform-config",
+  requireAdmin,
+  authController.updatePlatformConfig.bind(authController),
+);
+router.get(
   "/users/:id",
   requireAdmin,
   authController.getUserById.bind(authController),
@@ -139,6 +162,16 @@ router.patch(
   "/users/:id",
   requireAdmin,
   authController.updateUserById.bind(authController),
+);
+router.patch(
+  "/users/:id/client-verification",
+  requireAdmin,
+  authController.updateClientVerificationByAdmin.bind(authController),
+);
+router.patch(
+  "/users/:id/driver-verification",
+  requireAdmin,
+  authController.updateDriverVerificationByAdmin.bind(authController),
 );
 router.delete(
   "/users/:id",

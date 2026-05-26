@@ -1,6 +1,6 @@
-"use client";
+﻿"use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   UserCheck,
   UserX,
@@ -19,1045 +19,1490 @@ import {
   Calendar,
   Search,
   Filter,
+  RefreshCw,
+  Image as ImageIcon,
+  Check,
+  X,
+  CreditCard
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
-import { formatCPF, formatPhone, formatDate } from "@/lib/formatters";
-import { verificationService } from "@/services/verificationService";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import axios from "axios";
 
-// Tipos
+// TypeScript Interfaces
 interface PendingDriver {
   _id: string;
-  // Dados Pessoais
-  fullName: string;
-  cpf: string;
-  rg: string;
-  birthDate: string;
-  phone: string;
+  name: string;
   email: string;
-
-  // Endereço
-  address: {
-    street: string;
-    number: string;
-    complement?: string;
-    neighborhood: string;
-    city: string;
-    state: string;
-    zipCode: string;
+  phone: string;
+  cpf?: string;
+  city?: string;
+  userType: "driver";
+  driverStatus: "pending" | "approved" | "rejected" | "none";
+  isActive: boolean;
+  createdAt: string;
+  driverDocuments?: {
+    cnhFront?: string;
+    cnhBack?: string;
+    crlvFront?: string;
+    crlvBack?: string;
+    vehiclePhoto?: string;
+    selfie?: string;
+    submittedAt?: string;
+    rejectionReason?: string;
+    cnhFrontStatus?: string;
+    cnhBackStatus?: string;
+    selfieStatus?: string;
+    reviewedAt?: string;
+    reviewedBy?: string;
   };
-
-  // Documentos
-  cnh: {
-    number: string;
-    category: string; // A, B, C, D, E
-    expiryDate: string;
-    photoUrl: string;
+  clientVerification?: {
+    status?: string;
+    cpfStatus?: string;
+    selfieStatus?: string;
+    documents?: {
+      selfie?: string;
+      rgFront?: string;
+      rgBack?: string;
+    };
+    rejectionReason?: string;
+    submittedAt?: string;
+    reviewedAt?: string;
   };
-
-  // Dados do Veículo
-  vehicle: {
-    type: "moto" | "carro" | "van" | "caminhao";
-    brand: string;
-    model: string;
-    year: number;
-    color: string;
+  vehicleInfo?: {
     plate: string;
-    renavam: string;
-    photoUrls: string[]; // Fotos do veículo
+    model: string;
+    color: string;
+    year: number;
   };
-
-  // Documentos do Veículo
-  vehicleDocuments: {
-    crlv: string; // Foto do documento
-    insurance?: string; // Foto do seguro (opcional)
-  };
-
-  // Dados Profissionais
-  hasCNPJ: boolean;
-  cnpj?: string;
-
-  // Fotos
-  profilePhotoUrl: string;
-  documentPhotoUrl: string; // Selfie segurando documento
-
-  // Informações da conta
+  vehicles?: Array<{
+    _id: string;
+    type: "motorcycle" | "car" | "van" | "truck";
+    plate: string;
+    model: string;
+    color?: string;
+    year?: number;
+    renavam?: string;
+    officialBrand?: string;
+    officialChassis?: string;
+    officialColor?: string;
+    officialModel?: string;
+    officialYear?: number;
+    isVerifiedByAPI?: boolean;
+    plateVerifiedByAPI?: boolean;
+    plateVerificationSource?: string;
+    vehicleDocumentsStatus?: {
+      crlvFront?: string;
+      crlvBack?: string;
+      vehiclePhoto?: string;
+    };
+    documents?: {
+      crlvFront?: string;
+      crlvBack?: string;
+      vehiclePhoto?: string;
+      submittedAt?: string;
+    };
+    status: "pending" | "approved" | "rejected";
+    rejectionReason?: string;
+    createdAt: string;
+    updatedAt: string;
+  }>;
+  activeVehicleId?: string;
+  vehicleType?: string;
   bankAccount?: {
     bank: string;
     agency: string;
     account: string;
-    accountType: "corrente" | "poupanca";
+    accountType: string;
     pixKey?: string;
   };
-
-  // Status
-  status: "pending" | "approved" | "rejected";
-  submittedAt: string;
-  reviewedAt?: string;
-  reviewedBy?: string;
-  rejectionReason?: string;
-
-  // Observações
-  notes?: string;
 }
 
-export default function DriverVerificationPage() {
-  const [pendingDrivers, setPendingDrivers] = useState<PendingDriver[]>([]);
+// Utility to rewrite local/external IP URLs from device to local environment domain
+const cleanDocUrl = (url?: string) => {
+  if (!url) return "";
+  if (url.startsWith("file:///")) {
+    return url; // Keep local cache URIs, will be handled gracefully by UI
+  }
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+  const backendBase = API_URL.replace("/api", "");
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    return url.replace(/^https?:\/\/[^\/]+/, backendBase);
+  }
+  if (url.startsWith("/")) {
+    return `${backendBase}${url}`;
+  }
+  return `${backendBase}/${url}`;
+};
+
+interface PendingClient {
+  _id: string;
+  name: string;
+  email: string;
+  phone: string;
+  cpf?: string;
+  city?: string;
+  userType: "client";
+  isActive: boolean;
+  createdAt: string;
+  emailVerified?: boolean;
+  clientVerification?: {
+    status?: "none" | "pending" | "approved" | "rejected";
+    cpfStatus?: string;
+    selfieStatus?: string;
+    documents?: {
+      selfie?: string;
+      rgFront?: string;
+      rgBack?: string;
+    };
+    rejectionReason?: string;
+    submittedAt?: string;
+    reviewedAt?: string;
+  };
+}
+
+export default function UnifiedVerificationPage() {
+  const [activeTab, setActiveTab] = useState<"drivers" | "clients">("drivers");
+  const [drivers, setDrivers] = useState<PendingDriver[]>([]);
+  const [clients, setClients] = useState<PendingClient[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterStatus, setFilterStatus] = useState<string>("pending");
-  const [selectedDriver, setSelectedDriver] = useState<PendingDriver | null>(
-    null
-  );
-  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("pending");
+  const [selectedUser, setSelectedUser] = useState<PendingDriver | PendingClient | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
-  const [rejectionNotes, setRejectionNotes] = useState("");
+  const [customReason, setCustomReason] = useState("");
   const [processing, setProcessing] = useState(false);
 
   const { showToast, ToastContainer } = useToast();
 
-  // Carregar motoristas pendentes
-  const loadPendingDrivers = useCallback(async () => {
-    try {
-      setLoading(true);
-      // Chamada real à API via serviço
-      const apiDrivers = await verificationService.getPendingDrivers({
-        status: filterStatus === "all" ? undefined : filterStatus,
-        search: searchTerm || undefined,
-      });
-      // Mapear para o tipo local esperado pela UI
-      const mapped = (Array.isArray(apiDrivers) ? apiDrivers : []).map(
-        (d: any) => ({
-          _id: d.id || d._id || "",
-          fullName: d.fullName || "",
-          cpf: d.cpf || "",
-          rg: d.rg || "",
-          birthDate: d.birthDate || "",
-          phone: d.phone || "",
-          email: d.email || "",
-          address: d.address || {
-            street: "",
-            number: "",
-            complement: "",
-            neighborhood: "",
-            city: d.cityName || "",
-            state: "",
-            zipCode: "",
-          },
-          cnh: d.cnh || {
-            number: "",
-            category: "",
-            expiryDate: "",
-            photoUrl: d.photos?.cnh || "",
-          },
-          vehicle: d.vehicle || {
-            type: d.vehicle?.type || "carro",
-            brand: d.vehicle?.brand || d.vehicle?.brand || "",
-            model: d.vehicle?.model || "",
-            year: d.vehicle?.year || 0,
-            color: d.vehicle?.color || "",
-            plate: d.vehicle?.plate || "",
-            renavam: d.vehicle?.renavam || "",
-            photoUrls: d.photos?.vehicle || [],
-          },
-          vehicleDocuments: d.vehicleDocuments || {
-            crlv: d.documents?.crlv?.url || "",
-            insurance: "",
-          },
-          hasCNPJ: d.hasCnpj ?? false,
-          cnpj: d.cnpj || "",
-          profilePhotoUrl: d.profilePhotoUrl || d.photos?.profile || "",
-          documentPhotoUrl: d.documentPhotoUrl || "",
-          bankAccount: d.bankAccount || {
-            bank: "",
-            agency: "",
-            account: "",
-            accountType: "corrente",
-            pixKey: "",
-          },
-          status: d.status || "pending",
-          submittedAt: d.registrationDate || d.reviewedAt || "",
-        })
-      );
-      setPendingDrivers(mapped);
-    } catch (error) {
-      showToast("Erro ao carregar motoristas pendentes", "error");
-      console.error(error);
-    } finally {
-      setLoading(false);
+  // Full-screen image viewer state
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [lightboxTitle, setLightboxTitle] = useState("");
+
+  const openLightbox = (url: string, title: string) => {
+    if (url.startsWith("file://")) {
+      showToast("Este documento foi enviado como arquivo local e nao esta disponivel no servidor. O motorista precisa reenviar.", "error");
+      return;
     }
-  }, [showToast, filterStatus, searchTerm]);
-
-  useEffect(() => {
-    loadPendingDrivers();
-  }, [loadPendingDrivers]);
-
-  // Filtrar motoristas
-  const filteredDrivers = pendingDrivers.filter((driver) => {
-    const matchSearch =
-      driver.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      driver.cpf.includes(searchTerm) ||
-      driver.email.toLowerCase().includes(searchTerm.toLowerCase());
-
-    const matchStatus =
-      filterStatus === "all" || driver.status === filterStatus;
-
-    return matchSearch && matchStatus;
-  });
-
-  // Estatísticas
-  const stats = {
-    pending: pendingDrivers.filter((d) => d.status === "pending").length,
-    approved: pendingDrivers.filter((d) => d.status === "approved").length,
-    rejected: pendingDrivers.filter((d) => d.status === "rejected").length,
+    setLightboxTitle(title);
+    setLightboxImage(cleanDocUrl(url));
   };
 
-  // Aprovar motorista
-  const handleApprove = async (driverId: string) => {
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+      const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || '';
+      
+      const [driversRes, clientsRes] = await Promise.all([
+        axios.get(`${API_URL}/auth/users?userType=driver`, {
+          headers: { "x-admin-key": ADMIN_API_KEY }
+        }),
+        axios.get(`${API_URL}/auth/users?userType=client`, {
+          headers: { "x-admin-key": ADMIN_API_KEY }
+        })
+      ]);
+
+      setDrivers(driversRes.data.users || []);
+      setClients(clientsRes.data.users || []);
+    } catch (err) {
+      showToast("Erro ao conectar ao banco de cadastros", "error");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [showToast]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadData();
+    showToast("Fila de validação atualizada", "success");
+  };
+
+  // Filtered lists
+  const filteredDrivers = useMemo(() => {
+    return drivers.filter((d) => {
+      const matchesSearch =
+        d.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        d.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (d.cpf || "").includes(searchTerm) ||
+        (d.phone || "").includes(searchTerm);
+
+      const matchesStatus =
+        statusFilter === "all" ||
+        d.driverStatus === statusFilter;
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [drivers, searchTerm, statusFilter]);
+
+  const filteredClients = useMemo(() => {
+    return clients.filter((c) => {
+      const matchesSearch =
+        c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        c.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (c.cpf || "").includes(searchTerm) ||
+        (c.phone || "").includes(searchTerm);
+
+      const matchesStatus =
+        statusFilter === "all" ||
+        (statusFilter === "pending" && (c.clientVerification?.status === "pending" || !c.clientVerification || c.clientVerification.status === "none")) ||
+        (statusFilter === "approved" && c.clientVerification?.status === "approved") ||
+        (statusFilter === "active" && c.clientVerification?.status === "approved") ||
+        (statusFilter === "rejected" && c.clientVerification?.status === "rejected");
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [clients, searchTerm, statusFilter]);
+
+  // Approve Account Action
+  const handleApproveUser = async (user: PendingDriver | PendingClient) => {
     setProcessing(true);
     try {
-      // TODO: Chamar API real
-      // await fetch(`/api/drivers/${driverId}/approve`, { method: 'POST' });
-      console.log(`Aprovando motorista ${driverId}`);
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+      const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || '';
 
-      showToast("Motorista aprovado com sucesso!", "success");
-      setShowDetailModal(false);
-      loadPendingDrivers();
-    } catch (err) {
-      console.error("Erro ao aprovar motorista:", err);
-      showToast("Erro ao aprovar motorista", "error");
+      const payload: any = {
+        isActive: true
+      };
+
+      if (user.userType === "driver") {
+        payload.driverStatus = "approved";
+        payload.driverDocuments = {
+          ...(user as PendingDriver).driverDocuments,
+          rejectionReason: ""
+        };
+
+        const driverUser = user as PendingDriver;
+        // Na nova abordagem, cada veiculo mantem seu status individual.
+        // Apenas ativa o primeiro veiculo APROVADO se nenhum estiver ativo
+        if (driverUser.vehicles && driverUser.vehicles.length > 0) {
+          if (!driverUser.activeVehicleId) {
+            const approvedVehicle = driverUser.vehicles.find(v => v.status === "approved");
+            if (approvedVehicle) {
+              payload.activeVehicleId = approvedVehicle._id;
+              payload.vehicleType = approvedVehicle.type;
+              payload.vehicleInfo = {
+                plate: approvedVehicle.plate,
+                model: approvedVehicle.model,
+                color: approvedVehicle.color || "N?o informada",
+                year: approvedVehicle.year || new Date().getFullYear()
+              };
+            }
+          }
+        }
+      } else if (user.userType === "client") {
+        payload.clientVerification = {
+          ...((user as PendingClient).clientVerification || {}),
+          status: "approved",
+          selfieStatus: "approved",
+          cpfStatus: "valid"
+        };
+      }
+
+      await axios.patch(`${API_URL}/auth/users/${user._id}`, payload, {
+        headers: { "x-admin-key": ADMIN_API_KEY }
+      });
+
+      showToast(`Cadastro de ${user.name} aprovado e ativo!`, "success");
+      setIsDrawerOpen(false);
+      loadData();
+    } catch {
+      showToast("Erro ao processar aprovação", "error");
     } finally {
       setProcessing(false);
     }
   };
 
-  // Reprovar motorista
-  const handleReject = async (driverId: string, reason: string) => {
-    if (!reason || reason.trim() === "") {
-      showToast("Por favor, informe o motivo da rejeição", "error");
+  // Update individual client compliance aspects (CPF or Selfie)
+  // Approve or reject individual vehicle
+  const handleVehicleStatusUpdate = async (userId: string, vehicleId: string, newStatus: "approved" | "rejected", reason?: string) => {
+    setProcessing(true);
+    try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+      const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || '';
+
+      const driverUser = selectedUser as PendingDriver;
+      const updatedVehicles = (driverUser.vehicles || []).map(v => {
+        if (v._id === vehicleId) {
+          return { ...v, status: newStatus, rejectionReason: newStatus === "rejected" ? (reason || "Reprovado pelo admin") : "" };
+        }
+        return v;
+      });
+
+      await axios.patch(`${API_URL}/auth/users/${userId}`, {
+        vehicles: updatedVehicles,
+      }, { headers: { "x-admin-key": ADMIN_API_KEY } });
+
+      showToast(`Veiculo ${newStatus === "approved" ? "aprovado" : "reprovado"}!`, "success");
+      loadData();
+    } catch {
+      showToast("Erro ao atualizar status do veiculo", "error");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  // Reject Account Action
+  const handleRejectUser = async () => {
+    const finalReason = customReason.trim() || rejectionReason;
+    if (!finalReason) {
+      showToast("Selecione ou insira um motivo de reprovação", "error");
+      return;
+    }
+
+    if (selectedUser?.userType === "client") {
+      setProcessing(true);
+      try {
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
+        const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || "";
+        await axios.patch(
+          `${API_URL}/auth/users/${selectedUser._id}`,
+          {
+            isActive: false,
+            clientVerification: {
+              ...(selectedUser.clientVerification || {}),
+              status: "rejected",
+              selfieStatus: "rejected",
+              rejectionReason: finalReason,
+            },
+          },
+          { headers: { "x-admin-key": ADMIN_API_KEY } },
+        );
+        showToast(`Cadastro de ${selectedUser.name} reprovado.`, "success");
+        setShowRejectModal(false);
+        setIsDrawerOpen(false);
+        setCustomReason("");
+        loadData();
+      } catch {
+        showToast("Erro ao registrar reprovação", "error");
+      } finally {
+        setProcessing(false);
+      }
       return;
     }
 
     setProcessing(true);
     try {
-      // TODO: Chamar API real
-      // await fetch(`/api/drivers/${driverId}/reject`, {
-      //   method: 'POST',
-      //   body: JSON.stringify({ reason, notes: rejectionNotes })
-      // });
-      console.log(`Reprovando motorista ${driverId} - Motivo: ${reason}`);
-      console.log(`Observações: ${rejectionNotes}`);
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+      const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || '';
 
-      showToast("Motorista reprovado", "success");
-      setShowDetailModal(false);
+      const payload: any = {};
+
+      if (selectedUser?.userType === "driver") {
+        payload.isActive = false;
+        payload.driverStatus = "rejected";
+        payload.driverDocuments = {
+          ...(selectedUser as PendingDriver).driverDocuments,
+          rejectionReason: finalReason
+        };
+      }
+
+      await axios.patch(`${API_URL}/auth/users/${selectedUser?._id}`, payload, {
+        headers: { "x-admin-key": ADMIN_API_KEY }
+      });
+
+      showToast(`Cadastro de ${selectedUser?.name} reprovado.`, "success");
       setShowRejectModal(false);
-      setRejectionReason("");
-      setRejectionNotes("");
-      loadPendingDrivers();
-    } catch (err) {
-      console.error("Erro ao reprovar motorista:", err);
-      showToast("Erro ao reprovar motorista", "error");
+      setIsDrawerOpen(false);
+      setCustomReason("");
+      loadData();
+    } catch {
+      showToast("Erro ao registrar reprovação", "error");
     } finally {
       setProcessing(false);
     }
   };
 
-  // Abrir modal de rejeição
-  const openRejectModal = () => {
-    setShowRejectModal(true);
+  const handleOpenDetails = (user: PendingDriver | PendingClient) => {
+    setSelectedUser(user);
+    setIsDrawerOpen(true);
   };
 
-  // Fechar modal de rejeição
-  const closeRejectModal = () => {
-    setShowRejectModal(false);
-    setRejectionReason("");
-    setRejectionNotes("");
-  };
+  const stats = useMemo(() => {
+    return {
+      pendingDrivers: drivers.filter((d) => d.driverStatus === "pending").length,
+      approvedDrivers: drivers.filter((d) => d.driverStatus === "approved").length,
+      pendingClients: clients.filter(
+        (c) =>
+          c.clientVerification?.status === "pending" ||
+          c.clientVerification?.status === "none" ||
+          !c.clientVerification?.status,
+      ).length,
+      activeClients: clients.filter(
+        (c) => c.isActive === true && c.clientVerification?.status === "approved",
+      ).length,
+    };
+  }, [drivers, clients]);
 
-  // Visualizar detalhes
-  const handleViewDetails = (driver: PendingDriver) => {
-    setSelectedDriver(driver);
-    setShowDetailModal(true);
-  };
+  const commonReasons = [
+    "Foto dos documentos ilegível ou desfocada",
+    "CRLV do veículo vencido ou irregular",
+    "Selfie com documento não corresponde ao cadastro",
+    "CNH de categoria incompatível com veículo",
+    "CNH com data de validade expirada",
+    "Dados bancários inconsistentes com Pix",
+    "CPF / CNPJ inválido ou irregular na Receita"
+  ];
 
-  // Ícone do veículo
-  const getVehicleIcon = (type: string) => {
-    switch (type) {
-      case "moto":
-        return "🏍️";
-      case "carro":
-        return "🚗";
-      case "van":
-        return "🚐";
-      case "caminhao":
-        return "🚚";
-      default:
-        return "🚗";
-    }
-  };
+  const clientDocumentsReady =
+    selectedUser?.userType === "client"
+      ? Boolean(selectedUser.clientVerification?.documents?.selfie)
+      : false;
 
-  // Status badge
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "pending":
-        return (
-          <span className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-medium flex items-center gap-1">
-            <Clock className="w-4 h-4" />
-            Pendente
-          </span>
-        );
-      case "approved":
-        return (
-          <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium flex items-center gap-1">
-            <CheckCircle className="w-4 h-4" />
-            Aprovado
-          </span>
-        );
-      case "rejected":
-        return (
-          <span className="px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm font-medium flex items-center gap-1">
-            <XCircle className="w-4 h-4" />
-            Reprovado
-          </span>
-        );
-      default:
-        return null;
-    }
-  };
+  const clientProfileReady =
+    selectedUser?.userType === "client"
+      ? Boolean(
+          selectedUser.name &&
+            selectedUser.phone &&
+            selectedUser.city &&
+            (selectedUser.cpf || (selectedUser as any).cnpj),
+        )
+      : false;
+
+  const clientApprovalReady = clientDocumentsReady && clientProfileReady;
+
+  if (loading && !refreshing) {
+    return (
+      <div className="p-6 max-w-7xl mx-auto flex items-center justify-center h-[70vh]">
+        <div className="text-center space-y-4">
+          <div className="w-12 h-12 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="text-gray-500 font-bold">Carregando portal de auditoria Leva+...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6">
+    <div className="p-6 max-w-7xl mx-auto space-y-6">
       {ToastContainer}
 
       {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center">
-            <UserCheck className="w-6 h-6 text-emerald-600" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900">
-              Verificação de Motoristas
-            </h1>
-            <p className="text-slate-600">
-              Analise e aprove motoristas para trabalhar na plataforma
-            </p>
-          </div>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-gray-100 pb-5">
+        <div>
+          <h1 className="text-3xl font-extrabold text-gray-950 tracking-tight flex items-center gap-3.5">
+            <UserCheck className="w-9 h-9 text-emerald-600 animate-pulse" />
+            Audit & Validação de Contas
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Analise documentações, selfies, dados de placa de veículos, CNPJ e aprove motoristas ou libere contas de clientes.
+          </p>
         </div>
+
+        <button
+          onClick={handleRefresh}
+          disabled={refreshing}
+          className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 text-gray-700 font-bold flex items-center gap-2 shadow-sm transition-all hover:shadow-md disabled:opacity-50"
+        >
+          <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
+          {refreshing ? "Atualizando..." : "Atualizar Fila"}
+        </button>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-600 mb-1">Aguardando Análise</p>
-              <p className="text-3xl font-bold text-yellow-600">
-                {stats.pending}
-              </p>
-            </div>
-            <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-              <Clock className="w-6 h-6 text-yellow-600" />
-            </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-2xl flex items-center justify-between shadow-sm">
+          <div>
+            <p className="text-[10px] font-black text-yellow-800 uppercase tracking-wider">Motoristas Pendentes</p>
+            <p className="text-2xl font-black text-yellow-950 mt-1">{stats.pendingDrivers}</p>
+          </div>
+          <div className="w-10 h-10 bg-yellow-500 text-white rounded-xl flex items-center justify-center font-bold">
+            <Clock className="w-5 h-5" />
           </div>
         </div>
 
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-600 mb-1">Aprovados</p>
-              <p className="text-3xl font-bold text-green-600">
-                {stats.approved}
-              </p>
-            </div>
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-              <CheckCircle className="w-6 h-6 text-green-600" />
-            </div>
+        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-between shadow-sm">
+          <div>
+            <p className="text-[10px] font-black text-emerald-800 uppercase tracking-wider">Motoristas Ativos</p>
+            <p className="text-2xl font-black text-emerald-950 mt-1">{stats.approvedDrivers}</p>
+          </div>
+          <div className="w-10 h-10 bg-emerald-600 text-white rounded-xl flex items-center justify-center font-bold">
+            OK
           </div>
         </div>
 
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-600 mb-1">Reprovados</p>
-              <p className="text-3xl font-bold text-red-600">
-                {stats.rejected}
-              </p>
-            </div>
-            <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
-              <XCircle className="w-6 h-6 text-red-600" />
-            </div>
+        <div className="p-4 bg-blue-50 border border-blue-200 rounded-2xl flex items-center justify-between shadow-sm">
+          <div>
+            <p className="text-[10px] font-black text-blue-800 uppercase tracking-wider font-bold">Clientes Pendentes</p>
+            <p className="text-2xl font-black text-blue-950 mt-1">{stats.pendingClients}</p>
+          </div>
+          <div className="w-10 h-10 bg-blue-600 text-white rounded-xl flex items-center justify-center font-bold">
+            <Clock className="w-5 h-5" />
+          </div>
+        </div>
+
+        <div className="p-4 bg-purple-50 border border-purple-200 rounded-2xl flex items-center justify-between shadow-sm">
+          <div>
+            <p className="text-[10px] font-black text-purple-800 uppercase tracking-wider">Clientes Ativos</p>
+            <p className="text-2xl font-black text-purple-950 mt-1">{stats.activeClients}</p>
+          </div>
+          <div className="w-10 h-10 bg-purple-600 text-white rounded-xl flex items-center justify-center font-bold">
+            <UserCheck className="w-5 h-5" />
           </div>
         </div>
       </div>
 
-      {/* Filtros */}
-      <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+      {/* Navigation tabs */}
+      <div className="flex border-b border-gray-200 gap-6">
+        <button
+          onClick={() => { setActiveTab("drivers"); setStatusFilter("pending"); }}
+          className={`pb-3 font-bold text-sm transition-all border-b-2 px-1 ${activeTab === "drivers" ? "border-emerald-600 text-emerald-600" : "border-transparent text-gray-500 hover:text-gray-900"}`}
+        >
+          Validação de Motoristas ({filteredDrivers.length})
+        </button>
+        <button
+          onClick={() => { setActiveTab("clients"); setStatusFilter("pending"); }}
+          className={`pb-3 font-bold text-sm transition-all border-b-2 px-1 ${activeTab === "clients" ? "border-emerald-600 text-emerald-600" : "border-transparent text-gray-500 hover:text-gray-900"}`}
+        >
+          Validação de Clientes ({filteredClients.length})
+        </button>
+      </div>
+
+      {/* Filters Area */}
+      <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-4">
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
               type="text"
-              placeholder="Buscar por nome, CPF ou email..."
+              placeholder="Buscar por nome, email, CPF ou telefone..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              className="w-full pl-11 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
             />
           </div>
 
-          <div className="relative">
-            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-            >
-              <option value="all">Todos os Status</option>
-              <option value="pending">Aguardando Análise</option>
-              <option value="approved">Aprovados</option>
-              <option value="rejected">Reprovados</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {/* Lista de Motoristas */}
-      {loading ? (
-        <div className="bg-white rounded-xl p-12 text-center shadow-sm border border-slate-200">
-          <div className="w-16 h-16 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-slate-600">Carregando motoristas...</p>
-        </div>
-      ) : filteredDrivers.length === 0 ? (
-        <div className="bg-white rounded-xl p-12 text-center shadow-sm border border-slate-200">
-          <AlertCircle className="w-16 h-16 text-slate-400 mx-auto mb-4" />
-          <p className="text-xl font-semibold text-slate-900 mb-2">
-            Nenhum motorista encontrado
-          </p>
-          <p className="text-slate-600">
-            Não há motoristas pendentes de verificação no momento
-          </p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-6">
-          {filteredDrivers.map((driver) => (
-            <div
-              key={driver._id}
-              className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow"
-            >
-              <div className="p-6">
-                <div className="flex items-start gap-6">
-                  {/* Foto do Motorista */}
-                  <div className="shrink-0">
-                    <div className="w-24 h-24 rounded-xl overflow-hidden bg-slate-100 border-2 border-slate-200">
-                      {driver.profilePhotoUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={driver.profilePhotoUrl}
-                          alt={driver.fullName}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <Camera className="w-8 h-8 text-slate-400" />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Informações Principais */}
-                  <div className="flex-1">
-                    <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <h3 className="text-xl font-bold text-slate-900 mb-1">
-                          {driver.fullName}
-                        </h3>
-                        <div className="flex items-center gap-4 text-sm text-slate-600">
-                          <span className="flex items-center gap-1">
-                            <FileText className="w-4 h-4" />
-                            CPF: {formatCPF(driver.cpf)}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Phone className="w-4 h-4" />
-                            {formatPhone(driver.phone)}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Mail className="w-4 h-4" />
-                            {driver.email}
-                          </span>
-                        </div>
-                      </div>
-                      {getStatusBadge(driver.status)}
-                    </div>
-
-                    {/* Detalhes do Veículo */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                      <div className="flex items-center gap-3 bg-slate-50 rounded-lg p-3">
-                        <span className="text-2xl">
-                          {getVehicleIcon(driver.vehicle.type)}
-                        </span>
-                        <div>
-                          <p className="text-xs text-slate-600">Veículo</p>
-                          <p className="font-semibold text-slate-900">
-                            {driver.vehicle.brand} {driver.vehicle.model}
-                          </p>
-                          <p className="text-sm text-slate-600">
-                            {driver.vehicle.plate} • {driver.vehicle.year}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-3 bg-slate-50 rounded-lg p-3">
-                        <Shield className="w-8 h-8 text-emerald-600" />
-                        <div>
-                          <p className="text-xs text-slate-600">CNH</p>
-                          <p className="font-semibold text-slate-900">
-                            Categoria {driver.cnh.category}
-                          </p>
-                          <p className="text-sm text-slate-600">
-                            Válida até {formatDate(driver.cnh.expiryDate)}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-3 bg-slate-50 rounded-lg p-3">
-                        <Calendar className="w-8 h-8 text-blue-600" />
-                        <div>
-                          <p className="text-xs text-slate-600">Cadastro</p>
-                          <p className="font-semibold text-slate-900">
-                            {formatDate(driver.submittedAt)}
-                          </p>
-                          <p className="text-sm text-slate-600">
-                            {driver.hasCNPJ ? "Com CNPJ" : "Sem CNPJ"}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Ações */}
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => handleViewDetails(driver)}
-                        className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors font-medium"
-                      >
-                        <Eye className="w-4 h-4" />
-                        Ver Detalhes Completos
-                      </button>
-
-                      {driver.status === "pending" && (
-                        <>
-                          <button
-                            onClick={() => handleApprove(driver._id)}
-                            disabled={processing}
-                            className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors font-medium disabled:opacity-50"
-                          >
-                            <UserCheck className="w-4 h-4" />
-                            Aprovar Motorista
-                          </button>
-
-                          <button
-                            onClick={() => {
-                              setSelectedDriver(driver);
-                              openRejectModal();
-                            }}
-                            disabled={processing}
-                            className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors font-medium disabled:opacity-50"
-                          >
-                            <UserX className="w-4 h-4" />
-                            Reprovar
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Modal de Detalhes */}
-      {selectedDriver && (
-        <DriverDetailModal
-          driver={selectedDriver}
-          isOpen={showDetailModal}
-          onClose={() => setShowDetailModal(false)}
-          onApprove={() => handleApprove(selectedDriver._id)}
-          onReject={(reason) => handleReject(selectedDriver._id, reason)}
-          processing={processing}
-        />
-      )}
-
-      {/* Modal de Motivo de Rejeição */}
-      {showRejectModal && selectedDriver && (
-        <RejectReasonModal
-          driverName={selectedDriver.fullName}
-          isOpen={showRejectModal}
-          onClose={closeRejectModal}
-          onConfirm={() => handleReject(selectedDriver._id, rejectionReason)}
-          reason={rejectionReason}
-          setReason={setRejectionReason}
-          notes={rejectionNotes}
-          setNotes={setRejectionNotes}
-          processing={processing}
-        />
-      )}
-
-      {ToastContainer}
-    </div>
-  );
-}
-
-// Modal de Motivo de Rejeição
-interface RejectReasonModalProps {
-  driverName: string;
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-  reason: string;
-  setReason: (reason: string) => void;
-  notes: string;
-  setNotes: (notes: string) => void;
-  processing: boolean;
-}
-
-function RejectReasonModal({
-  driverName,
-  isOpen,
-  onClose,
-  onConfirm,
-  reason,
-  setReason,
-  notes,
-  setNotes,
-  processing,
-}: RejectReasonModalProps) {
-  if (!isOpen) return null;
-
-  const commonReasons = [
-    "Documentação incompleta",
-    "Documentos ilegíveis",
-    "CNH vencida",
-    "CRLV irregular",
-    "Veículo não atende requisitos",
-    "Dados inconsistentes",
-    "Antecedentes criminais",
-    "Idade mínima não atendida",
-  ];
-
-  return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg animate-in zoom-in-95 duration-200">
-        {/* Header */}
-        <div className="bg-red-500 px-6 py-4 text-white rounded-t-xl">
-          <h3 className="font-semibold text-xl flex items-center gap-2">
-            <XCircle className="w-6 h-6" />
-            Reprovar Motorista
-          </h3>
-          <p className="text-red-100 text-sm mt-1">
-            Informe o motivo da reprovação de {driverName}
-          </p>
-        </div>
-
-        {/* Body */}
-        <div className="p-6 space-y-4">
-          {/* Motivos Comuns */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Selecione um motivo comum:
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              {commonReasons.map((commonReason) => (
-                <button
-                  key={commonReason}
-                  onClick={() => setReason(commonReason)}
-                  className={`px-3 py-2 text-sm rounded-lg border-2 transition-all ${
-                    reason === commonReason
-                      ? "border-red-500 bg-red-50 text-red-700 font-medium"
-                      : "border-slate-200 hover:border-red-300 text-slate-600"
-                  }`}
-                >
-                  {commonReason}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Motivo Personalizado */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Ou digite um motivo personalizado:
-            </label>
-            <input
-              type="text"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="Ex: Foto do veículo de má qualidade"
-              className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-            />
-          </div>
-
-          {/* Observações Adicionais */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Observações adicionais (opcional):
-            </label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Adicione informações extras que possam ajudar o motorista a corrigir o problema..."
-              rows={4}
-              className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
-            />
-          </div>
-
-          {/* Aviso */}
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 flex gap-3">
-            <AlertCircle className="w-5 h-5 text-yellow-600 shrink-0 mt-0.5" />
-            <div className="text-sm text-yellow-800">
-              <p className="font-medium mb-1">Atenção</p>
-              <p>
-                O motorista será notificado sobre a reprovação e poderá reenviar
-                os documentos corrigidos.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="px-6 py-4 bg-slate-50 rounded-b-xl flex justify-end gap-3 border-t border-slate-200">
-          <button
-            onClick={onClose}
-            disabled={processing}
-            className="px-4 py-2 text-slate-600 hover:text-slate-900 hover:bg-white border border-slate-300 rounded-lg transition-colors font-medium disabled:opacity-50"
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none bg-white font-semibold text-gray-700"
           >
-            Cancelar
-          </button>
-          <button
-            onClick={onConfirm}
-            disabled={processing || !reason.trim()}
-            className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors font-medium disabled:opacity-50 flex items-center gap-2"
-          >
-            {processing ? (
+            {activeTab === "drivers" ? (
               <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Processando...
+                <option value="pending">Aguardando Auditoria</option>
+                <option value="approved">Aprovados</option>
+                <option value="rejected">Reprovados</option>
+                <option value="all">Todos os Status</option>
               </>
             ) : (
               <>
-                <UserX className="w-4 h-4" />
-                Confirmar Reprovação
+                <option value="pending">Aguardando Auditoria</option>
+                <option value="approved">Aprovados</option>
+                <option value="rejected">Reprovados</option>
+                <option value="all">Todos os Status</option>
               </>
             )}
-          </button>
+          </select>
         </div>
       </div>
-    </div>
-  );
-}
 
-// Modal de Detalhes do Motorista
-interface DriverDetailModalProps {
-  driver: PendingDriver;
-  isOpen: boolean;
-  onClose: () => void;
-  onApprove: () => void;
-  onReject: (reason: string) => void;
-  processing: boolean;
-}
+      {/* Main Grid table */}
+      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50/70 border-b border-gray-200">
+              <tr className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left">Usuário</th>
+                <th className="px-6 py-4 text-left">CPF / Contato</th>
+                {activeTab === "drivers" && <th className="px-6 py-4 text-left">Veículo / Placa</th>}
+                <th className="px-6 py-4 text-left">Status</th>
+                <th className="px-6 py-4 text-left">Cidade</th>
+                <th className="px-6 py-4 text-center">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 text-xs font-semibold text-gray-700">
+              {activeTab === "drivers" ? (
+                filteredDrivers.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-12 text-center text-gray-400">Nenhum motorista pendente nesta pesquisa.</td>
+                  </tr>
+                ) : (
+                  filteredDrivers.map((driver) => {
+                    const statusColors = {
+                      pending: "bg-amber-50 text-amber-700 border-amber-200",
+                      approved: "bg-emerald-50 text-emerald-700 border-emerald-200",
+                      rejected: "bg-rose-50 text-rose-700 border-rose-200",
+                      none: "bg-slate-50 text-slate-700 border-slate-200"
+                    };
+                    const statusLabels = {
+                      pending: "Aguardando",
+                      approved: "Aprovado",
+                      rejected: "Reprovado",
+                      none: "N/A"
+                    };
 
-function DriverDetailModal({
-  driver,
-  isOpen,
-  onClose,
-  onApprove,
-  onReject,
-  processing,
-}: DriverDetailModalProps) {
-  const [rejectionReason, setRejectionReason] = useState("");
-  const [showRejectForm, setShowRejectForm] = useState(false);
+                    return (
+                      <tr key={driver._id} className="hover:bg-slate-50/30 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold">
+                              {driver.name.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                              <p className="font-extrabold text-gray-900 truncate max-w-[150px]">{driver.name}</p>
+                              <p className="text-[10px] text-gray-400 font-bold mt-0.5 truncate max-w-[150px]">{driver.email}</p>
+                            </div>
+                          </div>
+                        </td>
 
-  if (!isOpen) return null;
+                        <td className="px-6 py-4">
+                          <p className="text-gray-900">CPF: {driver.cpf || "Pendente"}</p>
+                          <p className="text-[10px] text-gray-400 font-bold mt-0.5">{driver.phone}</p>
+                        </td>
 
-  return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-200">
-        {/* Header */}
-        <div className="bg-linear-to-r from-emerald-500 to-emerald-600 px-6 py-4 text-white">
-          <h3 className="font-semibold text-xl">
-            Detalhes Completos do Motorista
-          </h3>
-          <p className="text-emerald-100 text-sm">
-            Verifique todas as informações antes de aprovar
-          </p>
+                        <td className="px-6 py-4">
+                          {driver.vehicleInfo ? (
+                            <div>
+                              <p className="text-gray-950 font-bold">{driver.vehicleInfo.model} ({driver.vehicleInfo.plate})</p>
+                              <p className="text-[10px] text-gray-400 font-bold capitalize mt-0.5">{driver.vehicleInfo.color} ⬢ {driver.vehicleInfo.year}</p>
+                            </div>
+                          ) : driver.vehicles && driver.vehicles.length > 0 ? (
+                            <div>
+                              <p className="text-gray-950 font-bold">{driver.vehicles[0].model} ({driver.vehicles[0].plate})</p>
+                              <p className="text-[10px] text-amber-600 font-bold capitalize mt-0.5">{driver.vehicles[0].color} ⬢ {driver.vehicles[0].year} (Pendente)</p>
+                            </div>
+                          ) : (
+                            <span className="text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100/50 text-[10px] font-bold">Sem Veículo</span>
+                          )}
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <span className={`px-2.5 py-1 rounded-full border text-[10px] font-bold ${statusColors[driver.driverStatus]}`}>
+                            {statusLabels[driver.driverStatus]}
+                          </span>
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <p className="text-gray-600 font-bold truncate max-w-[100px]">{driver.city || "Não vinculada"}</p>
+                        </td>
+
+                        <td className="px-6 py-4 text-center">
+                          <button
+                            onClick={() => handleOpenDetails(driver)}
+                            className="px-3.5 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 rounded-lg transition-colors font-bold inline-flex items-center gap-1.5"
+                          >
+                            <Eye className="w-4 h-4" />
+                            Auditar
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )
+              ) : (
+                filteredClients.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-12 text-center text-gray-400">Nenhum cliente pendente nesta pesquisa.</td>
+                  </tr>
+                ) : (
+                  filteredClients.map((client) => (
+                    <tr key={client._id} className="hover:bg-slate-50/30 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold">
+                            {client.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="font-extrabold text-gray-900 truncate max-w-[150px]">{client.name}</p>
+                            <p className="text-[10px] text-gray-400 font-bold mt-0.5 truncate max-w-[150px]">{client.email}</p>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="px-6 py-4">
+                        <p className="text-gray-900">CPF: {client.cpf || "Não informado"}</p>
+                        <p className="text-[10px] text-gray-400 font-bold mt-0.5">{client.phone}</p>
+                      </td>
+
+                      <td className="px-6 py-4">
+                        {client.clientVerification ? (
+                          <span className={`px-2.5 py-1 rounded-full border text-[10px] font-bold ${
+                            client.clientVerification.status === "approved"
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                              : client.clientVerification.status === "rejected"
+                              ? "bg-rose-50 text-rose-700 border-rose-200"
+                              : client.clientVerification.status === "pending"
+                              ? "bg-amber-50 text-amber-700 border-amber-200"
+                              : "bg-slate-50 text-slate-700 border-slate-200"
+                          }`}>
+                            {client.clientVerification.status === "approved"
+                              ? "Aprovado"
+                              : client.clientVerification.status === "rejected"
+                              ? "Reprovado"
+                              : client.clientVerification.status === "pending"
+                              ? "Pendente"
+                              : "Não Iniciado"}
+                          </span>
+                        ) : (
+                          <span className="bg-slate-50 text-slate-700 border border-slate-200 px-2.5 py-1 rounded-full text-[10px] font-bold">
+                            Sem Cadastro
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="px-6 py-4">
+                        <p className="text-gray-600 font-bold truncate max-w-[100px]">{client.city || "Não vinculada"}</p>
+                      </td>
+
+                      <td className="px-6 py-4 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            onClick={() => handleOpenDetails(client)}
+                            className="px-3.5 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 rounded-lg transition-colors font-bold inline-flex items-center gap-1.5"
+                          >
+                            <Eye className="w-4 h-4" />
+                            Auditar
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )
+              )}
+            </tbody>
+          </table>
         </div>
+      </div>
 
-        {/* Body */}
-        <div className="p-6 overflow-y-auto max-h-[calc(90vh-180px)]">
-          {/* Dados Pessoais */}
-          <div className="mb-6">
-            <h4 className="font-semibold text-lg text-slate-900 mb-4 flex items-center gap-2">
-              <FileText className="w-5 h-5 text-emerald-600" />
-              Dados Pessoais
-            </h4>
-            <div className="grid grid-cols-2 gap-4 bg-slate-50 rounded-lg p-4">
-              <div>
-                <p className="text-sm text-slate-600">Nome Completo</p>
-                <p className="font-semibold text-slate-900">
-                  {driver.fullName}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-slate-600">CPF</p>
-                <p className="font-semibold text-slate-900">
-                  {formatCPF(driver.cpf)}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-slate-600">RG</p>
-                <p className="font-semibold text-slate-900">{driver.rg}</p>
-              </div>
-              <div>
-                <p className="text-sm text-slate-600">Data de Nascimento</p>
-                <p className="font-semibold text-slate-900">
-                  {formatDate(driver.birthDate)}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-slate-600">Telefone</p>
-                <p className="font-semibold text-slate-900">
-                  {formatPhone(driver.phone)}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-slate-600">Email</p>
-                <p className="font-semibold text-slate-900">{driver.email}</p>
-              </div>
-            </div>
-          </div>
+      {/* Document verification Details Drawer */}
+      {isDrawerOpen && selectedUser && (
+        <>
+          <div className="fixed inset-0 bg-transparent z-40 transition-opacity" onClick={() => setIsDrawerOpen(false)} />
 
-          {/* Endereço */}
-          <div className="mb-6">
-            <h4 className="font-semibold text-lg text-slate-900 mb-4 flex items-center gap-2">
-              <MapPin className="w-5 h-5 text-emerald-600" />
-              Endereço
-            </h4>
-            <div className="bg-slate-50 rounded-lg p-4">
-              <p className="font-semibold text-slate-900">
-                {driver.address.street}, {driver.address.number}
-                {driver.address.complement && ` - ${driver.address.complement}`}
-              </p>
-              <p className="text-slate-700">
-                {driver.address.neighborhood} - {driver.address.city}/
-                {driver.address.state}
-              </p>
-              <p className="text-slate-600">CEP: {driver.address.zipCode}</p>
+          <div className="fixed right-0 top-0 h-full w-full max-w-2xl bg-white shadow-2xl z-50 overflow-y-auto flex flex-col justify-between animate-in slide-in-from-right duration-200">
+            
+            {/* Header */}
+            <div className="sticky top-0 bg-white border-b border-gray-100 p-5 flex items-center justify-between z-10">
+              <div>
+                <h2 className="text-lg font-bold text-gray-950 flex items-center gap-2">
+                  <Shield className="w-5 h-5 text-emerald-600" />
+                  Auditoria de Documentos & Cadastro
+                </h2>
+                <p className="text-[10px] text-gray-400 font-bold mt-0.5 uppercase tracking-wider">REF: {selectedUser._id}</p>
+              </div>
+              <button onClick={() => setIsDrawerOpen(false)} className="text-gray-400 hover:text-gray-600 p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
+                <X className="w-5 h-5" />
+              </button>
             </div>
-          </div>
 
-          {/* CNH */}
-          <div className="mb-6">
-            <h4 className="font-semibold text-lg text-slate-900 mb-4 flex items-center gap-2">
-              <Shield className="w-5 h-5 text-emerald-600" />
-              Carteira Nacional de Habilitação
-            </h4>
-            <div className="grid grid-cols-3 gap-4 bg-slate-50 rounded-lg p-4 mb-4">
-              <div>
-                <p className="text-sm text-slate-600">Número</p>
-                <p className="font-semibold text-slate-900">
-                  {driver.cnh.number}
-                </p>
+            {/* Content body */}
+            <div className="p-6 flex-1 space-y-6">
+              
+              {/* Profile Overview */}
+              <div className="bg-slate-50 border border-gray-200 rounded-xl p-4 flex items-center gap-4">
+                <div className="w-14 h-14 rounded-full bg-emerald-600 text-white flex items-center justify-center font-extrabold text-lg shrink-0 shadow-sm">
+                  {selectedUser.name.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-gray-950 text-base">{selectedUser.name}</h3>
+                  <p className="text-xs text-gray-400 font-semibold">{selectedUser.email}</p>
+                  <p className="text-[10px] text-emerald-600 mt-1 font-bold bg-emerald-50 border border-emerald-100 inline-block px-2.5 py-0.5 rounded-full capitalize">
+                    {selectedUser.userType === "driver" ? "Motorista" : "Cliente"}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm text-slate-600">Categoria</p>
-                <p className="font-semibold text-slate-900">
-                  {driver.cnh.category}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-slate-600">Validade</p>
-                <p className="font-semibold text-slate-900">
-                  {formatDate(driver.cnh.expiryDate)}
-                </p>
-              </div>
-            </div>
-            <div className="bg-slate-100 rounded-lg p-4">
-              <p className="text-sm text-slate-600 mb-2">Foto da CNH</p>
-              <div className="w-full h-48 bg-slate-200 rounded-lg flex items-center justify-center">
-                <Camera className="w-12 h-12 text-slate-400" />
-              </div>
-            </div>
-          </div>
 
-          {/* Veículo */}
-          <div className="mb-6">
-            <h4 className="font-semibold text-lg text-slate-900 mb-4 flex items-center gap-2">
-              <Car className="w-5 h-5 text-emerald-600" />
-              Dados do Veículo
-            </h4>
-            <div className="grid grid-cols-2 gap-4 bg-slate-50 rounded-lg p-4 mb-4">
-              <div>
-                <p className="text-sm text-slate-600">Tipo</p>
-                <p className="font-semibold text-slate-900 capitalize">
-                  {driver.vehicle.type}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-slate-600">Marca/Modelo</p>
-                <p className="font-semibold text-slate-900">
-                  {driver.vehicle.brand} {driver.vehicle.model}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-slate-600">Ano</p>
-                <p className="font-semibold text-slate-900">
-                  {driver.vehicle.year}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-slate-600">Cor</p>
-                <p className="font-semibold text-slate-900">
-                  {driver.vehicle.color}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-slate-600">Placa</p>
-                <p className="font-semibold text-slate-900">
-                  {driver.vehicle.plate}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-slate-600">RENAVAM</p>
-                <p className="font-semibold text-slate-900">
-                  {driver.vehicle.renavam}
-                </p>
-              </div>
-            </div>
-            <div className="bg-slate-100 rounded-lg p-4">
-              <p className="text-sm text-slate-600 mb-2">Fotos do Veículo</p>
-              <div className="grid grid-cols-3 gap-4">
-                {driver.vehicle.photoUrls.map((url, index) => (
-                  <div
-                    key={index}
-                    className="aspect-video bg-slate-200 rounded-lg flex items-center justify-center"
-                  >
-                    <Camera className="w-8 h-8 text-slate-400" />
+              {/* Informações Cadastrais */}
+              {selectedUser.userType === "client" ? (
+                <div className="bg-slate-50 border border-gray-200 rounded-2xl p-5 space-y-4">
+                  <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-wider flex items-center gap-1.5 border-b border-gray-200/60 pb-2">
+                    <FileText className="w-4 h-4 text-emerald-600" />
+                    Dados Cadastrais & Selfie
+                  </h4>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="md:col-span-2 grid grid-cols-2 gap-4 text-xs font-semibold">
+                      <div>
+                        <p className="text-[9px] font-bold text-gray-400 uppercase mb-1">Nome Completo</p>
+                        <p className="text-gray-950 font-bold">{selectedUser.name}</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-bold text-gray-400 uppercase mb-1">Telefone Principal</p>
+                        <p className="text-gray-950 font-bold">{selectedUser.phone || "N?o informado"}</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-bold text-gray-400 uppercase mb-1">Documento Identificador</p>
+                        <p className="text-gray-950 font-mono font-bold">{selectedUser.cpf || (selectedUser as any).cnpj || "N?o informado"}</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-bold text-gray-400 uppercase mb-1">Cidade / Regi?o</p>
+                        <p className="text-gray-950 font-bold">{selectedUser.city || "N?o informada"}</p>
+                      </div>
+                    </div>
+
+                    <div className="border border-gray-200 rounded-xl p-3.5 bg-white text-center space-y-2">
+                      <p className="text-[9px] font-bold text-gray-500 uppercase">Selfie do Usu?rio</p>
+                      {selectedUser.clientVerification?.documents?.selfie ? (
+                        <div
+                          className="relative group overflow-hidden rounded-lg aspect-square border border-gray-200 bg-white cursor-pointer max-w-[180px] mx-auto"
+                          onClick={() => openLightbox(selectedUser.clientVerification?.documents?.selfie ?? "", "Selfie do Cliente - " + selectedUser.name)}
+                        >
+                          <img
+                            src={cleanDocUrl(selectedUser.clientVerification.documents.selfie)}
+                            alt="Selfie"
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                          />
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                            <Eye className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="aspect-square rounded-lg border border-dashed border-gray-300 bg-white flex flex-col items-center justify-center text-gray-400 gap-1.5 p-3 max-w-[180px] mx-auto">
+                          <Camera className="w-7 h-7 opacity-40" />
+                          <span className="text-[9px] leading-tight font-bold">Selfie ausente</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* CNPJ */}
-          {driver.hasCNPJ && (
-            <div className="mb-6">
-              <h4 className="font-semibold text-lg text-slate-900 mb-4 flex items-center gap-2">
-                <FileText className="w-5 h-5 text-emerald-600" />
-                Dados Profissionais
-              </h4>
-              <div className="bg-slate-50 rounded-lg p-4">
-                <p className="text-sm text-slate-600">CNPJ</p>
-                <p className="font-semibold text-slate-900">{driver.cnpj}</p>
-              </div>
-            </div>
-          )}
-
-          {/* Fotos de Verificação */}
-          <div className="mb-6">
-            <h4 className="font-semibold text-lg text-slate-900 mb-4 flex items-center gap-2">
-              <Camera className="w-5 h-5 text-emerald-600" />
-              Fotos de Verificação
-            </h4>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-slate-100 rounded-lg p-4">
-                <p className="text-sm text-slate-600 mb-2">Foto do Rosto</p>
-                <div className="aspect-square bg-slate-200 rounded-lg flex items-center justify-center">
-                  <Camera className="w-12 h-12 text-slate-400" />
                 </div>
-              </div>
-              <div className="bg-slate-100 rounded-lg p-4">
-                <p className="text-sm text-slate-600 mb-2">
-                  Selfie com Documento
-                </p>
-                <div className="aspect-square bg-slate-200 rounded-lg flex items-center justify-center">
-                  <Camera className="w-12 h-12 text-slate-400" />
+              ) : (
+                <div className="grid grid-cols-2 gap-4 text-xs font-semibold">
+                  <div className="bg-slate-50 border border-gray-200 rounded-xl p-3.5">
+                    <p className="text-[9px] font-bold text-gray-400 uppercase mb-1">Telefone Principal</p>
+                    <p className="text-gray-900">{selectedUser.phone}</p>
+                  </div>
+                  <div className="bg-slate-50 border border-gray-200 rounded-xl p-3.5">
+                    <p className="text-[9px] font-bold text-gray-400 uppercase mb-1">CPF Registrado</p>
+                    <p className="text-gray-900">{selectedUser.cpf || "Não informado"}</p>
+                  </div>
                 </div>
+              )}
+
+              {/* Seção Condutor / CNH / Veículo */}
+              {selectedUser.userType === "driver" && (
+                <>
+                  {/* Dados Bancários & PIX para Repasse */}
+                  <div>
+                    <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+                      <CreditCard className="w-4 h-4 text-emerald-600" />
+                      Dados de Repasse & Conta Bancária
+                    </h4>
+
+                    {(selectedUser as PendingDriver).bankAccount ? (
+                      <div className="bg-gradient-to-br from-slate-900 to-slate-950 text-white rounded-2xl p-4 shadow-md border border-slate-800 space-y-3 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none"></div>
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Instituição Bancária</p>
+                            <p className="text-sm font-black text-emerald-400 mt-0.5">{(selectedUser as PendingDriver).bankAccount?.bank}</p>
+                          </div>
+                          <span className="text-[8px] font-black tracking-widest text-slate-400 uppercase border border-slate-700 px-2 py-0.5 rounded bg-slate-800/50">PIX ATIVO</span>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-3 text-xs pt-1.5 border-t border-slate-800/80">
+                          <div>
+                            <p className="text-[8px] font-bold text-slate-400 uppercase">Agência</p>
+                            <p className="font-bold text-slate-200 mt-0.5">{(selectedUser as PendingDriver).bankAccount?.agency}</p>
+                          </div>
+                          <div>
+                            <p className="text-[8px] font-bold text-slate-400 uppercase">Conta</p>
+                            <p className="font-bold text-slate-200 mt-0.5">{(selectedUser as PendingDriver).bankAccount?.account}</p>
+                          </div>
+                          <div>
+                            <p className="text-[8px] font-bold text-slate-400 uppercase">Tipo</p>
+                            <p className="font-bold text-emerald-400 mt-0.5 capitalize text-[10px]">
+                              {(selectedUser as PendingDriver).bankAccount?.accountType === "checking" ? "Corrente" : "Poupança"}
+                            </p>
+                          </div>
+                        </div>
+
+                        {((selectedUser as PendingDriver).bankAccount?.pixKey || selectedUser.cpf) && (
+                          <div className="bg-slate-800/40 rounded-xl p-3 border border-slate-800 flex items-center justify-between gap-3 text-xs mt-1">
+                            <div className="truncate">
+                              <p className="text-[8px] text-slate-400 uppercase font-black">Chave PIX Recebimento</p>
+                              <p className="font-mono text-emerald-300 font-bold truncate mt-0.5">
+                                {(selectedUser as PendingDriver).bankAccount?.pixKey || selectedUser.cpf}
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText((selectedUser as PendingDriver).bankAccount?.pixKey || selectedUser.cpf || "");
+                                showToast("Chave PIX copiada!", "success");
+                              }}
+                              className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-[9px] font-bold transition-all border border-slate-700 shrink-0"
+                            >
+                              Copiar
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="bg-gradient-to-br from-slate-900 to-slate-950 text-white rounded-2xl p-4 shadow-md border border-slate-800 space-y-2 relative overflow-hidden">
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Chave PIX Padrão</p>
+                            <p className="text-sm font-black text-emerald-400 mt-0.5">{selectedUser.cpf || "Não cadastrada"}</p>
+                          </div>
+                          <span className="text-[8px] font-black tracking-widest text-slate-400 uppercase border border-slate-700 px-2 py-0.5 rounded bg-slate-800/30">CPF CHAVE</span>
+                        </div>
+                        <p className="text-[9px] text-slate-400 leading-tight">
+                          O motorista não cadastrou dados de conta adicionais. Por padrão, a chave Pix associada ao CPF será utilizada para repasses semanais e saldos.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Veículo Cadastrado (Frota de Veículos) */}
+                  <div>
+                    <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+                      <Car className="w-4 h-4 text-emerald-600" />
+                      Especificações da Frota & Veículos
+                    </h4>
+
+                    {((selectedUser as PendingDriver).vehicles && (selectedUser as PendingDriver).vehicles!.length > 0) ? (
+                      <div className="space-y-4">
+                        {(selectedUser as PendingDriver).vehicles?.map((vehicle, index) => {
+                          const statusColors = {
+                            pending: "bg-amber-50 text-amber-700 border-amber-200",
+                            approved: "bg-emerald-50 text-emerald-700 border-emerald-200",
+                            rejected: "bg-rose-50 text-rose-700 border-rose-200"
+                          };
+                          const statusLabels = {
+                            pending: "Aguardando Aprovação",
+                            approved: "Aprovado",
+                            rejected: "Reprovado"
+                          };
+
+                          return (
+                            <div key={vehicle._id || index} className="bg-slate-50 border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+                              {/* Header do Veículo */}
+                              <div className="px-4 py-3 bg-gray-100/70 border-b border-gray-200 flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-base">
+                                    {vehicle.type === "motorcycle" ? "Moto" : vehicle.type === "truck" ? "Truck" : vehicle.type === "van" ? "Van" : "🚗"}
+                                  </span>
+                                  <div>
+                                    <p className="text-xs font-black text-gray-950">{vehicle.model}</p>
+                                    <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">{vehicle.type}</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className={`px-2 py-0.5 rounded-full border text-[9px] font-bold ${statusColors[vehicle.status]}`}>
+                                    {statusLabels[vehicle.status]}
+                                  </span>
+                                  {vehicle.status !== "approved" && (
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); handleVehicleStatusUpdate(selectedUser._id, vehicle._id, "approved"); }}
+                                      disabled={processing}
+                                      className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-lg text-[9px] font-bold hover:bg-emerald-200 disabled:opacity-50"
+                                    >OK Aprovar</button>
+                                  )}
+                                  {vehicle.status !== "rejected" && (
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); handleVehicleStatusUpdate(selectedUser._id, vehicle._id, "rejected", "Reprovado manualmente pelo admin"); }}
+                                      disabled={processing}
+                                      className="px-2 py-0.5 bg-red-100 text-red-700 rounded-lg text-[9px] font-bold hover:bg-red-200 disabled:opacity-50"
+                                    >X Reprovar</button>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Grid de Detalhes */}
+                              <div className="p-4 grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs font-semibold border-b border-gray-200/60 bg-white">
+                                {/* Placa no Estilo Mercosul */}
+                                <div>
+                                  <p className="text-[8px] font-bold text-gray-400 uppercase mb-1">Placa de Identificação</p>
+                                  <div className="inline-flex flex-col border border-blue-900/40 rounded overflow-hidden shadow-sm max-w-[110px] bg-white">
+                                    <div className="bg-blue-600 text-white font-extrabold text-[7px] text-center px-4 py-0.5 leading-none">BRASIL</div>
+                                    <div className="px-2 py-0.5 text-center text-gray-900 font-black text-xs tracking-wider uppercase font-mono">{vehicle.plate}</div>
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <p className="text-[8px] font-bold text-gray-400 uppercase mb-1">Cor do Veículo</p>
+                                  <div className="flex items-center gap-1.5 mt-1">
+                                    <span
+                                      className={`w-3.5 h-3.5 rounded-full border border-gray-300 shadow-inner`}
+                                      style={{
+                                        backgroundColor:
+                                          vehicle.color?.toLowerCase() === "preta" || vehicle.color?.toLowerCase() === "preto"
+                                            ? "#000"
+                                            : vehicle.color?.toLowerCase() === "branco" || vehicle.color?.toLowerCase() === "branca"
+                                            ? "#fff"
+                                            : vehicle.color?.toLowerCase() === "vermelho" || vehicle.color?.toLowerCase() === "vermelha"
+                                            ? "#ef4444"
+                                            : vehicle.color?.toLowerCase() === "azul"
+                                            ? "#3b82f6"
+                                            : vehicle.color?.toLowerCase() === "cinza" || vehicle.color?.toLowerCase() === "prata"
+                                            ? "#9ca3af"
+                                            : "#cbd5e1"
+                                      }}
+                                    />
+                                    <p className="text-gray-950 capitalize">{vehicle.color || "Não informada"}</p>
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <p className="text-[8px] font-bold text-gray-400 uppercase mb-1">Ano Fabricação</p>
+                                  <p className="text-gray-950 mt-1">{vehicle.year || "Não informado"}</p>
+                                </div>
+
+                                <div className="col-span-2">
+                                  <p className="text-[8px] font-bold text-gray-400 uppercase mb-1">Código RENAVAM</p>
+                                  <p className="text-gray-950 font-mono font-bold tracking-wider">{vehicle.renavam || "Não informado"}</p>
+                                </div>
+                              </div>
+
+                              {/* API DETRAN Placa Consult Comparação */}
+                              <div className="p-4 bg-slate-50 border-b border-gray-200/60 text-xs">
+                                <div className="flex items-center gap-2 mb-3">
+                                  {vehicle.plateVerifiedByAPI ? (
+                                    <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-full text-[9px] font-black uppercase">
+                                      <Shield className="w-3 h-3 text-emerald-600 shrink-0" />
+                                      OK Validado DETRAN via API
+                                    </span>
+                                  ) : vehicle.plateVerificationSource === "fallback" ? (
+                                    <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-full text-[9px] font-black uppercase">
+                                      <AlertCircle className="w-3 h-3 text-amber-600 shrink-0" />
+                                      Atenção: placa aceita por fallback (API indisponível)
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 bg-slate-50 text-slate-700 border border-slate-200 px-2 py-0.5 rounded-full text-[9px] font-black uppercase">
+                                      <AlertCircle className="w-3 h-3 text-slate-500 shrink-0" />
+                                      N?o verificado externamente
+                                    </span>
+                                  )}
+                                </div>
+
+                                {vehicle.isVerifiedByAPI && (vehicle.officialModel || vehicle.officialChassis) ? (
+                                  <div className="bg-white rounded-xl border border-gray-200 p-3 space-y-2.5">
+                                    <p className="text-[9px] text-gray-400 font-black uppercase tracking-wider">Confronto de Dados (Declarado vs DETRAN)</p>
+                                    <div className="grid grid-cols-2 gap-3 text-[10px] font-bold text-gray-700">
+                                      <div className="space-y-1">
+                                        <p className="text-[8px] text-gray-400 uppercase">Marca/Modelo Oficial</p>
+                                        <p className="text-slate-900 bg-slate-100/50 px-2 py-1 rounded border border-slate-200">{vehicle.officialBrand} {vehicle.officialModel}</p>
+                                      </div>
+                                      <div className="space-y-1">
+                                        <p className="text-[8px] text-gray-400 uppercase">Chassi Oficial</p>
+                                        <p className="text-slate-900 bg-slate-100/50 px-2 py-1 rounded border border-slate-200 font-mono text-[9px] truncate">{vehicle.officialChassis || "Indisponível"}</p>
+                                      </div>
+                                      <div className="space-y-1">
+                                        <p className="text-[8px] text-gray-400 uppercase">Cor Oficial</p>
+                                        <p className="text-slate-900 bg-slate-100/50 px-2 py-1 rounded border border-slate-200 capitalize">{vehicle.officialColor || "Indisponível"}</p>
+                                      </div>
+                                      <div className="space-y-1">
+                                        <p className="text-[8px] text-gray-400 uppercase">Ano Oficial</p>
+                                        <p className="text-slate-900 bg-slate-100/50 px-2 py-1 rounded border border-slate-200">{vehicle.officialYear || "Indisponível"}</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <p className="text-[9px] text-gray-400 leading-tight">
+                                    Esta placa foi pré-aprovada via bypass de segurança local. Não foram fornecidos dados extras de chassi ou marca oficial do DETRAN nesta consulta.
+                                  </p>
+                                )}
+                              </div>
+
+                              {/* Documentos específicos do veículo (CRLV & Foto do veículo) */}
+                              <div className="p-4 bg-white space-y-3">
+                                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-2">Anexos de Documentação do Veículo</p>
+                                <div className="grid grid-cols-3 gap-2.5">
+                                  {/* Foto do Veículo */}
+                                  <div className="border border-gray-200 rounded-xl p-2 bg-slate-50 text-center space-y-1">
+                                    <p className="text-[8px] font-bold text-gray-500 uppercase">Foto do Veículo</p>
+                                    {vehicle.documents?.vehiclePhoto ? (
+                                      vehicle.documents.vehiclePhoto.startsWith("file://") ? (
+                                        <div className="relative rounded-lg aspect-square border border-gray-200 bg-white flex flex-col items-center justify-center p-2 text-center">
+                                          <Car className="w-6 h-6 text-emerald-600 opacity-60 mb-1" />
+                                          <p className="text-[7px] leading-tight text-gray-400 font-bold truncate w-full">{vehicle.documents.vehiclePhoto.split("/").pop()}</p>
+                                          <span className="absolute bottom-1 left-1 right-1 bg-emerald-500 text-white font-extrabold text-[6px] py-0.5 rounded leading-none">Simulado</span>
+                                        </div>
+                                      ) : (
+                                        <div
+                                          className="relative group overflow-hidden rounded-lg aspect-square border border-gray-200 bg-white cursor-pointer"
+                                          onClick={() => openLightbox(vehicle.documents!.vehiclePhoto!, "Foto do Veiculo - " + vehicle.plate)}
+                                        >
+                                          <img
+                                            src={cleanDocUrl(vehicle.documents.vehiclePhoto)}
+                                            alt="Veiculo"
+                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                          />
+                                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                                            <Eye className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                                          </div>
+                                        </div>
+                                      )
+                                    ) : (
+                                      <div className="aspect-square rounded-lg border border-dashed border-gray-300 bg-white flex flex-col items-center justify-center text-gray-400 p-2">
+                                        <Car className="w-5 h-5 opacity-40" />
+                                        <span className="text-[7px] leading-tight font-bold">Sem foto</span>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* CRLV Frente */}
+                                  <div className="border border-gray-200 rounded-xl p-2 bg-slate-50 text-center space-y-1">
+                                    <p className="text-[8px] font-bold text-gray-500 uppercase">CRLV Frente</p>
+                                    {vehicle.documents?.crlvFront ? (
+                                      vehicle.documents.crlvFront.startsWith("file://") ? (
+                                        <div className="relative rounded-lg aspect-square border border-gray-200 bg-white flex flex-col items-center justify-center p-2 text-center">
+                                          <FileText className="w-6 h-6 text-emerald-600 opacity-60 mb-1" />
+                                          <p className="text-[7px] leading-tight text-gray-400 font-bold truncate w-full">{vehicle.documents.crlvFront.split("/").pop()}</p>
+                                          <span className="absolute bottom-1 left-1 right-1 bg-emerald-500 text-white font-extrabold text-[6px] py-0.5 rounded leading-none">Simulado</span>
+                                        </div>
+                                      ) : (
+                                        <div
+                                          className="relative group overflow-hidden rounded-lg aspect-square border border-gray-200 bg-white cursor-pointer"
+                                          onClick={() => openLightbox(vehicle.documents!.crlvFront!, "CRLV Frente - " + vehicle.plate)}
+                                        >
+                                          <img
+                                            src={cleanDocUrl(vehicle.documents.crlvFront)}
+                                            alt="CRLV Frente"
+                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                          />
+                                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                                            <Eye className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                                          </div>
+                                        </div>
+                                      )
+                                    ) : (
+                                      <div className="aspect-square rounded-lg border border-dashed border-gray-300 bg-white flex flex-col items-center justify-center text-gray-400 p-2">
+                                        <FileText className="w-5 h-5 opacity-40" />
+                                        <span className="text-[7px] leading-tight font-bold">Sem CRLV</span>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* CRLV Verso */}
+                                  <div className="border border-gray-200 rounded-xl p-2 bg-slate-50 text-center space-y-1">
+                                    <p className="text-[8px] font-bold text-gray-500 uppercase">CRLV Verso</p>
+                                    {vehicle.documents?.crlvBack ? (
+                                      vehicle.documents.crlvBack.startsWith("file://") ? (
+                                        <div className="relative rounded-lg aspect-square border border-gray-200 bg-white flex flex-col items-center justify-center p-2 text-center">
+                                          <FileText className="w-6 h-6 text-emerald-600 opacity-60 mb-1" />
+                                          <p className="text-[7px] leading-tight text-gray-400 font-bold truncate w-full">{vehicle.documents.crlvBack.split("/").pop()}</p>
+                                          <span className="absolute bottom-1 left-1 right-1 bg-emerald-500 text-white font-extrabold text-[6px] py-0.5 rounded leading-none">Simulado</span>
+                                        </div>
+                                      ) : (
+                                        <div
+                                          className="relative group overflow-hidden rounded-lg aspect-square border border-gray-200 bg-white cursor-pointer"
+                                          onClick={() => openLightbox(vehicle.documents!.crlvBack!, "CRLV Verso - " + vehicle.plate)}
+                                        >
+                                          <img
+                                            src={cleanDocUrl(vehicle.documents.crlvBack)}
+                                            alt="CRLV Verso"
+                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                          />
+                                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                                            <Eye className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                                          </div>
+                                        </div>
+                                      )
+                                    ) : (
+                                      <div className="aspect-square rounded-lg border border-dashed border-gray-300 bg-white flex flex-col items-center justify-center text-gray-400 p-2">
+                                        <FileText className="w-5 h-5 opacity-40" />
+                                        <span className="text-[7px] leading-tight font-bold">Sem CRLV</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (selectedUser as PendingDriver).vehicleInfo ? (
+                      <div className="bg-slate-50 border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+                        <div className="px-4 py-3 bg-gray-100/70 border-b border-gray-200 flex items-center gap-2">
+                          <span className="text-base">Carro</span>
+                          <div>
+                            <p className="text-xs font-black text-gray-950">{(selectedUser as PendingDriver).vehicleInfo?.model}</p>
+                            <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">Veículo (Legado)</p>
+                          </div>
+                        </div>
+                        <div className="p-4 grid grid-cols-2 gap-4 text-xs font-semibold bg-white border-b border-gray-200/60">
+                          <div>
+                            <p className="text-[8px] font-bold text-gray-400 uppercase mb-1">Placa de Identificação</p>
+                            <div className="inline-flex flex-col border border-blue-900/40 rounded overflow-hidden bg-white shadow-sm">
+                              <div className="bg-blue-600 text-white font-extrabold text-[7px] text-center px-4 py-0.5">BRASIL</div>
+                              <div className="px-2 py-0.5 text-center text-gray-950 font-black text-xs font-mono">{(selectedUser as PendingDriver).vehicleInfo?.plate}</div>
+                            </div>
+                          </div>
+                          <div>
+                            <p className="text-[8px] font-bold text-gray-400 uppercase mb-1">Cor</p>
+                            <p className="text-gray-950 capitalize">{(selectedUser as PendingDriver).vehicleInfo?.color}</p>
+                          </div>
+                          <div>
+                            <p className="text-[8px] font-bold text-gray-400 uppercase mb-1">Ano</p>
+                            <p className="text-gray-950">{(selectedUser as PendingDriver).vehicleInfo?.year}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-amber-50 border border-amber-100 rounded-xl p-3.5 text-xs text-amber-800 font-bold">
+                        Nenhum veículo cadastrado para este motorista.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Documentos Digitais Enviados (CNH, Selfie) */}
+                  <div>
+                    <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                      <ImageIcon className="w-4 h-4 text-emerald-600" />
+                      Documentos de Identidade & Selfie
+                    </h4>
+
+                    <div className="grid grid-cols-3 gap-3">
+                      {/* Selfie com CNH */}
+                      <div className="border border-gray-200 rounded-xl p-3.5 bg-slate-50 text-center space-y-2">
+                        <p className="text-[9px] font-bold text-gray-500 uppercase">Selfie CNH</p>
+                        {(selectedUser as PendingDriver).driverDocuments?.selfie ? (
+                          (selectedUser as PendingDriver).driverDocuments!.selfie!.startsWith("file://") ? (
+                            <div className="relative rounded-lg aspect-square border border-gray-200 bg-white flex flex-col items-center justify-center p-2 text-center">
+                              <Camera className="w-6 h-6 text-emerald-600 opacity-60 mb-1" />
+                              <p className="text-[7px] leading-tight text-gray-400 font-bold truncate w-full">{(selectedUser as PendingDriver).driverDocuments!.selfie!.split("/").pop()}</p>
+                              <span className="absolute bottom-1 left-1 right-1 bg-emerald-500 text-white font-extrabold text-[6px] py-0.5 rounded leading-none">Simulado</span>
+                            </div>
+                          ) : (
+                            <div
+                              className="relative group overflow-hidden rounded-lg aspect-square border border-gray-200 bg-white cursor-pointer"
+                              onClick={() => openLightbox((selectedUser as PendingDriver).driverDocuments?.selfie ?? "", "Selfie - " + selectedUser.name)}
+                            >
+                              <img
+                                src={cleanDocUrl((selectedUser as PendingDriver).driverDocuments?.selfie)}
+                                alt="Selfie"
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                              />
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                                <Eye className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                              </div>
+                            </div>
+                          )
+                        ) : (
+                          <div className="aspect-square rounded-lg border border-dashed border-gray-300 bg-white flex flex-col items-center justify-center text-gray-400 gap-1.5 p-3">
+                            <Camera className="w-7 h-7 opacity-40" />
+                            <span className="text-[9px] leading-tight font-bold">Não enviada</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* CNH Frente */}
+                      <div className="border border-gray-200 rounded-xl p-3.5 bg-slate-50 text-center space-y-2">
+                        <p className="text-[9px] font-bold text-gray-500 uppercase">CNH Frente</p>
+                        {(selectedUser as PendingDriver).driverDocuments?.cnhFront ? (
+                          (selectedUser as PendingDriver).driverDocuments!.cnhFront!.startsWith("file://") ? (
+                            <div className="relative rounded-lg aspect-square border border-gray-200 bg-white flex flex-col items-center justify-center p-2 text-center">
+                              <FileText className="w-6 h-6 text-emerald-600 opacity-60 mb-1" />
+                              <p className="text-[7px] leading-tight text-gray-400 font-bold truncate w-full">{(selectedUser as PendingDriver).driverDocuments!.cnhFront!.split("/").pop()}</p>
+                              <span className="absolute bottom-1 left-1 right-1 bg-emerald-500 text-white font-extrabold text-[6px] py-0.5 rounded leading-none">Simulado</span>
+                            </div>
+                          ) : (
+                            <div
+                              className="relative group overflow-hidden rounded-lg aspect-square border border-gray-200 bg-white cursor-pointer"
+                              onClick={() => openLightbox((selectedUser as PendingDriver).driverDocuments?.cnhFront ?? "", "CNH Frente - " + selectedUser.name)}
+                            >
+                              <img
+                                src={cleanDocUrl((selectedUser as PendingDriver).driverDocuments?.cnhFront)}
+                                alt="CNH Frente"
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                              />
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                                <Eye className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                              </div>
+                            </div>
+                          )
+                        ) : (
+                          <div className="aspect-square rounded-lg border border-dashed border-gray-300 bg-white flex flex-col items-center justify-center text-gray-400 gap-1.5 p-3">
+                            <FileText className="w-7 h-7 opacity-40" />
+                            <span className="text-[9px] leading-tight font-bold">Ausente</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* CNH Verso */}
+                      <div className="border border-gray-200 rounded-xl p-3.5 bg-slate-50 text-center space-y-2">
+                        <p className="text-[9px] font-bold text-gray-500 uppercase">CNH Verso</p>
+                        {(selectedUser as PendingDriver).driverDocuments?.cnhBack ? (
+                          (selectedUser as PendingDriver).driverDocuments!.cnhBack!.startsWith("file://") ? (
+                            <div className="relative rounded-lg aspect-square border border-gray-200 bg-white flex flex-col items-center justify-center p-2 text-center">
+                              <FileText className="w-6 h-6 text-emerald-600 opacity-60 mb-1" />
+                              <p className="text-[7px] leading-tight text-gray-400 font-bold truncate w-full">{(selectedUser as PendingDriver).driverDocuments!.cnhBack!.split("/").pop()}</p>
+                              <span className="absolute bottom-1 left-1 right-1 bg-emerald-500 text-white font-extrabold text-[6px] py-0.5 rounded leading-none">Simulado</span>
+                            </div>
+                          ) : (
+                            <div
+                              className="relative group overflow-hidden rounded-lg aspect-square border border-gray-200 bg-white cursor-pointer"
+                              onClick={() => openLightbox((selectedUser as PendingDriver).driverDocuments?.cnhBack ?? "", "CNH Verso - " + selectedUser.name)}
+                            >
+                              <img
+                                src={cleanDocUrl((selectedUser as PendingDriver).driverDocuments?.cnhBack)}
+                                alt="CNH Verso"
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                              />
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                                <Eye className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                              </div>
+                            </div>
+                          )
+                        ) : (
+                          <div className="aspect-square rounded-lg border border-dashed border-gray-300 bg-white flex flex-col items-center justify-center text-gray-400 gap-1.5 p-3">
+                            <FileText className="w-7 h-7 opacity-40" />
+                            <span className="text-[9px] leading-tight font-bold">Ausente</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+
+            {/* Actions footer */}
+            {selectedUser.userType === "driver" ? (
+              <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 p-4 z-10 flex gap-3">
+                <button
+                  onClick={() => setShowRejectModal(true)}
+                  disabled={processing}
+                  className="flex-1 py-3 bg-red-100 hover:bg-red-200 text-red-700 font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  <X className="w-4 h-4" />
+                  Reprovar Cadastro
+                </button>
+
+                <button
+                  onClick={() => handleApproveUser(selectedUser)}
+                  disabled={processing}
+                  className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition-all hover:shadow-md flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  <Check className="w-4 h-4" />
+                  Aprovar & Ativar Motorista
+                </button>
               </div>
-            </div>
-          </div>
-
-          {/* Formulário de Reprovação */}
-          {showRejectForm && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Motivo da Reprovação *
-              </label>
-              <textarea
-                value={rejectionReason}
-                onChange={(e) => setRejectionReason(e.target.value)}
-                rows={4}
-                placeholder="Descreva o motivo da reprovação..."
-                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="bg-slate-50 px-6 py-4 border-t border-slate-100 flex justify-between gap-3">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors font-medium"
-          >
-            Fechar
-          </button>
-
-          <div className="flex gap-3">
-            {driver.status === "pending" && (
-              <>
-                {showRejectForm ? (
+            ) : (
+              <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 p-4 z-10 flex gap-3">
+                {clientApprovalReady ? (
                   <>
                     <button
-                      onClick={() => {
-                        setShowRejectForm(false);
-                        setRejectionReason("");
-                      }}
-                      className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors font-medium"
+                      onClick={() => setShowRejectModal(true)}
+                      disabled={processing}
+                      className="flex-1 py-3 bg-red-100 hover:bg-red-200 text-red-700 font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
                     >
-                      Cancelar
+                      <X className="w-4 h-4" />
+                      Reprovar Cadastro
                     </button>
+
                     <button
-                      onClick={() => onReject(rejectionReason)}
-                      disabled={!rejectionReason.trim() || processing}
-                      className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors font-medium disabled:opacity-50"
+                      onClick={() => handleApproveUser(selectedUser)}
+                      disabled={processing}
+                      className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition-all hover:shadow-md flex items-center justify-center gap-1.5 disabled:opacity-50"
                     >
-                      Confirmar Reprovação
+                      <Check className="w-4 h-4" />
+                      Aprovar & Ativar Cliente
                     </button>
                   </>
                 ) : (
-                  <>
-                    <button
-                      onClick={() => setShowRejectForm(true)}
-                      className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors font-medium flex items-center gap-2"
-                    >
-                      <UserX className="w-4 h-4" />
-                      Reprovar Motorista
-                    </button>
-                    <button
-                      onClick={onApprove}
-                      disabled={processing}
-                      className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors font-medium disabled:opacity-50 flex items-center gap-2"
-                    >
-                      <UserCheck className="w-4 h-4" />
-                      Aprovar Motorista
-                    </button>
-                  </>
+                  <div className="w-full rounded-xl border border-amber-200 bg-amber-50 text-amber-800 px-4 py-3 text-xs font-bold">
+                    Aguardando envio completo dos dados cadastrais e da selfie. Os botões de aprovação/reprovação serão liberados após o envio completo.
+                  </div>
                 )}
-              </>
+              </div>
             )}
+
           </div>
-        </div>
-      </div>
+          </div>
+        </>
+      )}
+
+      {/* Reject Modal */}
+      {showRejectModal && selectedUser && (
+        <>
+          <div className="fixed inset-0 bg-black bg-opacity-40 z-50 transition-opacity" onClick={() => setShowRejectModal(false)} />
+          
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg bg-white rounded-2xl shadow-2xl z-50 overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="bg-red-600 px-6 py-4 text-white">
+              <h3 className="font-semibold text-lg flex items-center gap-2">
+                <AlertCircle className="w-5 h-5" />
+                {selectedUser.userType === "driver" ? "Reprovar Cadastro de Motorista" : "Reprovar Cadastro de Cliente"}
+              </h3>
+              <p className="text-red-100 text-xs mt-0.5">Informe o motivo do indeferimento dos documentos.</p>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Motivos Recorrentes:</label>
+                <div className="grid grid-cols-1 gap-2">
+                  {commonReasons.map((reason) => (
+                    <button
+                      key={reason}
+                      onClick={() => { setRejectionReason(reason); setCustomReason(""); }}
+                      className={`w-full text-left px-3 py-2 text-xs rounded-xl border transition-all ${rejectionReason === reason ? "border-red-500 bg-red-50 text-red-700 font-bold" : "border-gray-200 hover:bg-slate-50 text-gray-700"}`}
+                    >
+                      {reason}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Motivo Customizado (Opcional):</label>
+                <textarea
+                  value={customReason}
+                  onChange={(e) => { setCustomReason(e.target.value); setRejectionReason(""); }}
+                  placeholder="Escreva um motivo específico de rejeição se os acima não forem suficientes..."
+                  rows={3}
+                  className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none resize-none"
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+              <button
+                onClick={() => setShowRejectModal(false)}
+                className="px-4 py-2 border border-gray-200 bg-white text-gray-700 rounded-xl text-xs font-bold hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleRejectUser}
+                disabled={processing || (!rejectionReason && !customReason.trim())}
+                className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold shadow-sm disabled:opacity-50"
+              >
+                {processing ? "Reprovando..." : "Confirmar Reprovação"}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Lightbox Modal - Full Screen Image Viewer */}
+      {lightboxImage && (
+        <>
+          <div
+            className="fixed inset-0 bg-black bg-opacity-90 z-[100] transition-opacity"
+            onClick={() => setLightboxImage(null)}
+          />
+          <div className="fixed inset-0 z-[110] flex flex-col items-center justify-center p-8" onClick={() => setLightboxImage(null)}>
+            <div className="absolute top-4 right-4 z-[120]">
+              <button
+                onClick={() => setLightboxImage(null)}
+                className="bg-white/10 hover:bg-white/20 text-white rounded-xl px-3 py-2 text-sm font-bold transition-colors"
+              >
+                X Fechar
+              </button>
+            </div>
+            <div className="absolute top-4 left-4 z-[120]">
+              <p className="text-white/80 text-sm font-bold bg-black/50 px-3 py-1.5 rounded-lg">{lightboxTitle}</p>
+            </div>
+            <img
+              src={lightboxImage}
+              alt={lightboxTitle}
+              className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        </>
+      )}
+
     </div>
   );
 }

@@ -5,6 +5,7 @@ const DRIVER_STATUSES = new Set(["offline", "available", "busy", "on_ride"]);
 const VEHICLE_TYPES = new Set(["motorcycle", "car", "van", "truck"]);
 const SERVICE_TYPES = new Set(["ride", "delivery"]);
 const RIDE_CAPABLE_VEHICLES = new Set(["motorcycle", "car"]);
+const DEFAULT_APP_TIMEZONE = process.env.APP_TIMEZONE || "America/Sao_Paulo";
 
 function sendError(res, status, message, extras = {}) {
   return res.status(status).json({
@@ -61,6 +62,163 @@ function normalizeVehicleType(value) {
 function isDriverOrAdmin(req) {
   const type = String(req?.user?.userType || "").toLowerCase();
   return type === "driver" || type === "admin";
+}
+
+function toMoney(value) {
+  const number = Number(value || 0);
+  if (!Number.isFinite(number)) return 0;
+  return Math.round(number * 100) / 100;
+}
+
+function getDateKeyInTimezone(date = new Date(), timeZone = DEFAULT_APP_TIMEZONE) {
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(date);
+    const year = parts.find((p) => p.type === "year")?.value;
+    const month = parts.find((p) => p.type === "month")?.value;
+    const day = parts.find((p) => p.type === "day")?.value;
+    if (!year || !month || !day) return date.toISOString().split("T")[0];
+    return `${year}-${month}-${day}`;
+  } catch {
+    return date.toISOString().split("T")[0];
+  }
+}
+
+async function upsertDailyStatsSnapshot({ driverId, user, dateStr }) {
+  if (!driverId || !user || !dateStr) return;
+  const DriverDailyStats = require("../models/DriverDailyStats");
+  const balance = toMoney(user?.driverBalance?.balance || 0);
+  await DriverDailyStats.findOneAndUpdate(
+    { driverId, dateStr },
+    {
+      $set: {
+        totalSeconds: Number(user?.onlineStats?.totalSecondsToday || 0),
+        walletBalanceEnd: balance,
+      },
+      $setOnInsert: {
+        walletBalanceStart: balance,
+      },
+    },
+    { upsert: true, new: true }
+  );
+}
+
+async function syncOnlineStatsForTransition({ user, driverId, normalizedStatus, app }) {
+  if (!user) return;
+
+  const now = new Date();
+  const todayStr = getDateKeyInTimezone(now);
+
+  if (!user.onlineStats) {
+    user.onlineStats = {
+      totalSecondsToday: 0,
+      lastHeartbeatAt: now,
+      activeDateStr: todayStr,
+      isOnline: false,
+    };
+  }
+
+  const previousDate = user.onlineStats.activeDateStr || todayStr;
+  const wasOnline = Boolean(user.onlineStats.isOnline);
+  const isNowOnline = normalizedStatus !== "offline";
+
+  if (previousDate !== todayStr) {
+    await upsertDailyStatsSnapshot({
+      driverId,
+      user,
+      dateStr: previousDate,
+    });
+
+    user.onlineStats.totalSecondsToday = 0;
+    user.onlineStats.lastHeartbeatAt = now;
+    user.onlineStats.activeDateStr = todayStr;
+    user.onlineStats.isOnline = isNowOnline;
+
+    if (isNowOnline) {
+      const DriverDailyStats = require("../models/DriverDailyStats");
+      const balance = toMoney(user?.driverBalance?.balance || 0);
+      await DriverDailyStats.findOneAndUpdate(
+        { driverId, dateStr: todayStr },
+        {
+          $setOnInsert: {
+            walletBalanceStart: balance,
+          },
+          $set: {
+            walletBalanceEnd: balance,
+            firstOnlineAt: now,
+          },
+          $inc: {
+            onlineSessionsCount: 1,
+          },
+        },
+        { upsert: true, new: true }
+      );
+    }
+  } else {
+    const last = new Date(user.onlineStats.lastHeartbeatAt || now).getTime();
+    const diffMs = Date.now() - last;
+    const diffSec = Math.floor(diffMs / 1000);
+
+    if (wasOnline && diffSec > 0 && diffSec < 3600) {
+      user.onlineStats.totalSecondsToday += diffSec;
+    }
+
+    user.onlineStats.lastHeartbeatAt = now;
+    user.onlineStats.isOnline = isNowOnline;
+
+    if (!wasOnline && isNowOnline) {
+      const DriverDailyStats = require("../models/DriverDailyStats");
+      const balance = toMoney(user?.driverBalance?.balance || 0);
+      await DriverDailyStats.findOneAndUpdate(
+        { driverId, dateStr: todayStr },
+        {
+          $setOnInsert: {
+            walletBalanceStart: balance,
+            firstOnlineAt: now,
+          },
+          $set: {
+            walletBalanceEnd: balance,
+          },
+          $inc: {
+            onlineSessionsCount: 1,
+          },
+        },
+        { upsert: true, new: true }
+      );
+    }
+
+    if (wasOnline && !isNowOnline) {
+      const DriverDailyStats = require("../models/DriverDailyStats");
+      const balance = toMoney(user?.driverBalance?.balance || 0);
+      await DriverDailyStats.findOneAndUpdate(
+        { driverId, dateStr: todayStr },
+        {
+          $set: {
+            lastOfflineAt: now,
+            walletBalanceEnd: balance,
+            totalSeconds: Number(user.onlineStats.totalSecondsToday || 0),
+          },
+          $setOnInsert: {
+            walletBalanceStart: balance,
+          },
+        },
+        { upsert: true, new: true }
+      );
+    }
+  }
+
+  await user.save();
+
+  const io = app?.get?.("io");
+  if (io) {
+    io.to(`driver-${driverId}`).emit("online_time_updated", {
+      totalSecondsToday: Number(user.onlineStats.totalSecondsToday || 0),
+    });
+  }
 }
 
 class DriverLocationController {
@@ -195,70 +353,15 @@ class DriverLocationController {
       try {
         const user = await User.findById(driverId);
         if (user) {
-          const todayStr = new Date().toISOString().split("T")[0];
-          
-          if (!user.onlineStats) {
-            user.onlineStats = {
-              totalSecondsToday: 0,
-              lastHeartbeatAt: new Date(),
-              activeDateStr: todayStr,
-              isOnline: false,
-            };
-          }
-
-          // Se mudou o dia no fuso UTC/ISO!
-          if (user.onlineStats.activeDateStr !== todayStr) {
-            // 💾 SALVAR ARQUIVO HISTÓRICO DO DIA QUE ACABOU!
-            try {
-              const DriverDailyStats = require("../models/DriverDailyStats");
-              await DriverDailyStats.findOneAndUpdate(
-                { driverId, dateStr: user.onlineStats.activeDateStr },
-                {
-                  $set: { totalSeconds: user.onlineStats.totalSecondsToday || 0 },
-                },
-                { upsert: true, new: true }
-              );
-            } catch (archiveErr) {
-              console.error("Falha ao arquivar estatísticas diárias no updateLocation:", archiveErr);
-            }
-
-            // Reseta acumulador para o novo dia
-            user.onlineStats.totalSecondsToday = 0;
-            user.onlineStats.lastHeartbeatAt = new Date();
-            user.onlineStats.activeDateStr = todayStr;
-            user.onlineStats.isOnline = normalizedStatus !== "offline";
-          } else {
-            const wasOnline = Boolean(user.onlineStats.isOnline);
-            const isNowOnline = normalizedStatus !== "offline";
-
-            // Calcula tempo real transcorrido desde a última batida de coração
-            const last = new Date(user.onlineStats.lastHeartbeatAt).getTime();
-            const diffMs = Date.now() - last;
-            const diffSec = Math.floor(diffMs / 1000);
-
-            // 💡 REGRA MATEMÁTICA ABSOLUTA: Só acumula tempo se o status ANTERIOR era ONLINE!
-            // Impede o acúmulo de períodos offline e captura os segundos finais ao ficar offline.
-            if (wasOnline && diffSec > 0 && diffSec < 60) {
-              user.onlineStats.totalSecondsToday += diffSec;
-            }
-
-            // Atualiza referências de estado para a próxima rodada
-            user.onlineStats.lastHeartbeatAt = new Date();
-            user.onlineStats.isOnline = isNowOnline;
-          }
-          
-          await user.save();
-
-          // 📡 Emitir atualizaÃ§Ã£o em tempo real via Socket para esse motorista
-          const io = req.app.get("io");
-          if (io) {
-            io.to(`driver-${driverId}`).emit("online_time_updated", {
-              totalSecondsToday: user.onlineStats.totalSecondsToday,
-            });
-          }
+          await syncOnlineStatsForTransition({
+            user,
+            driverId,
+            normalizedStatus,
+            app: req.app,
+          });
         }
       } catch (err) {
-        console.error("Erro ao atualizar batida de coraÃ§Ã£o do tempo online:", err);
+        console.error("Erro ao sincronizar tempo online no updateLocation:", err);
       }
 
       return res.json({
@@ -467,74 +570,19 @@ class DriverLocationController {
         return sendError(res, 404, "Motorista nao encontrado. Atualize sua localizacao primeiro.");
       }
 
-      // ⚡️ CORREÇÃO CRÍTICA DO DRIFT DE CLOCK: Processar Máquina de Estados Online/Offline
-      // Garante que ao clicar "Ficar Offline", os segundos finais sejam salvos e isOnline vire FALSE!
+      // Sincroniza tempo online no clique online/offline e em transicoes de status.
       try {
         const user = await User.findById(driverId);
         if (user) {
-          const todayStr = new Date().toISOString().split("T")[0];
-          
-          if (!user.onlineStats) {
-            user.onlineStats = {
-              totalSecondsToday: 0,
-              lastHeartbeatAt: new Date(),
-              activeDateStr: todayStr,
-              isOnline: false,
-            };
-          }
-
-          // Se mudou o dia no fuso UTC/ISO!
-          if (user.onlineStats.activeDateStr !== todayStr) {
-            // 💾 SALVAR ARQUIVO HISTÓRICO DO DIA QUE ACABOU!
-            try {
-              const DriverDailyStats = require("../models/DriverDailyStats");
-              await DriverDailyStats.findOneAndUpdate(
-                { driverId, dateStr: user.onlineStats.activeDateStr },
-                {
-                  $set: { totalSeconds: user.onlineStats.totalSecondsToday || 0 },
-                },
-                { upsert: true, new: true }
-              );
-            } catch (archiveErr) {
-              console.error("Falha ao arquivar estatísticas diárias no updateStatus:", archiveErr);
-            }
-
-            // Reseta acumulador para o novo dia
-            user.onlineStats.totalSecondsToday = 0;
-            user.onlineStats.lastHeartbeatAt = new Date();
-            user.onlineStats.activeDateStr = todayStr;
-            user.onlineStats.isOnline = normalizedStatus !== "offline";
-          } else {
-            const wasOnline = Boolean(user.onlineStats.isOnline);
-            const isNowOnline = normalizedStatus !== "offline";
-
-            // Calcula tempo real transcorrido desde a última batida de coração
-            const last = new Date(user.onlineStats.lastHeartbeatAt).getTime();
-            const diffMs = Date.now() - last;
-            const diffSec = Math.floor(diffMs / 1000);
-
-            // 💡 REGRA MATEMÁTICA ABSOLUTA: Só acumula tempo se o status ANTERIOR era ONLINE!
-            if (wasOnline && diffSec > 0 && diffSec < 60) {
-              user.onlineStats.totalSecondsToday += diffSec;
-            }
-
-            // Atualiza referências de estado para parar a contagem IMEDIATAMENTE no banco
-            user.onlineStats.lastHeartbeatAt = new Date();
-            user.onlineStats.isOnline = isNowOnline;
-          }
-          
-          await user.save();
-
-          // 📡 Emitir atualização instantânea via Socket para sincronizar o front na hora
-          const io = req.app.get("io");
-          if (io) {
-            io.to(`driver-${driverId}`).emit("online_time_updated", {
-              totalSecondsToday: user.onlineStats.totalSecondsToday,
-            });
-          }
+          await syncOnlineStatsForTransition({
+            user,
+            driverId,
+            normalizedStatus,
+            app: req.app,
+          });
         }
       } catch (err) {
-        console.error("Erro ao atualizar estado de tempo no updateStatus:", err);
+        console.error("Erro ao sincronizar tempo online no updateStatus:", err);
       }
 
       return res.json({

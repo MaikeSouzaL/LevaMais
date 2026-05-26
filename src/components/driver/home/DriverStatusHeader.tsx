@@ -1,79 +1,86 @@
 import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
-import { Bell, Wallet } from "lucide-react-native";
-import { BlurView } from "expo-blur";
+import { Bell, X } from "lucide-react-native";
 import { MotiView } from "moti";
-import { formatBRL } from "@/utils/mappers";
 
 interface DriverStatusHeaderProps {
-  todayEarnings: number;
   pendingRequests: number;
   scheduledCount: number;
   waitingQueueCount: number;
   pendingNegotiationsCount: number;
   onPressNotifications: () => void;
   online: boolean;
+  incomingMode?: boolean;
 }
 
 export function DriverStatusHeader({
-  todayEarnings,
   pendingRequests,
   scheduledCount,
   waitingQueueCount,
   pendingNegotiationsCount,
   onPressNotifications,
-  online
+  online,
+  incomingMode = false,
 }: DriverStatusHeaderProps) {
-  
-  const totalAlerts = pendingRequests + scheduledCount + waitingQueueCount + pendingNegotiationsCount;
+  const totalAlerts =
+    pendingRequests +
+    scheduledCount +
+    waitingQueueCount +
+    pendingNegotiationsCount;
 
   return (
-    <View className="flex-row items-center justify-between gap-4">
-      
-      {/* 💰 Glass Earning Capsule */}
-      <MotiView 
-        from={{ opacity: 0, translateX: -20 }}
-        animate={{ opacity: 1, translateX: 0 }}
-        className="flex-1 h-[58px] rounded-2xl overflow-hidden border border-white/10 shadow-2xl shadow-black"
+    <View className="flex-row items-center justify-end gap-3">
+      <TouchableOpacity
+        onPress={onPressNotifications}
+        activeOpacity={0.8}
+        style={{
+          height: 58,
+          width: 58,
+          borderRadius: 16,
+          borderWidth: incomingMode ? 0 : 1,
+          borderColor: incomingMode
+            ? "transparent"
+            : totalAlerts > 0
+              ? "rgba(251,191,36,0.5)"
+              : "rgba(255,255,255,0.1)",
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: incomingMode ? "transparent" : "#091A2F",
+          position: "relative",
+        }}
       >
-        <View className="flex-1 flex-row items-center px-4 bg-[#091A2F]">
-           <View className="bg-[#02de95]/20 p-2 rounded-xl mr-3">
-              <Wallet size={16} color="#02de95" />
-           </View>
-           <View>
-             
-             <Text className="text-[#02de95] font-black text-xl leading-none">
-               {formatBRL(todayEarnings)}
-             </Text>
-           </View>
-        </View>
-      </MotiView>
+        {incomingMode ? (
+          <X size={24} color="#FFFFFF" />
+        ) : (
+          <Bell size={22} color={totalAlerts > 0 ? "#FBBF24" : "rgba(255,255,255,0.8)"} />
+        )}
 
-      {/* 🔔 Alerts & Active Status Stack */}
-      <View className="flex-row items-center gap-3">
-        <TouchableOpacity
-          onPress={onPressNotifications}
-          activeOpacity={0.8}
-          className="h-[58px] w-[58px] rounded-2xl overflow-hidden border border-white/10 items-center justify-center"
-        >
-          <View className="w-full h-full items-center justify-center bg-[#091A2F]">
-            <Bell size={20} color="rgba(255,255,255,0.8)" />
-            
-            {totalAlerts > 0 && (
-              <MotiView
-                from={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                className="absolute -top-1 -right-1 bg-red-500 h-5 min-w-[20px] rounded-full items-center justify-center px-1 border-2 border-[#091A2F]"
-              >
-                <Text className="text-white text-[10px] font-black">
-                  {totalAlerts}
-                </Text>
-              </MotiView>
-            )}
-          </View>
-        </TouchableOpacity>
-      </View>
-
+        {totalAlerts > 0 && !incomingMode && (
+          <MotiView
+            from={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            style={{
+              position: "absolute",
+              top: -6,
+              right: -6,
+              backgroundColor: "#ef4444",
+              minWidth: 20,
+              height: 20,
+              borderRadius: 10,
+              alignItems: "center",
+              justifyContent: "center",
+              paddingHorizontal: 4,
+              borderWidth: 2,
+              borderColor: "#091A2F",
+              zIndex: 10,
+            }}
+          >
+            <Text style={{ color: "#fff", fontSize: 10, fontWeight: "900" }}>
+              {totalAlerts}
+            </Text>
+          </MotiView>
+        )}
+      </TouchableOpacity>
     </View>
   );
 }

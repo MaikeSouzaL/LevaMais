@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from "react";
 import * as Icons from "lucide-react";
-import { Search, X } from "lucide-react";
+import { Search, X, LucideIcon } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { cn } from "@/lib/utils";
 
@@ -29,7 +29,7 @@ export function IconPicker({ value, onChange }: IconPickerProps) {
     ).slice(0, 100); // Limit results
   }, [search]);
 
-  const SelectedIcon = (Icons as any)[value] || Icons.HelpCircle;
+  const SelectedIcon = (Icons as unknown as Record<string, React.FC<{ size?: number; className?: string; strokeWidth?: number }>>)[value] || Icons.HelpCircle;
 
   return (
     <>
@@ -67,7 +67,7 @@ export function IconPicker({ value, onChange }: IconPickerProps) {
 
           <div className="grid grid-cols-5 sm:grid-cols-6 gap-2 max-h-[400px] overflow-y-auto p-1">
             {filteredIcons.map((iconName) => {
-              const Icon = (Icons as any)[iconName];
+              const Icon = (Icons as unknown as Record<string, React.FC<{ size?: number; className?: string; strokeWidth?: number }>>)[iconName];
               if (!Icon) return null;
               
               const isSelected = value === iconName;

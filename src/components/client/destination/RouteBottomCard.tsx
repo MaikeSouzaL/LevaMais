@@ -55,7 +55,7 @@ export const RouteBottomCard = ({
             </View>
 
             <TouchableOpacity
-              className="h-14 rounded-xl overflow-hidden relative bg-primary active:opacity-90"
+              className="h-14 rounded-xl overflow-hidden relative bg-primary"
               onPress={onConfirm}
               disabled={isLoading}
             >

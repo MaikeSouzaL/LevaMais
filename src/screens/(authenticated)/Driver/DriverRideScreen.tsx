@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, TouchableOpacity, AppState, Alert } from "react-native";
+import { View, Text, TouchableOpacity, AppState, Alert, Modal, TextInput } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { GlobalMap } from "@/components/GlobalMap";
@@ -65,6 +65,29 @@ export default function DriverRideScreen() {
   const [isSwitchingMapStyle, setIsSwitchingMapStyle] = useState(false);
   const [isCentering, setIsCentering] = useState(false);
 
+  // Security PIN Verification States 🔐
+  const [pinModalVisible, setPinModalVisible] = useState(false);
+  const [pinType, setPinType] = useState<"pickup" | "delivery">("pickup");
+  const [pinValue, setPinValue] = useState("");
+  const [onPinSubmit, setOnPinSubmit] = useState<((pin: string) => void) | null>(null);
+  const [onPinCancel, setOnPinCancel] = useState<(() => void) | null>(null);
+
+  const promptForPin = (type: "pickup" | "delivery"): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      setPinType(type);
+      setPinValue("");
+      setPinModalVisible(true);
+      setOnPinSubmit(() => (submittedPin: string) => {
+        setPinModalVisible(false);
+        resolve(submittedPin);
+      });
+      setOnPinCancel(() => () => {
+        setPinModalVisible(false);
+        reject(new Error("PIN nao verificado. Digite o PIN correto para prosseguir."));
+      });
+    });
+  };
+
   useEffect(() => {
     AsyncStorage.getItem("mapStylePref").then((pref) => {
       if (pref) setUseDarkMap(pref === "dark");
@@ -100,7 +123,7 @@ export default function DriverRideScreen() {
   };
 
   const [actionLoading, setActionLoading] = useState<
-    null | "cancel" | "driver_arriving" | "arrived" | "in_progress" | "completed"
+    null | "cancel" | "driver_arriving" | "arrived" | "in_progress" | "completed" | "arrived_at_dropoff"
   >(null);
 
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
@@ -122,6 +145,7 @@ export default function DriverRideScreen() {
 
   const statusLabel = useMemo(() => {
     if (!status) return "-";
+    if (status === "payment_pending") return "Aguardando pagamento do cliente";
     if (status === "driver_arriving") return "A caminho da coleta";
     if (status === "driver_assigned") return "Entrega reservada";
     if (status === "accepted") return "Aceita";
@@ -132,20 +156,24 @@ export default function DriverRideScreen() {
     return status;
   }, [status]);
 
+  const isDelivery = ride?.serviceType === "delivery";
+  const isAwaitingPayment = status === "payment_pending";
+  const arrivedAtDropoff = Boolean(ride?.arrivedAtDropoff);
+
   const canArrive =
     status === "accepted" ||
     status === "driver_assigned" ||
     status === "driver_arriving";
   const canStart = status === "arrived";
-  const canComplete = status === "in_progress";
+  const canComplete = status === "in_progress" && (!isDelivery || arrivedAtDropoff);
+  const canArriveDropoff = isDelivery && status === "in_progress" && !arrivedAtDropoff;
   const canCancel =
+    status === "payment_pending" ||
     status === "accepted" ||
     status === "driver_assigned" ||
     status === "driver_arriving" ||
     status === "arrived" ||
     status === "in_progress";
-
-  const isDelivery = ride?.serviceType === "delivery";
 
   useEffect(() => {
     statusRef.current = status;
@@ -341,7 +369,7 @@ export default function DriverRideScreen() {
     const onStatusUpdated = (payload: any) => {
       if (!mounted) return;
       if (payload?.rideId !== rideId) return;
-      if (payload?.status) setStatus(String(payload.status));
+      if (payload?.status) { setStatus(String(payload.status)); if (payload.ride) setRide(payload.ride); }
     };
 
     const onRideCancelled = (payload: any) => {
@@ -478,6 +506,13 @@ export default function DriverRideScreen() {
             longitude: pos.coords.longitude,
             heading: pos.coords.heading ?? undefined,
             speed: pos.coords.speed ?? undefined,
+            accuracy: pos.coords.accuracy ?? undefined,
+            rideId: rideId || undefined,
+            phase: statusRef.current === "driver_arriving" ? "to_pickup"
+                 : statusRef.current === "arrived" ? "at_pickup"
+                 : statusRef.current === "in_progress" ? "to_dropoff"
+                 : "to_pickup",
+            capturedAt: new Date().toISOString(),
           });
 
           const now = Date.now();
@@ -510,6 +545,21 @@ export default function DriverRideScreen() {
     };
   }, []);
 
+
+  const handleArriveDropoff = async () => {
+    if (!rideId) return;
+    setActionLoading("arrived_at_dropoff");
+    try {
+      const r = await rideService.updateStatus(rideId, undefined as any, true);
+      setRide(r as any);
+      setStatus(r?.status || status);
+      Toast.show({ type: "success", text1: "Chegada no destino registrada" });
+    } catch (e: any) {
+      Toast.show({ type: "error", text1: "Erro", text2: e?.message || "Tente novamente" });
+    } finally {
+      setActionLoading(null);
+    }
+  };
   const update = async (
     nextStatus: "driver_arriving" | "arrived" | "in_progress" | "completed",
   ) => {
@@ -568,7 +618,17 @@ export default function DriverRideScreen() {
         }
       }
 
-      const r = await rideService.updateStatus(rideId, nextStatus);
+      let enteredPin = "";
+      if (isDelivery && nextStatus === "in_progress") {
+        enteredPin = await promptForPin("pickup");
+      } else if (isDelivery && nextStatus === "completed") {
+        enteredPin = await promptForPin("delivery");
+      }
+
+      const r = await rideService.updateStatus(rideId, nextStatus, false, {
+        pickupPin: nextStatus === "in_progress" ? enteredPin : undefined,
+        deliveryPin: nextStatus === "completed" ? enteredPin : undefined,
+      });
       setRide(r as any);
       setStatus(r?.status || nextStatus);
 
@@ -747,6 +807,7 @@ export default function DriverRideScreen() {
         >
           {!!driverCoords && (
              <Marker
+               key={`driver-puck-${vehicleType}`}
                coordinate={{
                  latitude: driverCoords.latitude,
                  longitude: driverCoords.longitude,
@@ -798,7 +859,7 @@ export default function DriverRideScreen() {
               tracksViewChanges={false}
               anchor={{ x: 0.5, y: 1 }}
             >
-              <MapMarker type={getClientMarkerType(ride?.serviceType, ride?.purposeId)} />
+              <MapMarker type={getClientMarkerType(ride?.serviceType)} />
             </Marker>
           )}
           {hasDropoffCoords && (
@@ -870,6 +931,7 @@ export default function DriverRideScreen() {
             dropoffAddress={ride?.dropoff?.address}
             details={ride?.details}
             payment={ride?.payment}
+            clientName={(ride?.clientId as any)?.name || "Cliente"}
             showRouteDetails
             canArrive={canArrive}
             canStart={canStart}
@@ -878,6 +940,11 @@ export default function DriverRideScreen() {
             onArrive={() => update("arrived")}
             onStart={() => update("in_progress")}
             onComplete={() => update("completed")}
+            isAwaitingPayment={isAwaitingPayment}
+            isDelivery={isDelivery}
+            arrivedAtDropoff={arrivedAtDropoff}
+            canArriveDropoff={canArriveDropoff}
+            onArriveDropoff={handleArriveDropoff}
             onChat={() => {
               if (!rideId) return;
               useChatStore.getState().clearUnread(rideId);
@@ -906,6 +973,127 @@ export default function DriverRideScreen() {
           actionLoading === "cancel" ? "Cancelando..." : "Confirmar"
         }
       />
+
+      <Modal
+        visible={pinModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => onPinCancel?.()}
+      >
+        <View style={{
+          flex: 1,
+          backgroundColor: "rgba(9, 26, 47, 0.85)",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 24,
+        }}>
+          <View style={{
+            width: "100%",
+            maxWidth: 340,
+            backgroundColor: "#0c1927",
+            borderRadius: 16,
+            borderWidth: 1,
+            borderColor: "rgba(2, 222, 149, 0.25)",
+            padding: 24,
+            alignItems: "center",
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.3,
+            shadowRadius: 8,
+            elevation: 8,
+          }}>
+            <Text style={{
+              color: "#fff",
+              fontSize: 18,
+              fontWeight: "900",
+              textAlign: "center",
+              marginBottom: 8,
+            }}>
+              {pinType === "pickup" ? "Segurança na Coleta" : "Segurança na Entrega"}
+            </Text>
+            
+            <Text style={{
+              color: "rgba(255,255,255,0.7)",
+              fontSize: 13,
+              textAlign: "center",
+              lineHeight: 18,
+              marginBottom: 20,
+            }}>
+              {pinType === "pickup" 
+                ? "Solicite o PIN de Coleta com o remetente da encomenda para poder iniciar o trajeto." 
+                : "Solicite o PIN de Entrega com o recebedor para poder finalizar a corrida."}
+            </Text>
+
+            <TextInput
+              style={{
+                width: 160,
+                height: 52,
+                backgroundColor: "rgba(255,255,255,0.05)",
+                borderWidth: 1.5,
+                borderColor: "#02de95",
+                borderRadius: 8,
+                color: "#fff",
+                fontSize: 22,
+                fontWeight: "900",
+                textAlign: "center",
+                letterSpacing: 8,
+                paddingLeft: 8,
+                marginBottom: 24,
+              }}
+              value={pinValue}
+              onChangeText={(txt) => setPinValue(txt.replace(/[^0-9]/g, ""))}
+              placeholder="0000"
+              placeholderTextColor="rgba(255,255,255,0.2)"
+              keyboardType="number-pad"
+              maxLength={4}
+              autoFocus={true}
+            />
+
+            <View style={{
+              flexDirection: "row",
+              width: "100%",
+              gap: 12,
+            }}>
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  height: 44,
+                  borderRadius: 8,
+                  backgroundColor: "rgba(239, 68, 68, 0.12)",
+                  borderWidth: 1,
+                  borderColor: "rgba(239, 68, 68, 0.3)",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+                onPress={() => onPinCancel?.()}
+              >
+                <Text style={{ color: "#ef4444", fontWeight: "700", fontSize: 13 }}>Cancelar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  height: 44,
+                  borderRadius: 8,
+                  backgroundColor: pinValue.length === 4 ? "#02de95" : "rgba(2, 222, 149, 0.2)",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+                disabled={pinValue.length !== 4}
+                onPress={() => {
+                  if (pinValue.length === 4) {
+                    onPinSubmit?.(pinValue);
+                  }
+                }}
+              >
+                <Text style={{ color: pinValue.length === 4 ? "#091A2F" : "rgba(255,255,255,0.5)", fontWeight: "900", fontSize: 13 }}>
+                  Confirmar
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

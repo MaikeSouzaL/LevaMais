@@ -1,161 +1,118 @@
-/**
- * LEVA - Smart Freight Pricing Engine
- * Inspired by Loggi, Uber Flash, Lalamove
- */
 
-// 1. Advanced Vehicle Operational Baselines ⚙️
-const VEHICLE_BASE_CONFIG = {
-  motorcycle: {
-    minFee: 7.00,      // Absolutely won't launch below this
-    pricePerKm: 0.99,  // Low operation cost
-    minKmThreshold: 10 // Covers first 2km in base price
-  },
-  car: {
-    minFee: 18.00,
-    pricePerKm: 1.90,
-    minKmThreshold: 3
-  },
-  van: {
-    minFee: 55.00,
-    pricePerKm: 2.80,
-    minKmThreshold: 5
-  },
-  truck: {
-    minFee: 130.00,
-    pricePerKm: 4.80,
-    minKmThreshold: 8
-  }
-};
-
-// 2. Delivery Type Multipliers (Commodity risk & complexity)
-// const DELIVERY_TYPE_MULTIPLIER = {
-//   doc: 1.0,
-//   food: 1.2,
-//   box: 1.2,
-//   market: 1.3,
-//   material: 1.7,
-//   furniture: 2.0,
-//   moving: 2.5,
-//   other: 1.3,
-// };
-
-// 3. Cargo Size Multipliers
-// const CARGO_SIZE_MULTIPLIER = {
-//   small: 1.0,
-//   medium: 1.3,
-//   large: 1.9,
-// };
-
-// 4. Delivery Priority Multipliers
-const PRIORITY_MULTIPLIER = {
-  0: 1.0, // Economic
-  1: 1.3, // Fast
-  2: 1.8, // Urgent
-};
-
-// 5. Dynamic Demand Simulation
-const DEMAND_MULTIPLIER = {
-  low: 1.0,
-  medium: 1.0,
-  high: 1.3,
-  extreme: 1.5
-};
-
-const HELPER_BASE_FEE = 30.00;
+// Weight surcharges (added to multiplier per kg tier)
+function getWeightMultiplier(approximateWeightKg, weights = {}) {
+  const w = Number(approximateWeightKg || 0);
+  const upTo5 = Number(weights.weightUpTo5kg ?? 1.0);
+  const upTo15 = Number(weights.weightUpTo15kg ?? 1.1);
+  const upTo30 = Number(weights.weightUpTo30kg ?? 1.25);
+  const upTo50 = Number(weights.weightUpTo50kg ?? 1.5);
+  const above50 = Number(weights.weightAbove50kg ?? 1.8);
+  if (w <= 0) return 1.0;
+  if (w <= 5) return upTo5;
+  if (w <= 15) return upTo15;
+  if (w <= 30) return upTo30;
+  if (w <= 50) return upTo50;
+  return above50; // >50kg
+}
 
 class PricingEngine {
-  /**
-   * Calculates comprehensive freight dynamic pricing using advanced baseline stacking
-   */
   calculate({
-    basePriceRule = 0,
     pricePerKmRule = 0,
+    minFeeRule = 0,
+    minKmRule = 0,
     distanceKm,
-    vehicleType = "motorcycle",
-    deliveryType = "box",
-    cargoSize = "medium",
     priority = 1,
+    priorityEconomic = 1.0,
+    priorityFast = 1.3,
+    priorityUrgent = 1.8,
+    cargoSizeSmall = 1.0,
+    cargoSizeMedium = 1.15,
+    cargoSizeLarge = 1.4,
+    fragileSurchargeValue = 1.1,
+    helperSurchargeValue = 1.15,
+    weightUpTo5kg = 1.0,
+    weightUpTo15kg = 1.1,
+    weightUpTo30kg = 1.25,
+    weightUpTo50kg = 1.5,
+    weightAbove50kg = 1.8,
+    // Novos parametros para delivery
+    cargoSize = "small",
+    approximateWeightKg,
+    isFragile = false,
     needsHelper = false,
-    demandLevel = "medium"
   }) {
-    // Get configuration defaults specific to this mode of transport
-    const config = VEHICLE_BASE_CONFIG[vehicleType] || VEHICLE_BASE_CONFIG.motorcycle;
-    
-    // Prioritize Database Override configuration if active, fallback to engine defaults
-    const pricePerKm = pricePerKmRule > 0 ? pricePerKmRule : config.pricePerKm;
-    const minFee = config.minFee;
-    const minKm = config.minKmThreshold;
+    const pricePerKm = Number(pricePerKmRule || 0);
+    const minFee = Number(minFeeRule || 0);
+    const minKm = Number(minKmRule || 0);
 
-    // Distance Calculation Logic (Threshold-based 🚀)
-    // Start natively with minFee which covers up to minKm included
-    let rawComputedCost = minFee;
-    
+   let rawComputedCost = minFee;
+
     if (distanceKm > minKm) {
       const overflowKm = distanceKm - minKm;
-      // User's model: MinFee + (Overflow KMs * pricePerKm)
       rawComputedCost += (overflowKm * pricePerKm);
     }
 
-    // BASELINE DISTANCE FEE (Safely aggregated)
-    const distanceRaw = rawComputedCost;
+    const baseDistanceCost = rawComputedCost;
 
-    // Fetch multiplier vectors (Removed type and size per user request ⚖️)
-    const mType = 1.0; 
-    const mSize = 1.0; 
-    const mDemand = DEMAND_MULTIPLIER[demandLevel] || 1.0;
+    // Delivery Priority Multipliers (Economic, Fast, Urgent)
+    const priorityMultipliers = {
+      0: Number(priorityEconomic || 1.0),
+      1: Number(priorityFast || 1.3),
+      2: Number(priorityUrgent || 1.8),
+    };
 
-    // BASE SYSTEM VALUE (Enforced pure distance metrics now)
-    const systemBaseline = distanceRaw * mDemand;
+    // Cargo attributes multipliers
+    const cargoSizeMultipliers = {
+      small: Number(cargoSizeSmall || 1.0),
+      medium: Number(cargoSizeMedium || 1.15),
+      large: Number(cargoSizeLarge || 1.4),
+    };
+    const cargoSizeMultiplier = cargoSizeMultipliers[cargoSize] || 1.0;
+    const weightMultiplier = getWeightMultiplier(approximateWeightKg, {
+      weightUpTo5kg,
+      weightUpTo15kg,
+      weightUpTo30kg,
+      weightUpTo50kg,
+      weightAbove50kg,
+    });
+    const fragileSurcharge = isFragile ? Number(fragileSurchargeValue || 1.1) : 1.0;
+    const helperSurcharge = needsHelper ? Number(helperSurchargeValue || 1.15) : 1.0;
 
-    // Apply direct operational auxiliary surcharges
-    const helperFee = needsHelper ? HELPER_BASE_FEE : 0;
+    // Combined cargo multiplier
+    const cargoMultiplier = cargoSizeMultiplier * weightMultiplier * fragileSurcharge * helperSurcharge;
 
-    // Generate Tiered Pricing Responses
-    
-    // 1. MINIMUM PRICE (Economic priority applied to system baseline)
-    const mPriorityMin = PRIORITY_MULTIPLIER[0];
-    const minimumPrice = (systemBaseline * mPriorityMin) + (helperFee * 0.8);
+    // Apply priority multiplier
+    const mPrioritySelected = priorityMultipliers[priority] ?? 1.0;
+    const priorityMultiplier = mPrioritySelected;
 
-    // 2. SUGGESTED PRICE (User-selected priority applied)
-    const mPrioritySelected = PRIORITY_MULTIPLIER[priority] ?? 1.0;
-    const suggestedPrice = (systemBaseline * mPrioritySelected) + helperFee;
+    // Final calculation: base cost * cargo factors * priority
+    const adjustedCost = baseDistanceCost * cargoMultiplier;
 
-    // 3. PRIORITY/PREMIUM PRICE (Max level urgency enforcement)
-    const mPriorityMax = PRIORITY_MULTIPLIER[2];
-    const priorityPrice = (systemBaseline * mPriorityMax) + (helperFee * 1.2);
-
-    // Generate operational dynamic score (0-100 range)
-    // Factors: Priority + Size weight
-    const baseScore = 50;
-    const pShift = (priority * 15);
-    const sizeMap = { small: 0, medium: 10, large: 25 };
-    const sShift = sizeMap[cargoSize] || 10;
-    const deliveryScore = Math.min(100, baseScore + pShift + sShift);
+    const minimumPrice = adjustedCost * priorityMultipliers[0];
+    const suggestedPrice = adjustedCost * priorityMultiplier;
+    const priorityPrice = adjustedCost * priorityMultipliers[2];
 
     return {
       minimumPrice: parseFloat(minimumPrice.toFixed(2)),
       suggestedPrice: parseFloat(suggestedPrice.toFixed(2)),
       priorityPrice: parseFloat(priorityPrice.toFixed(2)),
       distanceKm: parseFloat(distanceKm.toFixed(2)),
-      demandLevel,
-      deliveryScore,
       details: {
-        baseDistanceCost: distanceRaw,
+        baseDistanceCost: parseFloat(baseDistanceCost.toFixed(2)),
         configUsed: {
           pricePerKm,
           minFee,
-          minKm
+          minKm,
         },
         multipliers: {
-          type: mType,
-          size: mSize,
-          priority: mPrioritySelected,
-          demand: mDemand
+          priority: parseFloat(priorityMultiplier.toFixed(3)),
+          cargoSize: parseFloat(cargoSizeMultiplier.toFixed(3)),
+          weight: parseFloat(weightMultiplier.toFixed(3)),
+          fragile: parseFloat(fragileSurcharge.toFixed(3)),
+          helper: parseFloat(helperSurcharge.toFixed(3)),
+          combinedCargo: parseFloat(cargoMultiplier.toFixed(3)),
         },
-        fees: {
-          helper: helperFee
-        }
-      }
+      },
     };
   }
 }

@@ -197,25 +197,40 @@ class DriverService {
       // Fallback: try to get balance directly
       try {
         const balance = await this.getBalance();
-        return balance.balance >= rideValue * 0.2; // Need 20% of ride value
+        const configResponse = await apiClient.get('/config/ride-settings').catch(() => null);
+        const appFeePct = (configResponse?.data?.config?.appFeePercentage || 15) / 100;
+        return balance.balance >= rideValue * appFeePct;
       } catch {
         return false;
       }
     }
   }
 
-  // Go online (requires balance check)
-  async goOnline(): Promise<{ success: boolean; message?: string }> {
+  // Go online (requires approval, docs, vehicle, balance)
+  async goOnline(): Promise<{ success: boolean; message?: string; error?: string; appFeePercentage?: number }> {
     try {
       const response = await apiClient.post<any>('/drivers/go-online');
 
       logger.info('DRIVER_SERVICE', 'Driver went online');
-      return { success: response.data?.success || true };
+      return {
+        success: response.data?.success || true,
+        message: response.data?.message,
+        appFeePercentage: response.data?.appFeePercentage,
+      };
     } catch (error: any) {
-      logger.error('DRIVER_SERVICE', 'Failed to go online', error);
+      const status = error.response?.status;
+      if (status === 400 || status === 403) {
+        logger.warn('DRIVER_SERVICE', 'Failed to go online due to validation error', {
+          status,
+          error: error.response?.data?.error || error.message
+        });
+      } else {
+        logger.error('DRIVER_SERVICE', 'Failed to go online due to system error', error);
+      }
       return {
         success: false,
-        message: error.response?.data?.message || 'Você precisa de saldo para ficar online. Faça um depósito.',
+        error: error.response?.data?.error || 'Voce precisa ter cadastro aprovado, documentos enviados e saldo positivo.',
+        message: error.response?.data?.message,
       };
     }
   }
@@ -248,8 +263,14 @@ class DriverService {
       return deductionAmount;
     } catch (error) {
       logger.error('DRIVER_SERVICE', 'Failed to calculate deduction', error);
-      // Fallback to 20%
-      return rideValue * 0.2;
+      // Fallback to configured percentage via ride-settings
+      try {
+        const configResponse = await apiClient.get('/config/ride-settings').catch(() => null);
+        const appFeePct = (configResponse?.data?.config?.appFeePercentage || 15) / 100;
+        return rideValue * appFeePct;
+      } catch {
+        return rideValue * 0.15;
+      }
     }
   }
 
@@ -337,6 +358,21 @@ class DriverService {
       return response.data?.vehicle;
     } catch (error) {
       logger.error('DRIVER_SERVICE', 'Failed to add vehicle', error);
+      throw error;
+    }
+  }
+
+  // 📸 Enviar documentos do veículo (CRLV Frente, Verso e Foto do Veículo)
+  async uploadVehicleDocuments(vehicleId: string, formData: FormData): Promise<any> {
+    try {
+      const response = await apiClient.post<any>(`/drivers/vehicles/${vehicleId}/documents`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    } catch (error) {
+      logger.error('DRIVER_SERVICE', 'Failed to upload vehicle documents', error);
       throw error;
     }
   }

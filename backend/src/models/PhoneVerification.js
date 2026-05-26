@@ -1,10 +1,20 @@
 const mongoose = require("mongoose");
 
 const phoneVerificationSchema = new mongoose.Schema({
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    index: true,
+  },
   phone: {
     type: String,
     required: true,
     index: true,
+  },
+  method: {
+    type: String,
+    enum: ["sms", "whatsapp", "voice", "manual"],
+    default: "sms",
   },
   code: {
     type: String,

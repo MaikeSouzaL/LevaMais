@@ -2,6 +2,8 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+import { GoogleSignin } from "@react-native-google-signin/google-signin";
+
 export type UserType = "client" | "driver" | "admin" | null | undefined;
 
 export interface UserData {
@@ -18,11 +20,19 @@ export interface UserData {
   googleId?: string;
   aceitouTermos: boolean;
   acceptedTerms?: boolean;
+  tourSeen?: boolean;
+  isActive?: boolean;
   expoPushToken?: string;
   vehicleType?: unknown;
   vehicleInfo?: unknown;
   driverStatus?: "none" | "pending" | "approved" | "rejected";
   enableMapAnimation?: boolean;
+  driverPreferences?: {
+    serviceTypes?: Array<"ride" | "delivery">;
+    selectedVehicles?: Array<"motorcycle" | "car" | "van" | "truck">;
+    searchRadiusKm?: number;
+    autoAccept?: boolean;
+  };
   // CPF/CNPJ & Company Details
   cpf?: string;
   cnpj?: string;
@@ -30,6 +40,21 @@ export interface UserData {
   companyEmail?: string;
   companyPhone?: string;
   paymentMethods?: Array<any>;
+  clientVerification?: {
+    status?: "none" | "pending" | "approved" | "rejected";
+    cpfStatus?: "unchecked" | "pending" | "manual_review" | "valid" | "invalid" | string;
+    selfieStatus?: "none" | "pending" | "approved" | "rejected" | string;
+    documents?: {
+      selfie?: string;
+      rgFront?: string;
+      rgBack?: string;
+    };
+    rejectionReason?: string;
+    submittedAt?: string;
+    reviewedAt?: string;
+    reviewedBy?: string;
+  } | null;
+  mapTheme?: "light" | "dark" | string;
 }
 
 export interface AuthState {
@@ -87,14 +112,18 @@ export const useAuthStore = create<AuthState>()(
           token: token ?? null,
         }),
 
-      logout: () =>
+      logout: () => {
+        // Clear cached Google Sign-in session to enable picking other emails
+        GoogleSignin.signOut().catch(() => {});
+        
         set({
           isAuthenticated: false,
           userType: null,
           userData: null,
           token: null,
           walletBalance: 0,
-        }),
+        });
+      },
 
       updateUserData: (data) =>
         set((state) => {

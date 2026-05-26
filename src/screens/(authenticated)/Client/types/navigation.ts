@@ -3,6 +3,24 @@
  * Fonte de verdade para as rotas do fluxo cliente (drawer + stack).
  */
 
+export type DeliveryAddressProfile = {
+  address: string;
+  addressCoords: { latitude: number; longitude: number } | null;
+  details?: string;
+  contactName: string;
+  contactPhone: string;
+};
+
+export type DeliveryVehicleType = "motorcycle" | "car" | "van" | "truck";
+
+export type DeliveryFlowPayload = {
+  flow: "send" | "receive";
+  vehicleType: DeliveryVehicleType;
+  pickupProfile: DeliveryAddressProfile;
+  dropoffProfile: DeliveryAddressProfile;
+  stops?: DeliveryAddressProfile[];
+};
+
 export type ClientStackParamList = {
   Home:
     | {
@@ -57,16 +75,32 @@ export type ClientStackParamList = {
           latitude: number;
           longitude: number;
         };
-        favorite_creation?: boolean;
         initialVehicle?: string;
         initialService?: string;
         resumeDriverFound?: boolean;
+        activeRideId?: string;
+        confirmedSender?: DeliveryAddressProfile;
+        deliveryDraftProfile?: {
+          role: "pickup" | "dropoff";
+          profile: DeliveryAddressProfile;
+          vehicleType?: DeliveryVehicleType | string;
+          flow?: "send" | "receive" | string;
+        };
       }
     | undefined;
   LocationPicker:
     | {
         selectionMode?: string;
         returnScreen?: string;
+        returnMode?: "sender" | "receiver";
+        senderData?: {
+          mode: string;
+          address: string;
+          addressCoords: { latitude: number; longitude: number } | null;
+          addressDetails: string;
+          contactName: string;
+          contactPhone: string;
+        };
         favoriteId?: string;
         favoriteData?: any;
         initialLocation?: {
@@ -76,6 +110,10 @@ export type ClientStackParamList = {
         };
         initialVehicle?: string;
         initialService?: string;
+        vehicleType?: DeliveryVehicleType | string;
+        flow?: "send" | "receive" | string;
+        pickupProfile?: DeliveryAddressProfile | null;
+        dropoffProfile?: DeliveryAddressProfile | null;
       }
     | undefined;
   DestinationSearch:
@@ -105,6 +143,26 @@ export type ClientStackParamList = {
       }
     | undefined;
   Favorites: undefined;
+  FavoriteAddressFlow:
+    | {
+        initialSearchMode?: "home" | "work" | "favorite" | "favoritesList";
+        selectionMode?: boolean;
+        returnScreen?: string;
+        isSender?: boolean;
+        returnMode?: "sender" | "receiver";
+        vehicleType?: string;
+        flow?: "send" | "receive" | string;
+        pickupProfile?: DeliveryAddressProfile | null;
+        dropoffProfile?: DeliveryAddressProfile | null;
+        mapPickedAddress?: string;
+        mapPickedLatitude?: number;
+        mapPickedLongitude?: number;
+        mapPickedName?: string;
+        mapPickedPhone?: string;
+        mapPickedDetails?: string;
+        isFromMapSelection?: boolean;
+      }
+    | undefined;
   SelectVehicle:
     | {
         pickup?: { address: string; latitude: number; longitude: number };
@@ -128,6 +186,56 @@ export type ClientStackParamList = {
     | undefined;
   FinalOrderSummary: { data: any };
   Payment: { amount: number; order?: any };
+  DeliverySenderInfo:
+    | {
+        mode?: "sender" | "receiver";
+        vehicleType?: DeliveryVehicleType | string;
+        flow?: "send" | "receive" | string;
+        pickupProfile?: DeliveryAddressProfile | null;
+        dropoffProfile?: DeliveryAddressProfile | null;
+        stops?: DeliveryAddressProfile[];
+        isAddingStop?: boolean;
+        senderData?: {
+          mode: string;
+          address: string;
+          addressCoords: { latitude: number; longitude: number } | null;
+          addressDetails: string;
+          contactName: string;
+          contactPhone: string;
+        };
+        mapPickedAddress?: string;
+        mapPickedLatitude?: number;
+        mapPickedLongitude?: number;
+        mapPickedName?: string;
+        mapPickedPhone?: string;
+        mapPickedDetails?: string;
+      }
+    | undefined;
+  DeliveryDetails: DeliveryFlowPayload;
+  DeliveryMapPicker:
+    | {
+        initialLatitude?: number;
+        initialLongitude?: number;
+        returnField?: string;
+        returnScreen?: "DeliverySenderInfo" | "FavoriteAddressFlow";
+        favoriteInitialSearchMode?: "home" | "work" | "favorite";
+        selectionMode?: boolean;
+        returnMode?: "sender" | "receiver";
+        vehicleType?: DeliveryVehicleType | string;
+        flow?: "send" | "receive" | string;
+        pickupProfile?: DeliveryAddressProfile | null;
+        dropoffProfile?: DeliveryAddressProfile | null;
+      }
+    | undefined;
+  EditDeliveryAddress:
+    | {
+        addressId?: string;
+        addressData?: any;
+        mapPickedAddress?: string;
+        mapPickedLatitude?: number;
+        mapPickedLongitude?: number;
+      }
+    | undefined;
   DeliverySetup:
     | {
         vehicleType?: string;
@@ -138,6 +246,35 @@ export type ClientStackParamList = {
         initialDurationMin?: number | null;
       }
     | undefined;
+  DeliveryReview:
+    | {
+        pickup: { address: string; latitude: number; longitude: number };
+        dropoff: { address: string; latitude: number; longitude: number };
+        cityId?: string;
+        preferScheduled?: boolean;
+        scheduledOffsetMin?: number;
+        vehicleType?: string;
+        deliveryType?: string;
+        cargoSize?: "small" | "medium" | "large";
+        needsHelper?: boolean;
+        priority?: number;
+        cargoDescription?: string;
+        pickupComplement?: string;
+        dropoffComplement?: string;
+        recipientName?: string;
+        recipientPhone?: string;
+        recipientInstructions?: string;
+        deliveryPin?: string;
+        offerValue?: number;
+        paymentMethod?: string;
+        pricingSnapshot?: any;
+      }
+    | undefined;
+  DeliveryPaymentConfirm:
+    | {
+        rideId: string;
+      }
+    | undefined;
   RideTracking: { rideId: string };
   Chat: { rideId: string; driverName?: string };
   RideCompleted: {
@@ -146,6 +283,9 @@ export type ClientStackParamList = {
     pickupAddress?: string;
     dropoffAddress?: string;
     driverName?: string;
+    driverId?: string;
+    driverRating?: { averageStars?: number; totalRatings?: number };
+    existingRating?: { stars: number; comment?: string };
     serviceType?: string;
   };
   ClientRateDriver: { rideId: string; driverName?: string; serviceType?: string };
@@ -178,13 +318,14 @@ export type ClientStackParamList = {
   SearchingDriver: { rideId: string; serviceType?: string };
   ActiveOrders: undefined;
   ShiftOffersClient: undefined;
-  RideOffersMarketplace: { rideId: string };
+  RideOffersMarketplace: { rideId: string; autoOpenIncrease?: boolean };
   PaymentsCenter: undefined;
   Coupons: undefined;
   Receipts: undefined;
   PrivacyData: undefined;
   InviteFriends: undefined;
   SupportCenter: undefined;
+  OrderSent: { rideId?: string };
 };
 
 export type HomeScreenNavigationProp = any;

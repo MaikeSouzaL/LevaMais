@@ -6,23 +6,11 @@ const { initializeWebSocket } = require("./config/websocket");
 
 // Routes imports continue...
 const authRoutes = require("./routes/auth.routes");
-const purposeRoutes = require("./routes/purpose.routes");
-const favoriteRoutes = require("./routes/favorite.routes");
-const favoriteAddressRoutes = require("./routes/favoriteAddress.routes");
 const rideRoutes = require("./routes/ride.routes");
 const driverLocationRoutes = require("./routes/driverLocation.routes");
-const cityRoutes = require("./routes/city.routes");
-const pricingRoutes = require("./routes/pricing.routes");
-const walletRoutes = require("./routes/wallet.routes");
-const representativeRoutes = require("./routes/representative.routes");
-const platformConfigRoutes = require("./routes/platformConfig.routes");
-const chatRoutes = require("./routes/chat.routes");
-const shiftOfferRoutes = require("./routes/shiftOffer.routes");
-const promotionRoutes = require("./routes/promotion.routes");
-const driverRoutes = require("./routes/driver.routes");
-const configRoutes = require("./routes/config.routes");
-const paymentRoutes = require("./routes/payments.routes");
-const withdrawRoutes = require("./routes/withdraw.routes");
+const favoriteAddressRoutes = require("./routes/favoriteAddress.routes");
+const addressHistoryRoutes = require("./routes/addressHistory.routes");
+const senderRoutes = require("./routes/sender.routes");
 
 function parseAllowedOrigins() {
   const fromEnv = String(
@@ -64,23 +52,11 @@ function applyMiddlewares(app) {
 
 function applyRoutes(app) {
   app.use("/api/auth", authRoutes);
-  app.use("/api/purposes", purposeRoutes);
-  app.use("/api/favorites", favoriteRoutes);
-  app.use("/api/favorite-addresses", favoriteAddressRoutes);
   app.use("/api/rides", rideRoutes);
   app.use("/api/driver-location", driverLocationRoutes);
-  app.use("/api/cities", cityRoutes);
-  app.use("/api/pricing", pricingRoutes);
-  app.use("/api/wallet", walletRoutes);
-  app.use("/api/representatives", representativeRoutes);
-  app.use("/api/platform-config", platformConfigRoutes);
-  app.use("/api/chat", chatRoutes);
-  app.use("/api/shift-offers", shiftOfferRoutes);
-  app.use("/api/promotions", promotionRoutes);
-  app.use("/api/drivers", driverRoutes);
-  app.use("/api/config", configRoutes);
-  app.use("/api/payments", paymentRoutes);
-  app.use("/api/withdraws", withdrawRoutes);
+  app.use("/api/favorite-addresses", favoriteAddressRoutes);
+  app.use("/api/address-history", addressHistoryRoutes);
+  app.use("/api/senders", senderRoutes);
 
   app.get("/api/health", (req, res) => {
     res.json({
@@ -91,12 +67,6 @@ function applyRoutes(app) {
         auth: true,
         rides: true,
         websocket: true,
-        matching: true,
-        cities: true,
-        pricing: true,
-        promotions: true,
-        payments: true,
-        withdraws: true,
       },
     });
   });

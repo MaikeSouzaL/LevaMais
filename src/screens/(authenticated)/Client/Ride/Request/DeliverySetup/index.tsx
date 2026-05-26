@@ -1,63 +1,96 @@
-import React, { useState, useEffect } from "react";
-import { View, Text, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform, TouchableOpacity } from "react-native";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { View, Text, ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity } from "react-native";
 import Toast from "react-native-toast-message";
 
-import rideService, { CreateRideRequest } from "@/services/ride.service";
+import rideService from "@/services/ride.service";
 import { useClientCityStore } from "@/context/clientCityStore";
+import { useDebounce } from "@/hooks/useDebounce";
 
-// ✨ Logistical Premium Components Synthesizer
 import { DeliverySetupHeader } from "@/components/client/delivery-setup/DeliverySetupHeader";
 import { DeliverySummaryCard } from "@/components/client/delivery-setup/DeliverySummaryCard";
 import { VehicleSelector, LogisticsVehicleType } from "@/components/client/delivery-setup/VehicleSelector";
 import { DeliveryTypeSelector, DeliveryType } from "@/components/client/delivery-setup/DeliveryTypeSelector";
 import { CargoSizeSelector } from "@/components/client/delivery-setup/CargoSizeSelector";
+import { HelperSwitch } from "@/components/client/delivery-setup/HelperSwitch";
 import { CargoDescriptionInput } from "@/components/client/delivery-setup/CargoDescriptionInput";
 import { DeliveryOfferCard } from "@/components/client/delivery-setup/DeliveryOfferCard";
 import { DeliveryPrioritySelector, DeliveryPriority } from "@/components/client/delivery-setup/DeliveryPrioritySelector";
 import { SearchDeliveryButton } from "@/components/client/delivery-setup/SearchDeliveryButton";
-import { PaymentMethodSelector, PaymentMethodType } from "@/components/client/delivery-setup/PaymentMethodSelector";
+import { FragileSwitch } from "@/components/client/delivery-setup/FragileSwitch";
+import { WeightInput } from "@/components/client/delivery-setup/WeightInput";
+import { DeliveryDataForm } from "@/components/client/delivery-setup/DeliveryDataForm";
+import { DeliveryOfferSkeleton } from "@/components/client/delivery-setup/DeliveryOfferSkeleton";
+import { Zap } from "lucide-react-native";
 
-// Visual Foundations 🗺️
-import { CargoSize } from "@/components/client/delivery-setup/CargoSizeSelector";
+export type CargoSize = "small" | "medium" | "large";
 
 interface DeliverySetupParams {
   vehicleType?: LogisticsVehicleType;
   preferScheduled?: boolean;
   pickup: { address: string; latitude: number; longitude: number };
   dropoff: { address: string; latitude: number; longitude: number };
+  routeCoordinates?: Array<{ latitude: number; longitude: number }>;
   initialDistanceKm?: number;
   initialDurationMin?: number;
 }
 
-export default function DeliverySetupScreen() {
-  const navigation = useNavigation<any>();
-  const route = useRoute();
+export default function DeliverySetupScreen({ navigation, route }: any) {
   const params = (route.params as DeliverySetupParams) || {};
   const detectedCity = useClientCityStore((state) => state.city);
 
-  // Logic States
   const [loadingPricing, setLoadingPricing] = useState(true);
-  const [creatingDelivery, setCreatingDelivery] = useState(false);
   const [priceData, setPriceData] = useState<any>(null);
   const [pricingError, setPricingError] = useState<string | null>(null);
   const [pricingReloadTick, setPricingReloadTick] = useState(0);
-  
-  // Dynamic User Entry Store (Delivery Context)
+
   const [vehicleType, setVehicleType] = useState<LogisticsVehicleType>(params.vehicleType || "motorcycle");
   const [deliveryType, setDeliveryType] = useState<DeliveryType>("food");
   const [cargoDescription, setCargoDescription] = useState("");
-  const [cargoSize, setCargoSize] = useState<CargoSize>("medium");
-  const needsHelper = false;
-  const [offerValue, setOfferValue] = useState<number>(20.00);
+  const [cargoSize, setCargoSize] = useState<CargoSize>("small");
+  const [needsHelper, setNeedsHelper] = useState(false);
+  const [isFragile, setIsFragile] = useState(false);
+  const [approximateWeightKg, setApproximateWeightKg] = useState("");
+  const [offerValue, setOfferValue] = useState<number>(20.0);
   const [priority, setPriority] = useState<DeliveryPriority>(0);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType>("cash");
   const [scheduledOffsetMin, setScheduledOffsetMin] = useState<number>(60);
-  const [helperAutoSuggested, setHelperAutoSuggested] = useState(false);
+  const [pickupComplement, setPickupComplement] = useState("");
+  const [dropoffComplement, setDropoffComplement] = useState("");
+  const [recipientName, setRecipientName] = useState("");
+  const [recipientPhone, setRecipientPhone] = useState("");
+  const [recipientInstructions, setRecipientInstructions] = useState("");
+  const [deliveryPin, setDeliveryPin] = useState(() =>
+    String(Math.floor(1000 + Math.random() * 9000))
+  );
+
   const hasValidRoute = Boolean(params.pickup && params.dropoff);
 
+  // Debounce text inputs that trigger pricing
+  const debouncedCargoDescription = useDebounce(cargoDescription, 500);
+  const debouncedWeight = useDebounce(approximateWeightKg, 500);
 
-  // Fetch automated server dynamic pricing guidance upon configuration shifts
+  const handleRegeneratePin = useCallback(() => {
+    setDeliveryPin(String(Math.floor(1000 + Math.random() * 9000)));
+  }, []);
+
+  const handleOfferValueChange = useCallback((nextValue: number) => {
+    const parsed = Number(nextValue);
+    if (!Number.isFinite(parsed)) return;
+    setOfferValue(Math.max(1, Math.round(parsed)));
+  }, []);
+
+  // Inline validation
+  const nameError = useMemo(() => {
+    if (!recipientName) return undefined;
+    return recipientName.trim().length < 2 ? "Nome muito curto" : undefined;
+  }, [recipientName]);
+
+  const phoneError = useMemo(() => {
+    if (!recipientPhone) return undefined;
+    const digits = recipientPhone.replace(/\D/g, "");
+    if (digits.length < 10) return "Telefone incompleto";
+    return undefined;
+  }, [recipientPhone]);
+
   useEffect(() => {
     const refreshPricing = async () => {
       if (!params.pickup || !params.dropoff) {
@@ -68,24 +101,23 @@ export default function DeliverySetupScreen() {
       try {
         setPricingError(null);
         setLoadingPricing(true);
+        const parsedWeight = parseFloat(debouncedWeight);
         const res = await rideService.calculatePrice({
           pickup: params.pickup,
           dropoff: params.dropoff,
-          vehicleType: vehicleType,
-          deliveryType: deliveryType,
-          cargoSize: cargoSize,
-          priority: priority,
-          needsHelper: needsHelper,
+          vehicleType,
+          deliveryType,
+          cargoSize,
+          priority,
+          needsHelper,
+          isFragile,
+          approximateWeightKg: Number.isFinite(parsedWeight) ? parsedWeight : undefined,
           serviceType: "delivery",
-          cityId: detectedCity?.cityId || undefined,
-          // Convert KM -> Meters and Min -> Seconds
           distance: params.initialDistanceKm ? Math.round(params.initialDistanceKm * 1000) : undefined,
           duration: params.initialDurationMin ? Math.round(params.initialDurationMin * 60) : undefined,
         });
-        
+
         setPriceData(res);
-        
-        // Update floor for initial pricing based on dynamic backend recommendation
         const smartSuggestion = res.smartPricing?.suggestedPrice || res.pricing?.total || 20;
         setOfferValue(Math.round(smartSuggestion));
       } catch (e: any) {
@@ -101,7 +133,10 @@ export default function DeliverySetupScreen() {
     deliveryType,
     cargoSize,
     needsHelper,
+    isFragile,
     priority,
+    debouncedWeight,
+    debouncedCargoDescription,
     params.pickup?.latitude,
     params.dropoff?.latitude,
     params.initialDistanceKm,
@@ -110,8 +145,7 @@ export default function DeliverySetupScreen() {
     pricingReloadTick,
   ]);
 
-  // Transmits to the finalized backend CreateRideRequest shape perfectly aligned with service.ts
-  const handleLaunchSearch = async () => {
+  const handleReviewRequest = () => {
     if (!hasValidRoute) {
       Toast.show({
         type: "error",
@@ -128,102 +162,70 @@ export default function DeliverySetupScreen() {
       });
       return;
     }
-    try {
-      setCreatingDelivery(true);
-      if (!Number.isFinite(offerValue) || offerValue <= 0) {
-        Toast.show({
-          type: "error",
-          text1: "Valor de oferta invalido",
-          text2: "Defina uma oferta maior que zero.",
-        });
-        return;
-      }
-      
-      // Detailed synthesis mapped directly to the backend schema RideDetails & CreateRideRequest
-      const backendPayload: CreateRideRequest = {
-        serviceType: "delivery", // Explicit logistics toggle
-        vehicleType: vehicleType,
-        pickup: params.pickup,
-        dropoff: params.dropoff,
-        cityId: detectedCity?.cityId || undefined,
-        pricing: {
-          ...priceData.pricing,
-          total: offerValue // injecting client negotiated value
-        },
-        distance: priceData.distance,
-        duration: priceData.duration,
-        details: {
-          itemType: deliveryType,
-          needsHelper: needsHelper,
-          priority: priority,
-          specialInstructions: `[Tamanho: ${cargoSize}] ${cargoDescription}`.trim(),
-        },
-        negotiation: {
-          enabled: true,
-          clientOffer: offerValue
-        },
-        payment: {
-          method: {
-            // Match the backend typing from service.ts
-            type: paymentMethod === "card" ? "credit_card" : paymentMethod
-          }
-        },
-        scheduledFor: params.preferScheduled
-          ? new Date(Date.now() + scheduledOffsetMin * 60 * 1000).toISOString()
-          : undefined,
-      };
-
-      const created = await rideService.create(backendPayload);
-
-      if (created?.status === "scheduled") {
-        Toast.show({
-          type: "success",
-          text1: "Entrega agendada",
-          text2: "Seu pedido foi agendado e aparecera em pedidos ativos.",
-        });
-        navigation.replace("ActiveOrders");
-        return;
-      }
-
-      // Hand off directly into standard Searching lifecycle screen
-      navigation.replace("SearchingDriver", {
-        rideId: created._id,
-        serviceType: "delivery",
-      });
-    } catch (e: any) {
+    if (!Number.isFinite(offerValue) || offerValue <= 0) {
       Toast.show({
         type: "error",
-        text1: "Erro ao lançar entrega",
-        text2: e?.message || "Verifique sua conexão",
+        text1: "Valor de oferta invalido",
+        text2: "Defina uma oferta maior que zero.",
       });
-    } finally {
-      setCreatingDelivery(false);
+      return;
     }
+    if (!recipientName.trim() || !recipientPhone.trim() || nameError || phoneError) {
+      Toast.show({
+        type: "error",
+        text1: "Dados do recebedor invalidos",
+        text2: nameError || phoneError || "Informe nome e telefone do recebedor.",
+      });
+      return;
+    }
+
+
+    navigation.navigate("DeliveryReview", {
+      pickup: params.pickup,
+      dropoff: params.dropoff,
+      routeCoordinates: params.routeCoordinates,
+      preferScheduled: Boolean(params.preferScheduled),
+      scheduledOffsetMin,
+      vehicleType,
+      deliveryType,
+      cargoSize,
+      needsHelper,
+      isFragile,
+      approximateWeightKg,
+      priority,
+      cargoDescription,
+      pickupComplement,
+      dropoffComplement,
+      recipientName,
+      recipientPhone,
+      recipientInstructions,
+      deliveryPin,
+      offerValue,
+      pricingSnapshot: priceData,
+    });
   };
 
-  // Leverage Smart Dynamic Backend Hint Ranges
-  const minHint = priceData?.smartPricing?.minimumPrice || 15;
-  const maxHint = priceData?.smartPricing?.priorityPrice || 35;
+  const minHintRaw = Number(priceData?.smartPricing?.minimumPrice);
+  const maxHintRaw = Number(priceData?.smartPricing?.priorityPrice);
+  const minHint = Number.isFinite(minHintRaw) ? minHintRaw : 15;
+  const maxHint = Number.isFinite(maxHintRaw) ? maxHintRaw : 35;
 
   return (
-    <KeyboardAvoidingView 
-      behavior={Platform.OS === "ios" ? "padding" : undefined} 
-      className="flex-1 bg-[#091A2F]"
-    >
-      {/* Solid Dark Dashboard Substrate (Map background eradicated per user request) */}
+    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} className="flex-1 bg-[#091A2F]">
       <View className="absolute inset-0 bg-[#091A2F]" />
 
-      <DeliverySetupHeader />
+      <DeliverySetupHeader onBack={navigation.goBack} />
 
-      {/* The Operation Panel Scroll wrapper now breathes more and groups items elegantly */}
-      <ScrollView 
-        className="flex-1 pt-28" 
+      <ScrollView
+        className="flex-1 pt-28"
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         contentContainerStyle={{ paddingBottom: 180, paddingTop: 16 }}
       >
-        <DeliverySummaryCard 
-          originAddress={params.pickup?.address || "Origem nao informada"} 
-          dropoffAddress={params.dropoff?.address || "Destino nao informado"} 
+        <DeliverySummaryCard
+          originAddress={params.pickup?.address || "Origem nao informada"}
+          dropoffAddress={params.dropoff?.address || "Destino nao informado"}
           distance={priceData?.distance?.text || (params.initialDistanceKm ? `${params.initialDistanceKm.toFixed(1)} km` : "...")}
           duration={priceData?.duration?.text || (params.initialDurationMin ? `${Math.ceil(params.initialDurationMin)} min` : "...")}
         />
@@ -245,16 +247,10 @@ export default function DeliverySetupScreen() {
                   key={minutes}
                   onPress={() => setScheduledOffsetMin(minutes)}
                   className={`rounded-full px-3 py-1 ${
-                    scheduledOffsetMin === minutes
-                      ? "bg-[#fbbf24]"
-                      : "bg-[#fbbf24]/15 border border-[#fbbf24]/40"
+                    scheduledOffsetMin === minutes ? "bg-[#fbbf24]" : "bg-[#fbbf24]/15 border border-[#fbbf24]/40"
                   }`}
                 >
-                  <Text
-                    className={`text-[11px] font-semibold ${
-                      scheduledOffsetMin === minutes ? "text-[#091A2F]" : "text-[#fbbf24]"
-                    }`}
-                  >
+                  <Text className={`text-[11px] font-semibold ${scheduledOffsetMin === minutes ? "text-[#091A2F]" : "text-[#fbbf24]"}`}>
                     {minutes} min
                   </Text>
                 </TouchableOpacity>
@@ -262,22 +258,14 @@ export default function DeliverySetupScreen() {
             </View>
           </View>
         )}
-        
+
         <View className="h-[1px] bg-white/[0.03] w-full my-2" />
 
-        <VehicleSelector 
-          selected={vehicleType} 
-          onSelect={setVehicleType} 
-          pickupLocation={params.pickup}
-        />
+        <VehicleSelector selected={vehicleType} onSelect={setVehicleType} pickupLocation={params.pickup} />
 
         <View className="h-[1px] bg-white/[0.03] w-full mb-6" />
 
-        <DeliveryTypeSelector 
-          selected={deliveryType} 
-          onSelect={setDeliveryType} 
-          vehicleType={vehicleType} 
-        />
+        <DeliveryTypeSelector selected={deliveryType} onSelect={setDeliveryType} vehicleType={vehicleType} />
 
         {(vehicleType === "van" || vehicleType === "truck") && (
           <View className="mx-6 mb-4 rounded-xl border border-[#38bdf8]/30 bg-[#38bdf8]/10 px-3 py-2">
@@ -287,48 +275,65 @@ export default function DeliverySetupScreen() {
           </View>
         )}
 
-        <CargoSizeSelector value={cargoSize} onChange={setCargoSize} />
-
-
-
         <CargoDescriptionInput value={cargoDescription} onChange={setCargoDescription} />
 
+        <View className="h-[1px] bg-white/[0.03] w-full mb-6 mt-2" />
 
-        
+        <CargoSizeSelector value={cargoSize} onChange={setCargoSize} />
+
+        <HelperSwitch enabled={needsHelper} onToggle={setNeedsHelper} />
+
+        <FragileSwitch enabled={isFragile} onToggle={setIsFragile} />
+
+        <WeightInput value={approximateWeightKg} onChange={setApproximateWeightKg} />
+
         <View className="h-[1px] bg-white/[0.03] w-full mb-6 mt-2" />
 
         <DeliveryPrioritySelector value={priority} onChange={setPriority} />
 
         <View className="h-[1px] bg-white/[0.03] w-full mb-6 mt-2" />
 
-        <PaymentMethodSelector value={paymentMethod} onChange={setPaymentMethod} />
+        <DeliveryDataForm
+          pickupComplement={pickupComplement}
+          dropoffComplement={dropoffComplement}
+          recipientName={recipientName}
+          recipientPhone={recipientPhone}
+          recipientInstructions={recipientInstructions}
+          deliveryPin={deliveryPin}
+          onPickupComplementChange={setPickupComplement}
+          onDropoffComplementChange={setDropoffComplement}
+          onRecipientNameChange={setRecipientName}
+          onRecipientPhoneChange={setRecipientPhone}
+          onRecipientInstructionsChange={setRecipientInstructions}
+          onDeliveryPinChange={setDeliveryPin}
+          onRegeneratePin={handleRegeneratePin}
+          nameError={nameError}
+          phoneError={phoneError}
+        />
 
         {loadingPricing ? (
-          <View className="h-32 items-center justify-center"><ActivityIndicator color="#02de95" /></View>
+          <DeliveryOfferSkeleton />
         ) : pricingError ? (
           <View className="mx-4 mb-4 rounded-xl border border-amber-300/40 bg-amber-500/10 px-3 py-3">
             <Text className="text-amber-200 text-[12px] font-semibold">{pricingError}</Text>
-            <TouchableOpacity
-              onPress={() => setPricingReloadTick((prev) => prev + 1)}
-              className="mt-2 self-start rounded-full border border-amber-300/50 px-3 py-1"
-            >
+            <TouchableOpacity onPress={() => setPricingReloadTick((prev) => prev + 1)} className="mt-2 self-start rounded-full border border-amber-300/50 px-3 py-1">
               <Text className="text-amber-200 text-[11px] font-bold">Recarregar cotacao</Text>
             </TouchableOpacity>
           </View>
         ) : (
-          <DeliveryOfferCard 
-            value={offerValue} 
-            suggestedMin={minHint} 
-            suggestedMax={maxHint} 
-            onChange={setOfferValue} 
-          />
+          <View>
+            <DeliveryOfferCard value={offerValue} suggestedMin={minHint} suggestedMax={maxHint} onChange={handleOfferValueChange} />
+            <View className="items-center mb-6">
+              <View className="flex-row items-center bg-[#1E2D3D] border border-white/5 px-4 py-2 rounded-full shadow-md">
+                <Zap size={11} color="#02de95" className="mr-1.5" />
+                <Text className="text-white/80 text-[11px] font-bold">Preco sugerido: R$ {Math.round(minHint)} - R$ {Math.round(maxHint)}</Text>
+              </View>
+            </View>
+          </View>
         )}
       </ScrollView>
 
-      <SearchDeliveryButton 
-        loading={creatingDelivery || loadingPricing} 
-        onPress={handleLaunchSearch} 
-      />
+      <SearchDeliveryButton loading={loadingPricing} onPress={handleReviewRequest} label="Revisar Pedido" />
     </KeyboardAvoidingView>
   );
 }

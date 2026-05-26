@@ -1,6 +1,7 @@
-const socketIo = require("socket.io");
+﻿const socketIo = require("socket.io");
 const jwt = require("jsonwebtoken");
 const Ride = require("../models/Ride");
+const RideTrackPoint = require("../models/RideTrackPoint");
 const DriverLocation = require("../models/DriverLocation");
 
 let io;
@@ -117,6 +118,11 @@ function initializeWebSocket(server) {
         const speed = Number.isFinite(Number(data?.speed))
           ? Number(data.speed)
           : undefined;
+        const accuracy = Number.isFinite(Number(data?.accuracy))
+          ? Number(data.accuracy)
+          : undefined;
+        const phase = data?.phase || "to_dropoff";
+        const capturedAt = data?.capturedAt ? new Date(data.capturedAt) : new Date();
 
         await DriverLocation.findOneAndUpdate(
           { driverId: socket.userId },
@@ -139,7 +145,7 @@ function initializeWebSocket(server) {
 
         if (driverLocation?.currentRideId) {
           const ride = await Ride.findById(driverLocation.currentRideId).select(
-            "clientId driverId",
+            "clientId driverId status",
           );
 
           if (ride && isSameId(ride.driverId, socket.userId)) {
@@ -148,7 +154,28 @@ function initializeWebSocket(server) {
               location: { latitude, longitude },
               heading,
               speed,
+              phase,
             });
+
+            // Persistir track point (a cada atualizacao com ride ativa)
+            const activeStatuses = ["accepted", "driver_arriving", "arrived", "in_progress"];
+            if (activeStatuses.includes(ride.status)) {
+              try {
+                await RideTrackPoint.create({
+                  rideId: ride._id,
+                  driverId: socket.userId,
+                  latitude,
+                  longitude,
+                  heading,
+                  speed,
+                  accuracy,
+                  phase,
+                  capturedAt,
+                });
+              } catch (trackErr) {
+                // Silencioso - nao interrompe o fluxo principal
+              }
+            }
           }
         }
       } catch (error) {
@@ -215,24 +242,26 @@ function initializeWebSocket(server) {
       }
     });
 
-    // Evento: Mensagem de chat
-    socket.on("send-message", async (data, ack) => {
+    // Evento: Mensagem de chat (via WebSocket, sem persistência)
+    socket.on("send-message", (data, ack) => {
       try {
         const rideId = String(data?.rideId || "").trim();
         const message = String(data?.message || "");
 
-        const { createMessage } = require("../controllers/chat.controller");
-
-        const payload = await createMessage({
+        const payload = {
           rideId,
           senderId: socket.userId,
           senderType: socket.userType,
           message,
-        });
+          timestamp: new Date().toISOString(),
+        };
 
         const receiverType = payload.senderType === "driver" ? "client" : "driver";
-        io.to(`${receiverType}-${payload.receiverId}`).emit("new-message", payload);
-        io.to(`${payload.senderType}-${payload.senderId}`).emit("new-message", payload);
+        const receiverId = data?.receiverId;
+        if (receiverId) {
+          io.to(`${receiverType}-${receiverId}`).emit("new-message", payload);
+          io.to(`${payload.senderType}-${payload.senderId}`).emit("new-message", payload);
+        }
 
         if (typeof ack === "function") {
           ack({ success: true, message: payload });
@@ -254,80 +283,6 @@ function initializeWebSocket(server) {
       console.log(`WebSocket desconectado: ${socket.id}`);
     });
   });
-
-  // Loop de re-envio periódico de corridas da Fila de Espera (roda a cada 15s)
-  setInterval(async () => {
-    try {
-      const activeQueuedRides = await Ride.find({
-        status: "requesting",
-        isWaitingInQueue: true,
-      }).populate("clientId");
-
-      if (activeQueuedRides.length === 0) return;
-
-      const PlatformConfig = require("../models/PlatformConfig");
-      const systemConfig = await PlatformConfig.findOne().sort({ createdAt: -1 });
-      const defaultInterval = systemConfig?.queueRedispatchInterval || 60;
-
-      for (const ride of activeQueuedRides) {
-        const now = Date.now();
-        const lastDispatched = new Date(ride.lastDispatchedAt || ride.createdAt).getTime();
-        const clientInterval = ride.clientId?.queueRedispatchInterval;
-        const intervalSeconds = clientInterval !== null && clientInterval !== undefined ? clientInterval : defaultInterval;
-
-        if (now - lastDispatched >= intervalSeconds * 1000) {
-          ride.lastDispatchedAt = new Date();
-          ride.redispatchInterval = intervalSeconds;
-          await ride.save();
-
-          let searchRadius = 15000;
-          try {
-            if (ride.cityId) {
-              const City = require("../models/City");
-              const city = await City.findById(ride.cityId).select("searchRadius");
-              if (city?.searchRadius) {
-                searchRadius = city.searchRadius;
-              }
-            }
-          } catch (cityErr) {}
-
-          const nearbyDrivers = await DriverLocation.findNearby(
-            ride.pickup.latitude,
-            ride.pickup.longitude,
-            searchRadius,
-            ride.vehicleType,
-            50,
-            ride.serviceType
-          );
-
-          const rejectedDriverIds = (ride.rejectedBy || []).map(r => String(r.driverId));
-
-          nearbyDrivers.forEach(driver => {
-            if (!driver || !driver.driverId) return;
-            if (rejectedDriverIds.includes(String(driver.driverId))) {
-              // Respeita a recusa do motorista (alerta não aparece de novo para quem já recusou)
-              return;
-            }
-
-            let distanceToPickup = 0;
-            try {
-              if (typeof driver.distanceTo === "function") {
-                distanceToPickup = driver.distanceTo(
-                  ride.pickup.latitude,
-                  ride.pickup.longitude
-                );
-              }
-            } catch (distErr) {}
-
-            // 🔇 FIXED: Silencing disruptive re-popups. Queued items must only trigger passive updates!
-            io.to(`driver-${driver.driverId}`).emit("waiting-queue-updated");
-          });
-        }
-      }
-    } catch (err) {
-      console.error("Erro no loop de re-despacho da fila de espera:", err);
-    }
-  }, 15000);
 
   return io;
 }

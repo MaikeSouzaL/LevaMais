@@ -1,154 +1,79 @@
 import axios from "axios";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
-const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || "dev-admin-key";
-
-// Criar instância do axios com configurações padrão
-const api = axios.create({
-  baseURL: API_URL,
-  timeout: 10000,
-  headers: {
-    "Content-Type": "application/json",
-    ...(ADMIN_API_KEY ? { "x-admin-key": ADMIN_API_KEY } : {}),
-  },
-});
-
 export interface Driver {
   _id: string;
   name: string;
   email: string;
   phone: string;
-  city: string;
   cpf?: string;
-  userType: "driver";
-  vehicleType?: "motorcycle" | "car" | "van" | "truck";
-  vehicleInfo?: {
-    plate: string;
-    model: string;
-    color: string;
-    year: number;
-  };
-  profilePhoto?: string;
+  userType?: "driver";
   isActive: boolean;
-  acceptedTerms: boolean;
   createdAt: string;
-  updatedAt: string;
+  city?: string;
+  driverStatus?: string;
+  driverDocuments?: {
+    cnhFront?: string;
+    cnhBack?: string;
+    selfie?: string;
+    cnhFrontStatus?: string;
+    cnhBackStatus?: string;
+    selfieStatus?: string;
+    rejectionReason?: string;
+    submittedAt?: string;
+  };
+  vehicles?: Array<{
+    _id?: string;
+    type?: string;
+    plate?: string;
+    model?: string;
+    color?: string;
+    year?: number;
+    status?: string;
+    documents?: {
+      crlvFront?: string;
+      crlvBack?: string;
+      vehiclePhoto?: string;
+    };
+  }>;
+  bankAccount?: {
+    bank?: string;
+    agency?: string;
+    account?: string;
+    accountType?: string;
+    pixKey?: string;
+  };
 }
 
-export interface DriverLocation {
-  _id: string;
-  driverId: string;
-  location: {
-    type: string;
-    coordinates: [number, number]; // [longitude, latitude]
-  };
-  status: "offline" | "available" | "busy" | "on_ride";
-  vehicleType: string;
-  vehicle: {
-    plate: string;
-    model: string;
-    color: string;
-    year: number;
-  };
-  heading?: number;
-  speed?: number;
-  currentRideId?: string;
-  lastUpdated: string;
-  acceptingRides: boolean;
-}
+const _RAW_API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001/api";
+const API_URL = _RAW_API_URL.replace("localhost", "127.0.0.1");
+const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || "dev-admin-key";
 
-class DriversService {
-  /**
-   * Buscar todos os motoristas
-   */
+export const driversService = {
   async getAll(): Promise<Driver[]> {
     try {
-      const response = await api.get("/auth/users", {
-        params: { userType: "driver" },
+      const res = await axios.get(`${API_URL}/auth/users?userType=driver`, {
+        headers: { "x-admin-key": ADMIN_API_KEY }
       });
-
-      return response.data.users || [];
+      return res.data?.users || [];
     } catch (error) {
-      console.error("Erro ao buscar motoristas:", error);
-      if (axios.isAxiosError(error)) {
-        throw new Error(
-          error.response?.data?.message || "Erro ao buscar motoristas"
-        );
-      }
-      throw error;
-    }
-  }
-
-  /**
-   * Buscar motorista por ID
-   */
-  async getById(id: string): Promise<Driver> {
-    try {
-      const response = await api.get(`/auth/users/${id}`);
-
-      return response.data.user;
-    } catch (error) {
-      console.error("Erro ao buscar motorista:", error);
-      if (axios.isAxiosError(error)) {
-        throw new Error(
-          error.response?.data?.message || "Motorista não encontrado"
-        );
-      }
-      throw error;
-    }
-  }
-
-  /**
-   * Buscar localização dos motoristas
-   */
-  async getLocations(): Promise<DriverLocation[]> {
-    try {
-      const response = await api.get("/driver-location/all");
-
-      return response.data.locations || [];
-    } catch (error) {
-      console.warn("Não foi possível buscar localizações:", error);
-      // Retornar array vazio em caso de erro
+      console.error("Error fetching drivers:", error);
       return [];
     }
+  },
+
+  async updateStatus(id: string, isActive: boolean): Promise<unknown> {
+    const res = await axios.patch(
+      `${API_URL}/auth/users/${id}`,
+      { isActive },
+      { headers: { "x-admin-key": ADMIN_API_KEY } }
+    );
+    return res.data;
+  },
+
+  async delete(id: string): Promise<unknown> {
+    const res = await axios.delete(`${API_URL}/auth/users/${id}`, {
+      headers: { "x-admin-key": ADMIN_API_KEY }
+    });
+    return res.data;
   }
-
-  /**
-   * Atualizar status do motorista
-   */
-  async updateStatus(id: string, isActive: boolean): Promise<Driver> {
-    try {
-      const response = await api.patch(`/auth/users/${id}`, { isActive });
-
-      return response.data.user;
-    } catch (error) {
-      console.error("Erro ao atualizar status:", error);
-      if (axios.isAxiosError(error)) {
-        throw new Error(
-          error.response?.data?.message || "Erro ao atualizar status"
-        );
-      }
-      throw error;
-    }
-  }
-
-  /**
-   * Deletar motorista
-   */
-  async delete(id: string): Promise<void> {
-    try {
-      await api.delete(`/auth/users/${id}`);
-    } catch (error) {
-      console.error("Erro ao deletar motorista:", error);
-      if (axios.isAxiosError(error)) {
-        throw new Error(
-          error.response?.data?.message || "Erro ao deletar motorista"
-        );
-      }
-      throw error;
-    }
-  }
-}
-
-export const driversService = new DriversService();
-
+};

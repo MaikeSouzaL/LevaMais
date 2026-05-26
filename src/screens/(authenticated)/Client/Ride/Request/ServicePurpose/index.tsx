@@ -45,6 +45,7 @@ type RouteParams = {
     latitude: number;
     longitude: number;
   };
+  routeCoordinates?: Array<{ latitude: number; longitude: number }>;
   initialPurposeId?: string;
 };
 
@@ -67,7 +68,7 @@ export default function ServicePurposeScreen() {
     NativeStackNavigationProp<ClientStackParamList, "ServicePurpose">
   >();
   const route = useRoute<RouteProp<ClientStackParamList, "ServicePurpose">>();
-  const { vehicleType, pickup, dropoff, initialPurposeId } =
+  const { vehicleType, pickup, dropoff, routeCoordinates, initialPurposeId } =
     (route.params as RouteParams) || {};
   const detectedCity = useClientCityStore((state) => state.city);
 
@@ -168,8 +169,6 @@ export default function ServicePurposeScreen() {
           longitude: Number(safeDropoff.longitude),
         },
         vehicleType: resolveVehicleTypeForApi(vehicleType),
-        cityId: detectedCity?.cityId || undefined,
-        purposeId: selectedPurposeId,
       };
 
       const resp = await rideService.calculatePrice(calculatePayload);
@@ -195,6 +194,13 @@ export default function ServicePurposeScreen() {
           latitude: Number(safeDropoff.latitude),
           longitude: Number(safeDropoff.longitude),
         },
+        routeCoordinates:
+          Array.isArray(routeCoordinates) && routeCoordinates.length >= 2
+            ? routeCoordinates
+            : [
+                { latitude: Number(safePickup.latitude), longitude: Number(safePickup.longitude) },
+                { latitude: Number(safeDropoff.latitude), longitude: Number(safeDropoff.longitude) },
+              ],
         etaMinutes: resp?.duration?.value ? Math.ceil(resp.duration.value / 60) : undefined,
         etaText: resp?.duration?.text || undefined,
         servicePurposeLabel: serviceLabel,

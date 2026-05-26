@@ -11,10 +11,17 @@ import EditAccountScreen from "../screens/(authenticated)/Client/Profile/EditAcc
 import AddressPickerScreen from "../screens/(authenticated)/Client/Ride/Request/AddressPicker";
 import DestinationSearchScreen from "../screens/(authenticated)/Client/Ride/Request/DestinationSearch";
 import FavoritesScreen from "../screens/(authenticated)/Client/Favorites/FavoritesList";
+import FavoriteAddressFlowScreen from "../screens/(authenticated)/Client/Favorites/FavoriteAddressFlow";
 import SelectVehicleScreen from "../screens/(authenticated)/Client/Ride/Request/SelectVehicle";
 import ServicePurposeScreen from "../screens/(authenticated)/Client/Ride/Request/ServicePurpose";
 import RideSetupScreen from "../screens/(authenticated)/Client/Ride/Request/RideSetup";
 import DeliverySetupScreen from "../screens/(authenticated)/Client/Ride/Request/DeliverySetup";
+import DeliverySenderInfoScreen from "../screens/(authenticated)/Client/Ride/Request/DeliverySenderInfo";
+import DeliveryDetailsScreen from "../screens/(authenticated)/Client/Ride/Request/DeliveryDetails";
+import EditDeliveryAddressScreen from "../screens/(authenticated)/Client/Ride/Request/EditDeliveryAddress";
+import DeliveryMapPickerScreen from "../screens/(authenticated)/Client/Ride/Request/DeliveryMapPicker";
+import DeliveryReviewScreen from "../screens/(authenticated)/Client/Ride/Request/DeliveryReview";
+import DeliveryPaymentConfirmScreen from "../screens/(authenticated)/Client/Ride/Request/DeliveryPaymentConfirm";
 import OrderSummaryScreen from "../screens/(authenticated)/Client/Ride/Request/OrderSummary";
 import CancelFeeScreen from "../screens/(authenticated)/Client/Ride/Cancellation/CancelFee";
 import ChatScreen from "../screens/(authenticated)/Client/Ride/Tracking/Chat";
@@ -33,6 +40,7 @@ import NotificationsCenterScreen from "../screens/(authenticated)/Client/Notific
 import SearchingDriverScreen from "../screens/(authenticated)/Client/Ride/SearchingDriver";
 import ActiveOrdersScreen from "../screens/(authenticated)/Client/Orders/ActiveOrders";
 import RideOffersMarketplaceScreen from "../screens/(authenticated)/Client/Orders/RideOffersMarketplaceScreen";
+import OrderSentScreen from "../screens/(authenticated)/Client/Ride/OrderSentScreen";
 import ShiftOffersClientScreen from "../screens/(authenticated)/Client/Orders/ShiftOffersClientScreen";
 import PaymentsCenterScreen from "../screens/(authenticated)/Client/Profile/PaymentsCenter";
 import CouponsScreen from "../screens/(authenticated)/Client/Profile/CouponsScreen";
@@ -43,13 +51,16 @@ import SupportCenterScreen from "../screens/(authenticated)/Client/Profile/Suppo
 
 type ClientStackRoutesProps = {
   initialRideId?: string | null;
+  route?: any;
 };
 
 const Stack = createNativeStackNavigator();
 
 export default function ClientStackRoutes({
-  initialRideId,
+  initialRideId: propInitialRideId,
+  route,
 }: ClientStackRoutesProps) {
+  const initialRideId = propInitialRideId || route?.params?.initialRideId;
   const initialRouteName = initialRideId ? "RideTracking" : "Home";
 
   return (
@@ -69,13 +80,21 @@ export default function ClientStackRoutes({
       <Stack.Screen name="DestinationSearch" component={DestinationSearchScreen} />
       <Stack.Screen name="EditFavorite" component={AddressPickerScreen} />
       <Stack.Screen name="Favorites" component={FavoritesScreen} />
+      <Stack.Screen name="FavoriteAddressFlow" component={FavoriteAddressFlowScreen} />
       <Stack.Screen name="SelectVehicle" component={SelectVehicleScreen} />
       <Stack.Screen name="RideSetup" component={RideSetupScreen} />
+      <Stack.Screen name="DeliverySenderInfo" component={DeliverySenderInfoScreen} />
+      <Stack.Screen name="DeliveryDetails" component={DeliveryDetailsScreen} />
+      <Stack.Screen name="EditDeliveryAddress" component={EditDeliveryAddressScreen} />
+      <Stack.Screen name="DeliveryMapPicker" component={DeliveryMapPickerScreen} />
       <Stack.Screen name="DeliverySetup" component={DeliverySetupScreen} />
+      <Stack.Screen name="DeliveryReview" component={DeliveryReviewScreen} />
+      <Stack.Screen name="DeliveryPaymentConfirm" component={DeliveryPaymentConfirmScreen} />
       <Stack.Screen name="ServicePurpose" component={ServicePurposeScreen} />
       <Stack.Screen name="FinalOrderSummary" component={OrderSummaryScreen} />
        <Stack.Screen name="Payment" component={PaymentEnhancedScreen} />
       <Stack.Screen name="SearchingDriver" component={SearchingDriverScreen} />
+      <Stack.Screen name="OrderSent" component={OrderSentScreen} />
       <Stack.Screen name="ActiveOrders" component={ActiveOrdersScreen} />
       <Stack.Screen name="ShiftOffersClient" component={ShiftOffersClientScreen} />
       <Stack.Screen

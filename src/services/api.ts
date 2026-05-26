@@ -5,7 +5,7 @@ import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from "axios";
 // - EXPO_PUBLIC_API_URL (ex.: http://192.168.1.8:3000)
 // - Fallback para rede local de desenvolvimento
 // Obs: baseURL inclui /api
-const RAW_BASE = process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.7:3001";
+const RAW_BASE = process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.7:3005";
 const API_BASE_URL = RAW_BASE.replace(/\/$/, "") + "/api";
 
 if (__DEV__) {

@@ -41,9 +41,8 @@ import { Modal } from "../../../components/Modal";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
 import { MotiView } from "moti";
-import { MapPin, Menu, Target, Layers, ShieldAlert, Info } from "lucide-react-native";
-import { DriverStatusHeader } from "@/components/driver/home/DriverStatusHeader";
-import { IncomingRideCard } from "@/components/driver/home/IncomingRideCard";
+import { MapPin, Menu, Target, Layers, ShieldAlert, Info , AlertTriangle, X } from "lucide-react-native";
+import { NewIncomingOfferSheet } from "@/components/driver/home/NewIncomingOfferSheet";
 import { PremiumMapMarker } from "@/components/maps/PremiumMapMarker";
 import { PremiumDottedRoute } from "@/components/routes/PremiumDottedRoute";
 import { VehicleMarker } from "@/components/maps/VehicleMarker";
@@ -79,11 +78,43 @@ export default function DriverHomeScreen() {
   const isApproved = userData?.driverStatus === "approved";
 
   const [online, setOnline] = useState(false);
-  const [services, setServices] = useState({
-    ride:
-      userData?.vehicleType === "car" || userData?.vehicleType === "motorcycle",
-    delivery: true,
+  const [services, setServices] = useState<{ ride: boolean; delivery: boolean }>(() => {
+    const serviceTypes = userData?.driverPreferences?.serviceTypes;
+    if (Array.isArray(serviceTypes)) {
+      return {
+        ride: serviceTypes.includes("ride"),
+        delivery: serviceTypes.includes("delivery"),
+      };
+    }
+    const canDoRides = userData?.vehicleType === "car" || userData?.vehicleType === "motorcycle";
+    return {
+      ride: canDoRides,
+      delivery: true,
+    };
   });
+
+  // Keep services preference state synchronized with latest profile / userData updates
+  useEffect(() => {
+    if (userData?.driverPreferences?.serviceTypes) {
+      const serviceTypes = userData.driverPreferences.serviceTypes;
+      setServices({
+        ride: serviceTypes.includes("ride"),
+        delivery: serviceTypes.includes("delivery"),
+      });
+    } else {
+      const canDoRides = userData?.vehicleType === "car" || userData?.vehicleType === "motorcycle";
+      setServices({
+        ride: canDoRides,
+        delivery: true,
+      });
+    }
+  }, [userData?.driverPreferences?.serviceTypes, userData?.vehicleType]);
+
+  const servicesRef = useRef(services);
+  useEffect(() => {
+    servicesRef.current = services;
+  }, [services]);
+
   const [error, setError] = useState<string | null>(null);
   const [region, setRegion] = useState<any>(null);
   const [isCentering, setIsCentering] = useState(false);
@@ -98,6 +129,10 @@ export default function DriverHomeScreen() {
   const [scheduledCount, setScheduledCount] = useState(0);
   const [todayEarnings, setTodayEarnings] = useState(0);
   const [incomingRequest, setIncomingRequest] = useState<any>(null);
+  const [isIncomingRequestDismissed, setIsIncomingRequestDismissed] = useState(false);
+  const [showPendingBanner, setShowPendingBanner] = useState(false);
+  const [offersPulseToken, setOffersPulseToken] = useState(0);
+  const [showPendingOfferHighlight, setShowPendingOfferHighlight] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelModalReason, setCancelModalReason] = useState<string | null>(null);
@@ -124,6 +159,7 @@ export default function DriverHomeScreen() {
   const vehicleType = (userData?.vehicleType ||
     "motorcycle") as DriverVehicleType;
   const vehicleInfo = (userData?.vehicleInfo || {}) as any;
+  const hasActiveIncomingRequest = !!incomingRequest?.rideId && !isIncomingRequestDismissed;
 
   const getGoogleMapsApiKey = () => {
     // Prefer env (não expõe a key no repo)
@@ -140,8 +176,8 @@ export default function DriverHomeScreen() {
 
   const currentServiceTypes = () => {
     const list: Array<"ride" | "delivery"> = [];
-    if (services.ride) list.push("ride");
-    if (services.delivery) list.push("delivery");
+    if (servicesRef.current.ride) list.push("ride");
+    if (servicesRef.current.delivery) list.push("delivery");
     return list;
   };
 
@@ -235,6 +271,7 @@ export default function DriverHomeScreen() {
 
     const alreadyShowing = incomingRequest?.rideId === payload.rideId;
     setIncomingRequest(payload);
+    setIsIncomingRequestDismissed(false);
     hasIncomingRequestRef.current = true;
     setPendingRequests((prev) => {
       if (typeof totalCount === "number") return Math.max(totalCount, 1);
@@ -292,6 +329,14 @@ export default function DriverHomeScreen() {
         await showIncomingRideRequest(realtimeRequests[0], response.count || requests.length);
       } else {
         setPendingRequests(0);
+        // Se não há chamadas imediatas mas há negociações pendentes,
+        // redireciona para DriverRequests na aba de negociação
+        const negotiations = response?.pendingNegotiationsCount || 0;
+        const countered = response?.clientCounteredCount || 0;
+        if ((negotiations > 0 || countered > 0) && !hasIncomingRequestRef.current) {
+          (navigation as any).navigate("DriverRequests", { initialTab: "negotiation" });
+          return;
+        }
       }
     } catch (e) {
       console.error("Error syncing available requests:", e);
@@ -302,6 +347,20 @@ export default function DriverHomeScreen() {
     React.useCallback(() => {
       let active = true;
 
+      const loadProfile = async () => {
+        try {
+          const profile = await userService.getProfile();
+          if (!active) return;
+          if (profile) {
+            useAuthStore.getState().updateUserData(profile);
+          }
+        } catch (e) {
+          console.error("Failed to sync profile on home screen focus:", e);
+        }
+      };
+
+      loadProfile();
+
       (async () => {
         try {
           const response = await rideService.getActive();
@@ -311,6 +370,13 @@ export default function DriverHomeScreen() {
             (navigation as any).navigate("DriverRide", {
               rideId: response.ride._id,
             });
+            return;
+          }
+
+          // Se não tem corrida ativa, verifica negociações pendentes
+          const negotiations = await rideService.getPendingNegotiations();
+          if (active && negotiations?.count > 0 && negotiations.requests.length > 0) {
+            (navigation as any).navigate("DriverRequests", { initialTab: "negotiation" });
           }
         } catch {}
       })();
@@ -342,6 +408,13 @@ export default function DriverHomeScreen() {
             (navigation as any).navigate("DriverRide", {
               rideId: response.ride._id,
             });
+            return;
+          }
+
+          // Se não tem corrida ativa, verifica negociações pendentes
+          const negotiations = await rideService.getPendingNegotiations();
+          if (negotiations?.count > 0 && negotiations.requests.length > 0) {
+            (navigation as any).navigate("DriverRequests", { initialTab: "negotiation" });
           }
         })
         .catch(() => {});
@@ -376,7 +449,6 @@ export default function DriverHomeScreen() {
     } catch {}
 
     setOnline(false);
-    driverAlertService.playOfflineSound().catch(() => {});
   };
 
   // Região inicial do mapa deve ser sempre a localização do usuário.
@@ -526,14 +598,14 @@ export default function DriverHomeScreen() {
       title: "Ficar Online & Começar 🚀",
       desc: "Arraste ou clique no botão do painel inferior para ficar online! Quando estiver ativo, o aplicativo começará a buscar corridas e entregas na sua área.",
       targetStyle: {
-        bottom: 20,
+        bottom: 85,
         left: 16,
         right: 16,
-        height: 80,
+        height: 64,
         borderRadius: 24,
       },
       balloonStyle: {
-        bottom: 120,
+        bottom: 185,
         left: 16,
         right: 16,
       },
@@ -557,17 +629,11 @@ export default function DriverHomeScreen() {
   ];
 
   useEffect(() => {
-    const checkTour = async () => {
-      if (isApproved) {
-        const seen = await AsyncStorage.getItem("@leva_mais:driver_tour_seen");
-        if (!seen) {
-          setTimeout(() => {
-            setShowTour(true);
-          }, 1200);
-        }
-      }
-    };
-    checkTour();
+    if (isApproved && !userData?.tourSeen) {
+      setTimeout(() => {
+        setShowTour(true);
+      }, 1200);
+    }
   }, [isApproved]);
 
   const handleNextTourStep = async () => {
@@ -575,13 +641,19 @@ export default function DriverHomeScreen() {
       setTourStep(tourStep + 1);
     } else {
       setShowTour(false);
-      await AsyncStorage.setItem("@leva_mais:driver_tour_seen", "true");
+      try {
+        await userService.updateProfile({ tourSeen: true });
+        useAuthStore.getState().updateUserData({ tourSeen: true });
+      } catch {}
     }
   };
 
   const handleSkipTour = async () => {
     setShowTour(false);
-    await AsyncStorage.setItem("@leva_mais:driver_tour_seen", "true");
+    try {
+      await userService.updateProfile({ tourSeen: true });
+      useAuthStore.getState().updateUserData({ tourSeen: true });
+    } catch {}
   };
 
   // 🛰️ Real-Time High-Definition Tracking for User Puck Marker
@@ -734,7 +806,6 @@ export default function DriverHomeScreen() {
     }, preset.pollMs);
 
     setOnline(true);
-    driverAlertService.playOnlineSound().catch(() => {});
   };
 
   // Badge de solicitacoes novas (new-ride-request)
@@ -805,12 +876,66 @@ export default function DriverHomeScreen() {
       }
     };
 
+    const onRideStatusChanged = async (payload: any) => {
+      if (!mounted) return;
+      const payloadRideId = String(payload?.rideId || payload?._id || payload?.ride?._id || payload?.ride || "");
+      const currentRideId = String(incomingRequest?.rideId || "");
+      if (!payloadRideId || !currentRideId || payloadRideId !== currentRideId) return;
+      const status = String(payload?.status || payload?.ride?.status || "").toLowerCase();
+      const terminalStatuses = [
+        "accepted",
+        "in_progress",
+        "arrived",
+        "completed",
+        "cancelled",
+        "canceled",
+        "cancelled_by_client",
+        "cancelled_by_driver",
+        "cancelled_no_driver",
+        "rejected",
+        "expired",
+        "no_drivers_available",
+      ];
+      if (terminalStatuses.includes(status)) {
+        await clearIncoming();
+        return;
+      }
+      setIncomingRequest((prev: any) => (prev ? { ...prev, status } : prev));
+    };
+
+    // NEW: Handle client selecting this driver's offer (awaiting payment)
+    const onClientSelectedOffer = async (payload: any) => {
+      if (!mounted) return;
+      const rideId = payload?.rideId || payload?.ride?._id;
+      if (!rideId) return;
+      if (incomingRequest && incomingRequest.rideId === rideId) {
+        setIncomingRequest((prev: any) => ({ ...prev, paymentPending: true, status: "payment_pending" }));
+      }
+      await driverAlertService.stop().catch(() => {});
+      Toast.show({ type: "success", text1: "Oferta Selecionada!", text2: "Cliente aceitou sua proposta e esta confirmando o pagamento." });
+      if (isFocused) { (navigation as any).navigate("DriverRequests", { initialTab: "negotiation" }); }
+    };
+
+    // NEW: Handle payment expiration (client didn't confirm)
+    const onDeliverySelectionExpired = async (payload: any) => {
+      if (!mounted) return;
+      const reason = payload?.reason || "tempo_pagamento_expirado";
+      await clearIncoming();
+      await driverAlertService.stop().catch(() => {});
+      Toast.show({ type: "error", text1: "Tempo de Pagamento Expirado", text2: "Cliente nao confirmou o pagamento a tempo. Voce foi liberado." });
+      syncAvailableRequests().catch(() => {});
+    };
+
     webSocketService.on("new-ride-request", onNewRideRequest);
     webSocketService.on("ride-taken", onRideTaken);
     webSocketService.on("ride-cancelled", onRideCancelled);
     webSocketService.on("waiting-queue-updated", syncAvailableRequests);
     webSocketService.on("online_time_updated", onOnlineTimeUpdated);
     webSocketService.on("client-counter-proposal", onClientCounterProposal);
+    webSocketService.on("client-selected-offer-awaiting-payment", onClientSelectedOffer);
+    webSocketService.on("delivery-selection-expired", onDeliverySelectionExpired);
+    webSocketService.on("ride-status-updated", onRideStatusChanged);
+    webSocketService.on("ride-status-changed", onRideStatusChanged);
 
     webSocketService.connect().catch(() => {});
     syncAvailableRequests().catch(() => {});
@@ -823,6 +948,10 @@ export default function DriverHomeScreen() {
       webSocketService.off("waiting-queue-updated", syncAvailableRequests);
       webSocketService.off("online_time_updated", onOnlineTimeUpdated);
       webSocketService.off("client-counter-proposal", onClientCounterProposal);
+      webSocketService.off("client-selected-offer-awaiting-payment", onClientSelectedOffer);
+      webSocketService.off("delivery-selection-expired", onDeliverySelectionExpired);
+      webSocketService.off("ride-status-updated", onRideStatusChanged);
+      webSocketService.off("ride-status-changed", onRideStatusChanged);
     };
   }, [online, incomingRequest?.rideId, isFocused]);
 
@@ -896,10 +1025,18 @@ export default function DriverHomeScreen() {
     const next = !online;
     setIsTogglingOnline(true);
 
+    // Play premium pluck sound immediately on tap for instant sensory feedback
+    if (next) {
+      driverAlertService.playOnlineSound().catch(() => {});
+    } else {
+      driverAlertService.playOfflineSound().catch(() => {});
+    }
+
     try {
       if (!next) {
         // indo para offline
         await stopSharing();
+        await refreshTodayEarnings();
       } else {
         // exige pelo menos um tipo
         const types = currentServiceTypes();
@@ -911,19 +1048,30 @@ export default function DriverHomeScreen() {
           return;
         }
 
-        // ✅ Verificar saldo antes de ficar online
+        // ✅ Verificar permissao para ficar online (driverStatus, docs, veiculo, saldo)
+        // 1. Verificar saldo positivo client-side imediatamente para evitar requests desnecessários
+        if (driverBalance !== null && driverBalance <= 0) {
+          setIsTogglingOnline(false);
+          setError("⚠️ Saldo Insuficiente. Você precisa de saldo positivo para ficar online e aceitar corridas.");
+          return;
+        }
+
         try {
-          const balance = await walletService.getBalance();
-          if (balance.available <= 0) {
+          const goOnlineResult = await driverService.goOnline();
+          if (!goOnlineResult?.success) {
             setIsTogglingOnline(false);
-            setShowNoBalanceModal(true);
+            setError(goOnlineResult?.error || "Voce nao esta liberado para ficar online.");
             return;
           }
-        } catch {
-          // Se falhar ao consultar saldo, permite ir online (evita bloquear por erro de rede)
+        } catch (e: any) {
+          setIsTogglingOnline(false);
+          const msg = e?.response?.data?.error || e?.message || "Nao foi possivel validar sua conta para ficar online.";
+          setError(msg);
+          return;
         }
 
         await startSharing();
+        await refreshTodayEarnings();
         // Consulta de corrida ativa em segundo plano
         rideService
           .getActive()
@@ -975,6 +1123,33 @@ export default function DriverHomeScreen() {
     const nextServices = { ...services, [key]: !services[key] };
     setServices(nextServices);
     setError(null); // Limpa erro se a operação foi bem sucedida
+
+    // Sincronizar persistentemente as preferências no perfil do motorista no backend e atualizar o cache local
+    try {
+      const selectedServices = currentServiceTypesFrom(nextServices);
+      const defaultVehicle = (userData?.vehicleType === "car" || userData?.vehicleType === "motorcycle" || userData?.vehicleType === "van" || userData?.vehicleType === "truck")
+        ? userData.vehicleType
+        : "motorcycle";
+      const selectedVehicles: Array<"motorcycle" | "car" | "van" | "truck"> = 
+        (userData?.driverPreferences?.selectedVehicles as any) || [defaultVehicle];
+
+      const updatedPrefs = {
+        serviceTypes: selectedServices,
+        selectedVehicles,
+        searchRadiusKm: userData?.driverPreferences?.searchRadiusKm || 8,
+        autoAccept: userData?.driverPreferences?.autoAccept || false,
+      };
+
+      await userService.updateProfile({
+        driverPreferences: updatedPrefs,
+      });
+
+      useAuthStore.getState().updateUserData({
+        driverPreferences: updatedPrefs,
+      });
+    } catch (profileErr) {
+      console.error("Erro ao salvar preferências no perfil persistentemente:", profileErr);
+    }
 
     // se já estiver online, atualizar preferências no backend
     if (online) {
@@ -1068,8 +1243,18 @@ export default function DriverHomeScreen() {
           }
   };
 
+  const dismissIncomingSheet = async () => {
+    setIsIncomingRequestDismissed(true);
+    setShowPendingBanner(true);
+    setShowPendingOfferHighlight(false);
+    await driverAlertService.stop();
+  };
+
   const clearIncoming = async () => {
     setIncomingRequest(null);
+    setIsIncomingRequestDismissed(false);
+    setShowPendingBanner(false);
+    setShowPendingOfferHighlight(false);
     hasIncomingRequestRef.current = false;
     setRouteCoords([]);
     setPendingRequests(0);
@@ -1088,23 +1273,53 @@ export default function DriverHomeScreen() {
     }
   }, []);
 
+  const checkAndAutoActivateVehicle = async () => {
+    try {
+      const res = await driverService.listVehicles();
+      const vehicles = res?.vehicles || [];
+      const activeVehicleId = res?.activeVehicleId;
+
+      if (!activeVehicleId && vehicles.length > 0) {
+        const approvedVehicles = vehicles.filter((v: any) => v.status === "approved");
+        if (approvedVehicles.length > 0) {
+          const targetVehicle = approvedVehicles[0];
+          await driverService.activateVehicle(targetVehicle._id);
+
+          const updatedProfile = await userService.getProfile().catch(() => null);
+          if (updatedProfile) {
+            useAuthStore.getState().updateUserData({
+              vehicleType: updatedProfile.vehicleType || targetVehicle.type,
+              vehicleInfo: updatedProfile.vehicleInfo || {
+                plate: targetVehicle.plate,
+                model: targetVehicle.model,
+                color: targetVehicle.color,
+                year: targetVehicle.year,
+              }
+            });
+          }
+
+          Toast.show({
+            type: "success",
+            text1: "Veículo Ativado Automaticamente! 🚗",
+            text2: `${targetVehicle.model} (${targetVehicle.plate}) foi selecionado como seu veículo ativo.`,
+          });
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to auto-activate vehicle:", err);
+    }
+  };
+
   useEffect(() => {
     if (isFocused) {
       loadBalance();
+      if (isApproved) {
+        checkAndAutoActivateVehicle();
+      }
     }
-  }, [isFocused, loadBalance]);
+  }, [isFocused, isApproved, loadBalance]);
 
-  useEffect(() => {
-    if (isApproved && isFocused) {
-      AsyncStorage.getItem("@LevaMais:driver_tour_completed").then((val) => {
-        if (!val) {
-          setTimeout(() => {
-            setShowTour(true);
-          }, 3000);
-        }
-      });
-    }
-  }, [isApproved, isFocused]);
+
 
   const refreshTodayEarnings = async () => {
     try {
@@ -1267,6 +1482,7 @@ export default function DriverHomeScreen() {
     hasIncomingRequestRef.current = Boolean(incomingRequest?.rideId);
 
     if (
+      !isIncomingRequestDismissed &&
       pickup?.latitude &&
       pickup?.longitude &&
       dropoff?.latitude &&
@@ -1280,7 +1496,7 @@ export default function DriverHomeScreen() {
       setRouteCoords([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [incomingRequest?.rideId]);
+  }, [incomingRequest?.rideId, isIncomingRequestDismissed]);
 
 
 
@@ -1299,10 +1515,12 @@ export default function DriverHomeScreen() {
                   if (!isCentering) setRegion(r);
                 }}
                 useDarkStyle={useDarkMap}
+                showsUserLocation={false}
               >
                 {/* 🎯 Real-Time User Puck Marker (HD) */}
                 {driverCoords && (
                   <Marker 
+                    key={`driver-puck-${vehicleType}-${online}`}
                     coordinate={{
                       latitude: driverCoords.latitude,
                       longitude: driverCoords.longitude
@@ -1314,20 +1532,21 @@ export default function DriverHomeScreen() {
                     <VehicleMarker 
                       type={vehicleType as any} 
                       isOnline={online} 
+                      avatarUrl={userData?.fotoPerfil || userData?.profilePhoto || undefined}
                     />
                   </Marker>
                 )}
 
                 {/* 🛣️ Route visualization when request is active */}
-                {incomingRequest?.rideId && routeCoords.length > 0 && (
+                {incomingRequest?.rideId && !isIncomingRequestDismissed && routeCoords.length > 0 && (
                   <>
                     <PremiumDottedRoute coordinates={routeCoords} />
                     <Marker 
                       coordinate={routeCoords[0]} 
                       title="Partida"
-                      anchor={{ x: 0.5, y: 0.5 }}
+                      anchor={{ x: 0.5, y: 1 }}
                     >
-                      <View className="bg-[#02de95] w-4 h-4 rounded-full border-2 border-white shadow-lg" />
+                      <MapMarker type="pickup" />
                     </Marker>
                     <Marker 
                       coordinate={routeCoords[routeCoords.length - 1]} 
@@ -1343,33 +1562,103 @@ export default function DriverHomeScreen() {
               <View className="absolute top-12 left-4 right-4 z-50 flex-row items-center gap-3">
                  <TouchableOpacity
                    onPress={() => (navigation as any).openDrawer?.()}
-                   className="h-[58px] w-[58px] bg-[#091A2F] rounded-2xl border border-white/10 items-center justify-center shadow-2xl"
+                   className="h-[58px] w-[58px] items-center justify-center"
                  >
                     <Menu size={24} color="#FFF" />
                  </TouchableOpacity>
 
-                 <View className="flex-1">
-                    <DriverStatusHeader 
-                      todayEarnings={todayEarnings}
-                      pendingRequests={pendingRequests}
-                      scheduledCount={scheduledCount}
-                      waitingQueueCount={waitingQueueCount}
-                      pendingNegotiationsCount={pendingNegotiationsCount}
-                      onPressNotifications={handleNotifications}
-                      online={online}
-                    />
+                 <View className="flex-1 flex-row justify-end">
+                   {hasActiveIncomingRequest && (
+                     <TouchableOpacity
+                       onPress={dismissIncomingSheet}
+                       className="h-[58px] w-[58px] items-center justify-center"
+                       activeOpacity={0.8}
+                     >
+                       <X size={24} color="#FFFFFF" />
+                     </TouchableOpacity>
+                   )}
                  </View>
               </View>
 
               {/* 🛠️ Map Action Buttons (Centering, Zoom, Layers, SOS) */}
-              <MapActionButtons 
-                onSosPress={handleSOS}
-                onLocationPress={handleCenterMyLocation}
-                onMapStylePress={handleToggleMapStyle}
-                useDarkMap={useDarkMap}
-                isCentering={isCentering}
-                isSwitchingStyle={isSwitchingMapStyle}
-              />
+              {!hasActiveIncomingRequest && (
+                <MapActionButtons 
+                  onSosPress={handleSOS}
+                  onLocationPress={handleCenterMyLocation}
+                  onMapStylePress={handleToggleMapStyle}
+                  useDarkMap={useDarkMap}
+                  isCentering={isCentering}
+                  isSwitchingStyle={isSwitchingMapStyle}
+                />
+              )}
+
+              {/* ⚠️ ACTIVE OFFER PENDING BANNER */}
+              {showPendingBanner && isIncomingRequestDismissed && incomingRequest?.rideId && (
+                <MotiView
+                  from={{ opacity: 0, translateY: -20 }}
+                  animate={{ opacity: 1, translateY: 0 }}
+                  style={{
+                    position: "absolute",
+                    top: 120,
+                    left: 16,
+                    right: 16,
+                    zIndex: 40,
+                    backgroundColor: "#FBBF24",
+                    borderRadius: 16,
+                    padding: 14,
+                    paddingTop: 18,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    borderWidth: 1,
+                    borderColor: "rgba(255,255,255,0.2)",
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.2,
+                    shadowRadius: 8,
+                    elevation: 10,
+                  }}
+                >
+                  <View style={{ flex: 1, marginRight: 8 }}>
+                    <Text style={{ color: "#091A2F", fontSize: 13, fontWeight: "900" }}>
+                      Chamado Ativo Pendente! 🔔
+                    </Text>
+                    <Text style={{ color: "rgba(9, 26, 47, 0.8)", fontSize: 11, fontWeight: "700", marginTop: 2 }}>
+                      Você tem 1 oferta ativa aguardando.
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={handleNotifications}
+                    style={{
+                      backgroundColor: "#091A2F",
+                      paddingHorizontal: 12,
+                      paddingVertical: 8,
+                      borderRadius: 10,
+                    }}
+                  >
+                    <Text style={{ color: "#02de95", fontSize: 11, fontWeight: "900" }}>VER DETALHES</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setShowPendingBanner(false);
+                      setShowPendingOfferHighlight(true);
+                      setOffersPulseToken((prev) => prev + 1);
+                    }}
+                    activeOpacity={0.85}
+                    style={{
+                      position: "absolute",
+                      top: -4,
+                      right: -2,
+                      width: 28,
+                      height: 28,
+                      borderRadius: 14,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <X size={18} color="#091A2F" />
+                  </TouchableOpacity>
+                </MotiView>
+              )}
 
               {/* ⚠️ URGENT QUEUE BANNER */}
               {!!waitingQueueCount && pendingNegotiationsCount === 0 && pendingRequests === 0 && (
@@ -1425,21 +1714,27 @@ export default function DriverHomeScreen() {
             </>
           )}
 
-          {/* 🎁 MASTER DISPATCH INTERCEPTION NODE */}
+          {/* 📦 NEW COMPACT OFFER SHEET — Aceitar | Recusar | Ver Detalhes */}
           {isApproved && (
-            <IncomingRideCard 
-              isVisible={!!incomingRequest?.rideId}
+            <NewIncomingOfferSheet
+              isVisible={!!incomingRequest?.rideId && !isIncomingRequestDismissed}
               request={incomingRequest}
               countdown={countdown}
               onAccept={acceptIncoming}
               onReject={rejectIncoming}
-              onClose={clearIncoming}
-              onCounterOffer={counterOfferIncoming}
+              onViewDetail={() => {
+                if (!incomingRequest) return;
+                (navigation as any).navigate("DeliveryOfferDetail", {
+                  offer: incomingRequest,
+                  onAccept: acceptIncoming,
+                  onReject: rejectIncoming,
+                });
+              }}
             />
           )}
 
           {/* 📊 INTELLIGENT OPERATIONAL BASE CAMP */}
-          {!incomingRequest?.rideId && (
+          {(!incomingRequest?.rideId || isIncomingRequestDismissed) && (
             <DriverBottomSheet
               online={online}
               services={services}
@@ -1448,6 +1743,11 @@ export default function DriverHomeScreen() {
               onToggleService={toggleService}
               vehicleType={vehicleType}
               stats={driverStats}
+              driverBalance={driverBalance}
+              onAddBalance={() => setShowDepositModal(true)}
+              onPressOffers={() => (navigation as any).navigate("DriverRequests", { initialTab: "realtime" })}
+              hasPendingOffer={showPendingOfferHighlight}
+              offersPulseToken={offersPulseToken}
             />
           )}
 
@@ -1485,7 +1785,8 @@ export default function DriverHomeScreen() {
             }}
           />
 
-          {!isApproved && (
+
+      {!isApproved && (
             <DriverOnboardingDashboard />
           )}
 
@@ -1582,3 +1883,6 @@ export default function DriverHomeScreen() {
     </ErrorBoundary>
   );
 }
+
+
+

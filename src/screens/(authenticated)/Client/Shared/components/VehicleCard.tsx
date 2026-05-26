@@ -62,7 +62,7 @@ export default function VehicleCard({
 
       {/* Info */}
       <View style={styles.info}>
-        {badge && (
+        {!!badge && (
           <View style={styles.badgeContainer}>
             <Text style={[styles.badge, { color: badgeColor || colors.primary[500] }]}>
               {badge}

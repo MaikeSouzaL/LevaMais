@@ -3,11 +3,14 @@ import { Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MotiView } from "moti";
 import { ArrowLeft } from "lucide-react-native";
-import { useNavigation } from "@react-navigation/native";
 
-export const DestinationHeader = () => {
+interface DestinationHeaderProps {
+  title?: string;
+  onBack: () => void;
+}
+
+export const DestinationHeader = ({ title = "Para onde vamos?", onBack }: DestinationHeaderProps) => {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation();
 
   return (
     <MotiView
@@ -18,14 +21,14 @@ export const DestinationHeader = () => {
       style={{ paddingTop: insets.top + 12 }}
     >
       <TouchableOpacity
-        onPress={() => navigation.goBack()}
+        onPress={onBack}
         className="w-10 h-10 rounded-xl bg-white/10 border border-white/10 items-center justify-center mr-4"
         activeOpacity={0.7}
       >
         <ArrowLeft size={22} color="#fff" />
       </TouchableOpacity>
       
-      <Text className="text-white text-xl font-bold tracking-wide">Para onde vamos?</Text>
+      <Text className="text-white text-xl font-bold tracking-wide">{title}</Text>
     </MotiView>
   );
 };

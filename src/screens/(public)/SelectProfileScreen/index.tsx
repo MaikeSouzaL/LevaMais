@@ -169,6 +169,12 @@ export default function SelectProfileScreen() {
     : selectedProfile === "driver" 
       ? "Quero trabalhar" 
       : "Acessar como cliente";
+  // Determine ambient glow colors based on selected mode
+  const glowColor = selectedProfile === "client" 
+    ? "#02de95" 
+    : selectedProfile === "driver" 
+      ? "#00F3FF" 
+      : "#091A2F";
 
   return (
     <View style={styles.screenContainer}>
@@ -180,6 +186,27 @@ export default function SelectProfileScreen() {
         style={StyleSheet.absoluteFill}
       />
       <BackgroundMap />
+
+      {/* Dynamic Ambient Glow Sphere 1 (Top Left) */}
+      <MotiView
+        animate={{
+          backgroundColor: glowColor,
+          opacity: selectedProfile ? 0.15 : 0.05,
+        }}
+        transition={{ type: "timing", duration: 500 }}
+        style={[styles.ambientGlow, styles.glowTopLeft]}
+      />
+
+      {/* Dynamic Ambient Glow Sphere 2 (Bottom Right) */}
+      <MotiView
+        animate={{
+          backgroundColor: glowColor,
+          opacity: selectedProfile ? 0.18 : 0.05,
+        }}
+        transition={{ type: "timing", duration: 500 }}
+        style={[styles.ambientGlow, styles.glowBottomRight]}
+      />
+
       <LinearGradient
         colors={["rgba(9, 26, 47, 0.35)", "transparent", colors.background.primary]}
         style={StyleSheet.absoluteFill}
@@ -203,10 +230,14 @@ export default function SelectProfileScreen() {
           animate={{ opacity: 1, translateY: 0 }}
           transition={{ type: "timing", duration: 600 }}
           style={styles.textHeader}
-        ><Text style={styles.mainHeading}>Como deseja usar o Leva+?</Text><Text style={styles.subHeading}>Escolha como deseja acessar o ecossistema Leva+.</Text></MotiView>
+        >
+          <Text style={styles.mainHeading}>Como deseja usar o Leva+?</Text>
+          <Text style={styles.subHeading}>Escolha como deseja acessar o ecossistema Leva+.</Text>
+        </MotiView>
 
         {/* 💠 Modular Selection Section */}
-        <View style={styles.selectionZone}><ModeSelectionCard
+        <View style={styles.selectionZone}>
+          <ModeSelectionCard
             isSelected={selectedProfile === "client"}
             onSelect={() => setSelectedProfile("client")}
             title="Pedir corridas e entregas"
@@ -214,21 +245,24 @@ export default function SelectProfileScreen() {
             Icon={Car}
             accentColor={colors.primary[500]}
             iconBgColor="rgba(2, 222, 149, 0.1)"
-          /><ModeSelectionCard
+          />
+          <ModeSelectionCard
             isSelected={selectedProfile === "driver"}
             onSelect={() => setSelectedProfile("driver")}
             title="Trabalhar no Leva+"
             description="Faça corridas, entregas e aumente seus ganhos utilizando o Leva+."
             Icon={Briefcase}
-            accentColor="#FFF"
-            iconBgColor="rgba(255, 255, 255, 0.05)"
-          /></View>
+            accentColor="#00F3FF"
+            iconBgColor="rgba(0, 243, 255, 0.1)"
+          />
+        </View>
 
         {/* 🚀 Modularized Action Footer */}
         <ModeFooter 
           isEnabled={!!selectedProfile && !loading}
           onPress={handleProceed}
           buttonLabel={loading ? "Acessando..." : currentLabel}
+          selectedProfile={selectedProfile}
         />
 
       </ScrollView>
@@ -275,4 +309,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: spacing.lg,
   },
+  ambientGlow: {
+    position: "absolute",
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    pointerEvents: "none",
+  },
+  glowTopLeft: {
+    top: -50,
+    left: -80,
+  },
+  glowBottomRight: {
+    bottom: 50,
+    right: -100,
+  },
+
 });

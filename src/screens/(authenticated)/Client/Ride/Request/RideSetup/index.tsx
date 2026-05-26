@@ -33,6 +33,7 @@ interface RideSetupRouteParams {
   vehicleType?: "car" | "motorcycle" | "van" | "truck";
   pickup: { address: string; latitude: number; longitude: number };
   dropoff: { address: string; latitude: number; longitude: number };
+  routeCoordinates?: Array<{ latitude: number; longitude: number }>;
 }
 
 export default function RideSetupScreen() {
@@ -67,7 +68,6 @@ export default function RideSetupScreen() {
           pickup: params.pickup,
           dropoff: params.dropoff,
           vehicleType: selectedCat === "motorcycle" ? "motorcycle" : "car",
-          cityId: detectedCity?.cityId || undefined,
         };
 
         const resp = await rideService.calculatePrice(payload);
@@ -113,7 +113,12 @@ export default function RideSetupScreen() {
         },
         distance: priceData.distance,
         duration: priceData.duration,
-        cityId: detectedCity?.cityId || undefined,
+        routeCoordinates:
+          Array.isArray(pathCoords) && pathCoords.length >= 2
+            ? pathCoords
+            : Array.isArray(params.routeCoordinates) && params.routeCoordinates.length >= 2
+              ? params.routeCoordinates
+              : undefined,
         negotiation: {
           enabled: true,
           clientOffer: offerPrice
@@ -197,7 +202,7 @@ export default function RideSetupScreen() {
 
       {/* 🛠️ UI FOREGROUND: Layout Scroll area above floating button container */}
       <View className="flex-1 pt-24">
-        <RideSetupHeader />
+        <RideSetupHeader onBack={navigation.goBack} />
 
         <ScrollView 
           showsVerticalScrollIndicator={false}

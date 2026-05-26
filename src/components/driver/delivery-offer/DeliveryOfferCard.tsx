@@ -54,7 +54,10 @@ interface DeliveryOfferCardProps {
 // INTERNAL HELPER MAPS FOR PAYMENT & SERVICES 💎
 // ========================================================
 
-function getPaymentInfo(method: string) {
+function getPaymentInfo(method: string, isNegotiating: boolean = false) {
+  if (isNegotiating) {
+    return { name: "A definir pelo cliente", icon: Clock, color: "#9CA3AF" };
+  }
   const key = String(method || "cash").toLowerCase();
   if (key.includes("pix")) {
     return { name: "PIX Instantâneo", icon: Zap, color: "#32BCAD" };
@@ -290,7 +293,8 @@ export function DeliveryOfferCard({ offer, onAccept, onCounterOffer }: DeliveryO
   const helperRequired = offer.helperRequired || false;
   const obs = offer.observations || "";
 
-  const payInfo = getPaymentInfo(offer.paymentMethod);
+  const isNegotiating = offer.status === "requesting" || !offer.payment?.status || (offer.payment?.status !== "pre_selected" && offer.payment?.status === "not_selected");
+  const payInfo = getPaymentInfo(offer.paymentMethod, isNegotiating);
   const PayIcon = payInfo.icon;
   const serviceName = getServiceModeName(offer.serviceMode, offer.type);
 

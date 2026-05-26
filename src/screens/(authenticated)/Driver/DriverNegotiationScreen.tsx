@@ -614,7 +614,7 @@ export default function DriverNegotiationScreen() {
   // 🔄 REAL-TIME ACTIVE SYNC LOOP: WAITING CLIENT APPROVAL
   // =========================================================
   useEffect(() => {
-    if (loadingState !== "waiting" || !offer?._id) return;
+    if (!offer?._id) return;
 
     let active = true;
     const driverId = useAuthStore.getState().userData?.id;
@@ -676,9 +676,24 @@ export default function DriverNegotiationScreen() {
       }
     };
 
+    const onOfferIncreasedSocket = (payload: any) => {
+      if (payload?.rideId === offer?._id) {
+        if (!active) return;
+        active = false;
+        setLoadingState("idle");
+        Toast.show({
+          type: "info",
+          text1: "Oferta Aumentada pelo Cliente! 📈",
+          text2: "O cliente aumentou o valor sugerido. Faça uma nova proposta!"
+        });
+        navigation.popToTop();
+      }
+    };
+
     webSocketService.on("new-ride-request", onNewRideReqSocket);
     webSocketService.on("ride-offer-rejected-by-client", onRejectedSocket);
     webSocketService.on("ride-cancelled", onCancelledSocket);
+    webSocketService.on("queue-ride-offer-increased", onOfferIncreasedSocket);
 
     // 🔁 High-Availability Rest Polling (Every 3.5 seconds)
     const syncStatusRest = async () => {
@@ -691,6 +706,11 @@ export default function DriverNegotiationScreen() {
 
         // 🎯 Client accepted this specific driver
         if (assignedDriver && driverId && assignedDriver === driverId) {
+           if (rideStatus === "payment_pending") {
+              setLoadingState("waiting");
+              setLiveStatusMessage("Cliente confirmando pagamento...");
+              return;
+           }
            if (["accepted", "driver_assigned", "driver_arriving", "arrived", "in_progress"].includes(rideStatus)) {
               navigateToActiveRide(ride._id);
               return;
@@ -735,6 +755,7 @@ export default function DriverNegotiationScreen() {
       webSocketService.off("new-ride-request", onNewRideReqSocket);
       webSocketService.off("ride-offer-rejected-by-client", onRejectedSocket);
       webSocketService.off("ride-cancelled", onCancelledSocket);
+      webSocketService.off("queue-ride-offer-increased", onOfferIncreasedSocket);
     };
   }, [loadingState, offer?._id]);
 
@@ -817,6 +838,13 @@ export default function DriverNegotiationScreen() {
                     setLoadingState("sending");
                     await rideService.respondToOffer(offer._id, {
                       action: "accept"
+                    });
+                    setLoadingState("waiting");
+                    setLiveStatusMessage("Cliente confirmando pagamento...");
+                    Toast.show({
+                      type: "info",
+                      text1: "Aguardando pagamento do cliente",
+                      text2: "Voce foi selecionado. Aguarde a confirmacao para iniciar.",
                     });
                   } catch (e: any) {
                     setLoadingState("client_countered");

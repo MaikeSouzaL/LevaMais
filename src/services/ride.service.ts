@@ -6,6 +6,11 @@ export interface Location {
   longitude: number;
 }
 
+export interface RouteCoordinate {
+  latitude: number;
+  longitude: number;
+}
+
 export interface PricingCalculation {
   basePrice: number;
   distancePrice: number;
@@ -29,16 +34,26 @@ export interface RideDetails {
   needsHelper?: boolean;
   insurance?: "none" | "basic" | "standard" | "premium";
   priority?: number;
+  cargoSize?: "small" | "medium" | "large";
+  approximateWeightKg?: number;
+  isFragile?: boolean;
+  pickupComplement?: string;
+  dropoffComplement?: string;
+  recipientName?: string;
+  recipientPhone?: string;
+  recipientInstructions?: string;
+  pickupPin?: string;
+  deliveryPin?: string;
   specialInstructions?: string;
 }
 
 export interface CreateRideRequest {
   serviceType: "ride" | "delivery";
   vehicleType: "motorcycle" | "car" | "van" | "truck";
-  cityId?: string;
   purposeId?: string;
   pickup: Location;
   dropoff: Location;
+  stops?: Location[];
   pricing: PricingCalculation;
   distance: DistanceDuration;
   duration: DistanceDuration;
@@ -49,6 +64,7 @@ export interface CreateRideRequest {
     };
   };
   scheduledFor?: string;
+  routeCoordinates?: RouteCoordinate[];
   negotiation?: {
     enabled?: boolean;
     clientOffer?: number;
@@ -63,14 +79,15 @@ export interface Ride {
   driverId?: any;
   serviceType: string;
   vehicleType: string;
-  purposeId?: string;
   pickup: Location;
   dropoff: Location;
   pricing: PricingCalculation;
   distance: DistanceDuration;
   duration: DistanceDuration;
+  routeCoordinates?: RouteCoordinate[];
   details?: RideDetails;
   status: string;
+  cancellationFee?: number;
   requestedAt: string;
   acceptedAt?: string;
   arrivedAt?: string;
@@ -101,6 +118,7 @@ export interface Ride {
   };
   createdAt: string;
   isWaitingInQueue?: boolean;
+  arrivedAtDropoff?: boolean;
   updatedAt: string;
 }
 
@@ -116,15 +134,16 @@ export interface RideOffer {
 export interface CalculatePriceRequest {
   pickup: Location;
   dropoff: Location;
+  stops?: Location[];
   vehicleType: "motorcycle" | "car" | "van" | "truck";
-  cityId?: string;
-  purposeId?: string;
-  // Logistic Extensions for Smart Engine ⚡
+  // Logistic Extensions for Smart Engine âš¡
   serviceType?: "ride" | "delivery";
   deliveryType?: string;
   cargoSize?: string;
   priority?: number;
   needsHelper?: boolean;
+  isFragile?: boolean;
+  approximateWeightKg?: number;
   // Pre-computed precise routing metrics from trusted client
   distance?: number;
   duration?: number;
@@ -166,6 +185,7 @@ export interface AvailableRideRequest {
   vehicleType?: string;
   requestedAt?: string;
   distanceToPickup?: number;
+  durationToPickup?: DistanceDuration | null;
   client?: {
     name?: string;
     phone?: string;
@@ -222,7 +242,7 @@ export interface DriverStats {
 
 class RideService {
   /**
-   * Calcular preço da corrida
+   * Calcular preÃ§o da corrida
    */
   async calculatePrice(
     data: CalculatePriceRequest,
@@ -236,19 +256,18 @@ class RideService {
         e?.response?.data?.error ||
         e?.response?.data?.message ||
         e?.message ||
-        "Falha ao calcular preço";
+        "Falha ao calcular preÃ§o";
       throw new Error(msg);
     }
   }
 
   /**
-   * Buscar motoristas próximos
+   * Buscar motoristas prÃ³ximos
    */
   async getNearbyDrivers(
     latitude: number,
     longitude: number,
-    radius: number = 5000, 
-    cityId?: string 
+    radius: number = 5000
   ): Promise<Array<{
     id: string;
     name?: string;
@@ -261,13 +280,13 @@ class RideService {
     serviceTypes?: string[];
   }>> {
     const response = await api.get("/rides/nearby-drivers", {
-      params: { latitude, longitude, radius, cityId }
+      params: { latitude, longitude, radius }
     });
     return response.data;
   }
 
   /**
-   * Criar nova solicitação de corrida
+   * Criar nova solicitaÃ§Ã£o de corrida
    */
   async create(data: CreateRideRequest): Promise<Ride> {
     const response = await api.post("/rides", data);
@@ -313,8 +332,13 @@ class RideService {
     return response.data;
   }
 
+  async getRouteAudit(rideId: string): Promise<any> {
+    const response = await api.get(`/rides/${rideId}/route-audit`);
+    return response.data;
+  }
+
   /**
-   * Buscar histórico de corridas
+   * Buscar histÃ³rico de corridas
    */
   async getHistory(params?: {
     status?: string;
@@ -345,6 +369,14 @@ class RideService {
   }
 
   /**
+   * Promover corrida ativa para agendada
+   */
+  async promoteToScheduled(rideId: string, scheduledFor: string): Promise<any> {
+    const response = await api.post(`/rides/${rideId}/promote-to-scheduled`, { scheduledFor });
+    return response.data;
+  }
+
+  /**
    * Reiniciar busca da corrida (tentar novamente)
    */
   async retry(rideId: string): Promise<any> {
@@ -367,11 +399,18 @@ class RideService {
     await api.post(`/rides/${rideId}/reject`, { reason });
   }
 
-  /**
-   * Atualizar status da corrida (motorista)
-   */
-  async updateStatus(rideId: string, status: string): Promise<Ride> {
-    const response = await api.patch(`/rides/${rideId}/status`, { status });
+  async updateStatus(
+    rideId: string, 
+    status?: string, 
+    arrivedAtDropoff?: boolean, 
+    pins?: { pickupPin?: string; deliveryPin?: string }
+  ): Promise<Ride> {
+    const body: any = {};
+    if (status) body.status = status;
+    if (arrivedAtDropoff) body.arrivedAtDropoff = true;
+    if (pins?.pickupPin) body.pickupPin = pins.pickupPin;
+    if (pins?.deliveryPin) body.deliveryPin = pins.deliveryPin;
+    const response = await api.patch(`/rides/${rideId}/status`, body);
     return response.data.ride;
   }
 
@@ -433,6 +472,19 @@ class RideService {
     return response.data?.ride;
   }
 
+  async confirmNegotiationPayment(
+    rideId: string,
+    payload: { method: "cash" | "card" | "wallet" | "pix" },
+  ): Promise<Ride> {
+    const response = await api.post(`/rides/${rideId}/payment/confirm`, payload);
+    return response.data?.ride;
+  }
+
+  async cancelPaymentSelection(rideId: string): Promise<Ride> {
+    const response = await api.post(`/rides/${rideId}/payment/cancel-selection`);
+    return response.data?.ride;
+  }
+
   async clientCounterOffer(rideId: string, driverId: string, amount: number): Promise<any> {
     const response = await api.post(`/rides/${rideId}/offers/client-counter`, { driverId, amount });
     return response.data;
@@ -461,7 +513,7 @@ class RideService {
   }
 
   /**
-   * Estatísticas do motorista (dashboard)
+   * EstatÃ­sticas do motorista (dashboard)
    */
   async getDriverStats(): Promise<DriverStats> {
     const response = await api.get("/rides/stats");
@@ -469,7 +521,7 @@ class RideService {
   }
 
   /**
-   * Histórico de ganhos (gráfico)
+   * HistÃ³rico de ganhos (grÃ¡fico)
    */
   async getEarningsHistory(
     period: "day" | "week" | "month" = "week",
@@ -481,7 +533,7 @@ class RideService {
   }
 
   /**
-   * Buscar agendamentos disponíveis sem motoristas (para motoristas)
+   * Buscar agendamentos disponÃ­veis sem motoristas (para motoristas)
    */
   async getAvailableScheduledRides(): Promise<{ count: number; rides: Ride[] }> {
     const response = await api.get("/rides/scheduled/available");
@@ -497,7 +549,7 @@ class RideService {
   }
 
   /**
-   * Colocar a corrida na fila de espera pública
+   * Colocar a corrida na fila de espera pÃºblica
    */
   async enterWaitingQueue(rideId: string): Promise<any> {
     const response = await api.post(`/rides/${rideId}/queue`);
@@ -505,7 +557,7 @@ class RideService {
   }
 
   /**
-   * Aumentar oferta base do cliente para atrair motoristas ✨💸
+   * Aumentar oferta base do cliente para atrair motoristas âœ¨ðŸ’¸
    */
   async increaseOffer(rideId: string, incrementAmount: number = 2): Promise<any> {
     const response = await api.post(`/rides/${rideId}/offers/increase`, { incrementAmount });
