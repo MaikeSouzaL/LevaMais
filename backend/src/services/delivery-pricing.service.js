@@ -149,12 +149,32 @@ async function calculateDeliveryPricingSnapshot(payload = {}) {
   const runtimeConfig = payload.runtimeConfig || (await getRuntimeConfig());
   const vehicleConfig = validateVehiclePricing(vehicleType, runtimeConfig?.vehiclePricing);
   const logistics = runtimeConfig?.logisticsMultipliers || {};
-  const route = await resolveRouteMetrics(
-    { latitude: pickupLatitude, longitude: pickupLongitude },
-    { latitude: dropoffLatitude, longitude: dropoffLongitude },
-  );
 
-  const distanceKm = route.distanceInMeters / 1000;
+  // Resolve as paradas intermediárias (stops)
+  const stops = Array.isArray(payload.stops)
+    ? payload.stops.filter((s) => s && Number.isFinite(s.latitude) && Number.isFinite(s.longitude))
+    : [];
+
+  const points = [
+    { latitude: pickupLatitude, longitude: pickupLongitude },
+    ...stops,
+    { latitude: dropoffLatitude, longitude: dropoffLongitude },
+  ];
+
+  let totalDistanceInMeters = 0;
+  let totalDurationInSeconds = 0;
+  let distanceSource = "route_api";
+
+  for (let i = 0; i < points.length - 1; i++) {
+    const segment = await resolveRouteMetrics(points[i], points[i + 1]);
+    totalDistanceInMeters += segment.distanceInMeters;
+    totalDurationInSeconds += segment.durationInSeconds;
+    if (segment.distanceSource === "haversine") {
+      distanceSource = "haversine";
+    }
+  }
+
+  const distanceKm = totalDistanceInMeters / 1000;
   const formula = distanceKm <= vehicleConfig.minimumKm ? "minimum_fee" : "minimum_plus_excess";
   const overflowKm = Math.max(0, distanceKm - vehicleConfig.minimumKm);
   const distancePrice = toMoney(overflowKm * vehicleConfig.pricePerKm);
@@ -186,19 +206,24 @@ async function calculateDeliveryPricingSnapshot(payload = {}) {
     needsHelper: Boolean(payload.needsHelper),
   });
 
-  const total = toMoney(smartPricing?.suggestedPrice || baseTotal);
+  // Taxa de paradas: 2 reais a mais por cada parada (do PlatformConfig)
+  const feePerStop = Number(runtimeConfig?.feePerStop ?? 2);
+  const stopsFee = stops.length * feePerStop;
+
+  const total = toMoney((smartPricing?.suggestedPrice || baseTotal) + stopsFee);
   const appFeePercentage = Number(runtimeConfig?.appFeePercentage || 0);
   const platformFee = toMoney(total * (appFeePercentage / 100));
   const driverValue = toMoney(total - platformFee);
-  const durationMinutes = Math.max(1, Math.ceil(Number(route.durationInSeconds || 60) / 60));
+  const durationMinutes = Math.max(1, Math.ceil(totalDurationInSeconds / 60));
   const minimumPrice = toMoney(
-    Number(smartPricing?.minimumPrice || 0) > 0 ? smartPricing.minimumPrice : baseTotal,
+    (Number(smartPricing?.minimumPrice || 0) > 0 ? smartPricing.minimumPrice : baseTotal) + stopsFee,
   );
 
   return {
     pricing: {
       basePrice: toMoney(vehicleConfig.minimumFee),
       distancePrice,
+      stopsFee,
       serviceFee: platformFee,
       platformFee,
       driverValue,
@@ -212,15 +237,18 @@ async function calculateDeliveryPricingSnapshot(payload = {}) {
         minimumFee: vehicleConfig.minimumFee,
         pricePerKm: vehicleConfig.pricePerKm,
         distanceKm: Number(distanceKm.toFixed(2)),
-        distanceSource: route.distanceSource,
+        distanceSource,
         formula,
         overflowKm: Number(overflowKm.toFixed(2)),
         appFeePercentage,
+        feePerStop,
+        stopsCount: stops.length,
+        stopsFee,
         smartDetails: smartPricing?.details,
       },
     },
     distance: {
-      value: Math.round(route.distanceInMeters),
+      value: Math.round(totalDistanceInMeters),
       text: `${distanceKm.toFixed(1)} km`,
     },
     duration: {

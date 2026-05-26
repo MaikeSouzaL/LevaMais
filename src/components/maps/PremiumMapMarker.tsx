@@ -1,12 +1,12 @@
-import React from "react";
-import { View, StyleSheet } from "react-native";
+import { View, StyleSheet, Text } from "react-native";
 import { Flag } from "lucide-react-native";
 
 interface PremiumMapMarkerProps {
   type: "origin" | "destination";
+  letter?: string;
 }
 
-export const PremiumMapMarker = ({ type }: PremiumMapMarkerProps) => {
+export const PremiumMapMarker = ({ type, letter }: PremiumMapMarkerProps) => {
   const isOrigin = type === "origin";
   const markerColor = isOrigin ? "#02de95" : "#ef4444";
 
@@ -15,6 +15,25 @@ export const PremiumMapMarker = ({ type }: PremiumMapMarkerProps) => {
       {/* Core Hub (Apenas a Bandeira Transparente e Colorida) */}
       <View style={styles.coreHub}>
         <Flag size={20} color={markerColor} fill={markerColor} style={{ marginLeft: 13 }} />
+        {letter && (
+          <View style={{
+            position: "absolute",
+            top: -2,
+            right: -6,
+            backgroundColor: "#111827",
+            paddingHorizontal: 3,
+            minWidth: 13,
+            height: 13,
+            borderRadius: 6.5,
+            alignItems: "center",
+            justifyContent: "center",
+            borderWidth: 1,
+            borderColor: "#ffffff",
+            zIndex: 20
+          }}>
+            <Text style={{ color: "#ffffff", fontSize: 7.5, fontWeight: "900", textAlign: "center" }}>{letter}</Text>
+          </View>
+        )}
       </View>
 
       {/* Haste do alfinete */}

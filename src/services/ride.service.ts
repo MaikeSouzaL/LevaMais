@@ -53,6 +53,7 @@ export interface CreateRideRequest {
   purposeId?: string;
   pickup: Location;
   dropoff: Location;
+  stops?: Location[];
   pricing: PricingCalculation;
   distance: DistanceDuration;
   duration: DistanceDuration;
@@ -133,6 +134,7 @@ export interface RideOffer {
 export interface CalculatePriceRequest {
   pickup: Location;
   dropoff: Location;
+  stops?: Location[];
   vehicleType: "motorcycle" | "car" | "van" | "truck";
   // Logistic Extensions for Smart Engine âš¡
   serviceType?: "ride" | "delivery";

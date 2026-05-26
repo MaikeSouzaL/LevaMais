@@ -3,6 +3,7 @@ const PlatformConfig = require("../models/PlatformConfig");
 const DEFAULT_PLATFORM_CONFIG = {
   isDevelopmentMode: true,
   appFeePercentage: 15,
+  feePerStop: 2, // Adicional por parada
   rideSearchTimeoutSeconds: 60,
   driverDailyGoalRides: 10,
   driverDailyBonusAmount: 20,
@@ -64,6 +65,10 @@ function mergeConfig(raw = {}) {
     appFeePercentage: sanitizeNumber(
       raw.appFeePercentage,
       DEFAULT_PLATFORM_CONFIG.appFeePercentage,
+    ),
+    feePerStop: sanitizeNumber(
+      raw.feePerStop,
+      DEFAULT_PLATFORM_CONFIG.feePerStop,
     ),
     rideSearchTimeoutSeconds: sanitizeNumber(
       raw.rideSearchTimeoutSeconds,

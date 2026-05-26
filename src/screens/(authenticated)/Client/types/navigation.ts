@@ -18,6 +18,7 @@ export type DeliveryFlowPayload = {
   vehicleType: DeliveryVehicleType;
   pickupProfile: DeliveryAddressProfile;
   dropoffProfile: DeliveryAddressProfile;
+  stops?: DeliveryAddressProfile[];
 };
 
 export type ClientStackParamList = {
@@ -188,6 +189,8 @@ export type ClientStackParamList = {
         flow?: "send" | "receive" | string;
         pickupProfile?: DeliveryAddressProfile | null;
         dropoffProfile?: DeliveryAddressProfile | null;
+        stops?: DeliveryAddressProfile[];
+        isAddingStop?: boolean;
         senderData?: {
           mode: string;
           address: string;

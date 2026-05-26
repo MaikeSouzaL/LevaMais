@@ -32,20 +32,34 @@ export default function DeliverySenderInfoScreen() {
 
   const mode = route.params?.mode || "sender"; // "sender" | "receiver"
   const isSender = mode === "sender";
-  const title = isSender ? "Informações do remetente" : "Informações do destinatário";
+  const title = route.params?.isAddingStop ? "Informações de parada" : (isSender ? "Informações do remetente" : "Informações do destinatário");
   const flow = route.params?.flow === "receive" ? "receive" : "send"; // "send" | "receive"
   const vehicleType = (["motorcycle", "car", "van", "truck"].includes(String(route.params?.vehicleType))
     ? route.params?.vehicleType
     : "motorcycle") as DeliveryVehicleType;
 
 
-  // Reset navigation to Home on back press (Android hardware back)
-  useEffect(() => {
-    const backAction = () => {
+  const handleBack = useCallback(() => {
+    if (route.params?.isAddingStop) {
+      navigation.dispatch(StackActions.replace("DeliveryDetails", {
+        flow,
+        vehicleType,
+        pickupProfile: route.params?.pickupProfile || null,
+        dropoffProfile: route.params?.dropoffProfile || null,
+        stops: route.params?.stops || [],
+      }));
+    } else {
       navigation.reset({
         index: 0,
         routes: [{ name: "Home" as any }],
       });
+    }
+  }, [navigation, flow, vehicleType, route.params]);
+
+  // Reset navigation on back press (Android hardware back)
+  useEffect(() => {
+    const backAction = () => {
+      handleBack();
       return true;
     };
 
@@ -55,7 +69,7 @@ export default function DeliverySenderInfoScreen() {
     );
 
     return () => backHandler.remove();
-  }, [navigation]);
+  }, [handleBack]);
 
   // Form fields
   const [address, setAddress] = useState("");
@@ -109,6 +123,17 @@ export default function DeliverySenderInfoScreen() {
 
   // Pre-fill with user data
   useEffect(() => {
+    if (route.params?.isAddingStop) {
+      setAddress("");
+      setAddressCoords(null);
+      setAddressDetails("");
+      setContactName("");
+      setContactPhone("");
+      setIsFromMapSelection(false);
+      isInitialized.current = true;
+      return;
+    }
+
     const existingProfile = isSender ? route.params?.pickupProfile : route.params?.dropoffProfile;
     setAddress(existingProfile?.address || "");
     setAddressCoords(existingProfile?.addressCoords || null);
@@ -117,7 +142,7 @@ export default function DeliverySenderInfoScreen() {
     setContactPhone(existingProfile?.contactPhone || "");
     setIsFromMapSelection(false);
     isInitialized.current = true;
-  }, [isSender, route.params?.dropoffProfile, route.params?.pickupProfile]);
+  }, [isSender, route.params?.dropoffProfile, route.params?.pickupProfile, route.params?.isAddingStop]);
 
   useEffect(() => {
     if (route.params?.mapPickedAddress) {
@@ -440,6 +465,21 @@ export default function DeliverySenderInfoScreen() {
       contactPhone,
     };
 
+    const isAddingStop = route.params?.isAddingStop;
+
+    if (isAddingStop) {
+      const currentStops = route.params?.stops || [];
+      const updatedStops = [...currentStops, profile];
+      navigation.dispatch(StackActions.replace("DeliveryDetails", {
+        flow,
+        vehicleType,
+        pickupProfile: route.params?.pickupProfile || null,
+        dropoffProfile: route.params?.dropoffProfile || null,
+        stops: updatedStops,
+      }));
+      return;
+    }
+
     const nextPickupProfile = isSender ? profile : route.params?.pickupProfile || null;
     const nextDropoffProfile = isSender ? route.params?.dropoffProfile || null : profile;
 
@@ -459,10 +499,11 @@ export default function DeliverySenderInfoScreen() {
       vehicleType,
       pickupProfile: nextPickupProfile,
       dropoffProfile: nextDropoffProfile,
+      stops: route.params?.stops || [],
     }));
   };
 
-  const isFormValid = address.trim().length > 0 && contactName.trim().length > 0 && contactPhone.trim().length > 0;
+  const isFormValid = address.trim().length > 0 && addressCoords !== null && contactName.trim().length > 0 && contactPhone.trim().length > 0;
 
   // ────────────────────── Main Form Screen ──────────────────────
   return (
@@ -472,12 +513,7 @@ export default function DeliverySenderInfoScreen() {
       {/* Header */}
       <View className="flex-row items-center px-4 py-4 border-b border-gray-100">
         <TouchableOpacity
-          onPress={() => {
-            navigation.reset({
-              index: 0,
-              routes: [{ name: "Home" as any }],
-            });
-          }}
+          onPress={handleBack}
           className="w-[36px] h-[36px] items-center justify-center mr-3"
         >
           <ChevronLeft size={26} color="#111" strokeWidth={2.5} />

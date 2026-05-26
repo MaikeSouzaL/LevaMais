@@ -16,16 +16,20 @@ import {
   TouchableOpacity,
   UIManager,
   View,
+  KeyboardAvoidingView,
 } from "react-native";
 import Toast from "react-native-toast-message";
 import { CommonActions, NavigationProp, RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
+  AlertTriangle,
   ArrowDownUp,
+  Calendar,
   Check,
   ChevronLeft,
   ChevronRight,
   Circle,
+  Clock,
   Info,
   KeyRound,
   Locate,
@@ -141,6 +145,37 @@ export default function DeliveryDetailsScreen() {
   const [animatedVehicleCoord, setAnimatedVehicleCoord] = useState<{ latitude: number; longitude: number } | null>(null);
   const routeCoordsRef = useRef<Array<{ latitude: number; longitude: number }>>([]);
 
+  const [stops, setStops] = useState<DeliveryAddressProfile[]>(route.params?.stops || []);
+  const [scheduledFor, setScheduledFor] = useState<string | null>(null);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [isCustomSchedule, setIsCustomSchedule] = useState(false);
+  const [customDay, setCustomDay] = useState("");
+  const [customHour, setCustomHour] = useState("");
+  const [customMin, setCustomMin] = useState("");
+  const [customOfferAdjustment, setCustomOfferAdjustment] = useState<number>(0);
+  const [showCustomOfferInput, setShowCustomOfferInput] = useState(false);
+  const [customOfferText, setCustomOfferText] = useState("");
+  const [vehicleRotation, setVehicleRotation] = useState<number>(0);
+
+  const calculateBearing = (lat1: number, lng1: number, lat2: number, lng2: number) => {
+    const dLng = (lng2 - lng1) * (Math.PI / 180);
+    const y = Math.sin(dLng) * Math.cos(lat2 * (Math.PI / 180));
+    const x =
+      Math.cos(lat1 * (Math.PI / 180)) * Math.sin(lat2 * (Math.PI / 180)) -
+      Math.sin(lat1 * (Math.PI / 180)) *
+        Math.cos(lat2 * (Math.PI / 180)) *
+        Math.cos(dLng);
+    const brng = Math.atan2(y, x) * (180 / Math.PI);
+    return (brng + 360) % 360;
+  };
+
+
+  const handleRemoveStop = (index: number) => {
+    setStops((prev) => prev.filter((_, i) => i !== index));
+    setRouteCoords([]);
+    setAnimatedVehicleCoord(null);
+  };
+
   const onDirectionsReady = (res: any) => {
     const coords = res.coordinates;
     setRouteCoords(coords);
@@ -168,9 +203,16 @@ export default function DeliveryDetailsScreen() {
     setAnimatedVehicleCoord(routeCoords[0]);
     
     const interval = setInterval(() => {
-      if (routeCoordsRef.current.length === 0) return;
-      index = (index + 1) % routeCoordsRef.current.length;
-      setAnimatedVehicleCoord(routeCoordsRef.current[index]);
+      if (routeCoordsRef.current.length < 2) return;
+      const nextIndex = (index + 1) % routeCoordsRef.current.length;
+      const p1 = routeCoordsRef.current[index];
+      const p2 = routeCoordsRef.current[nextIndex];
+      
+      const bearing = calculateBearing(p1.latitude, p1.longitude, p2.latitude, p2.longitude);
+      setVehicleRotation(bearing);
+      setAnimatedVehicleCoord(p2);
+      
+      index = nextIndex;
     }, 150);
     
     return () => clearInterval(interval);
@@ -179,7 +221,7 @@ export default function DeliveryDetailsScreen() {
   const swapRotation = useRef(new Animated.Value(0)).current;
 
   const vehicle = useMemo(() => vehicleCopy[selectedVehicleType] || vehicleCopy.motorcycle, [selectedVehicleType]);
-  const total = priceData?.pricing?.total ? formatBRL(priceData.pricing.total) : vehicle.price;
+  const total = priceData?.pricing?.total ? formatBRL(priceData.pricing.total + customOfferAdjustment) : vehicle.price;
   const topInset = Math.max(insets.top, 18);
   const animatedSwapStyle = {
     transform: [
@@ -222,6 +264,11 @@ export default function DeliveryDetailsScreen() {
             latitude: dropoff.latitude,
             longitude: dropoff.longitude,
           },
+          stops: stops.map((s) => ({
+            address: s.address,
+            latitude: s.addressCoords?.latitude || 0,
+            longitude: s.addressCoords?.longitude || 0,
+          })),
           deliveryType: selectedItemType || "standard",
         });
         if (mounted) {
@@ -251,6 +298,7 @@ export default function DeliveryDetailsScreen() {
     routeProfiles.dropoffProfile.addressCoords,
     selectedVehicleType,
     selectedItemType,
+    stops,
   ]);
 
   const handleBackHome = () => {
@@ -295,11 +343,22 @@ export default function DeliveryDetailsScreen() {
         latitude: dropoffCoords.latitude,
         longitude: dropoffCoords.longitude,
       },
-      pricing: priceData.pricing,
+      stops: stops.map((s) => ({
+        address: s.address,
+        latitude: s.addressCoords?.latitude || 0,
+        longitude: s.addressCoords?.longitude || 0,
+      })),
+      pricing: {
+        ...priceData.pricing,
+        total: priceData.pricing.total + customOfferAdjustment,
+        subtotal: priceData.pricing.total + customOfferAdjustment,
+      },
       distance: priceData.distance,
       duration: priceData.duration,
+      scheduledFor: scheduledFor || undefined,
       routeCoordinates: [
         { latitude: pickupCoords.latitude, longitude: pickupCoords.longitude },
+        ...stops.map((s) => ({ latitude: s.addressCoords?.latitude || 0, longitude: s.addressCoords?.longitude || 0 })),
         { latitude: dropoffCoords.latitude, longitude: dropoffCoords.longitude },
       ],
       details: {
@@ -320,7 +379,7 @@ export default function DeliveryDetailsScreen() {
       },
       negotiation: {
         enabled: true,
-        clientOffer: priceData.pricing.total,
+        clientOffer: priceData.pricing.total + customOfferAdjustment,
       },
     };
 
@@ -371,7 +430,12 @@ export default function DeliveryDetailsScreen() {
   };
 
   return (
-    <View style={styles.safeArea}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      style={{ flex: 1 }}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+    >
+      <View style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#f4f4f4" />
 
       {/* Standard Header */}
@@ -416,6 +480,27 @@ export default function DeliveryDetailsScreen() {
             <Polyline coordinates={routeCoords} strokeColor="#020202ff" strokeWidth={5.5} />
           )}
 
+          {/* Stops Markers */}
+          {stops.map((stop, idx) => {
+            if (!stop.addressCoords) return null;
+            return (
+              <Marker key={idx} coordinate={stop.addressCoords} anchor={{ x: 0.3, y: 0.3 }}>
+                <View style={{ alignItems: "center", position: "relative", height: 60, width: 34, justifyContent: "flex-start" }}>
+                  {/* Triangle Core Hub */}
+                  <View style={{ position: "absolute", top: 4, width: 26, height: 26, alignItems: "center", justifyContent: "center", zIndex: 10 }}>
+                    <AlertTriangle size={20} color="#111827" fill="#02de95" strokeWidth={2.5} />
+                  </View>
+                  
+                  {/* Stem (pezinho - haste) */}
+                  <View style={{ position: "absolute", top: 25, width: 3, height: 8, backgroundColor: "#02de95", borderBottomLeftRadius: 1, borderBottomRightRadius: 1, zIndex: 9 }} />
+                  
+                  {/* Base Dot (pezinho - bolinha) */}
+                  <View style={{ position: "absolute", top: 32, width: 6, height: 6, borderRadius: 3, backgroundColor: "#02de95", borderWidth: 1, borderColor: "#ffffff", zIndex: 12 }} />
+                </View>
+              </Marker>
+            );
+          })}
+
           {/* Animated Walking Delivery Marker */}
           {!!animatedVehicleCoord && (
             <Marker coordinate={animatedVehicleCoord} anchor={{ x: 0.3, y: 0.6 }}>
@@ -424,7 +509,7 @@ export default function DeliveryDetailsScreen() {
                 <View style={{ position: "absolute", top: 2, width: 26, height: 26, alignItems: "center", justifyContent: "center", zIndex: 10 }}>
                   <Image
                     source={selectedVehicleType === "motorcycle" ? require("../../../../../../assets/Logo/leva_moto.png") : vehicleImages[selectedVehicleType]}
-                    style={{ width: 24, height: 24 }}
+                    style={{ width: 24, height: 24, transform: [{ rotate: `${vehicleRotation}deg` }] }}
                     resizeMode="contain"
                   />
                 </View>
@@ -442,6 +527,7 @@ export default function DeliveryDetailsScreen() {
           {!!routeProfiles.pickupProfile.addressCoords && !!routeProfiles.dropoffProfile.addressCoords && (
             <MapViewDirections
               origin={routeProfiles.pickupProfile.addressCoords}
+              waypoints={stops.map((s) => s.addressCoords).filter((c): c is { latitude: number; longitude: number } => !!c)}
               destination={routeProfiles.dropoffProfile.addressCoords}
               apikey={GOOGLE_API_KEY}
               mode="DRIVING"
@@ -567,6 +653,27 @@ export default function DeliveryDetailsScreen() {
               <View style={styles.routeDivider} />
             )}
 
+            {stops.map((stop, idx) => (
+              <View key={idx}>
+                <View style={[styles.routeRow, { backgroundColor: "#f9fafb", borderRadius: 12, padding: 10, marginVertical: 4, borderLeftWidth: 3, borderLeftColor: "#02de95" }]}>
+                  <View style={styles.routeTextWrap}>
+                    <Text style={{ fontSize: 10, fontWeight: "900", color: "#02de95", marginBottom: 2 }}>PARADA {idx + 1}</Text>
+                    <Text style={[styles.addressText, { fontSize: 13 }]} numberOfLines={2}>
+                      {stop.address}
+                    </Text>
+                    <Text style={styles.contactText} numberOfLines={1}>
+                      {stop.contactName} • {stop.contactPhone}
+                    </Text>
+                  </View>
+                  <TouchableOpacity onPress={() => handleRemoveStop(idx)} style={{ padding: 6 }}>
+                    <X size={18} color="#ef4444" strokeWidth={2.5} />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={{ height: 1, backgroundColor: "#eef1f5", marginVertical: 6 }} />
+              </View>
+            ))}
+
             <TouchableOpacity activeOpacity={0.85} style={styles.routeRow}>
               <View style={styles.routeTextWrap}>
                 <Text style={styles.addressText} numberOfLines={3}>
@@ -583,6 +690,36 @@ export default function DeliveryDetailsScreen() {
               </View>
               <ChevronRight size={23} color="#7b7f86" />
             </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                paddingVertical: 10,
+                marginTop: 10,
+                borderWidth: 1,
+                borderStyle: "dashed",
+                borderColor: "#02de95",
+                borderRadius: 12,
+                gap: 6
+              }}
+              onPress={() => {
+                navigation.navigate("DeliverySenderInfo", {
+                  mode: "receiver",
+                  vehicleType: selectedVehicleType,
+                  flow: route.params?.flow || "send",
+                  pickupProfile: routeProfiles.pickupProfile,
+                  dropoffProfile: routeProfiles.dropoffProfile,
+                  stops: stops,
+                  isAddingStop: true,
+                });
+              }}
+              activeOpacity={0.8}
+            >
+              <Plus size={16} color="#02de95" strokeWidth={3} />
+              <Text style={{ color: "#02de95", fontSize: 13, fontWeight: "900" }}>Adicionar Parada (+ R$ 2,00)</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -597,6 +734,25 @@ export default function DeliveryDetailsScreen() {
             </Text>
           </View>
           <ChevronRight size={23} color="#7b7f86" />
+        </TouchableOpacity>
+
+        <TouchableOpacity activeOpacity={0.9} style={styles.cardRow} onPress={() => setShowScheduleModal(true)}>
+          <View style={[styles.iconSlot, scheduledFor ? { backgroundColor: "#ecfff8" } : null]}>
+            <Clock size={19} color={scheduledFor ? "#02de95" : "#667085"} />
+          </View>
+          <View style={styles.cardTextWrap}>
+            <Text style={styles.cardTitle}>Agendar Entrega</Text>
+            <Text style={styles.cardSubtitle} numberOfLines={2}>
+              {scheduledFor ? `Agendado: ${scheduledFor}` : "Solicitar agora (Partida imediata)"}
+            </Text>
+          </View>
+          {scheduledFor ? (
+            <TouchableOpacity onPress={(e) => { e.stopPropagation(); setScheduledFor(null); }} style={{ padding: 4 }}>
+              <X size={20} color="#ef4444" strokeWidth={2.5} />
+            </TouchableOpacity>
+          ) : (
+            <ChevronRight size={23} color="#7b7f86" />
+          )}
         </TouchableOpacity>
 
         <TouchableOpacity activeOpacity={0.9} style={styles.vehicleCard} onPress={() => setShowVehicleSelector(true)}>
@@ -639,6 +795,61 @@ export default function DeliveryDetailsScreen() {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 15) }]}>
+        <View style={{ flexDirection: "row", gap: 5, paddingHorizontal: 16, marginBottom: 12, alignItems: "center" }}>
+          <Text style={{ fontSize: 11, fontWeight: "800", color: "#6b7280", marginRight: 0 }}>Melhorar proposta:</Text>
+          {["+ R$ 2", "+ R$ 5", "+ R$ 10"].map((btnText, idx) => {
+            const addVal = idx === 0 ? 2 : idx === 1 ? 5 : 10;
+            const active = customOfferAdjustment === addVal;
+            return (
+              <TouchableOpacity
+                key={btnText}
+                style={{
+                  flex: 1,
+                  height: 32,
+                  borderRadius: 16,
+                  backgroundColor: active ? "#02de95" : "#e6fcf4",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderWidth: 1,
+                  borderColor: active ? "#02de95" : "#a1f4d7"
+                }}
+                onPress={() => setCustomOfferAdjustment(active ? 0 : addVal)}
+                activeOpacity={0.8}
+              >
+                <Text style={{ color: active ? "#091A2F" : "#029d68", fontSize: 11, fontWeight: "900" }}>{btnText}</Text>
+              </TouchableOpacity>
+            );
+          })}
+
+          <TouchableOpacity
+            style={{
+              flex: 1,
+              height: 32,
+              borderRadius: 16,
+              backgroundColor: (customOfferAdjustment !== 0 && customOfferAdjustment !== 2 && customOfferAdjustment !== 5 && customOfferAdjustment !== 10) ? "#02de95" : "#e6fcf4",
+              alignItems: "center",
+              justifyContent: "center",
+              borderWidth: 1,
+              borderColor: (customOfferAdjustment !== 0 && customOfferAdjustment !== 2 && customOfferAdjustment !== 5 && customOfferAdjustment !== 10) ? "#02de95" : "#a1f4d7"
+            }}
+            onPress={() => {
+              setCustomOfferText(customOfferAdjustment > 0 ? String(customOfferAdjustment) : "");
+              setShowCustomOfferInput(true);
+            }}
+            activeOpacity={0.8}
+          >
+            <Text
+              style={{
+                color: (customOfferAdjustment !== 0 && customOfferAdjustment !== 2 && customOfferAdjustment !== 5 && customOfferAdjustment !== 10) ? "#091A2F" : "#029d68",
+                fontSize: 11,
+                fontWeight: "900"
+              }}
+            >
+              {(customOfferAdjustment !== 0 && customOfferAdjustment !== 2 && customOfferAdjustment !== 5 && customOfferAdjustment !== 10) ? `+ R$ ${customOfferAdjustment}` : "Outro"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
         <TouchableOpacity style={styles.paymentRow} activeOpacity={0.8} onPress={() => setShowPaymentMethods(true)}>
           <View style={styles.cashBadge}>
             <Wallet size={15} color="#fff" />
@@ -962,7 +1173,211 @@ export default function DeliveryDetailsScreen() {
           </View>
         </View>
       )}
-    </View>
+
+      {showScheduleModal && (
+        <View className="absolute inset-0 z-[80] justify-end bg-black/60">
+          <TouchableOpacity className="flex-1" activeOpacity={1} onPress={() => { setShowScheduleModal(false); setIsCustomSchedule(false); }} />
+          <View className="rounded-t-[28px] bg-white px-7 pb-8 pt-6">
+            <View className="mb-5 flex-row items-center justify-between">
+              <Text className="text-[22px] font-black text-[#111827]">Agendar Entrega</Text>
+              <TouchableOpacity
+                className="h-9 w-9 items-center justify-center rounded-full bg-[#f1f2f4]"
+                onPress={() => {
+                  setShowScheduleModal(false);
+                  setIsCustomSchedule(false);
+                }}
+              >
+                <X size={20} color="#9ca3af" strokeWidth={3} />
+              </TouchableOpacity>
+            </View>
+
+            {isCustomSchedule ? (
+              <View>
+                <Text className="mb-4 text-base text-[#6b7280] leading-6">Insira o dia e o horário desejado para a entrega:</Text>
+                
+                <Text className="mb-1 text-sm font-bold text-[#6b7280]">Dia (Ex: Amanhã, ou 26/05)</Text>
+                <TextInput
+                  value={customDay}
+                  onChangeText={setCustomDay}
+                  placeholder="Ex: Hoje, Amanhã ou 26/05"
+                  placeholderTextColor="#9ca3af"
+                  className="mb-4 h-12 rounded-xl bg-[#f3f4f6] px-4 text-sm font-semibold text-[#111827]"
+                />
+
+                <View className="flex-row gap-3 mb-6">
+                  <View className="flex-1">
+                    <Text className="mb-1 text-sm font-bold text-[#6b7280]">Hora (00-23)</Text>
+                    <TextInput
+                      value={customHour}
+                      onChangeText={(t) => {
+                        const h = t.replace(/[^0-9]/g, "").slice(0, 2);
+                        setCustomHour(Number(h) < 24 ? h : "23");
+                      }}
+                      placeholder="14"
+                      placeholderTextColor="#9ca3af"
+                      keyboardType="numeric"
+                      className="h-12 rounded-xl bg-[#f3f4f6] px-4 text-sm font-semibold text-[#111827]"
+                    />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="mb-1 text-sm font-bold text-[#6b7280]">Minuto (00-59)</Text>
+                    <TextInput
+                      value={customMin}
+                      onChangeText={(t) => {
+                        const m = t.replace(/[^0-9]/g, "").slice(0, 2);
+                        setCustomMin(Number(m) < 60 ? m : "59");
+                      }}
+                      placeholder="30"
+                      placeholderTextColor="#9ca3af"
+                      keyboardType="numeric"
+                      className="h-12 rounded-xl bg-[#f3f4f6] px-4 text-sm font-semibold text-[#111827]"
+                    />
+                  </View>
+                </View>
+
+                <View className="flex-row gap-3">
+                  <TouchableOpacity
+                    className="h-12 flex-1 items-center justify-center rounded-xl bg-[#f3f4f6]"
+                    onPress={() => setIsCustomSchedule(false)}
+                    activeOpacity={0.8}
+                  >
+                    <Text className="text-[15px] font-black text-[#111827]">Voltar</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    className="h-12 flex-[2] items-center justify-center rounded-xl bg-[#02de95]"
+                    onPress={() => {
+                      const dayVal = customDay.trim() || "Hoje";
+                      const hrVal = customHour.trim().padStart(2, "0") || "12";
+                      const minVal = customMin.trim().padStart(2, "0") || "00";
+                      setScheduledFor(`${dayVal}, às ${hrVal}:${minVal}`);
+                      setShowScheduleModal(false);
+                      setIsCustomSchedule(false);
+                    }}
+                    activeOpacity={0.9}
+                  >
+                    <Text className="text-[15px] font-black text-[#091A2F]">Confirmar Horário</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <View>
+                <Text className="mb-4 text-base text-[#6b7280] leading-6">Selecione o horário ideal para realizarmos a sua coleta e entrega:</Text>
+                
+                <View className="gap-2 mb-4">
+                  {[
+                    { label: "Partida imediata (Agora)", value: null },
+                    { label: "Hoje mais tarde (em 30 minutos)", value: "Hoje, às " + new Date(Date.now() + 30 * 60 * 1000).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) },
+                    { label: "Hoje mais tarde (em 2 horas)", value: "Hoje, às " + new Date(Date.now() + 120 * 60 * 1000).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) },
+                    { label: "Amanhã pela manhã (08:30)", value: "Amanhã, às 08:30" },
+                    { label: "Amanhã à tarde (14:00)", value: "Amanhã, às 14:00" },
+                  ].map((opt) => {
+                    const active = scheduledFor === opt.value;
+                    return (
+                      <TouchableOpacity
+                        key={opt.label}
+                        className={active ? "flex-row items-center rounded-2xl border-2 border-[#02de95] bg-[#ecfff8] p-3.5" : "flex-row items-center rounded-2xl border border-[#eef1f5] bg-white p-3.5"}
+                        onPress={() => {
+                          setScheduledFor(opt.value);
+                          setShowScheduleModal(false);
+                        }}
+                        activeOpacity={0.85}
+                      >
+                        <Clock size={16} color={active ? "#02de95" : "#667085"} style={{ marginRight: 12 }} />
+                        <Text className="flex-1 text-[15px] font-black text-[#111827]">{opt.label}</Text>
+                        {active && <Check size={18} color="#02de95" strokeWidth={3.5} />}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <TouchableOpacity
+                  className="h-12 items-center justify-center rounded-2xl border border-[#02de95] bg-[#ecfff8]"
+                  onPress={() => {
+                    const now = new Date();
+                    setCustomDay("Hoje");
+                    setCustomHour(String(now.getHours()));
+                    setCustomMin(String(now.getMinutes()));
+                    setIsCustomSchedule(true);
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <Text className="text-[15px] font-black text-[#02de95]">Escolher data e hora personalizada</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </View>
+      )}
+
+      {showCustomOfferInput && (
+        <View className="absolute inset-0 z-[80] justify-start bg-black/60 pt-24 px-5">
+          <TouchableOpacity
+            style={StyleSheet.absoluteFillObject}
+            activeOpacity={1}
+            onPress={() => setShowCustomOfferInput(false)}
+          />
+          <View className="rounded-[24px] bg-white px-7 pb-8 pt-6 shadow-2xl">
+            <View className="mb-5 flex-row items-center justify-between">
+              <Text className="text-[22px] font-black text-[#111827]">Melhorar Proposta</Text>
+              <TouchableOpacity className="h-9 w-9 items-center justify-center rounded-full bg-[#f1f2f4]" onPress={() => setShowCustomOfferInput(false)}>
+                <X size={20} color="#9ca3af" strokeWidth={3} />
+              </TouchableOpacity>
+            </View>
+
+            <Text className="mb-4 text-base text-[#6b7280] leading-6">
+              Digite o valor adicional que você gostaria de oferecer ao motorista para priorizar sua entrega:
+            </Text>
+
+            <View style={{
+              height: 52,
+              backgroundColor: "#f3f4f6",
+              borderRadius: 14,
+              flexDirection: "row",
+              alignItems: "center",
+              paddingHorizontal: 16,
+              borderWidth: 2,
+              borderColor: "#02de95",
+              marginBottom: 20
+            }}>
+              <Text style={{ fontSize: 18, fontWeight: "900", color: "#6b7280", marginRight: 6 }}>R$</Text>
+              <TextInput
+                value={customOfferText}
+                onChangeText={(text) => {
+                  const num = Number(text.replace(/[^0-9]/g, ""));
+                  setCustomOfferText(num > 0 ? String(num) : "");
+                }}
+                placeholder="0,00"
+                placeholderTextColor="#9ca3af"
+                keyboardType="numeric"
+                autoFocus
+                style={{
+                  flex: 1,
+                  height: "100%",
+                  fontSize: 18,
+                  fontWeight: "900",
+                  color: "#111827",
+                  padding: 0
+                }}
+              />
+            </View>
+
+            <TouchableOpacity
+              className="h-14 items-center justify-center rounded-2xl bg-[#02de95]"
+              onPress={() => {
+                const val = Number(customOfferText);
+                setCustomOfferAdjustment(val);
+                setShowCustomOfferInput(false);
+              }}
+              activeOpacity={0.9}
+            >
+              <Text className="text-lg font-black text-[#091A2F]">Confirmar Proposta</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -997,7 +1412,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 18,
-    paddingBottom: 142,
+    paddingBottom: 240,
     gap: 12,
   },
   routeCard: {
