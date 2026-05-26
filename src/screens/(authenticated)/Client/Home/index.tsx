@@ -293,13 +293,18 @@ export default function HomeScreen() {
 
             {/* 2. Map Card */}
             <View className="flex-1 mx-5 mt-4 rounded-[24px] overflow-hidden border border-white/5 relative z-10">
-              <ClientRealtimeMap 
+              <ClientRealtimeMap
                 mapRef={mapRef}
                 region={region}
                 userRegion={userRegion}
                 onRegionChangeComplete={handleRegionChangeComplete}
                 useDarkStyle={user?.mapTheme === "dark"}
                 avatarUrl={user?.fotoPerfil || user?.profilePhoto || undefined}
+                rideDrivers={availability.rideDrivers}
+                deliveryDrivers={availability.deliveryDrivers}
+                totalNearby={availability.totalNearby}
+                availabilityLoading={availabilityLoading}
+                availabilityError={availabilityError}
               />
             </View>
             

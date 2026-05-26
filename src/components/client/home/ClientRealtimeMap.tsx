@@ -5,6 +5,7 @@ import { Car, Bike, User } from "lucide-react-native";
 
 import { colors } from "@/theme";
 import { MotiView } from "moti";
+import { DriverAvailabilityBadge } from "./DriverAvailabilityBadge";
 
 // Mapa sutilmente escuro — casinhas e edifícios visíveis em tom mais claro
 const mapSoftDarkStyle = [
@@ -44,6 +45,11 @@ interface ClientRealtimeMapProps {
   onRegionChangeComplete: (r: any) => void;
   useDarkStyle?: boolean; // mantido para compatibilidade, não tem efeito
   avatarUrl?: string;
+  rideDrivers?: number;
+  deliveryDrivers?: number;
+  totalNearby?: number;
+  availabilityLoading?: boolean;
+  availabilityError?: string | null;
 }
 
 export const ClientRealtimeMap = memo(({
@@ -53,6 +59,11 @@ export const ClientRealtimeMap = memo(({
   onRegionChangeComplete,
   useDarkStyle = true,
   avatarUrl,
+  rideDrivers = 0,
+  deliveryDrivers = 0,
+  totalNearby = 0,
+  availabilityLoading = false,
+  availabilityError = null,
 }: ClientRealtimeMapProps) => {
   const [imageError, setImageError] = useState(false);
   const showAvatar = !!avatarUrl && !imageError;
@@ -143,6 +154,14 @@ export const ClientRealtimeMap = memo(({
           </Marker>
         ))}
       </MapView>
+
+      <DriverAvailabilityBadge
+        rideDrivers={rideDrivers}
+        deliveryDrivers={deliveryDrivers}
+        totalNearby={totalNearby}
+        loading={availabilityLoading}
+        error={availabilityError}
+      />
     </View>
   );
 });

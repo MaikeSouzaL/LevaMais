@@ -13,7 +13,8 @@
       "Bash(Select-Object FullName)",
       "Bash(Get-ChildItem *)",
       "Bash(git add *)",
-      "Bash(git commit -m 'refactor: extract home screen logic into custom hooks to improve maintainability *)"
+      "Bash(git commit -m 'refactor: extract home screen logic into custom hooks to improve maintainability *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }
