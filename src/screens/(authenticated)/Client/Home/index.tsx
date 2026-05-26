@@ -16,6 +16,9 @@ import { LocationLoadingScreen } from "@/components/ui/LocationLoadingScreen";
 
 // 🛠️ Reused Domain Hooks from Original Flow
 import { useMapLocation } from "../Shared/hooks/useMapLocation";
+import { useFavorites } from "../Shared/hooks/useFavorites";
+import { useAvailability } from "../Shared/hooks/useAvailability";
+import { useActiveRideMonitor } from "../Shared/hooks/useActiveRideMonitor";
 
 // 🎨 Premium Visual Shell Components
 import { ClientRealtimeMap } from "@/components/client/home/ClientRealtimeMap";
@@ -27,24 +30,17 @@ export default function HomeScreen() {
   const navigation = useNavigation<NavigationProp<ClientStackParamList>>();
   const route = useRoute<RouteProp<ClientStackParamList, "Home">>();
   const { userData: user } = useAuthStore();
-  
+
   const [showHomeSuccessModal, setShowHomeSuccessModal] = useState(false);
   const [showNoDriversModal, setShowNoDriversModal] = useState(false);
-  const [showCancelledModal, setShowCancelledModal] = useState(false);
-  const [expiredRideId, setExpiredRideId] = useState<string | null>(null);
 
   useEffect(() => {
     if (route.params?.showSuccessQueueModal) {
        setShowHomeSuccessModal(true);
        navigation.setParams({ showSuccessQueueModal: undefined });
     }
-    // Immediate banner: rideId passed directly from OrderSentScreen
-    if (route.params?.activeRideId) {
-       setActiveRequestingRideId(route.params.activeRideId);
-       navigation.setParams({ activeRideId: undefined });
-    }
   }, [route.params]);
-  
+
   // Mapping Engine Instance & Actions
   const {
     mapRef,
@@ -55,24 +51,25 @@ export default function HomeScreen() {
     handleRegionChangeComplete
   } = useMapLocation();
 
-  // Component States
-  const [favorites, setFavorites] = useState<any[]>([]);
-  const [sheetSnapIndex, setSheetSnapIndex] = useState(0);
-  const [waitingQueueCount, setWaitingQueueCount] = useState<number>(0);
-  const [negotiationRideId, setNegotiationRideId] = useState<string | null>(null);
-  const [activeRequestingRideId, setActiveRequestingRideId] = useState<string | null>(null);
-  const [availability, setAvailability] = useState<{
-    rideDrivers: number;
-    deliveryDrivers: number;
-    totalNearby: number;
-  }>({
-    rideDrivers: 0,
-    deliveryDrivers: 0,
-    totalNearby: 0,
+  // Custom Hooks para lógica complexa
+  const { favorites, loading: favoritesLoading } = useFavorites();
+  const { availability, loading: availabilityLoading, error: availabilityError } = useAvailability({
+    region,
+    userRegion,
   });
-  const [availabilityLoading, setAvailabilityLoading] = useState(false);
-  const [availabilityError, setAvailabilityError] = useState<string | null>(null);
-  
+  const {
+    negotiationRideId,
+    activeRequestingRideId,
+    waitingQueueCount,
+    showCancelledModal,
+    dismissCancelledModal,
+    confirmExpiredAction,
+    setActiveRequestingRideId,
+  } = useActiveRideMonitor();
+
+  // Component States
+  const [sheetSnapIndex, setSheetSnapIndex] = useState(0);
+
   // Map Operational Visual States 🎨
   const [useDarkMap, setUseDarkMap] = useState(true);
   const [isSwitchingStyle, setIsSwitchingStyle] = useState(false);
@@ -114,210 +111,13 @@ export default function HomeScreen() {
     return () => clearTimeout(timer);
   }, [activeService]);
 
-  //Background monitoring of active ride (Redirect if driver offers or accepts)
+  // Lida com parâmetros da rota (ex: activeRideId vindo de OrderSentScreen)
   useEffect(() => {
-    let isMounted = true;
-    let pollInterval: any = null;
-
-    const checkActiveRide = async () => {
-      try {
-        const res = await rideService.getActiveList();
-        if (!isMounted) return;
-        
-        const activeRides = res?.rides || [];
-        console.log("[Home] getActiveList response:", JSON.stringify({ active: res?.active, count: res?.count, rides: res?.rides?.map((r: any) => ({ id: r._id, status: r.status, service: r.serviceType })) }));
-        
-        // Find if any ride has active negotiations/offers (status !== 'rejected')
-        const rideWithOffers = activeRides.find((ride: any) => {
-          const offers = Array.isArray(ride.negotiation?.offers) ? ride.negotiation.offers : [];
-          return offers.some((o: any) => o.status !== "rejected");
-        });
-        if (rideWithOffers) {
-           setNegotiationRideId(rideWithOffers._id);
-           setActiveRequestingRideId(null);
-        } else {
-           setNegotiationRideId(null);
-           // Show banner for any ride waiting for drivers (requesting status, any service type)
-           const requestingRide = activeRides.find((ride: any) =>
-             ride.status === "requesting" || ride.status === "payment_pending" || ride.status === "driver_assigned"
-           );
-           console.log("[Home] requestingRide:", requestingRide?._id, requestingRide?.status);
-           setActiveRequestingRideId(requestingRide?._id || null);
-        }
-
-        const queuedRides = activeRides.filter((ride: any) => ride.isWaitingInQueue === true && ride.status === "requesting");
-        setWaitingQueueCount(queuedRides.length);
-
-        const primaryRide = activeRides.find((ride: any) => !ride.isWaitingInQueue);
-        if (primaryRide) {
-          if (primaryRide.driverId && ["accepted", "driver_arriving", "arrived", "in_progress"].includes(primaryRide.status)) {
-             navigation.reset({
-               index: 0,
-               routes: [{ name: "RideTracking", params: { rideId: primaryRide._id } }],
-             });
-             return;
-          }
-        }
-        
-      } catch (err) {
-        console.warn("[Home] checkActiveRide ERROR:", (err as any)?.message, (err as any)?.response?.status, JSON.stringify((err as any)?.response?.data));
-      }
-    };
-
-    // ? Call immediately on mount ? don't wait for WebSocket
-    checkActiveRide();
-
-    // WebSocket listeners for real-time updates
-    webSocketService.connect().then(() => {
-       webSocketService.on("ride-status-updated", checkActiveRide);
-              webSocketService.on("ride-offers-updated", checkActiveRide);
-       webSocketService.on("driver-accepted-offer", async (data: any) => {
-        console.log("[Home] driver-accepted-offer received:", data);
-        const rId = data?.rideId;
-        const dId = data?.driverId;
-        if (rId && dId) {
-          try {
-            // Auto-select the driver's offer and navigate to payment
-            await rideService.selectOffer(rId, dId);
-            navigation.navigate("DeliveryPaymentConfirm", { rideId: rId });
-          } catch (e: any) {
-            // Fallback: navigate to marketplace
-            navigation.navigate("RideOffersMarketplace", { rideId: rId });
-          }
-        } else if (rId) {
-          navigation.navigate("RideOffersMarketplace", { rideId: rId });
-        }
-       });
-       webSocketService.on("ride-cancelled", (data: any) => {
-       console.log("[Home] ride-cancelled received:", data);
-       const rId = data?.rideId || data?.ride?._id || data?._id;
-       if (rId) setExpiredRideId(rId);
-       if (navigation.isFocused()) { setShowCancelledModal(true); }
-       setActiveRequestingRideId(null);
-       setNegotiationRideId(null);
-       setWaitingQueueCount(0);
-     });
-       webSocketService.on("ride-payment-expired", (data: any) => {
-       console.log("[Home] ride-payment-expired received:", data);
-       const rId = data?.rideId || data?.ride?._id || data?._id;
-       if (rId) setExpiredRideId(rId);
-       if (navigation.isFocused()) { setShowCancelledModal(true); }
-       setActiveRequestingRideId(null);
-       setNegotiationRideId(null);
-       setWaitingQueueCount(0);
-       Toast.show({ type: "error", text1: "Pagamento Expirado", text2: data?.reason || "Tempo de confirmacao esgotado." });
-     });
-    }).catch(() => {});
-
-    // Polling fallback every 6 seconds
-    pollInterval = setInterval(checkActiveRide, 6000);
-    
-    return () => {
-      isMounted = false;
-      if (pollInterval) clearInterval(pollInterval);
-      webSocketService.off("ride-status-updated", checkActiveRide);
-             webSocketService.off("ride-offers-updated", checkActiveRide);
-       webSocketService.off("driver-accepted-offer");
-      webSocketService.off("ride-cancelled", checkActiveRide);
-       webSocketService.off("ride-payment-expired", checkActiveRide);
-       webSocketService.off("ride-payment-expired", checkActiveRide);
-    };
-  }, [navigation]);
-
-  // Re-check on every focus (catches rides from other screens)
-  useFocusEffect(
-    useCallback(() => {
-      let isMounted = true;
-      const recheckRides = async () => {
-        try {
-          const res = await rideService.getActiveList();
-          if (!isMounted) return;
-          const activeRides = res?.rides || [];
-          console.log("[Home:focus] getActiveList:", activeRides.length, activeRides.map((r: any) => r.status));
-          // Find if any ride has active negotiations/offers (status !== 'rejected')
-          const rideWithOffers = activeRides.find((ride: any) => {
-            const offers = Array.isArray(ride.negotiation?.offers) ? ride.negotiation.offers : [];
-            return offers.some((o: any) => o.status !== "rejected");
-          });
-          if (rideWithOffers) {
-            setNegotiationRideId(rideWithOffers._id);
-            setActiveRequestingRideId(null);
-          } else {
-            setNegotiationRideId(null);
-            const requestingRide = activeRides.find((ride: any) =>
-              ride.status === "requesting" || ride.status === "payment_pending" || ride.status === "driver_assigned"
-            );
-            setActiveRequestingRideId(requestingRide?._id || null);
-          }
-        } catch (err) {
-          console.warn("[Home:focus] error:", (err as any)?.message || err);
-        }
-      };
-      recheckRides();
-      return () => { isMounted = false; };
-    }, [])
-  );
-
-  // Load context on focus
-  useFocusEffect(
-    useCallback(() => {
-      (async () => {
-        try {
-          const favs = await favoriteAddressService.list();
-          setFavorites(favs || []);
-        } catch (e) {
-          setFavorites([]);
-        }
-      })();
-    }, [])
-  );
-
-  useEffect(() => {
-    let mounted = true;
-
-    const loadNearbyAvailability = async () => {
-      try {
-        setAvailabilityLoading(true);
-        setAvailabilityError(null);
-        const lat = userRegion?.latitude || region?.latitude;
-        const lng = userRegion?.longitude || region?.longitude;
-        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-        const safeLat = lat as number;
-        const safeLng = lng as number;
-
-        const drivers = await rideService.getNearbyDrivers(safeLat, safeLng, 7000);
-        if (!mounted) return;
-
-        const rideDrivers = drivers.filter((d) =>
-          Array.isArray(d.serviceTypes) && d.serviceTypes.includes("ride"),
-        ).length;
-        const deliveryDrivers = drivers.filter((d) =>
-          Array.isArray(d.serviceTypes) && d.serviceTypes.includes("delivery"),
-        ).length;
-
-        setAvailability({
-          rideDrivers,
-          deliveryDrivers,
-          totalNearby: drivers.length,
-        });
-      } catch {
-        if (!mounted) return;
-        setAvailabilityError("Nao foi possivel validar disponibilidade local agora.");
-      } finally {
-        if (mounted) {
-          setAvailabilityLoading(false);
-        }
-      }
-    };
-
-    loadNearbyAvailability();
-    const interval = setInterval(loadNearbyAvailability, 15000);
-
-    return () => {
-      mounted = false;
-      clearInterval(interval);
-    };
-  }, [region?.latitude, region?.longitude, userRegion?.latitude, userRegion?.longitude]);
+    if (route.params?.activeRideId) {
+      setActiveRequestingRideId(route.params.activeRideId);
+      navigation.setParams({ activeRideId: undefined });
+    }
+  }, [route.params, setActiveRequestingRideId, navigation]);
 
   // Drawer Open
   const handleMenuPress = useCallback(() => {
@@ -448,21 +248,8 @@ export default function HomeScreen() {
   }, [centerOnUser, isCentering]);
 
   const handleSOS = useCallback(() => {
-    try {
-      // Navigates seamlessly to client-specific safety zone! 🛡️
-      navigation.navigate("SafetyCenter");
-    } catch {
-      Alert.alert("SOS", "Ativando modo de emergência do passageiro...");
-    }
+    navigation.navigate("SafetyCenter");
   }, [navigation]);
-
-  const handleExpiredConfirm = useCallback(() => {
-    setShowCancelledModal(false);
-    if (expiredRideId) {
-      navigation.navigate("RideOffersMarketplace", { rideId: expiredRideId, autoOpenIncrease: true });
-      setExpiredRideId(null);
-    }
-  }, [navigation, expiredRideId]);
 
   // Loading Guard while Map Logic warms up
   if (!region) {
@@ -561,16 +348,16 @@ export default function HomeScreen() {
                       }}
                     >
                       <View className="w-6 h-6 rounded-full bg-[#02de95]/10 items-center justify-center mr-2">
-                        {(fav.name || fav.label)?.toLowerCase() === "casa" ? (
+                        {fav.name?.toLowerCase() === "casa" ? (
                           <HomeIcon size={14} color="#02de95" />
-                        ) : (fav.name || fav.label)?.toLowerCase() === "trabalho" ? (
+                        ) : fav.name?.toLowerCase() === "trabalho" ? (
                           <Briefcase size={14} color="#02de95" />
                         ) : (
                           <Sparkles size={14} color="#02de95" />
                         )}
                       </View>
                       <Text className="text-white text-xs font-bold" numberOfLines={1}>
-                        {fav.name || fav.label}
+                        {fav.name}
                       </Text>
                     </TouchableOpacity>
                   ))
@@ -1269,8 +1056,8 @@ export default function HomeScreen() {
           message="Nenhum entregador aceitou sua oferta dentro do prazo de 10 minutos. Tente novamente com uma oferta mais atrativa ou em outro horario."
           type="warning"
           confirmText="Entendido"
-          onClose={handleExpiredConfirm}
-          onConfirm={handleExpiredConfirm}
+          onClose={dismissCancelledModal}
+          onConfirm={confirmExpiredAction}
         />
         <Modal
           visible={showNoDriversModal}

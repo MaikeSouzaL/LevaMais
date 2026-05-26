@@ -157,6 +157,10 @@ export type ClientStackParamList = {
         mapPickedAddress?: string;
         mapPickedLatitude?: number;
         mapPickedLongitude?: number;
+        mapPickedName?: string;
+        mapPickedPhone?: string;
+        mapPickedDetails?: string;
+        isFromMapSelection?: boolean;
       }
     | undefined;
   SelectVehicle:

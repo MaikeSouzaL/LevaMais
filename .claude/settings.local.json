@@ -11,7 +11,9 @@
       "Bash(git checkout *)",
       "Bash(Get-ChildItem -Recurse -Directory -Depth 4 -Path \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\Leva_Mais\\\\backend\\\\src\")",
       "Bash(Select-Object FullName)",
-      "Bash(Get-ChildItem *)"
+      "Bash(Get-ChildItem *)",
+      "Bash(git add *)",
+      "Bash(git commit -m 'refactor: extract home screen logic into custom hooks to improve maintainability *)"
     ]
   }
 }
