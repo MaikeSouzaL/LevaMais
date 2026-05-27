@@ -1,4 +1,4 @@
-﻿const socketIo = require("socket.io");
+const socketIo = require("socket.io");
 const jwt = require("jsonwebtoken");
 const Ride = require("../models/Ride");
 const RideTrackPoint = require("../models/RideTrackPoint");
@@ -275,6 +275,86 @@ function initializeWebSocket(server) {
         if (typeof ack === "function") {
           ack({ success: false, message: msg });
         }
+      }
+    });
+
+    // Evento: Cliente avisa que o tempo de entrega expirou (00:00)
+    socket.on("delivery_expired", async (data) => {
+      try {
+        const rideId = String(data?.rideId || "").trim();
+        if (!rideId) return;
+
+        const ride = await Ride.findById(rideId);
+        if (ride && String(ride.status) === "requesting") {
+          ride.status = "cancelled_no_driver";
+          ride.cancelledAt = new Date();
+          await ride.save();
+
+          // Move to history
+          try {
+            const RideHistory = require("../models/RideHistory");
+            const historyRide = new RideHistory(ride.toObject());
+            await historyRide.save();
+          } catch (histErr) {
+            console.error("Erro ao salvar historico de entrega expirada:", histErr);
+          }
+
+          console.log(`[WebSocket] Delivery ${rideId} marked as expired (cancelled_no_driver)`);
+
+          // Broadcast to client room and everyone
+          io.to(`client-${ride.clientId}`).emit("delivery_cancelled", {
+            rideId: String(ride._id),
+            reason: "expired",
+          });
+
+          // Broadcast to all to close sheet and remove from list
+          io.emit("delivery_cancelled", {
+            rideId: String(ride._id),
+            reason: "expired",
+          });
+        }
+      } catch (err) {
+        console.error("Erro ao processar socket delivery_expired:", err);
+      }
+    });
+
+    // Evento: Cliente avisa que o tempo de corrida expirou (00:00)
+    socket.on("ride_expired", async (data) => {
+      try {
+        const rideId = String(data?.rideId || "").trim();
+        if (!rideId) return;
+
+        const ride = await Ride.findById(rideId);
+        if (ride && String(ride.status) === "requesting") {
+          ride.status = "cancelled_no_driver";
+          ride.cancelledAt = new Date();
+          await ride.save();
+
+          // Move to history
+          try {
+            const RideHistory = require("../models/RideHistory");
+            const historyRide = new RideHistory(ride.toObject());
+            await historyRide.save();
+          } catch (histErr) {
+            console.error("Erro ao salvar historico de corrida expirada:", histErr);
+          }
+
+          console.log(`[WebSocket] Ride ${rideId} marked as expired (cancelled_no_driver)`);
+
+          // Broadcast to client room and everyone
+          io.to(`client-${ride.clientId}`).emit("ride_cancelled", {
+            rideId: String(ride._id),
+            reason: "expired",
+          });
+
+          // Broadcast to all to close sheet and remove from list
+          io.emit("ride_cancelled", {
+            rideId: String(ride._id),
+            reason: "expired",
+          });
+        }
+      } catch (err) {
+        console.error("Erro ao processar socket ride_expired:", err);
       }
     });
 

@@ -55,6 +55,54 @@ const VEHICLE_LABELS: Record<string, string> = {
   truck: "Caminhão",
 };
 
+const OrderCountdown = ({ createdAt, searchTimeoutSeconds, onExpired }: { createdAt?: string; searchTimeoutSeconds?: number; onExpired?: () => void }) => {
+  const [text, setText] = React.useState("");
+  const expiredRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (!createdAt) return;
+    expiredRef.current = false;
+    
+    const update = () => {
+      const timeoutSecs = searchTimeoutSeconds || 300;
+      const createdTime = new Date(createdAt).getTime();
+      const expireTime = createdTime + timeoutSecs * 1000;
+      const diffMs = expireTime - Date.now();
+      
+      if (diffMs <= 0) {
+        setText("00:00");
+        if (!expiredRef.current) {
+          expiredRef.current = true;
+          setTimeout(() => onExpired?.(), 2500);
+        }
+        return;
+      }
+      
+      const totalSecs = Math.floor(diffMs / 1000);
+      const mins = Math.floor(totalSecs / 60);
+      const secs = totalSecs % 60;
+      setText(`${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`);
+    };
+
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [createdAt, searchTimeoutSeconds, onExpired]);
+
+  if (!text) return null;
+
+  const isUrgent = text !== "00:00" && (() => {
+    const [m, s] = text.split(":").map(Number);
+    return m * 60 + s <= 60;
+  })();
+
+  return (
+    <Text style={{ color: isUrgent ? "#ef4444" : "#f59e0b", fontSize: 10, fontWeight: "900", marginLeft: 4 }}>
+      ⏱️ {text}
+    </Text>
+  );
+};
+
 export default function ActiveOrdersScreen() {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
@@ -274,7 +322,7 @@ export default function ActiveOrdersScreen() {
   const activeRides = rides.filter(
     (r) =>
       r.status !== "scheduled" &&
-      !["completed", "cancelled", "cancelled_by_client", "cancelled_by_driver"].includes(String(r.status || ""))
+      !["completed", "cancelled", "cancelled_by_client", "cancelled_by_driver", "cancelled_no_driver", "no_drivers_available"].includes(String(r.status || ""))
   );
   const scheduledRides = rides.filter((r) => r.status === "scheduled");
   const currentList = activeTab === "active" ? activeRides : scheduledRides;
@@ -295,7 +343,7 @@ export default function ActiveOrdersScreen() {
         }}
       >
         <TouchableOpacity
-          onPress={() => navigation.navigate("Home")}
+          onPress={() => navigation.replace("Home")}
           activeOpacity={0.7}
           className="w-10 h-10 rounded-xl bg-slate-800/70 border border-white/10 items-center justify-center mr-4"
         >
@@ -432,7 +480,7 @@ export default function ActiveOrdersScreen() {
           </Text>
           
           <TouchableOpacity
-            onPress={() => navigation.navigate("Home")}
+            onPress={() => navigation.replace("Home")}
             activeOpacity={0.8}
             className="mt-8 bg-primary hover:bg-[#00b87c] px-6 py-3.5 rounded-xl flex-row items-center gap-2 shadow-lg shadow-primary/20"
           >
@@ -464,14 +512,14 @@ export default function ActiveOrdersScreen() {
 
             // Cores de fundo do card para a tab de Negociações
             const negotiationCardColors: Record<string, { bg: string; border: string }> = {
-              completed: { bg: "rgba(2, 222, 149, 0.06)", border: "rgba(2, 222, 149, 0.2)" },
-              cancelled: { bg: "rgba(239, 68, 68, 0.06)", border: "rgba(239, 68, 68, 0.2)" },
-              cancelled_by_client: { bg: "rgba(239, 68, 68, 0.06)", border: "rgba(239, 68, 68, 0.2)" },
-              cancelled_by_driver: { bg: "rgba(239, 68, 68, 0.06)", border: "rgba(239, 68, 68, 0.2)" },
-              cancelled_no_driver: { bg: "rgba(245, 158, 11, 0.06)", border: "rgba(245, 158, 11, 0.2)" },
-              no_drivers_available: { bg: "rgba(251, 191, 36, 0.06)", border: "rgba(251, 191, 36, 0.2)" },
+              completed: { bg: "#ffffff", border: "rgba(2, 222, 149, 0.3)" },
+              cancelled: { bg: "#ffffff", border: "rgba(239, 68, 68, 0.3)" },
+              cancelled_by_client: { bg: "#ffffff", border: "rgba(239, 68, 68, 0.3)" },
+              cancelled_by_driver: { bg: "#ffffff", border: "rgba(239, 68, 68, 0.3)" },
+              cancelled_no_driver: { bg: "#ffffff", border: "rgba(245, 158, 11, 0.3)" },
+              no_drivers_available: { bg: "#ffffff", border: "rgba(251, 191, 36, 0.3)" },
             };
-            const cardStyle = negotiationCardColors[ride.status] || { bg: "#11253E", border: "rgba(2, 222, 149, 0.15)" };
+            const cardStyle = negotiationCardColors[ride.status] || { bg: "#ffffff", border: "rgba(9, 26, 47, 0.08)" };
             
             return (
               <MotiView
@@ -490,20 +538,23 @@ export default function ActiveOrdersScreen() {
                     borderWidth: 1,
                     borderColor: cardStyle.border,
                     marginBottom: 14,
-                    shadowColor: "#000",
-                    shadowOffset: { width: 0, height: 6 },
-                    shadowOpacity: 0.25,
-                    shadowRadius: 10,
-                    elevation: 6,
+                    shadowColor: "#091A2F",
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.06,
+                    shadowRadius: 8,
+                    elevation: 2,
                     overflow: "hidden",
                   }}
                 >
                   {/* Status Strip (Identical to Driver style) */}
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
                     <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: theme.color }} />
-                    <Text style={{ color: "rgba(255, 255, 255, 0.4)", fontSize: 9.5, fontWeight: "900", letterSpacing: 0.3, textTransform: "uppercase" }}>
-                      {statusLabel}
+                    <Text style={{ color: "#091A2F", fontSize: 9.5, fontWeight: "900", letterSpacing: 0.3, textTransform: "uppercase" }}>
+                      {statusLabel}{["requesting", "searching_driver", "offers_received", "payment_pending"].includes(ride.status) ? ` (${ride.serviceType === "delivery" ? "Entrega" : "Corrida"})` : ""}
                     </Text>
+                    {["requesting", "searching_driver", "payment_pending"].includes(ride.status) && (
+                      <OrderCountdown createdAt={ride.createdAt} searchTimeoutSeconds={ride.searchTimeoutSeconds} onExpired={loadRides} />
+                    )}
                   </View>
 
                   {/* Informações do Trajeto compactas (Identical to Driver style) */}
@@ -511,8 +562,8 @@ export default function ActiveOrdersScreen() {
                     {/* Partida */}
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                       <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: "#02de95" }} />
-                      <Text style={{ color: "rgba(255,255,255,0.45)", fontSize: 9.5, fontWeight: "800", width: 45 }}>COLETA</Text>
-                      <Text style={{ color: "#fff", fontSize: 11.5, fontWeight: "600", flex: 1 }} numberOfLines={1}>
+                      <Text style={{ color: "rgba(9, 26, 47, 0.5)", fontSize: 9.5, fontWeight: "800", width: 45 }}>COLETA</Text>
+                      <Text style={{ color: "#091A2F", fontSize: 11.5, fontWeight: "700", flex: 1 }} numberOfLines={1}>
                         {ride.pickup?.address || "Definido no mapa"}
                       </Text>
                     </View>
@@ -520,8 +571,8 @@ export default function ActiveOrdersScreen() {
                     {/* Destino */}
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                       <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: "#ef4444" }} />
-                      <Text style={{ color: "rgba(255,255,255,0.45)", fontSize: 9.5, fontWeight: "800", width: 45 }}>ENTREGA</Text>
-                      <Text style={{ color: "#fff", fontSize: 11.5, fontWeight: "600", flex: 1 }} numberOfLines={1}>
+                      <Text style={{ color: "rgba(9, 26, 47, 0.5)", fontSize: 9.5, fontWeight: "800", width: 45 }}>ENTREGA</Text>
+                      <Text style={{ color: "#091A2F", fontSize: 11.5, fontWeight: "700", flex: 1 }} numberOfLines={1}>
                         {ride.dropoff?.address || "Definido no mapa"}
                       </Text>
                     </View>
@@ -530,26 +581,26 @@ export default function ActiveOrdersScreen() {
                   {/* Tags e Preço em uma única linha horizontal elegante (Identical to Driver style) */}
                   <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6, marginBottom: 12 }}>
                     {/* Tag Veículo */}
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "rgba(255, 255, 255, 0.04)", paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "rgba(9, 26, 47, 0.04)", paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 }}>
                       <Text style={{ fontSize: 10.5 }}>{ride.vehicleType === "motorcycle" ? "🛵" : "🚗"}</Text>
-                      <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 9.5, fontWeight: "800", textTransform: "uppercase" }}>
+                      <Text style={{ color: "#091A2F", fontSize: 9.5, fontWeight: "800", textTransform: "uppercase" }}>
                         {VEHICLE_LABELS[ride.vehicleType] || ride.vehicleType || "Geral"}
                       </Text>
                     </View>
 
                     {/* Tag Carga */}
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "rgba(2, 222, 149, 0.05)", paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 }}>
-                      <Package size={10} color="#02de95" />
-                      <Text style={{ color: "#02de95", fontSize: 9.5, fontWeight: "800", textTransform: "uppercase" }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "rgba(2, 222, 149, 0.08)", paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 }}>
+                      <Package size={10} color="#00b578" />
+                      <Text style={{ color: "#00b578", fontSize: 9.5, fontWeight: "800", textTransform: "uppercase" }}>
                         {ride.serviceType === "delivery" ? "Encomenda" : "Viagem"}
                       </Text>
                     </View>
 
                     {/* Tag Distância */}
                     {ride.distance?.text && (
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "rgba(59, 130, 246, 0.05)", paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 }}>
-                        <Route size={10} color="#60a5fa" />
-                        <Text style={{ color: "#60a5fa", fontSize: 9.5, fontWeight: "800" }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "rgba(59, 130, 246, 0.08)", paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 }}>
+                        <Route size={10} color="#3b82f6" />
+                        <Text style={{ color: "#3b82f6", fontSize: 9.5, fontWeight: "800" }}>
                           {ride.distance.text}
                         </Text>
                       </View>

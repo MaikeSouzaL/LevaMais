@@ -118,11 +118,16 @@ export default function OrderSentScreen() {
             style={{
               flexDirection: "row",
               alignItems: "center",
-              backgroundColor: "rgba(255,255,255,0.05)",
-              borderRadius: 14,
+              backgroundColor: "#ffffff",
+              borderRadius: 18,
               padding: 16,
               borderWidth: 1,
-              borderColor: "rgba(255,255,255,0.08)",
+              borderColor: "rgba(9, 26, 47, 0.08)",
+              shadowColor: "#091A2F",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.06,
+              shadowRadius: 8,
+              elevation: 2,
             }}
           >
             <View
@@ -130,19 +135,19 @@ export default function OrderSentScreen() {
                 width: 40,
                 height: 40,
                 borderRadius: 20,
-                backgroundColor: "rgba(2,222,149,0.15)",
+                backgroundColor: "rgba(2, 222, 149, 0.08)",
                 alignItems: "center",
                 justifyContent: "center",
                 marginRight: 12,
               }}
             >
-              <Package size={18} color="#02de95" />
+              <Package size={18} color="#00b578" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: "#fff", fontWeight: "700", fontSize: 13 }}>
+              <Text style={{ color: "#091A2F", fontWeight: "800", fontSize: 13 }}>
                 Aguardando Propostas
               </Text>
-              <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, marginTop: 2 }}>
+              <Text style={{ color: "rgba(9, 26, 47, 0.5)", fontSize: 11, marginTop: 2, fontWeight: "500" }}>
                 Entregadores próximos estão sendo notificados
               </Text>
             </View>
@@ -152,11 +157,16 @@ export default function OrderSentScreen() {
             style={{
               flexDirection: "row",
               alignItems: "center",
-              backgroundColor: "rgba(255,255,255,0.05)",
-              borderRadius: 14,
+              backgroundColor: "#ffffff",
+              borderRadius: 18,
               padding: 16,
               borderWidth: 1,
-              borderColor: "rgba(255,255,255,0.08)",
+              borderColor: "rgba(9, 26, 47, 0.08)",
+              shadowColor: "#091A2F",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.06,
+              shadowRadius: 8,
+              elevation: 2,
             }}
           >
             <View
@@ -164,19 +174,19 @@ export default function OrderSentScreen() {
                 width: 40,
                 height: 40,
                 borderRadius: 20,
-                backgroundColor: "rgba(255,255,255,0.12)",
+                backgroundColor: "rgba(9, 26, 47, 0.04)",
                 alignItems: "center",
                 justifyContent: "center",
                 marginRight: 12,
               }}
             >
-              <Clock size={18} color="#fff" />
+              <Clock size={18} color="#091A2F" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: "#fff", fontWeight: "700", fontSize: 13 }}>
+              <Text style={{ color: "#091A2F", fontWeight: "800", fontSize: 13 }}>
                 Notificação Automática
               </Text>
-              <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, marginTop: 2 }}>
+              <Text style={{ color: "rgba(9, 26, 47, 0.5)", fontSize: 11, marginTop: 2, fontWeight: "500" }}>
                 Você receberá um aviso ao receber uma proposta
               </Text>
             </View>

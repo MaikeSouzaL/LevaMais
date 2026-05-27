@@ -27,8 +27,16 @@ export interface UserLocation {
 export function useMapLocation() {
   const mapRef = useRef<MapView>(null);
 
-  const [region, setRegion] = useState<MapRegion | null>(null);
-  const [userRegion, setUserRegion] = useState<UserLocation | null>(null);
+  const [region, setRegion] = useState<MapRegion | null>({
+    latitude: -11.67,
+    longitude: -61.19,
+    latitudeDelta: 0.003,
+    longitudeDelta: 0.003,
+  });
+  const [userRegion, setUserRegion] = useState<UserLocation | null>({
+    latitude: -11.67,
+    longitude: -61.19,
+  });
   const [currentAddress, setCurrentAddress] = useState<string>('');
   const [showMyLocationButton, setShowMyLocationButton] = useState(false);
   const [dragLatLng, setDragLatLng] = useState<{

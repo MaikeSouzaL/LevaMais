@@ -462,6 +462,8 @@ const userSchema = new mongoose.Schema(
       cnhFrontStatus: { type: String, enum: ["none", "pending", "approved", "rejected"], default: "pending" },
       cnhBackStatus: { type: String, enum: ["none", "pending", "approved", "rejected"], default: "pending" },
       selfieStatus: { type: String, enum: ["none", "pending", "approved", "rejected"], default: "pending" },
+      cpfStatus: { type: String, enum: ["none", "pending", "approved", "rejected"], default: "pending" },
+      bankAccountStatus: { type: String, enum: ["none", "pending", "approved", "rejected"], default: "pending" },
       reviewedAt: { type: Date },
       reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
       reviewHistory: [{

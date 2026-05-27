@@ -200,6 +200,7 @@ export default function PaymentScreenEnhanced() {
               ],
         payment: paymentMethodForRide,
         promotionCode: appliedPromo?.code,
+        negotiation: order.negotiation || undefined,
         details: {
           insurance: insuranceLevel,
           specialInstructions: order.notes,
@@ -211,15 +212,15 @@ export default function PaymentScreenEnhanced() {
       Toast.show({
         type: "success",
         text1: "Pagamento confirmado!",
-        text2: "Sua corrida foi criada",
+        text2: "Buscando motoristas...",
       });
 
       navigation.reset({
         index: 0,
         routes: [
           {
-            name: "RideTracking",
-            params: { rideId: ride._id },
+            name: "SearchingDriver",
+            params: { rideId: ride._id, serviceType: order.serviceMode },
           },
         ],
       });

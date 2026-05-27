@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   FlatList,
   Text,
@@ -7,6 +7,7 @@ import {
   RefreshControl,
   StatusBar,
   ActivityIndicator,
+  ScrollView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
@@ -24,6 +25,8 @@ import {
   ChevronRight,
   RotateCcw,
   Inbox,
+  Layers,
+  Play,
 } from "lucide-react-native";
 
 import rideService, { Ride } from "@/services/ride.service";
@@ -47,11 +50,11 @@ function formatRideDate(ride: Ride): string {
 
 type Filter = "all" | "completed" | "cancelled" | "active";
 
-const FILTERS: { id: Filter; label: string }[] = [
-  { id: "all", label: "Todos" },
-  { id: "completed", label: "Concluídas" },
-  { id: "cancelled", label: "Canceladas" },
-  { id: "active", label: "Ativas" },
+const FILTERS = [
+  { id: "all" as const, label: "Todos", icon: Layers, activeColor: "#02de95" },
+  { id: "completed" as const, label: "Concluídas", icon: CheckCircle, activeColor: "#00b578" },
+  { id: "cancelled" as const, label: "Canceladas", icon: XCircle, activeColor: "#ef4444" },
+  { id: "active" as const, label: "Ativas", icon: Clock, activeColor: "#3b82f6" },
 ];
 
 const VALID_RIDE_STATUSES: RideStatus[] = [
@@ -82,17 +85,18 @@ const STATUS_META: Record<string, { label: string; color: string; icon: any }> =
 };
 
 function StatusPill({ status }: { status: string }) {
-  const meta = STATUS_META[status] || { label: status, color: "rgba(255,255,255,0.4)", icon: Clock };
+  const meta = STATUS_META[status] || { label: status, color: "#888888", icon: Clock };
   const Icon = meta.icon;
+  const textColor = meta.color === "#02de95" ? "#00b578" : meta.color;
   return (
     <View style={{
       flexDirection: "row", alignItems: "center", gap: 4,
-      backgroundColor: meta.color + "18",
+      backgroundColor: meta.color + "12",
       borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4,
-      borderWidth: 1, borderColor: meta.color + "40",
+      borderWidth: 1, borderColor: meta.color + "30",
     }}>
-      <Icon size={11} color={meta.color} />
-      <Text style={{ color: meta.color, fontSize: 11, fontWeight: "700" }}>{meta.label}</Text>
+      <Icon size={11} color={textColor} />
+      <Text style={{ color: textColor, fontSize: 11, fontWeight: "700" }}>{meta.label}</Text>
     </View>
   );
 }
@@ -159,27 +163,51 @@ export default function HistoryScreen() {
       </View>
 
       {/* Filtros */}
-      <View style={{ flexDirection: "row", paddingHorizontal: 16, paddingVertical: 12, gap: 8 }}>
-        {FILTERS.map((filter) => {
-          const active = selectedFilter === filter.id;
-          return (
-            <TouchableOpacity
-              key={filter.id}
-              onPress={() => setSelectedFilter(filter.id)}
-              activeOpacity={0.8}
-              style={{
-                borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7,
-                borderWidth: 1.5,
-                borderColor: active ? "#02de95" : "rgba(255,255,255,0.12)",
-                backgroundColor: active ? "rgba(2,222,149,0.12)" : "rgba(255,255,255,0.03)",
-              }}
-            >
-              <Text style={{ color: active ? "#02de95" : "rgba(255,255,255,0.5)", fontSize: 12, fontWeight: "700" }}>
-                {filter.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
+      <View style={{ height: 52, marginVertical: 8 }}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 16, alignItems: "center", gap: 8 }}
+        >
+          {FILTERS.map((filter) => {
+            const active = selectedFilter === filter.id;
+            const FilterIcon = filter.icon;
+            return (
+              <TouchableOpacity
+                key={filter.id}
+                onPress={() => setSelectedFilter(filter.id)}
+                activeOpacity={0.85}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 6,
+                  borderRadius: 20,
+                  paddingHorizontal: 14,
+                  paddingVertical: 8,
+                  backgroundColor: active ? filter.activeColor : "rgba(255,255,255,0.05)",
+                  borderWidth: 1,
+                  borderColor: active ? "transparent" : "rgba(255,255,255,0.03)",
+                  shadowColor: active ? filter.activeColor : "#000",
+                  shadowOffset: active ? { width: 0, height: 4 } : { width: 0, height: 0 },
+                  shadowOpacity: active ? 0.3 : 0,
+                  shadowRadius: active ? 6 : 0,
+                  elevation: active ? 3 : 0,
+                }}
+              >
+                <FilterIcon size={13} color={active ? "#ffffff" : "rgba(255,255,255,0.5)"} />
+                <Text
+                  style={{
+                    color: active ? "#ffffff" : "rgba(255,255,255,0.6)",
+                    fontSize: 12,
+                    fontWeight: "800",
+                  }}
+                >
+                  {filter.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       </View>
 
       {loading && !refreshing ? (
@@ -224,21 +252,26 @@ export default function HistoryScreen() {
                   activeOpacity={0.85}
                   onPress={() => navigation.navigate("OrderDetails", { rideId: item._id })}
                   style={{
-                    backgroundColor: "#11253E", borderRadius: 18,
-                    borderWidth: 1, borderColor: "rgba(255,255,255,0.07)",
+                    backgroundColor: "#ffffff", borderRadius: 18,
+                    borderWidth: 1, borderColor: "rgba(0,0,0,0.06)",
                     overflow: "hidden",
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.06,
+                    shadowRadius: 6,
+                    elevation: 2,
                   }}
                 >
                   {/* Top row */}
-                  <View style={{ flexDirection: "row", alignItems: "center", padding: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.05)" }}>
-                    <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: "rgba(2,222,149,0.1)", alignItems: "center", justifyContent: "center", marginRight: 12 }}>
-                      <Icon size={20} color="#02de95" />
+                  <View style={{ flexDirection: "row", alignItems: "center", padding: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: "rgba(0,0,0,0.05)" }}>
+                    <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: "rgba(0,181,120,0.1)", alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+                      <Icon size={20} color="#00b578" />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={{ color: "#fff", fontSize: 13, fontWeight: "800" }}>
+                      <Text style={{ color: "#091A2F", fontSize: 13, fontWeight: "800" }}>
                         {isDelivery ? "Entrega" : "Corrida"} · {vehicleLabel}
                       </Text>
-                      <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 11, marginTop: 2 }}>
+                      <Text style={{ color: "#888888", fontSize: 11, marginTop: 2 }}>
                         {formatRideDate(item)}
                       </Text>
                     </View>
@@ -246,31 +279,41 @@ export default function HistoryScreen() {
                   </View>
 
                   {/* Route */}
-                  <View style={{ padding: 14, paddingTop: 12, gap: 8 }}>
-                    <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
-                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#02de95", marginTop: 4 }} />
-                      <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, flex: 1 }} numberOfLines={1}>
+                  <View style={{ padding: 16, paddingTop: 14, paddingBottom: 14, gap: 12, position: "relative" }}>
+                    {/* Connector line */}
+                    <View style={{ position: "absolute", left: 19, top: 22, bottom: 22, width: 1.5, backgroundColor: "rgba(0,0,0,0.08)", borderRadius: 1 }} />
+                    
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#00b578", zIndex: 2 }} />
+                      <Text style={{ color: "#4b5563", fontSize: 12, flex: 1, fontWeight: "600" }} numberOfLines={1}>
                         {item.pickup?.address || "-"}
                       </Text>
                     </View>
-                    <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
-                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#ef4444", marginTop: 4 }} />
-                      <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, flex: 1 }} numberOfLines={1}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#ef4444", zIndex: 2 }} />
+                      <Text style={{ color: "#4b5563", fontSize: 12, flex: 1, fontWeight: "600" }} numberOfLines={1}>
                         {item.dropoff?.address || "-"}
                       </Text>
                     </View>
                   </View>
 
+                  {/* Divider line before footer */}
+                  <View style={{ height: 1, backgroundColor: "rgba(0,0,0,0.04)" }} />
+
                   {/* Footer */}
-                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingBottom: 14 }}>
-                    <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 11, fontWeight: "600" }}>
-                      {item.distance?.text || ""}
-                    </Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 14, paddingHorizontal: 16 }}>
+                    {item.distance?.text ? (
+                      <View style={{ backgroundColor: "#f3f4f6", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}>
+                        <Text style={{ color: "#4b5563", fontSize: 10, fontWeight: "800" }}>
+                          {item.distance.text}
+                        </Text>
+                      </View>
+                    ) : <View />}
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                      <Text style={{ color: "#02de95", fontSize: 16, fontWeight: "900" }}>
+                      <Text style={{ color: "#00b578", fontSize: 16, fontWeight: "900" }}>
                         {formatBRL(item.pricing?.total || item.negotiation?.finalAgreedPrice || 0)}
                       </Text>
-                      <ChevronRight size={14} color="rgba(255,255,255,0.2)" />
+                      <ChevronRight size={14} color="rgba(0,0,0,0.25)" />
                     </View>
                   </View>
                 </TouchableOpacity>

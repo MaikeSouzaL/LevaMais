@@ -5,7 +5,7 @@ const PlatformConfigSchema = new mongoose.Schema(
     isDevelopmentMode: { type: Boolean, default: true },
     appFeePercentage: { type: Number, default: 15 },
     feePerStop: { type: Number, default: 2 }, // Adicional de R$2 por parada
-    rideSearchTimeoutSeconds: { type: Number, default: 60 },
+    rideSearchTimeoutSeconds: { type: Number, default: 300 },
     driverDailyGoalRides: { type: Number, default: 10 },
     driverDailyBonusAmount: { type: Number, default: 20 },
     appTimeZone: { type: String, default: "America/Sao_Paulo" },

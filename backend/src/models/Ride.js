@@ -276,6 +276,13 @@ const rideSchema = new mongoose.Schema(
       pickupAt: Date,
       deliveryPhoto: String, // data URL/base64 (MVP)
       deliveryAt: Date,
+      // Validação de PIN para coletas e entregas
+      pickupPinValidated: { type: Boolean, default: false },
+      pickupPinValidatedAt: Date,
+      pickupPinAttempts: { type: Number, default: 0 },
+      deliveryPinValidated: { type: Boolean, default: false },
+      deliveryPinValidatedAt: Date,
+      deliveryPinAttempts: { type: Number, default: 0 },
     },
     // Promocao aplicada no pedido
     promotion: {
@@ -344,7 +351,7 @@ const rideSchema = new mongoose.Schema(
     },
     searchTimeoutSeconds: {
       type: Number,
-      default: 60,
+      default: 300,
     },
   },
   {

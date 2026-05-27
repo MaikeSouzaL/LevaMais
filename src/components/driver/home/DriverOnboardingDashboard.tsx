@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, TextInput, Modal, Alert, Image, KeyboardAvoidingView, Platform } from "react-native";
 import { MotiView, AnimatePresence } from "moti";
-import { NavigationContext } from "@react-navigation/native";
+import { NavigationContext, useIsFocused } from "@react-navigation/native";
 import { CheckCircle2, Clock, ChevronRight, FileText, ShieldCheck, Car, MessageSquare, LogOut, AlertCircle, RefreshCw, Sparkles, TrendingUp, Compass, User, DollarSign } from "lucide-react-native";
 import { BlurView } from "expo-blur";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -16,7 +16,7 @@ import { getCurrentLocationAndAddress } from "@/utils/location";
 
 export default function DriverOnboardingDashboard() {
   const navigation = React.useContext(NavigationContext);
-  const isFocused = true; // Handled by parent container in home screen.
+  const isFocused = useIsFocused();
   const insets = useSafeAreaInsets();
   const { logout, userData, updateUserData } = useAuthStore();
 
@@ -273,7 +273,7 @@ export default function DriverOnboardingDashboard() {
       if (isDocsSubmitted || profile?.driverStatus === "pending") completedSteps += 1;
       if (isVehicleSubmitted || vStatus === "pending") completedSteps += 1;
 
-      // Verificar saldo
+      // Verificar saldo (kept for state but not checklist progress)
       let hasBalance = false;
       try {
         const balanceData = await driverService.getBalance();
@@ -284,9 +284,8 @@ export default function DriverOnboardingDashboard() {
       } catch {
         setHasBalance(false);
       }
-      if (hasBalance) completedSteps += 1;
 
-      const ALL_STEPS = 5; // 1-Basic, 2-Cadastral, 3-Docs, 4-Vehicle, 5-Balance
+      const ALL_STEPS = 4; // 1-Basic, 2-Cadastral, 3-Docs, 4-Vehicle
 
       if (profile?.driverStatus === "approved" && vStatus === "approved" && hasCPFOrCNPJ) {
         setShowCongrats(true);
@@ -377,18 +376,6 @@ export default function DriverOnboardingDashboard() {
         : "pending",
       icon: Car,
       action: () => navigation ? (navigation as any).navigate("DriverVehicle") : null,
-    },
-    {
-      id: "balance",
-      title: "Saldo para Trabalhar",
-      desc: hasBalance
-        ? `Saldo para trabalhar: R$ ${Number(driverBalance || 0).toFixed(2)}`
-        : "Adicione saldo para trabalhar e pagar a taxa da plataforma",
-      status: hasBalance ? "completed" : (driverStatus === "approved" && vehicleStatus === "approved" ? "pending" : "locked"),
-      icon: DollarSign,
-      action: () => {
-        try { (navigation as any).navigate("DriverFinance", { screen: "DriverEarnings" }); } catch {}
-      },
     },
   ];
 

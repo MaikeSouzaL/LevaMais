@@ -289,6 +289,12 @@ export default function RideTrackingScreen() {
       const data = await rideService.getById(rideId);
       setRide(data);
 
+      // Redirect to DeliveryTracking if this is a delivery
+      if (data.serviceType === "delivery" || data.serviceType === "frete") {
+        navigation.replace("DeliveryTracking", { rideId });
+        return;
+      }
+
       if (TERMINAL_STATUSES.includes(String(data.status || ""))) {
         if (data.status === "completed") {
           navigation.replace("RideCompleted", {
@@ -797,17 +803,25 @@ export default function RideTrackingScreen() {
               ))}
             </View>
 
-            <View style={styles.pinsCard}>
-              <View style={styles.pinCol}>
-                <Text style={styles.pinLabel}>PIN Coleta (Remetente)</Text>
-                <Text style={styles.pinValue}>{ride?.details?.pickupPin || "---"}</Text>
+            {(!!ride?.details?.pickupPin || !!ride?.details?.deliveryPin) && (
+              <View style={styles.pinsCard}>
+                {!!ride?.details?.pickupPin && (
+                  <View style={styles.pinCol}>
+                    <Text style={styles.pinLabel}>PIN Coleta (Remetente)</Text>
+                    <Text style={styles.pinValue}>{ride.details.pickupPin}</Text>
+                  </View>
+                )}
+                {!!ride?.details?.pickupPin && !!ride?.details?.deliveryPin && (
+                  <View style={styles.pinDivider} />
+                )}
+                {!!ride?.details?.deliveryPin && (
+                  <View style={styles.pinCol}>
+                    <Text style={styles.pinLabel}>PIN Entrega (Recebedor)</Text>
+                    <Text style={styles.pinValue}>{ride.details.deliveryPin}</Text>
+                  </View>
+                )}
               </View>
-              <View style={styles.pinDivider} />
-              <View style={styles.pinCol}>
-                <Text style={styles.pinLabel}>PIN Entrega (Recebedor)</Text>
-                <Text style={styles.pinValue}>{ride?.details?.deliveryPin || "---"}</Text>
-              </View>
-            </View>
+            )}
           </>
         )}
 

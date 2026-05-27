@@ -112,9 +112,7 @@ export interface Ride {
     appliedAt?: string;
   };
   payment?: {
-    method?: {
-      type?: string;
-    };
+    method?: string;
   };
   createdAt: string;
   isWaitingInQueue?: boolean;
@@ -241,6 +239,41 @@ export interface DriverStats {
 }
 
 class RideService {
+  /**
+   * Calcular estimativa de corrida (pré-cálculo para lance do cliente)
+   */
+  async calculateRideEstimate(data: {
+    pickup: { latitude: number; longitude: number };
+    dropoff: { latitude: number; longitude: number };
+    vehicleType: "motorcycle" | "car";
+    distance?: number;
+    duration?: number;
+  }): Promise<{
+    success: boolean;
+    suggestedPrice: number;
+    minPrice: number;
+    maxPrice: number;
+    distanceKm: number;
+    durationMin: number;
+    pricingBreakdown: {
+      baseFare: number;
+      distancePrice: number;
+      total: number;
+    };
+  }> {
+    try {
+      const response = await api.post("/rides/calculate-ride-estimate", data);
+      return response.data;
+    } catch (e: any) {
+      const msg =
+        e?.response?.data?.error ||
+        e?.response?.data?.message ||
+        e?.message ||
+        "Falha ao calcular estimativa";
+      throw new Error(msg);
+    }
+  }
+
   /**
    * Calcular preÃ§o da corrida
    */
@@ -510,6 +543,43 @@ class RideService {
     photoBase64: string,
   ): Promise<void> {
     await api.post(`/rides/${rideId}/proof/delivery`, { photoBase64 });
+  }
+
+  /**
+   * Validar PIN de coleta ou entrega
+   */
+  async validatePin(
+    rideId: string,
+    pinType: "pickup" | "delivery",
+    pin: string
+  ): Promise<{
+    success: boolean;
+    valid: boolean;
+    required: boolean;
+    validatedAt?: string;
+    attempts?: number;
+    remaining?: number;
+    message?: string;
+  }> {
+    try {
+      const response = await api.post(`/rides/${rideId}/validate-pin`, {
+        pinType,
+        pin,
+      });
+      return response.data;
+    } catch (e: any) {
+      // Para erros de validação (401), retornar os dados estruturados
+      if (e?.response?.status === 401) {
+        return e.response.data;
+      }
+      // Para outros erros, lançar exceção
+      const msg =
+        e?.response?.data?.error ||
+        e?.response?.data?.message ||
+        e?.message ||
+        "Falha ao validar PIN";
+      throw new Error(msg);
+    }
   }
 
   /**

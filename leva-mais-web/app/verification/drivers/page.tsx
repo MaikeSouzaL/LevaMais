@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import {
@@ -54,6 +54,8 @@ interface PendingDriver {
     cnhFrontStatus?: string;
     cnhBackStatus?: string;
     selfieStatus?: string;
+    cpfStatus?: string;
+    bankAccountStatus?: string;
     reviewedAt?: string;
     reviewedBy?: string;
   };
@@ -317,6 +319,54 @@ export default function UnifiedVerificationPage() {
       loadData();
     } catch {
       showToast("Erro ao processar aprovação", "error");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  // Update individual driver compliance aspects (CNH Front, CNH Back, Selfie, CPF, Bank Account)
+  const handleDriverVerificationUpdate = async (userId: string, field: string, newStatus: "approved" | "rejected", reason?: string) => {
+    setProcessing(true);
+    try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+      const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || '';
+
+      await axios.patch(`${API_URL}/auth/users/${userId}/driver-verification`, {
+        field,
+        status: newStatus,
+        reason: reason || ""
+      }, { headers: { "x-admin-key": ADMIN_API_KEY } });
+
+      const fieldLabel = field
+        .replace("Status", "")
+        .replace("cnhFront", "CNH Frente")
+        .replace("cnhBack", "CNH Verso")
+        .replace("selfie", "Selfie")
+        .replace("cpf", "CPF")
+        .replace("bankAccount", "Dados de Repasse");
+
+      showToast(`${fieldLabel} ${newStatus === "approved" ? "aprovado" : "reprovado"} com sucesso!`, "success");
+      
+      // Update selectedUser state locally so UI updates instantly in drawer
+      if (selectedUser && selectedUser._id === userId) {
+        setSelectedUser(prev => {
+          if (!prev) return null;
+          const driver = prev as PendingDriver;
+          return {
+            ...driver,
+            driverDocuments: {
+              ...(driver.driverDocuments || {}),
+              [field]: newStatus,
+              rejectionReason: newStatus === "rejected" ? (reason || "") : (driver.driverDocuments?.rejectionReason || "")
+            }
+          } as any;
+        });
+      }
+
+      loadData();
+    } catch (err: any) {
+      const errMsg = err.response?.data?.message || "Erro ao atualizar status do documento";
+      showToast(errMsg, "error");
     } finally {
       setProcessing(false);
     }
@@ -864,14 +914,56 @@ export default function UnifiedVerificationPage() {
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-4 text-xs font-semibold">
-                  <div className="bg-slate-50 border border-gray-200 rounded-xl p-3.5">
-                    <p className="text-[9px] font-bold text-gray-400 uppercase mb-1">Telefone Principal</p>
-                    <p className="text-gray-900">{selectedUser.phone}</p>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-4 text-xs font-semibold">
+                    <div className="bg-slate-50 border border-gray-200 rounded-xl p-3.5">
+                      <p className="text-[9px] font-bold text-gray-400 uppercase mb-1">Telefone Principal</p>
+                      <p className="text-gray-900">{selectedUser.phone}</p>
+                    </div>
+                    <div className="bg-slate-50 border border-gray-200 rounded-xl p-3.5">
+                      <div className="flex justify-between items-center mb-1">
+                        <p className="text-[9px] font-bold text-gray-400 uppercase">CPF Registrado</p>
+                        {(() => {
+                          const status = (selectedUser as PendingDriver).driverDocuments?.cpfStatus || "pending";
+                          const badgeColors = {
+                            approved: "bg-emerald-50 text-emerald-700 border-emerald-200",
+                            rejected: "bg-rose-50 text-rose-700 border-rose-200",
+                            pending: "bg-amber-50 text-amber-700 border-amber-200",
+                          };
+                          const badgeLabels = {
+                            approved: "Aprovado",
+                            rejected: "Reprovado",
+                            pending: "Pendente",
+                          };
+                          const statusKey = (status === "approved" || status === "rejected") ? status : "pending";
+                          return (
+                            <span className={`px-2 py-0.5 rounded-full border text-[8px] font-extrabold tracking-wide uppercase ${badgeColors[statusKey]}`}>
+                              {badgeLabels[statusKey]}
+                            </span>
+                          );
+                        })()}
+                      </div>
+                      <p className="text-gray-900 font-mono font-bold">{selectedUser.cpf || "Não informado"}</p>
+                    </div>
                   </div>
-                  <div className="bg-slate-50 border border-gray-200 rounded-xl p-3.5">
-                    <p className="text-[9px] font-bold text-gray-400 uppercase mb-1">CPF Registrado</p>
-                    <p className="text-gray-900">{selectedUser.cpf || "Não informado"}</p>
+                  
+                  {/* Botões individuais de Aprovação do CPF */}
+                  <div className="flex items-center justify-end gap-2 bg-slate-50/50 p-2 border border-gray-100 rounded-xl">
+                    <span className="text-[10px] text-gray-400 font-bold mr-auto">Auditoria de CPF:</span>
+                    <button
+                      onClick={() => handleDriverVerificationUpdate(selectedUser._id, "cpfStatus", "rejected", "CPF inválido ou irregular na Receita")}
+                      disabled={processing}
+                      className="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg text-[10px] font-bold transition-all disabled:opacity-50"
+                    >
+                      Reprovar CPF
+                    </button>
+                    <button
+                      onClick={() => handleDriverVerificationUpdate(selectedUser._id, "cpfStatus", "approved")}
+                      disabled={processing}
+                      className="px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-[10px] font-bold transition-all disabled:opacity-50"
+                    >
+                      Aprovar CPF
+                    </button>
                   </div>
                 </div>
               )}
@@ -881,10 +973,31 @@ export default function UnifiedVerificationPage() {
                 <>
                   {/* Dados Bancários & PIX para Repasse */}
                   <div>
-                    <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
-                      <CreditCard className="w-4 h-4 text-emerald-600" />
-                      Dados de Repasse & Conta Bancária
-                    </h4>
+                    <div className="flex justify-between items-center mb-2.5">
+                      <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-wider flex items-center gap-1.5 w-full">
+                        <CreditCard className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>Dados de Repasse & Conta Bancária</span>
+                        {(() => {
+                          const status = (selectedUser as PendingDriver).driverDocuments?.bankAccountStatus || "pending";
+                          const badgeColors = {
+                            approved: "bg-emerald-50 text-emerald-700 border-emerald-200",
+                            rejected: "bg-rose-50 text-rose-700 border-rose-200",
+                            pending: "bg-amber-50 text-amber-700 border-amber-200",
+                          };
+                          const badgeLabels = {
+                            approved: "Aprovada",
+                            rejected: "Reprovada",
+                            pending: "Pendente",
+                          };
+                          const statusKey = (status === "approved" || status === "rejected") ? status : "pending";
+                          return (
+                            <span className={`ml-auto px-2 py-0.5 rounded-full border text-[8px] font-extrabold tracking-wide uppercase ${badgeColors[statusKey]}`}>
+                              {badgeLabels[statusKey]}
+                            </span>
+                          );
+                        })()}
+                      </h4>
+                    </div>
 
                     {(selectedUser as PendingDriver).bankAccount ? (
                       <div className="bg-gradient-to-br from-slate-900 to-slate-950 text-white rounded-2xl p-4 shadow-md border border-slate-800 space-y-3 relative overflow-hidden">
@@ -948,6 +1061,25 @@ export default function UnifiedVerificationPage() {
                         </p>
                       </div>
                     )}
+
+                    {/* Botões individuais de Auditoria da Conta Bancária */}
+                    <div className="flex items-center justify-end gap-2 bg-slate-50/50 p-2 border border-gray-100 rounded-xl mt-3">
+                      <span className="text-[10px] text-gray-400 font-bold mr-auto">Auditoria de Repasse:</span>
+                      <button
+                        onClick={() => handleDriverVerificationUpdate(selectedUser._id, "bankAccountStatus", "rejected", "Dados de repasse incorretos ou inconsistentes")}
+                        disabled={processing}
+                        className="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg text-[10px] font-bold transition-all disabled:opacity-50"
+                      >
+                        Reprovar Repasse
+                      </button>
+                      <button
+                        onClick={() => handleDriverVerificationUpdate(selectedUser._id, "bankAccountStatus", "approved")}
+                        disabled={processing}
+                        className="px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-[10px] font-bold transition-all disabled:opacity-50"
+                      >
+                        Aprovar Repasse
+                      </button>
+                    </div>
                   </div>
 
                   {/* Veículo Cadastrado (Frota de Veículos) */}
@@ -1252,102 +1384,234 @@ export default function UnifiedVerificationPage() {
 
                     <div className="grid grid-cols-3 gap-3">
                       {/* Selfie com CNH */}
-                      <div className="border border-gray-200 rounded-xl p-3.5 bg-slate-50 text-center space-y-2">
-                        <p className="text-[9px] font-bold text-gray-500 uppercase">Selfie CNH</p>
-                        {(selectedUser as PendingDriver).driverDocuments?.selfie ? (
-                          (selectedUser as PendingDriver).driverDocuments!.selfie!.startsWith("file://") ? (
-                            <div className="relative rounded-lg aspect-square border border-gray-200 bg-white flex flex-col items-center justify-center p-2 text-center">
-                              <Camera className="w-6 h-6 text-emerald-600 opacity-60 mb-1" />
-                              <p className="text-[7px] leading-tight text-gray-400 font-bold truncate w-full">{(selectedUser as PendingDriver).driverDocuments!.selfie!.split("/").pop()}</p>
-                              <span className="absolute bottom-1 left-1 right-1 bg-emerald-500 text-white font-extrabold text-[6px] py-0.5 rounded leading-none">Simulado</span>
-                            </div>
-                          ) : (
-                            <div
-                              className="relative group overflow-hidden rounded-lg aspect-square border border-gray-200 bg-white cursor-pointer"
-                              onClick={() => openLightbox((selectedUser as PendingDriver).driverDocuments?.selfie ?? "", "Selfie - " + selectedUser.name)}
-                            >
-                              <img
-                                src={cleanDocUrl((selectedUser as PendingDriver).driverDocuments?.selfie)}
-                                alt="Selfie"
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                              />
-                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
-                                <Eye className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                      <div className="border border-gray-200 rounded-xl p-3.5 bg-slate-50 text-center flex flex-col justify-between space-y-2">
+                        <div>
+                          <p className="text-[9px] font-bold text-gray-500 uppercase mb-1">Selfie CNH</p>
+                          {(selectedUser as PendingDriver).driverDocuments?.selfie ? (
+                            (selectedUser as PendingDriver).driverDocuments!.selfie!.startsWith("file://") ? (
+                              <div className="relative rounded-lg aspect-square border border-gray-200 bg-white flex flex-col items-center justify-center p-2 text-center">
+                                <Camera className="w-6 h-6 text-emerald-600 opacity-60 mb-1" />
+                                <p className="text-[7px] leading-tight text-gray-400 font-bold truncate w-full">{(selectedUser as PendingDriver).driverDocuments!.selfie!.split("/").pop()}</p>
+                                <span className="absolute bottom-1 left-1 right-1 bg-emerald-500 text-white font-extrabold text-[6px] py-0.5 rounded leading-none">Simulado</span>
                               </div>
+                            ) : (
+                              <div
+                                className="relative group overflow-hidden rounded-lg aspect-square border border-gray-200 bg-white cursor-pointer"
+                                onClick={() => openLightbox((selectedUser as PendingDriver).driverDocuments?.selfie ?? "", "Selfie - " + selectedUser.name)}
+                              >
+                                <img
+                                  src={cleanDocUrl((selectedUser as PendingDriver).driverDocuments?.selfie)}
+                                  alt="Selfie"
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                />
+                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                                  <Eye className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                                </div>
+                              </div>
+                            )
+                          ) : (
+                            <div className="aspect-square rounded-lg border border-dashed border-gray-300 bg-white flex flex-col items-center justify-center text-gray-400 gap-1.5 p-3">
+                              <Camera className="w-7 h-7 opacity-40" />
+                              <span className="text-[9px] leading-tight font-bold">Não enviada</span>
                             </div>
-                          )
-                        ) : (
-                          <div className="aspect-square rounded-lg border border-dashed border-gray-300 bg-white flex flex-col items-center justify-center text-gray-400 gap-1.5 p-3">
-                            <Camera className="w-7 h-7 opacity-40" />
-                            <span className="text-[9px] leading-tight font-bold">Não enviada</span>
-                          </div>
-                        )}
+                          )}
+                        </div>
+
+                        {/* Status and Action Buttons for Selfie */}
+                        <div className="space-y-1.5 pt-1.5 border-t border-gray-200/60">
+                          {(() => {
+                            const status = (selectedUser as PendingDriver).driverDocuments?.selfieStatus || "pending";
+                            const badgeColors = {
+                              approved: "bg-emerald-50 text-emerald-700 border-emerald-200",
+                              rejected: "bg-rose-50 text-rose-700 border-rose-200",
+                              pending: "bg-amber-50 text-amber-700 border-amber-200",
+                            };
+                            const badgeLabels = {
+                              approved: "Aprovada",
+                              rejected: "Rejeitada",
+                              pending: "Pendente",
+                            };
+                            const statusKey = (status === "approved" || status === "rejected") ? status : "pending";
+                            return (
+                              <div className={`px-2 py-0.5 rounded border text-[8px] font-extrabold tracking-wide uppercase inline-block ${badgeColors[statusKey]}`}>
+                                {badgeLabels[statusKey]}
+                              </div>
+                            );
+                          })()}
+
+                          {(selectedUser as PendingDriver).driverDocuments?.selfie && (
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => handleDriverVerificationUpdate(selectedUser._id, "selfieStatus", "rejected", "Selfie embaçada ou com baixa qualidade")}
+                                disabled={processing}
+                                className="px-1.5 py-1 bg-red-50 hover:bg-red-100 text-red-700 border border-red-100 rounded text-[8px] font-extrabold transition-all shrink-0 grow"
+                              >
+                                Reprovar
+                              </button>
+                              <button
+                                onClick={() => handleDriverVerificationUpdate(selectedUser._id, "selfieStatus", "approved")}
+                                disabled={processing}
+                                className="px-1.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-100 rounded text-[8px] font-extrabold transition-all shrink-0 grow"
+                              >
+                                Aprovar
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
 
                       {/* CNH Frente */}
-                      <div className="border border-gray-200 rounded-xl p-3.5 bg-slate-50 text-center space-y-2">
-                        <p className="text-[9px] font-bold text-gray-500 uppercase">CNH Frente</p>
-                        {(selectedUser as PendingDriver).driverDocuments?.cnhFront ? (
-                          (selectedUser as PendingDriver).driverDocuments!.cnhFront!.startsWith("file://") ? (
-                            <div className="relative rounded-lg aspect-square border border-gray-200 bg-white flex flex-col items-center justify-center p-2 text-center">
-                              <FileText className="w-6 h-6 text-emerald-600 opacity-60 mb-1" />
-                              <p className="text-[7px] leading-tight text-gray-400 font-bold truncate w-full">{(selectedUser as PendingDriver).driverDocuments!.cnhFront!.split("/").pop()}</p>
-                              <span className="absolute bottom-1 left-1 right-1 bg-emerald-500 text-white font-extrabold text-[6px] py-0.5 rounded leading-none">Simulado</span>
-                            </div>
-                          ) : (
-                            <div
-                              className="relative group overflow-hidden rounded-lg aspect-square border border-gray-200 bg-white cursor-pointer"
-                              onClick={() => openLightbox((selectedUser as PendingDriver).driverDocuments?.cnhFront ?? "", "CNH Frente - " + selectedUser.name)}
-                            >
-                              <img
-                                src={cleanDocUrl((selectedUser as PendingDriver).driverDocuments?.cnhFront)}
-                                alt="CNH Frente"
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                              />
-                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
-                                <Eye className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                      <div className="border border-gray-200 rounded-xl p-3.5 bg-slate-50 text-center flex flex-col justify-between space-y-2">
+                        <div>
+                          <p className="text-[9px] font-bold text-gray-500 uppercase mb-1">CNH Frente</p>
+                          {(selectedUser as PendingDriver).driverDocuments?.cnhFront ? (
+                            (selectedUser as PendingDriver).driverDocuments!.cnhFront!.startsWith("file://") ? (
+                              <div className="relative rounded-lg aspect-square border border-gray-200 bg-white flex flex-col items-center justify-center p-2 text-center">
+                                <FileText className="w-6 h-6 text-emerald-600 opacity-60 mb-1" />
+                                <p className="text-[7px] leading-tight text-gray-400 font-bold truncate w-full">{(selectedUser as PendingDriver).driverDocuments!.cnhFront!.split("/").pop()}</p>
+                                <span className="absolute bottom-1 left-1 right-1 bg-emerald-500 text-white font-extrabold text-[6px] py-0.5 rounded leading-none">Simulado</span>
                               </div>
+                            ) : (
+                              <div
+                                className="relative group overflow-hidden rounded-lg aspect-square border border-gray-200 bg-white cursor-pointer"
+                                onClick={() => openLightbox((selectedUser as PendingDriver).driverDocuments?.cnhFront ?? "", "CNH Frente - " + selectedUser.name)}
+                              >
+                                <img
+                                  src={cleanDocUrl((selectedUser as PendingDriver).driverDocuments?.cnhFront)}
+                                  alt="CNH Frente"
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                />
+                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                                  <Eye className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                                </div>
+                              </div>
+                            )
+                          ) : (
+                            <div className="aspect-square rounded-lg border border-dashed border-gray-300 bg-white flex flex-col items-center justify-center text-gray-400 gap-1.5 p-3">
+                              <FileText className="w-7 h-7 opacity-40" />
+                              <span className="text-[9px] leading-tight font-bold">Ausente</span>
                             </div>
-                          )
-                        ) : (
-                          <div className="aspect-square rounded-lg border border-dashed border-gray-300 bg-white flex flex-col items-center justify-center text-gray-400 gap-1.5 p-3">
-                            <FileText className="w-7 h-7 opacity-40" />
-                            <span className="text-[9px] leading-tight font-bold">Ausente</span>
-                          </div>
-                        )}
+                          )}
+                        </div>
+
+                        {/* Status and Action Buttons for CNH Frente */}
+                        <div className="space-y-1.5 pt-1.5 border-t border-gray-200/60">
+                          {(() => {
+                            const status = (selectedUser as PendingDriver).driverDocuments?.cnhFrontStatus || "pending";
+                            const badgeColors = {
+                              approved: "bg-emerald-50 text-emerald-700 border-emerald-200",
+                              rejected: "bg-rose-50 text-rose-700 border-rose-200",
+                              pending: "bg-amber-50 text-amber-700 border-amber-200",
+                            };
+                            const badgeLabels = {
+                              approved: "Aprovada",
+                              rejected: "Rejeitada",
+                              pending: "Pendente",
+                            };
+                            const statusKey = (status === "approved" || status === "rejected") ? status : "pending";
+                            return (
+                              <div className={`px-2 py-0.5 rounded border text-[8px] font-extrabold tracking-wide uppercase inline-block ${badgeColors[statusKey]}`}>
+                                {badgeLabels[statusKey]}
+                              </div>
+                            );
+                          })()}
+
+                          {(selectedUser as PendingDriver).driverDocuments?.cnhFront && (
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => handleDriverVerificationUpdate(selectedUser._id, "cnhFrontStatus", "rejected", "CNH Frente vencida ou com foto embaçada")}
+                                disabled={processing}
+                                className="px-1.5 py-1 bg-red-50 hover:bg-red-100 text-red-700 border border-red-100 rounded text-[8px] font-extrabold transition-all shrink-0 grow"
+                              >
+                                Reprovar
+                              </button>
+                              <button
+                                onClick={() => handleDriverVerificationUpdate(selectedUser._id, "cnhFrontStatus", "approved")}
+                                disabled={processing}
+                                className="px-1.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-100 rounded text-[8px] font-extrabold transition-all shrink-0 grow"
+                              >
+                                Aprovar
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
 
                       {/* CNH Verso */}
-                      <div className="border border-gray-200 rounded-xl p-3.5 bg-slate-50 text-center space-y-2">
-                        <p className="text-[9px] font-bold text-gray-500 uppercase">CNH Verso</p>
-                        {(selectedUser as PendingDriver).driverDocuments?.cnhBack ? (
-                          (selectedUser as PendingDriver).driverDocuments!.cnhBack!.startsWith("file://") ? (
-                            <div className="relative rounded-lg aspect-square border border-gray-200 bg-white flex flex-col items-center justify-center p-2 text-center">
-                              <FileText className="w-6 h-6 text-emerald-600 opacity-60 mb-1" />
-                              <p className="text-[7px] leading-tight text-gray-400 font-bold truncate w-full">{(selectedUser as PendingDriver).driverDocuments!.cnhBack!.split("/").pop()}</p>
-                              <span className="absolute bottom-1 left-1 right-1 bg-emerald-500 text-white font-extrabold text-[6px] py-0.5 rounded leading-none">Simulado</span>
-                            </div>
-                          ) : (
-                            <div
-                              className="relative group overflow-hidden rounded-lg aspect-square border border-gray-200 bg-white cursor-pointer"
-                              onClick={() => openLightbox((selectedUser as PendingDriver).driverDocuments?.cnhBack ?? "", "CNH Verso - " + selectedUser.name)}
-                            >
-                              <img
-                                src={cleanDocUrl((selectedUser as PendingDriver).driverDocuments?.cnhBack)}
-                                alt="CNH Verso"
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                              />
-                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
-                                <Eye className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                      <div className="border border-gray-200 rounded-xl p-3.5 bg-slate-50 text-center flex flex-col justify-between space-y-2">
+                        <div>
+                          <p className="text-[9px] font-bold text-gray-500 uppercase mb-1">CNH Verso</p>
+                          {(selectedUser as PendingDriver).driverDocuments?.cnhBack ? (
+                            (selectedUser as PendingDriver).driverDocuments!.cnhBack!.startsWith("file://") ? (
+                              <div className="relative rounded-lg aspect-square border border-gray-200 bg-white flex flex-col items-center justify-center p-2 text-center">
+                                <FileText className="w-6 h-6 text-emerald-600 opacity-60 mb-1" />
+                                <p className="text-[7px] leading-tight text-gray-400 font-bold truncate w-full">{(selectedUser as PendingDriver).driverDocuments!.cnhBack!.split("/").pop()}</p>
+                                <span className="absolute bottom-1 left-1 right-1 bg-emerald-500 text-white font-extrabold text-[6px] py-0.5 rounded leading-none">Simulado</span>
                               </div>
+                            ) : (
+                              <div
+                                className="relative group overflow-hidden rounded-lg aspect-square border border-gray-200 bg-white cursor-pointer"
+                                onClick={() => openLightbox((selectedUser as PendingDriver).driverDocuments?.cnhBack ?? "", "CNH Verso - " + selectedUser.name)}
+                              >
+                                <img
+                                  src={cleanDocUrl((selectedUser as PendingDriver).driverDocuments?.cnhBack)}
+                                  alt="CNH Verso"
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                />
+                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                                  <Eye className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                                </div>
+                              </div>
+                            )
+                          ) : (
+                            <div className="aspect-square rounded-lg border border-dashed border-gray-300 bg-white flex flex-col items-center justify-center text-gray-400 gap-1.5 p-3">
+                              <FileText className="w-7 h-7 opacity-40" />
+                              <span className="text-[9px] leading-tight font-bold">Ausente</span>
                             </div>
-                          )
-                        ) : (
-                          <div className="aspect-square rounded-lg border border-dashed border-gray-300 bg-white flex flex-col items-center justify-center text-gray-400 gap-1.5 p-3">
-                            <FileText className="w-7 h-7 opacity-40" />
-                            <span className="text-[9px] leading-tight font-bold">Ausente</span>
-                          </div>
-                        )}
+                          )}
+                        </div>
+
+                        {/* Status and Action Buttons for CNH Verso */}
+                        <div className="space-y-1.5 pt-1.5 border-t border-gray-200/60">
+                          {(() => {
+                            const status = (selectedUser as PendingDriver).driverDocuments?.cnhBackStatus || "pending";
+                            const badgeColors = {
+                              approved: "bg-emerald-50 text-emerald-700 border-emerald-200",
+                              rejected: "bg-rose-50 text-rose-700 border-rose-200",
+                              pending: "bg-amber-50 text-amber-700 border-amber-200",
+                            };
+                            const badgeLabels = {
+                              approved: "Aprovada",
+                              rejected: "Rejeitada",
+                              pending: "Pendente",
+                            };
+                            const statusKey = (status === "approved" || status === "rejected") ? status : "pending";
+                            return (
+                              <div className={`px-2 py-0.5 rounded border text-[8px] font-extrabold tracking-wide uppercase inline-block ${badgeColors[statusKey]}`}>
+                                {badgeLabels[statusKey]}
+                              </div>
+                            );
+                          })()}
+
+                          {(selectedUser as PendingDriver).driverDocuments?.cnhBack && (
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => handleDriverVerificationUpdate(selectedUser._id, "cnhBackStatus", "rejected", "CNH Verso com CPF/dados ilegíveis")}
+                                disabled={processing}
+                                className="px-1.5 py-1 bg-red-50 hover:bg-red-100 text-red-700 border border-red-100 rounded text-[8px] font-extrabold transition-all shrink-0 grow"
+                              >
+                                Reprovar
+                              </button>
+                              <button
+                                onClick={() => handleDriverVerificationUpdate(selectedUser._id, "cnhBackStatus", "approved")}
+                                disabled={processing}
+                                className="px-1.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-100 rounded text-[8px] font-extrabold transition-all shrink-0 grow"
+                              >
+                                Aprovar
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>

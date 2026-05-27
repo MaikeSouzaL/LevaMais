@@ -4,6 +4,9 @@ jest.mock("../src/models/User", () => ({
 
 jest.mock("../src/models/Ride", () => ({
   findOne: jest.fn(),
+  schema: {
+    clone: jest.fn().mockReturnValue({}),
+  },
 }));
 
 jest.mock("../src/models/PasswordReset", () => ({}));

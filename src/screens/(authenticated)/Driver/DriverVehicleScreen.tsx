@@ -3,8 +3,9 @@ import { View, Text, ScrollView, ActivityIndicator, TouchableOpacity, Alert, Ima
 import Toast from "react-native-toast-message";
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialIcons, FontAwesome5, Ionicons } from "@expo/vector-icons";
-import { FileText, Truck, AlertCircle, Plus, ArrowLeft, CheckCircle2 } from "lucide-react-native";
+import { FileText, Truck, AlertCircle, Plus, ArrowLeft, CheckCircle2, Bike, Car, Bus } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
+import { useNavigation } from "@react-navigation/native";
 
 import TextField from "../../../components/ui/TextField";
 import ActionButton from "../../../components/ui/ActionButton";
@@ -15,10 +16,10 @@ import { DualUploadDocumentCard } from "../../../components/driver/documents/Dua
 import { UploadDocumentCard } from "../../../components/driver/documents/UploadDocumentCard";
 
 const VEHICLE_TYPES = [
-  { id: "motorcycle", label: "Motocicleta", icon: "two-wheeler" as const },
-  { id: "car", label: "Carro", icon: "directions-car" as const },
-  { id: "van", label: "Van", icon: "airport-shuttle" as const },
-  { id: "truck", label: "Caminhão", icon: "local-shipping" as const },
+  { id: "motorcycle", label: "Motocicleta", icon: Bike },
+  { id: "car", label: "Carro", icon: Car },
+  { id: "van", label: "Van", icon: Bus },
+  { id: "truck", label: "Caminhão", icon: Truck },
 ];
 
 type DocState = {
@@ -27,6 +28,7 @@ type DocState = {
 };
 
 export default function DriverVehicleScreen() {
+  const navigation = useNavigation();
   const [viewMode, setViewMode] = useState<"list" | "add">("list");
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -230,9 +232,8 @@ export default function DriverVehicleScreen() {
       setCrlvBack({ uri: null, loading: false });
       setVehiclePhoto({ uri: null, loading: false });
 
-      // Go back and refresh
-      setViewMode("list");
-      fetchFleet();
+      // Go back to Home screen
+      navigation.navigate("DriverHome" as never);
 
     } catch (e: any) {
       Alert.alert("Falha ao registrar", e?.response?.data?.error || e?.message);
@@ -262,6 +263,29 @@ export default function DriverVehicleScreen() {
   if (viewMode === "list") {
     return (
       <DriverScreen title="Minha Frota" hideHeader={true} scroll>
+        
+        {/* Floating header */}
+        <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 24, gap: 14 }}>
+          <TouchableOpacity 
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 20,
+              backgroundColor: "rgba(255,255,255,0.05)",
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.1)",
+              alignItems: "center",
+              justifyContent: "center"
+            }}
+            onPress={() => navigation.navigate("DriverHome" as never)}
+          >
+            <ArrowLeft size={20} color="#fff" />
+          </TouchableOpacity>
+          <View>
+            <Text style={{ color: "#fff", fontSize: 22, fontWeight: "900" }}>Veículo para Trabalho</Text>
+            <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginTop: 1 }}>Gerencie sua frota de trabalho</Text>
+          </View>
+        </View>
         
         {/* 👑 Top Glow Active Vehicle Card */}
         <LinearGradient
@@ -308,7 +332,11 @@ export default function DriverVehicleScreen() {
             justifyContent: "center",
             alignItems: "center"
           }}>
-            <MaterialIcons name={activeIcon} size={32} color={activeVehicle ? "#02de95" : "rgba(255,255,255,0.4)"} />
+            {(() => {
+              const matched = VEHICLE_TYPES.find(v => v.id === activeVehicle?.type);
+              const ActiveIconComponent = matched ? matched.icon : Car;
+              return <ActiveIconComponent size={32} color={activeVehicle ? "#02de95" : "rgba(255,255,255,0.4)"} />;
+            })()}
           </View>
         </LinearGradient>
 
@@ -426,7 +454,11 @@ export default function DriverVehicleScreen() {
                     alignItems: "center",
                     justifyContent: "center"
                   }}>
-                    <MaterialIcons name={vIcon} size={26} color={isApproved ? "#02de95" : isPending ? "#EAB308" : "#EF4444"} />
+                    {(() => {
+                      const matched = VEHICLE_TYPES.find(v => v.id === vehicle.type);
+                      const FleetIconComponent = matched ? matched.icon : Car;
+                      return <FleetIconComponent size={26} color={isApproved ? "#02de95" : isPending ? "#EAB308" : "#EF4444"} />;
+                    })()}
                   </View>
 
                   {/* Vehicle Data */}
@@ -543,41 +575,79 @@ export default function DriverVehicleScreen() {
           Selecione o Tipo
         </Text>
         
-        <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: 12 }}>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: 14 }}>
           {VEHICLE_TYPES.map((item) => {
             const active = newVehicleType === item.id;
+            const GridIconComponent = item.icon;
             return (
               <TouchableOpacity
                 key={item.id}
-                activeOpacity={0.85}
+                activeOpacity={0.9}
                 style={{
-                  width: "48.5%",
-                  backgroundColor: active ? "rgba(2, 222, 149, 0.08)" : "rgba(255,255,255,0.02)",
-                  borderRadius: 20,
-                  paddingVertical: 20,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  borderWidth: 1.5,
-                  borderColor: active ? "#02de95" : "rgba(255,255,255,0.08)",
-                  gap: 8,
-                  position: "relative",
-                  shadowColor: active ? "#02de95" : "transparent",
-                  shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: active ? 0.15 : 0,
-                  shadowRadius: 8,
-                  elevation: active ? 3 : 0,
+                  width: "48.2%",
+                  borderRadius: 24,
+                  overflow: "hidden",
                 }}
                 onPress={() => setNewVehicleType(item.id)}
               >
-                <MaterialIcons name={item.icon} size={26} color={active ? "#02de95" : "rgba(255,255,255,0.4)"} />
-                <Text style={{ color: active ? "#fff" : "rgba(255,255,255,0.5)", fontSize: 13, fontWeight: active ? "800" : "600" }}>
-                  {item.label}
-                </Text>
-                {active && (
-                  <View style={{ position: "absolute", top: 8, right: 8 }}>
-                    <Ionicons name="checkmark-circle" size={16} color="#02de95" />
+                <LinearGradient
+                  colors={active 
+                    ? ["rgba(2, 222, 149, 0.16)", "rgba(8, 19, 34, 0.95)"] 
+                    : ["rgba(255, 255, 255, 0.03)", "rgba(8, 19, 34, 0.6)"]
+                  }
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={{
+                    paddingVertical: 24,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderWidth: 1.5,
+                    borderColor: active ? "#02de95" : "rgba(255, 255, 255, 0.08)",
+                    borderRadius: 24,
+                    gap: 12,
+                    position: "relative",
+                  }}
+                >
+                  {/* Glowing Icon Wrapper */}
+                  <View style={{
+                    width: 54,
+                    height: 54,
+                    borderRadius: 27,
+                    backgroundColor: active ? "rgba(2, 222, 149, 0.14)" : "rgba(255, 255, 255, 0.04)",
+                    borderWidth: 1,
+                    borderColor: active ? "rgba(2, 222, 149, 0.3)" : "rgba(255, 255, 255, 0.1)",
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}>
+                    <GridIconComponent size={26} color={active ? "#02de95" : "rgba(255,255,255,0.4)"} />
                   </View>
-                )}
+
+                  <Text style={{ 
+                    color: active ? "#fff" : "rgba(255,255,255,0.45)", 
+                    fontSize: 14, 
+                    fontWeight: active ? "800" : "600",
+                    letterSpacing: 0.3 
+                  }}>
+                    {item.label}
+                  </Text>
+
+                  {active && (
+                    <View style={{ 
+                      position: "absolute", 
+                      top: 10, 
+                      right: 10,
+                      backgroundColor: "#02de95",
+                      borderRadius: 10,
+                      padding: 2,
+                      shadowColor: "#02de95",
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.3,
+                      shadowRadius: 4,
+                    }}>
+                      <Ionicons name="checkmark" size={12} color="#081322" />
+                    </View>
+                  )}
+                </LinearGradient>
               </TouchableOpacity>
             );
           })}

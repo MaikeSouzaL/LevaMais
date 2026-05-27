@@ -109,6 +109,61 @@ class PaymentService {
     }
   }
 
+  async createPixDeposit(amount: number): Promise<{
+    transactionId: string;
+    amount: number;
+    pixCode: string;
+    qrCodeData: string;
+    expiresIn: number;
+    status: string;
+    instructions: string[];
+  }> {
+    try {
+      logger.info('PaymentService', `Criando depósito PIX de R$ ${amount}`);
+      const response = await apiClient.post('/payments/deposit/pix', { amount });
+      return response.data;
+    } catch (error) {
+      logger.error('PaymentService', 'Erro ao criar depósito PIX', error as Error);
+      throw error;
+    }
+  }
+
+  async submitExitFeedback(data: {
+    reason: string;
+    category: string;
+    details?: string;
+  }): Promise<{ success: boolean; feedbackId: string }> {
+    try {
+      logger.info('PaymentService', 'Enviando feedback de saída', { category: data.category });
+      const response = await apiClient.post('/payments/feedback/exit', data);
+      return response.data;
+    } catch (error) {
+      logger.error('PaymentService', 'Erro ao enviar feedback', error as Error);
+      throw error;
+    }
+  }
+
+  async submitVerification(data: {
+    documentType: 'rg' | 'cnh' | 'passaporte';
+    documentFront: string;
+    documentBack?: string;
+    selfie: string;
+  }): Promise<{
+    success: boolean;
+    verificationId: string;
+    status: string;
+    estimatedReviewTime: string;
+  }> {
+    try {
+      logger.info('PaymentService', `Submetendo verificação de ${data.documentType}`);
+      const response = await apiClient.post('/payments/verification/submit', data);
+      return response.data;
+    } catch (error) {
+      logger.error('PaymentService', 'Erro ao submeter verificação', error as Error);
+      throw error;
+    }
+  }
+
   async getPaymentReceipt(transactionId: string): Promise<any> {
     try {
       logger.info('PaymentService', `Buscando recibo ${transactionId}`);

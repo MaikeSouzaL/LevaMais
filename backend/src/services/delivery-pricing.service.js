@@ -12,21 +12,6 @@ function getCoordinate(point, key) {
   return Number.isFinite(value) ? value : null;
 }
 
-function haversineDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371000;
-  const toRad = (value) => (value * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) *
-      Math.cos(toRad(lat2)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
-
 function createPricingError(message, statusCode = 400, details = undefined) {
   const error = new Error(message);
   error.statusCode = statusCode;
@@ -101,7 +86,7 @@ async function fetchRouteMetricsWithGoogleMaps(pickup, dropoff) {
       distanceSource: "route_api",
     };
   } catch (error) {
-    console.warn("[deliveryPricing] Falha na rota real, usando Haversine:", error?.message || error);
+    console.error("[deliveryPricing] Falha crítica na Google Maps API:", error?.message || error);
     return null;
   }
 }
@@ -110,19 +95,7 @@ async function resolveRouteMetrics(pickup, dropoff) {
   const routeMetrics = await fetchRouteMetricsWithGoogleMaps(pickup, dropoff);
   if (routeMetrics) return routeMetrics;
 
-  const distanceInMeters = haversineDistance(
-    pickup.latitude,
-    pickup.longitude,
-    dropoff.latitude,
-    dropoff.longitude,
-  );
-  const distanceKm = distanceInMeters / 1000;
-
-  return {
-    distanceInMeters,
-    durationInSeconds: Math.max(60, Math.round((distanceKm / 35) * 3600 + 180)),
-    distanceSource: "haversine",
-  };
+  throw createPricingError("Erro ao calcular a rota com a API do Google Maps. A API do Google Maps é obrigatória e o fallback de Haversine foi desativado.", 500);
 }
 
 async function calculateDeliveryPricingSnapshot(payload = {}) {
@@ -266,4 +239,5 @@ async function calculateDeliveryPricingSnapshot(payload = {}) {
 
 module.exports = {
   calculateDeliveryPricingSnapshot,
+  fetchRouteMetricsWithGoogleMaps,
 };

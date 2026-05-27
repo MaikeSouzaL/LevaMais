@@ -277,11 +277,12 @@ export default function DestinationSearchScreen({ navigation, route }: any) {
         initialDurationMin: durationRaw,
       });
     } else {
-      navigation.navigate("RideSetup", {
-        vehicleType: (params.initialVehicle as any) || "car",
+      navigation.navigate("RideBidSetup", {
         pickup: pickupData,
         dropoff: dropoffData,
         routeCoordinates,
+        initialDistanceKm: distanceRaw,
+        initialDurationMin: durationRaw,
       });
     }
   };

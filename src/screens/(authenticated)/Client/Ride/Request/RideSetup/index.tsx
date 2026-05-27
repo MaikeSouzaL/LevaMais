@@ -95,24 +95,40 @@ export default function RideSetupScreen() {
     });
   };
 
-  // 2. Final Call: Initiate Real-time Ride Request aligned with Backend model
+  // 2. Final Call: Go to payment selection before creating ride
   const handleSearchDrivers = async () => {
     if (!priceData) return;
     try {
       setCreatingRide(true);
 
-      // Construct fully compliant CreateRideRequest 
-      const orderPayload: any = {
+      // Prepare order data for payment screen
+      const orderData = {
         serviceType: "ride",
         vehicleType: selectedCat === "motorcycle" ? "motorcycle" : "car",
         pickup: params.pickup,
         dropoff: params.dropoff,
+        pickupAddress: params.pickup.address,
+        dropoffAddress: params.dropoff.address,
+        pickupLatLng: {
+          latitude: params.pickup.latitude,
+          longitude: params.pickup.longitude,
+        },
+        dropoffLatLng: {
+          latitude: params.dropoff.latitude,
+          longitude: params.dropoff.longitude,
+        },
         pricing: {
           ...priceData.pricing,
-          total: offerPrice, // Override with client specific offer 
+          total: offerPrice,
+          base: priceData.pricing.basePrice || 0,
+          distancePrice: priceData.pricing.distancePrice || 0,
+          serviceFee: priceData.pricing.serviceFee || 0,
+          distanceKm: (priceData.distance?.value || 0) / 1000,
         },
         distance: priceData.distance,
         duration: priceData.duration,
+        etaMinutes: priceData.duration?.value ? Math.ceil(priceData.duration.value / 60) : undefined,
+        etaText: priceData.duration?.text,
         routeCoordinates:
           Array.isArray(pathCoords) && pathCoords.length >= 2
             ? pathCoords
@@ -122,17 +138,20 @@ export default function RideSetupScreen() {
         negotiation: {
           enabled: true,
           clientOffer: offerPrice
-        }
+        },
+        serviceMode: "ride",
+        insuranceLevel: "none",
       };
 
-      const created = await rideService.create(orderPayload);
-      
-      // Successfully handoff to global tracking search sequence
-      navigation.replace("SearchingDriver", { rideId: created._id });
+      // Navigate to payment screen for method selection
+      navigation.navigate("Payment", {
+        amount: offerPrice,
+        order: orderData,
+      });
     } catch (e: any) {
       Toast.show({
         type: "error",
-        text1: "Falha ao criar pedido",
+        text1: "Falha ao preparar pedido",
         text2: e?.message || "Tente novamente",
       });
     } finally {

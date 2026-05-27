@@ -4,7 +4,7 @@ const DriverLocation = require("../models/DriverLocation");
 const User = require("../models/User");
 const Promotion = require("../models/Promotion");
 const { getRuntimeConfig } = require("../services/platformConfig.service");
-const { calculateDeliveryPricingSnapshot } = require("../services/delivery-pricing.service");
+const { calculateDeliveryPricingSnapshot, fetchRouteMetricsWithGoogleMaps } = require("../services/delivery-pricing.service");
 
 // mixins (rating + proofs)
 const ratingProofMixin = require("./ride.ratingProof.mixin");
@@ -21,7 +21,7 @@ const NON_TERMINAL_STATUSES = [
 const RIDE_CAPABLE_VEHICLES = new Set(["motorcycle", "car"]);
 const DEFAULT_APP_TIMEZONE = process.env.APP_TIMEZONE || "America/Sao_Paulo";
 const DEFAULT_APP_FEE_PERCENTAGE = Number(process.env.APP_FEE_PERCENTAGE || 15);
-const DEFAULT_RIDE_SEARCH_TIMEOUT_SECONDS = Number(process.env.RIDE_SEARCH_TIMEOUT_SECONDS || 60);
+const DEFAULT_RIDE_SEARCH_TIMEOUT_SECONDS = Number(process.env.RIDE_SEARCH_TIMEOUT_SECONDS || 300);
 const DRIVER_DAILY_GOAL_RIDES = Number(process.env.DRIVER_DAILY_GOAL_RIDES || 10);
 const DRIVER_DAILY_BONUS_AMOUNT = Number(process.env.DRIVER_DAILY_BONUS_AMOUNT || 20);
 
@@ -29,10 +29,11 @@ async function moveToHistory(ride) {
   try {
     const historyRide = new RideHistory(ride.toObject());
     await historyRide.save();
-    await Ride.deleteOne({ _id: ride._id });
-    console.log(`[RideHistory] Moved ride ${ride._id} to history.`);
+    // Keep in main Ride collection - do not delete!
+    // await Ride.deleteOne({ _id: ride._id });
+    console.log(`[RideHistory] Kept ride ${ride._id} in main collection and saved to history.`);
   } catch (err) {
-    console.error(`[RideHistory] Failed to move ride ${ride._id} to history:`, err);
+    console.error(`[RideHistory] Failed to save ride ${ride._id} to history:`, err);
   }
 }
 
@@ -68,7 +69,7 @@ function sendError(res, status, message, extras = {}) {
 function calculateDynamicSearchRadius(ride) {
   const vehicleType = ride.vehicleType || "motorcycle";
   const isWaitingInQueue = !!ride.isWaitingInQueue;
-  
+
   // Align with progressive scaler defined in src/hooks/useRealtimeDelivery.ts
   const radiusConfig = {
     motorcycle: { nearby: 2.5, expanded: 8.0, regional: 15.0 },
@@ -78,7 +79,7 @@ function calculateDynamicSearchRadius(ride) {
   };
 
   const vehicleConfig = radiusConfig[vehicleType] || radiusConfig.motorcycle;
-  
+
   if (isWaitingInQueue) {
     return vehicleConfig.regional * 1000;
   }
@@ -96,6 +97,67 @@ function calculateDynamicSearchRadius(ride) {
   }
 
   return activeRadiusKm * 1000;
+}
+
+async function calculateRideEstimate(req, res) {
+  try {
+    const { pickup, dropoff, vehicleType, distance, duration } = req.body;
+
+    if (!pickup || !dropoff || !vehicleType) {
+      return sendError(res, 400, "pickup, dropoff e vehicleType são obrigatórios");
+    }
+
+    const runtimeConfig = await getRuntimeConfig();
+    const ridePricing = runtimeConfig.ridePricing || runtimeConfig.vehiclePricing;
+
+    if (!ridePricing || !ridePricing[vehicleType]) {
+      return sendError(res, 400, `Tipo de veículo ${vehicleType} não suportado para corridas`);
+    }
+
+    const pricing = ridePricing[vehicleType];
+    const minimumKm = pricing.minimumDistance !== undefined ? pricing.minimumDistance : (pricing.minimumKm !== undefined ? pricing.minimumKm : 3);
+    const minimumFee = pricing.minimumFare !== undefined ? pricing.minimumFare : (pricing.minimumFee !== undefined ? pricing.minimumFee : 8);
+    const pricePerKm = pricing.perKm !== undefined ? pricing.perKm : (pricing.pricePerKm !== undefined ? pricing.pricePerKm : 2.5);
+    const baseFare = pricing.baseFare !== undefined ? pricing.baseFare : minimumFee;
+
+    let distanceKm = Number(distance);
+    let durationMin = Number(duration);
+
+    if (!Number.isFinite(distanceKm) || !Number.isFinite(durationMin)) {
+      const metrics = await fetchRouteMetricsWithGoogleMaps(pickup, dropoff);
+      if (!metrics) {
+        return sendError(res, 500, "Erro ao obter rota da API do Google Maps. A API do Google Maps é obrigatória.");
+      }
+      distanceKm = metrics.distanceInMeters / 1000;
+      durationMin = metrics.durationInSeconds ? Math.round(metrics.durationInSeconds / 60) : Math.round(distanceKm * 2.5);
+    }
+
+    let suggestedPrice;
+    if (distanceKm <= minimumKm) {
+      suggestedPrice = minimumFee;
+    } else {
+      suggestedPrice = minimumFee + ((distanceKm - minimumKm) * pricePerKm);
+    }
+
+    const minPrice = suggestedPrice * 0.8;
+    const maxPrice = suggestedPrice * 1.3;
+
+    res.json({
+      suggestedPrice: Math.round(suggestedPrice * 100) / 100,
+      minPrice: Math.round(minPrice * 100) / 100,
+      maxPrice: Math.round(maxPrice * 100) / 100,
+      distanceKm: Math.round(distanceKm * 100) / 100,
+      durationMin,
+      pricingBreakdown: {
+        baseFare: baseFare,
+        distancePrice: Math.round(Math.max(0, suggestedPrice - baseFare) * 100) / 100,
+        total: Math.round(suggestedPrice * 100) / 100
+      }
+    });
+  } catch (error) {
+    console.error("Erro ao calcular estimativa de corrida:", error);
+    return sendError(res, 500, "Erro ao calcular estimativa", { details: error.message });
+  }
 }
 
 const SCHEDULED_DISPATCH_TIMEOUTS = new Map();
@@ -371,13 +433,16 @@ class RideController {
             io.to(`driver-${driver.driverId}`).emit("waiting-queue-updated");
           } else {
             // Ã°Å¸Å¡â‚¬ Standard pop-up card flow for active search
-            io.to(`driver-${driver.driverId}`).emit(
-              "new-ride-request",
-              buildRideRequestPayload(ride, {
-                distanceToPickup,
-                clientRidesCount,
-              }),
-            );
+            const payload = buildRideRequestPayload(ride, {
+              distanceToPickup,
+              clientRidesCount,
+            });
+            io.to(`driver-${driver.driverId}`).emit("new-ride-request", payload);
+            if (ride.serviceType === "delivery") {
+              io.to(`driver-${driver.driverId}`).emit("delivery_open", payload);
+            } else {
+              io.to(`driver-${driver.driverId}`).emit("ride_open", payload);
+            }
           }
         } catch (driverEmitErr) {
           console.error(`Erro ao despachar requisicao para driver=${driver?.driverId}:`, driverEmitErr);
@@ -445,20 +510,26 @@ class RideController {
 
             const clientId = ride.clientId?._id || ride.clientId;
             if (clientId) {
-              io.to(`client-${clientId}`).emit("ride-cancelled", {
-                rideId: ride._id,
-                reason: "no_driver_found",
-              });
+              const cancelPayload1 = { rideId: ride._id, reason: "no_driver_found" };
+              io.to(`client-${clientId}`).emit("ride-cancelled", cancelPayload1);
+              if (ride.serviceType === "delivery") {
+                io.to(`client-${clientId}`).emit("delivery_cancelled", cancelPayload1);
+              } else {
+                io.to(`client-${clientId}`).emit("ride_cancelled", cancelPayload1);
+              }
             }
 
             // Ã°Å¸Å¡Â¨ EXCLUSIVE FIX: Broadcast the timeout-cancellation to ALL nearby drivers who received the offer!
             if (Array.isArray(nearbyDrivers) && nearbyDrivers.length > 0) {
               nearbyDrivers.forEach((driver) => {
                 if (driver && driver.driverId) {
-                  io.to(`driver-${driver.driverId}`).emit("ride-cancelled", {
-                    rideId: ride._id,
-                    reason: "tempo_limite_esgotado",
-                  });
+                  const cancelPayload2 = { rideId: ride._id, reason: "tempo_limite_esgotado" };
+                  io.to(`driver-${driver.driverId}`).emit("ride-cancelled", cancelPayload2);
+                  if (ride.serviceType === "delivery") {
+                    io.to(`driver-${driver.driverId}`).emit("delivery_cancelled", cancelPayload2);
+                  } else {
+                    io.to(`driver-${driver.driverId}`).emit("ride_cancelled", cancelPayload2);
+                  }
                 }
               });
             }
@@ -468,7 +539,7 @@ class RideController {
         } finally {
           ACTIVE_SEARCH_TIMEOUTS.delete(timeoutKey);
         }
-      }, (ride.searchTimeoutSeconds || 60) * 1000);
+      }, (ride.searchTimeoutSeconds || 300) * 1000);
 
       ACTIVE_SEARCH_TIMEOUTS.set(timeoutKey, activeTimeout);
     } catch (dispatchErr) {
@@ -489,8 +560,7 @@ class RideController {
       try {
         const ride = await Ride.findById(rideId)
           .populate("clientId", "name phone profilePhoto")
-          .populate("driverId", "name phone profilePhoto")
-          .populate("purposeId");
+          .populate("driverId", "name phone profilePhoto");
 
         if (!ride || ride.status !== "scheduled") return;
 
@@ -554,12 +624,18 @@ class RideController {
               rideId: ride._id,
               reason: "tempo_pagamento_expirado",
             });
-            io.to("driver-" + previousDriverId).emit("ride-cancelled", {
+            const cancelPayload3 = {
               rideId: ride._id,
               cancelledBy: "system",
               reason: "payment_timeout",
               message: "Pagamento do cliente expirou. Solicitação cancelada para o motorista.",
-            });
+            };
+            io.to("driver-" + previousDriverId).emit("ride-cancelled", cancelPayload3);
+            if (ride.serviceType === "delivery") {
+              io.to("driver-" + previousDriverId).emit("delivery_cancelled", cancelPayload3);
+            } else {
+              io.to("driver-" + previousDriverId).emit("ride_cancelled", cancelPayload3);
+            }
           }
           const clientId = ride.clientId?._id || ride.clientId;
           if (clientId) {
@@ -604,8 +680,7 @@ class RideController {
           })
             .sort({ updatedAt: -1 })
             .populate("clientId", "name phone profilePhoto")
-            .populate("driverId", "name phone profilePhoto")
-            .populate("purposeId");
+            .populate("driverId", "name phone profilePhoto");
 
           if (ride?._id && dl) {
             await DriverLocation.findOneAndUpdate(
@@ -643,8 +718,7 @@ class RideController {
         })
           .sort({ createdAt: -1 })
           .populate("clientId", "name phone profilePhoto")
-          .populate("driverId", "name phone profilePhoto")
-          .populate("purposeId");
+          .populate("driverId", "name phone profilePhoto");
 
         if (!ride) return res.json({ active: false, ride: null });
         return res.json({ active: true, ride });
@@ -670,12 +744,6 @@ class RideController {
         const clientStatuses = [
           ...NON_TERMINAL_STATUSES,
           "scheduled",
-          "cancelled",
-          "cancelled_by_client",
-          "cancelled_by_driver",
-          "cancelled_no_driver",
-          "no_drivers_available",
-          "completed",
         ];
         const rides = await Ride.find({
           clientId: userId,
@@ -683,8 +751,7 @@ class RideController {
         })
           .sort({ createdAt: -1 })
           .populate("clientId", "name phone profilePhoto")
-          .populate("driverId", "name phone profilePhoto")
-          .populate("purposeId");
+          .populate("driverId", "name phone profilePhoto");
 
         return res.json({ active: rides.length > 0, count: rides.length, rides });
       }
@@ -696,8 +763,7 @@ class RideController {
         })
           .sort({ createdAt: -1 })
           .populate("clientId", "name phone profilePhoto")
-          .populate("driverId", "name phone profilePhoto")
-          .populate("purposeId");
+          .populate("driverId", "name phone profilePhoto");
 
         return res.json({ active: rides.length > 0, count: rides.length, rides });
       }
@@ -841,7 +907,6 @@ class RideController {
 
           // Align driver visibility filter with progressive frontend seeker! Ã°Å¸Â§Â­Ã°Å¸Å¡â‚¬
           const dynamicRadius = calculateDynamicSearchRadius(ride);
-          const activeMaxDistance = Math.min(dynamicRadius, cityMaxDistance);
 
           const distanceToPickup = driverLocation.distanceTo(
             pickup.latitude,
@@ -1190,14 +1255,7 @@ class RideController {
       };
 
       const resolvedDetails = { ...(details || {}) };
-      if (serviceType === "delivery" || serviceType === "frete") {
-        if (!resolvedDetails.pickupPin) {
-          resolvedDetails.pickupPin = Math.floor(1000 + Math.random() * 9000).toString();
-        }
-        if (!resolvedDetails.deliveryPin) {
-          resolvedDetails.deliveryPin = Math.floor(1000 + Math.random() * 9000).toString();
-        }
-      }
+
 
       const ride = new Ride({
         clientId: req.user.id,
@@ -1411,7 +1469,7 @@ class RideController {
         // Obter dados do motorista
         const driverLocation = await DriverLocation.findOne({ driverId });
 
-        io.to(`client-${ride.clientId._id}`).emit("driver-found", {
+        const acceptPayload = {
           rideId: ride._id,
           driver: {
             id: ride.driverId._id,
@@ -1422,7 +1480,13 @@ class RideController {
             vehicle: driverLocation?.vehicle || {},
           },
           eta: ride.duration,
-        });
+        };
+        io.to(`client-${ride.clientId._id}`).emit("driver-found", acceptPayload);
+        if (ride.serviceType === "delivery") {
+          io.to(`client-${ride.clientId._id}`).emit("delivery_accepted", acceptPayload);
+        } else {
+          io.to(`client-${ride.clientId._id}`).emit("ride_accepted", acceptPayload);
+        }
 
         // Notificar outros motoristas que a corrida foi aceita
         io.emit("ride-taken", { rideId: ride._id });
@@ -1527,16 +1591,19 @@ class RideController {
           await ride.populate("clientId");
 
           const clientRidesCount = await Ride.countDocuments({ clientId: ride.clientId?._id, status: "completed" }).catch(() => 0);
-          io.to(`driver-${next.driverId}`).emit(
-            "new-ride-request",
-            buildRideRequestPayload(ride, { distanceToPickup: 0, clientRidesCount })
-          );
+          const payloadNext = buildRideRequestPayload(ride, { distanceToPickup: 0, clientRidesCount });
+          io.to(`driver-${next.driverId}`).emit("new-ride-request", payloadNext);
+          if (ride.serviceType === "delivery") {
+            io.to(`driver-${next.driverId}`).emit("delivery_open", payloadNext);
+          } else {
+            io.to(`driver-${next.driverId}`).emit("ride_open", payloadNext);
+          }
         } else {
-          // Ã°Å¸Å¡Â¨ CRITICAL UPGRADE: If ALL nearby drivers rejected the offer, trigger terminal state instantly!
-          // This now applies whether in Queue OR in initial Broadcast mode!
-          ride.status = "cancelled_no_driver";
+          // Keep the ride alive in 'requesting' state so it can wait for the full searchTimeoutSeconds
+          // instead of instantly canceling. This improves UX drastically.
+          ride.status = "requesting";
+          ride.driverId = null;
           await ride.save();
-          await moveToHistory(ride);
 
           // Re-populate client payload to guarantee valid connection
           if (!ride.populated("clientId")) {
@@ -1545,10 +1612,10 @@ class RideController {
 
           const resolvedClientId = ride.clientId?._id || ride.clientId;
           if (resolvedClientId) {
-            io.to(`client-${resolvedClientId}`).emit("ride-cancelled", {
+            io.to(`client-${resolvedClientId}`).emit("ride-offers-updated", {
               rideId: ride._id,
-              reason: "todos_recusaram",
-              message: "Todos os motoristas disponÃƒÂ­veis no momento recusaram a solicitaÃƒÂ§ÃƒÂ£o. Sugerimos aumentar a oferta para atrair interessados.",
+              reason: "driver_rejected_some",
+              message: "Os motoristas disponíveis recusaram esta oferta. Sugerimos aguardar mais ou aumentar a oferta para atrair interessados.",
             });
           }
         }
@@ -1757,18 +1824,27 @@ class RideController {
 
         if (io) {
           const clientRidesCount = await Ride.countDocuments({ clientId: ride.clientId._id || ride.clientId, status: "completed" }).catch(() => 0);
-          io.to(`driver-${driverId}`).emit(
-            "new-ride-request",
-            buildRideRequestPayload(ride, {
-              negotiationSelected: true,
-              clientRidesCount,
-            }),
-          );
+          const payloadDr = buildRideRequestPayload(ride, {
+            negotiationSelected: true,
+            clientRidesCount,
+          });
+          io.to(`driver-${driverId}`).emit("new-ride-request", payloadDr);
+          if (ride.serviceType === "delivery") {
+            io.to(`driver-${driverId}`).emit("delivery_open", payloadDr);
+          } else {
+            io.to(`driver-${driverId}`).emit("ride_open", payloadDr);
+          }
+
           io.to(`client-${ride.clientId._id || ride.clientId}`).emit("ride-offer-selected", {
             rideId: ride._id,
             driverId,
             finalPrice
           });
+          if (ride.serviceType === "delivery") {
+            io.to(`client-${ride.clientId._id || ride.clientId}`).emit("delivery_negotiated", { rideId: ride._id, action: "offer_selected", driverId });
+          } else {
+            io.to(`client-${ride.clientId._id || ride.clientId}`).emit("ride_negotiated", { rideId: ride._id, action: "offer_selected", driverId });
+          }
         }
 
         return res.json({
@@ -1787,12 +1863,23 @@ class RideController {
         io.to(`client-${clientId}`).emit("ride-offers-updated", {
           rideId: ride._id,
         });
+        if (ride.serviceType === "delivery") {
+          io.to(`client-${clientId}`).emit("delivery_negotiated", { rideId: ride._id, action: "proposal_received" });
+        } else {
+          io.to(`client-${clientId}`).emit("ride_negotiated", { rideId: ride._id, action: "proposal_received" });
+        }
+
         if (status === "accepted") {
           io.to(`client-${clientId}`).emit("driver-accepted-offer", {
             rideId: ride._id,
             driverId,
             amount,
           });
+          if (ride.serviceType === "delivery") {
+            io.to(`client-${clientId}`).emit("delivery_negotiated", { rideId: ride._id, action: "proposal_accepted", driverId });
+          } else {
+            io.to(`client-${clientId}`).emit("ride_negotiated", { rideId: ride._id, action: "proposal_accepted", driverId });
+          }
         }
       }
 
@@ -1852,10 +1939,22 @@ class RideController {
       const io = req.app.get("io");
       if (io) {
         io.to(`client-${clientId}`).emit("ride-offers-updated", { rideId: ride._id });
+        if (ride.serviceType === "delivery") {
+          io.to(`client-${clientId}`).emit("delivery_negotiated", { rideId: ride._id, action: "proposal_updated" });
+        } else {
+          io.to(`client-${clientId}`).emit("ride_negotiated", { rideId: ride._id, action: "proposal_updated" });
+        }
+
         io.to(`driver-${driverId}`).emit("client-counter-proposal", {
           rideId: ride._id,
           amount: offer.amount
         });
+        if (ride.serviceType === "delivery") {
+          io.to(`driver-${driverId}`).emit("delivery_negotiated", { rideId: ride._id, action: "counter_proposal" });
+        } else {
+          io.to(`driver-${driverId}`).emit("ride_negotiated", { rideId: ride._id, action: "counter_proposal" });
+        }
+
         io.to(`driver-${driverId}`).emit("waiting-queue-updated", { rideId: ride._id });
       }
 
@@ -1929,18 +2028,27 @@ class RideController {
       const io = req.app.get("io");
       if (io) {
         const clientRidesCount = await Ride.countDocuments({ clientId: ride.clientId?._id || ride.clientId, status: "completed" }).catch(() => 0);
-        io.to(`driver-${selectedDriverId}`).emit(
-          "client-selected-offer-awaiting-payment",
-          buildRideRequestPayload(ride, {
-            negotiationSelected: true,
-            clientRidesCount,
-          }),
-        );
+        const payloadAwaiting = buildRideRequestPayload(ride, {
+          negotiationSelected: true,
+          clientRidesCount,
+        });
+        io.to(`driver-${selectedDriverId}`).emit("client-selected-offer-awaiting-payment", payloadAwaiting);
+        if (ride.serviceType === "delivery") {
+          io.to(`driver-${selectedDriverId}`).emit("delivery_negotiated", { rideId: ride._id, action: "proposal_accepted", driverId: selectedDriverId });
+        } else {
+          io.to(`driver-${selectedDriverId}`).emit("ride_negotiated", { rideId: ride._id, action: "proposal_accepted", driverId: selectedDriverId });
+        }
+
         io.to(`client-${ride.clientId._id || ride.clientId}`).emit("ride-offer-selected", {
           rideId: ride._id,
           driverId: selectedDriverId,
           finalPrice,
         });
+        if (ride.serviceType === "delivery") {
+          io.to(`client-${ride.clientId._id || ride.clientId}`).emit("delivery_negotiated", { rideId: ride._id, action: "offer_selected", driverId: selectedDriverId });
+        } else {
+          io.to(`client-${ride.clientId._id || ride.clientId}`).emit("ride_negotiated", { rideId: ride._id, action: "offer_selected", driverId: selectedDriverId });
+        }
       }
 
       // Schedule payment pending timeout (5 minutes default)
@@ -2106,7 +2214,18 @@ class RideController {
         const io = req.app.get("socketio") || req.app.get("io");
         if (io) {
           io.to(`client-${clientId}`).emit("ride-offers-updated", { rideId });
+          if (ride.serviceType === "delivery") {
+            io.to(`client-${clientId}`).emit("delivery_negotiated", { rideId, action: "proposal_rejected" });
+          } else {
+            io.to(`client-${clientId}`).emit("ride_negotiated", { rideId, action: "proposal_rejected" });
+          }
+
           io.to(`driver-${driverId}`).emit("ride-offer-rejected-by-client", { rideId });
+          if (ride.serviceType === "delivery") {
+            io.to(`driver-${driverId}`).emit("delivery_negotiated", { rideId, action: "proposal_rejected" });
+          } else {
+            io.to(`driver-${driverId}`).emit("ride_negotiated", { rideId, action: "proposal_rejected" });
+          }
         }
       }
 
@@ -2178,19 +2297,31 @@ class RideController {
         const targetType = isClient ? "driver" : "client";
 
         if (targetId) {
-          io.to(`${targetType}-${targetId}`).emit("ride-cancelled", {
+          const cancelPayload4 = {
             rideId: ride._id,
             cancelledBy: isClient ? "client" : "driver",
             reason,
             cancellationFee,
-          });
+          };
+          io.to(`${targetType}-${targetId}`).emit("ride-cancelled", cancelPayload4);
+          if (ride.serviceType === "delivery") {
+            io.to(`${targetType}-${targetId}`).emit("delivery_cancelled", cancelPayload4);
+          } else {
+            io.to(`${targetType}-${targetId}`).emit("ride_cancelled", cancelPayload4);
+          }
         } else if (isClient && !ride.driverId) {
           // Broadcast cancel message to ALL connected drivers to guarantee popup is cleared instantly everywhere
-          io.emit("ride-cancelled", {
+          const cancelPayload5 = {
             rideId: ride._id,
             cancelledBy: "client",
             reason: "cancelamento_pre_aceite"
-          });
+          };
+          io.emit("ride-cancelled", cancelPayload5);
+          if (ride.serviceType === "delivery") {
+            io.emit("delivery_cancelled", cancelPayload5);
+          } else {
+            io.emit("ride_cancelled", cancelPayload5);
+          }
         }
       }
 
@@ -2351,6 +2482,92 @@ class RideController {
     }
   }
 
+  // Validar PIN de coleta ou entrega
+  async validatePin(req, res) {
+    try {
+      const { rideId } = req.params;
+      const { pinType, pin } = req.body;
+      const driverId = req.user.id;
+      const driverIdStr = String(driverId);
+
+      // Validar tipo de PIN
+      if (!["pickup", "delivery"].includes(pinType)) {
+        return sendError(res, 400, "Tipo de PIN inválido. Use 'pickup' ou 'delivery'");
+      }
+
+      const ride = await Ride.findById(rideId);
+
+      if (!ride) {
+        return sendError(res, 404, "Corrida não encontrada");
+      }
+
+      // Apenas motorista atribuído pode validar PIN
+      if (ride.driverId?.toString() !== driverIdStr) {
+        return sendError(res, 403, "Apenas o motorista pode validar PIN");
+      }
+
+      // Pegar PIN esperado do ride
+      const expectedPin = ride.details?.[`${pinType}Pin`];
+
+      // Se não há PIN definido, não é necessário validar
+      if (!expectedPin) {
+        return res.json({
+          success: true,
+          valid: true,
+          required: false,
+          message: "PIN não é obrigatório para esta entrega"
+        });
+      }
+
+      // Verificar tentativas
+      const attempts = ride.proofs?.[`${pinType}PinAttempts`] || 0;
+
+      if (attempts >= 5) {
+        return sendError(res, 429, "Muitas tentativas. Entre em contato com o suporte.");
+      }
+
+      // Comparar PINs
+      const pinValid = String(pin).trim() === String(expectedPin).trim();
+
+      // Atualizar contagem de tentativas
+      ride.proofs = ride.proofs || {};
+      ride.proofs[`${pinType}PinAttempts`] = attempts + 1;
+
+      if (pinValid) {
+        // PIN correto - marcar como validado
+        ride.proofs[`${pinType}PinValidated`] = true;
+        ride.proofs[`${pinType}PinValidatedAt`] = new Date();
+        await ride.save();
+
+        return res.json({
+          success: true,
+          valid: true,
+          required: true,
+          validatedAt: ride.proofs[`${pinType}PinValidatedAt`],
+          message: `PIN de ${pinType === "pickup" ? "coleta" : "entrega"} validado com sucesso`
+        });
+      } else {
+        // PIN incorreto - salvar tentativas
+        await ride.save();
+        const remaining = 5 - (attempts + 1);
+
+        return res.status(401).json({
+          success: false,
+          valid: false,
+          required: true,
+          attempts: attempts + 1,
+          remaining,
+          message: `PIN incorreto. Tentativas restantes: ${remaining}`
+        });
+      }
+    } catch (error) {
+      console.error("Erro ao validar PIN:", error);
+      return sendError(res, 500, "Erro ao validar PIN", {
+        details: error.message,
+      });
+    }
+  }
+
   // Atualizar status da corrida
   async updateStatus(req, res) {
     try {
@@ -2408,13 +2625,11 @@ class RideController {
 
       if (ride.serviceType === "delivery" || ride.serviceType === "frete") {
         if (nextStatus === "in_progress") {
-          const reqPin = String(req.body.pickupPin || "").trim();
-          const expectedPin = String(ride.details?.pickupPin || "").trim();
-          if (expectedPin && reqPin !== expectedPin) {
-            return sendError(res, 400, "PIN de coleta incorreto. Verifique com o remetente.");
-          }
           if (!ride.proofs?.pickupPhoto) {
-            return sendError(res, 400, "Envie a foto da coleta antes de iniciar a entrega");
+            return sendError(res, 400, "Envie a foto da coleta antes de iniciar");
+          }
+          if (ride.details?.pickupPin && !ride.proofs?.pickupPinValidated) {
+            return sendError(res, 400, "Valide o PIN de coleta antes de iniciar a entrega");
           }
         }
         if (nextStatus === "completed") {
@@ -2614,14 +2829,12 @@ class RideController {
 
       let ride = await Ride.findById(rideId)
         .populate("clientId", "name phone profilePhoto")
-        .populate("driverId", "name phone profilePhoto")
-        .populate("purposeId");
+        .populate("driverId", "name phone profilePhoto");
 
       if (!ride) {
         ride = await RideHistory.findById(rideId)
           .populate("clientId", "name phone profilePhoto")
-          .populate("driverId", "name phone profilePhoto")
-          .populate("purposeId");
+          .populate("driverId", "name phone profilePhoto");
       }
 
       if (!ride) {
@@ -2649,7 +2862,7 @@ class RideController {
     }
   }
 
-  // HistÃƒÆ’Ã‚Â³rico de corridas
+  // Histórico de corridas
   async getHistory(req, res) {
     try {
       const userId = req.user.id;
@@ -2667,26 +2880,51 @@ class RideController {
         query.status = status;
       }
 
-      const rides = await RideHistory.find(query)
-        .populate("clientId", "name phone profilePhoto")
-        .populate("driverId", "name phone profilePhoto")
-                .sort({ createdAt: -1 })
-        .limit(parseInt(limit))
-        .skip((parseInt(page) - 1) * parseInt(limit));
+      // Query both active Rides and archived RideHistory
+      const [activeRides, historyRides] = await Promise.all([
+        Ride.find(query)
+          .populate("clientId", "name phone profilePhoto")
+          .populate("driverId", "name phone profilePhoto")
+          .lean(),
+        RideHistory.find(query)
+          .populate("clientId", "name phone profilePhoto")
+          .populate("driverId", "name phone profilePhoto")
+          .lean()
+      ]);
 
-      const total = await RideHistory.countDocuments(query);
+      // Combine both results and remove duplicates by ID
+      const seenIds = new Set();
+      const uniqueRides = [];
+
+      for (const ride of [...activeRides, ...historyRides]) {
+        const idStr = String(ride._id || ride.id);
+        if (!seenIds.has(idStr)) {
+          seenIds.add(idStr);
+          uniqueRides.push(ride);
+        }
+      }
+
+      // Sort by createdAt descending
+      uniqueRides.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+      // Paginate merged array
+      const total = uniqueRides.length;
+      const limitVal = parseInt(limit);
+      const pageVal = parseInt(page);
+      const startIndex = (pageVal - 1) * limitVal;
+      const paginatedRides = uniqueRides.slice(startIndex, startIndex + limitVal);
 
       res.json({
-        rides,
+        rides: paginatedRides,
         pagination: {
           total,
-          page: parseInt(page),
-          limit: parseInt(limit),
-          pages: Math.ceil(total / parseInt(limit)),
+          page: pageVal,
+          limit: limitVal,
+          pages: Math.ceil(total / limitVal),
         },
       });
     } catch (error) {
-      console.error("Erro ao buscar histÃƒÆ’Ã‚Â³rico:", error);
+      console.error("Erro ao buscar histórico:", error);
       return sendError(res, 500, "Erro ao buscar historico", { details: error.message });
     }
   }
@@ -2978,27 +3216,24 @@ class RideController {
       // PricingRule removido
       // Purpose removido
 
-      // DistÃƒÆ’Ã‚Â¢ncia Haversine em metros
-      // Pre-calculate explicit provided metrics or fallback to geometric Haversine
+      // Distância em metros via Google Maps API
       let distanceInMeters = req.body.distance;
       let durationInSeconds = req.body.duration;
 
-      if (typeof distanceInMeters !== "number") {
-        distanceInMeters = haversineDistance(
-          pickup.latitude,
-          pickup.longitude,
-          dropoff.latitude,
-          dropoff.longitude,
-        );
+      if (typeof distanceInMeters !== "number" || typeof durationInSeconds !== "number") {
+        const metrics = await fetchRouteMetricsWithGoogleMaps(pickup, dropoff);
+        if (!metrics) {
+          return res.status(500).json({
+            error: "Erro ao obter rota da API do Google Maps. A API do Google Maps é obrigatória.",
+            details: "Google Maps API falhou ou está indisponível e o fallback de Haversine foi removido."
+          });
+        }
+        distanceInMeters = metrics.distanceInMeters;
+        durationInSeconds = metrics.durationInSeconds || Math.max(60, Math.round(((distanceInMeters / 1000) / 35) * 3600 + 180));
       }
       
       const distance = distanceInMeters;
       const distanceKm = distanceInMeters / 1000;
-      
-      if (typeof durationInSeconds !== "number") {
-         // Fallback estimation: basic 35km/h average including lights + startup penalty
-         durationInSeconds = (distanceKm / 35) * 3600 + 180;
-      }
 
       // Resolver purpose (aceita ObjectId OU slug)
       let purposeDoc = null;
@@ -3314,6 +3549,63 @@ class RideController {
     } catch (error) {
       console.error("Erro ao calcular preÃƒÆ’Ã‚Â§o:", error);
       return sendError(res, 500, "Erro ao calcular preco", { details: error?.message, stack: process.env.NODE_ENV === "production" ? undefined : error?.stack });
+    }
+  }
+
+  // Calcular estimativa de corrida (estilo inDriver - pré-cálculo para lance do cliente)
+  async calculateRideEstimate(req, res) {
+    try {
+      const { pickup, dropoff, vehicleType } = req.body;
+
+      if (!pickup || !dropoff || !vehicleType) {
+        return sendError(res, 400, "pickup, dropoff e vehicleType são obrigatórios");
+      }
+
+      if (!RIDE_CAPABLE_VEHICLES.has(vehicleType)) {
+        return sendError(res, 400, `Tipo de veículo ${vehicleType} não suportado para corridas. Use: motorcycle ou car`);
+      }
+
+      const runtimeConfig = await getRuntimeConfig();
+      const ridePricing = runtimeConfig.ridePricing || runtimeConfig.vehiclePricing;
+
+      if (!ridePricing || !ridePricing[vehicleType]) {
+        return sendError(res, 500, `Configuração de preço não encontrada para ${vehicleType}`);
+      }
+
+      const pricing = ridePricing[vehicleType];
+
+      const distanceKm = calculateHaversineDistance(
+        pickup.latitude, pickup.longitude,
+        dropoff.latitude, dropoff.longitude
+      );
+
+      let suggestedPrice;
+      if (distanceKm <= pricing.minimumKm) {
+        suggestedPrice = pricing.minimumFee;
+      } else {
+        suggestedPrice = pricing.minimumFee + ((distanceKm - pricing.minimumKm) * pricing.pricePerKm);
+      }
+
+      const minPrice = suggestedPrice * 0.8;
+      const maxPrice = suggestedPrice * 1.3;
+      const durationMin = Math.round(distanceKm * 2.5);
+
+      return res.json({
+        success: true,
+        suggestedPrice: Math.round(suggestedPrice * 100) / 100,
+        minPrice: Math.round(minPrice * 100) / 100,
+        maxPrice: Math.round(maxPrice * 100) / 100,
+        distanceKm: Math.round(distanceKm * 100) / 100,
+        durationMin,
+        pricingBreakdown: {
+          baseFare: pricing.minimumFee,
+          distancePrice: Math.max(0, suggestedPrice - pricing.minimumFee),
+          total: suggestedPrice
+        }
+      });
+    } catch (error) {
+      console.error("Erro ao calcular estimativa de corrida:", error);
+      return sendError(res, 500, "Erro ao calcular estimativa", { details: error.message });
     }
   }
 
@@ -3839,21 +4131,7 @@ function buildRideRequestPayload(ride, extras = {}) {
     },
   };
 }
-// FunÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o auxiliar para calcular distÃƒÆ’Ã‚Â¢ncia (Haversine)
-function haversineDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371e3; // Raio da Terra em metros
-  const phi1 = (lat1 * Math.PI) / 180;
-  const phi2 = (lat2 * Math.PI) / 180;
-  const deltaPhi = ((lat2 - lat1) * Math.PI) / 180;
-  const deltaLambda = ((lon2 - lon1) * Math.PI) / 180;
 
-  const a =
-    Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
-    Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-  return R * c;
-}
 
 /**
  * Checks if a time (HH:mm) is within a range (HH:mm..HH:mm).

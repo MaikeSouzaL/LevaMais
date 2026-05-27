@@ -216,13 +216,6 @@ export default function RideOffersMarketplaceScreen() {
     }
   }, [navigation, rideDetails?.status, rideId]);
 
-  useEffect(() => {
-    if (route.params?.autoOpenIncrease) {
-      setShowIncreaseModal(true);
-      navigation.setParams({ autoOpenIncrease: undefined });
-    }
-  }, [route.params?.autoOpenIncrease, navigation]);
-
 
   useEffect(() => {
     let mounted = true;
@@ -362,7 +355,7 @@ export default function RideOffersMarketplaceScreen() {
           ? "A solicitacao de entrega foi encerrada com sucesso."
           : "O chamado foi encerrado com sucesso.",
       });
-      navigation.navigate("Home");
+      navigation.replace("Home");
     } catch (e: any) {
       Toast.show({
         type: "error",
@@ -384,7 +377,7 @@ export default function RideOffersMarketplaceScreen() {
       {/* 👑 Premium Top Inset & HUD Header */}
       <View style={{ height: insets.top + 80, backgroundColor: "transparent", zIndex: 10 }}>
         <MarketplaceHeader 
-          onBack={() => navigation.navigate("Home")} 
+          onBack={() => navigation.replace("Home")} 
           offerCount={sortedOffers.length} 
           useDarkMap={true}
         />

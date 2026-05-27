@@ -35,6 +35,8 @@ import DriverShiftOffersScreen from "../screens/(authenticated)/Driver/DriverShi
 import DeliveryOfferScreen from "../screens/(authenticated)/Driver/DeliveryOfferScreen";
 import DriverNegotiationScreen from "../screens/(authenticated)/Driver/DriverNegotiationScreen";
 import DeliveryOfferDetailScreen from "../screens/(authenticated)/Driver/DeliveryOfferDetailScreen";
+import DeliveryPickupConfirmScreen from "../screens/(authenticated)/Driver/DeliveryPickupConfirm";
+import DeliveryDropoffConfirmScreen from "../screens/(authenticated)/Driver/DeliveryDropoffConfirm";
 
 import { useAuthStore } from "../context/authStore";
 
@@ -240,6 +242,8 @@ export default function DrawerDriverRoutes({ initialRideId }: DrawerDriverRoutes
       <Drawer.Screen name="DriverNegotiation" component={DriverNegotiationScreen} options={HiddenScreenOptions} />
       <Drawer.Screen name="DeliveryOfferScreen" component={DeliveryOfferScreen} options={HiddenScreenOptions} />
       <Drawer.Screen name="DeliveryOfferDetail" component={DeliveryOfferDetailScreen} options={HiddenScreenOptions} />
+      <Drawer.Screen name="DeliveryPickupConfirm" component={DeliveryPickupConfirmScreen} options={HiddenScreenOptions} />
+      <Drawer.Screen name="DeliveryDropoffConfirm" component={DeliveryDropoffConfirmScreen} options={HiddenScreenOptions} />
       <Drawer.Screen name="DriverHistoryRideDetails" component={DriverHistoryRideDetailsScreen} options={HiddenScreenOptions} />
     </Drawer.Navigator>
   );

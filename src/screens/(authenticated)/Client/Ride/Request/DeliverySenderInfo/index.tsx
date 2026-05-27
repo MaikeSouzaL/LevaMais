@@ -102,6 +102,7 @@ export default function DeliverySenderInfoScreen() {
   // Recent addresses / favorites
   const [recentAddresses, setRecentAddresses] = useState<FavoriteAddress[]>([]);
   const [historyAddresses, setHistoryAddresses] = useState<any[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const nearbySuggestions = [
     {
       title: "Supermercado Irmãos Gonçalves",
@@ -208,6 +209,7 @@ export default function DeliverySenderInfoScreen() {
   useFocusEffect(
     useCallback(() => {
       const loadAddressData = async () => {
+        setIsLoadingHistory(true);
         try {
           const favs = await favoriteAddressService.list();
           setRecentAddresses(favs || []);
@@ -220,6 +222,8 @@ export default function DeliverySenderInfoScreen() {
           setHistoryAddresses(history);
         } catch {
           setHistoryAddresses([]);
+        } finally {
+          setIsLoadingHistory(false);
         }
       };
       loadAddressData();
@@ -677,7 +681,14 @@ export default function DeliverySenderInfoScreen() {
           <View className="pt-7 px-5">
             <Text className="text-gray-500 text-[14px] font-semibold mb-3">Historico de enderecos</Text>
 
-            {historyAddresses.map((fav) => {
+            {isLoadingHistory ? (
+              <View className="py-8 items-center justify-center">
+                <ActivityIndicator size="small" color="#ff7a3d" />
+                <Text className="text-gray-400 text-[13px] mt-2">Carregando histórico...</Text>
+              </View>
+            ) : (
+              <>
+                {historyAddresses.map((fav) => {
               return (
                 <TouchableOpacity
                   key={fav._id}
@@ -707,6 +718,8 @@ export default function DeliverySenderInfoScreen() {
               <View className="py-4 items-center justify-center">
                 <Text className="text-gray-400 text-[13px]">Nenhum endereco usado recentemente.</Text>
               </View>
+            )}
+              </>
             )}
           </View>
         </ScrollView>

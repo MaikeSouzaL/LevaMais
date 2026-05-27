@@ -637,6 +637,131 @@ class PaymentController {
     });
   }
 
+  /**
+   * Gera QR Code PIX para depósito na carteira
+   */
+  async createPixDeposit(req, res) {
+    try {
+      const { amount } = req.body || {};
+      const amountValue = toMoney(amount);
+
+      if (!Number.isFinite(amountValue) || amountValue <= 0) {
+        return sendError(res, 400, "Valor invalido para deposito");
+      }
+
+      const user = await User.findById(req.user.id).select("name email");
+      if (!user) {
+        return sendError(res, 404, "Usuario nao encontrado");
+      }
+
+      // Gerar transactionId único
+      const transactionId = `pix_${crypto.randomBytes(16).toString("hex")}`;
+
+      // Gerar código PIX copia-e-cola (simulado para MVP)
+      // Em produção, integrar com gateway (Mercado Pago, PagSeguro, etc)
+      const pixCode = `00020126580014BR.GOV.BCB.PIX0136${transactionId}5204000053039865802BR5925${user.name.substring(0, 25).padEnd(25)}6009SAO PAULO62070503***6304`;
+
+      // Em produção, gerar QR Code real via biblioteca (qrcode)
+      const qrCodeData = pixCode;
+
+      return res.json({
+        success: true,
+        transactionId,
+        amount: amountValue,
+        pixCode,
+        qrCodeData,
+        expiresIn: 3600, // 1 hora
+        status: "pending",
+        instructions: [
+          "Abra o app do seu banco",
+          "Escolha pagar com PIX",
+          "Escaneie o QR Code ou cole o código",
+          "Confirme o pagamento",
+        ],
+      });
+    } catch (error) {
+      console.error("Erro ao gerar deposito PIX:", error);
+      return sendError(res, 500, "Erro ao gerar deposito PIX");
+    }
+  }
+
+  /**
+   * Salva feedback de saída do usuário (quando abandona verificação)
+   */
+  async submitExitFeedback(req, res) {
+    try {
+      const { reason, category, details } = req.body || {};
+      const userId = req.user.id;
+
+      if (!reason || !category) {
+        return sendError(res, 400, "Motivo e categoria sao obrigatorios");
+      }
+
+      // Em produção, salvar em tabela UserFeedback ou integrar com analytics
+      console.log(`[ExitFeedback] User ${userId} - Category: ${category}, Reason: ${reason}`);
+
+      // TODO: Salvar em banco de dados
+      // await UserFeedback.create({ userId, category, reason, details, createdAt: new Date() });
+
+      return res.json({
+        success: true,
+        message: "Feedback registrado com sucesso",
+        feedbackId: `feedback_${crypto.randomBytes(8).toString("hex")}`,
+      });
+    } catch (error) {
+      console.error("Erro ao salvar feedback de saida:", error);
+      return sendError(res, 500, "Erro ao salvar feedback");
+    }
+  }
+
+  /**
+   * Processa verificação de identidade do usuário
+   */
+  async submitVerification(req, res) {
+    try {
+      const { documentType, documentFront, documentBack, selfie } = req.body || {};
+      const userId = req.user.id;
+
+      if (!documentType || !documentFront || !selfie) {
+        return sendError(res, 400, "Documentos obrigatorios: documentType, documentFront, selfie");
+      }
+
+      const validTypes = ["rg", "cnh", "passaporte"];
+      if (!validTypes.includes(documentType.toLowerCase())) {
+        return sendError(res, 400, `Tipo de documento invalido. Use: ${validTypes.join(", ")}`);
+      }
+
+      const user = await User.findById(userId);
+      if (!user) {
+        return sendError(res, 404, "Usuario nao encontrado");
+      }
+
+      // Em produção, enviar para serviço de verificação (IdWall, BigData Corp, etc)
+      // Por enquanto, salvar no perfil do usuário como "pending"
+
+      user.verification = user.verification || {};
+      user.verification.status = "pending";
+      user.verification.submittedAt = new Date();
+      user.verification.documentType = documentType;
+      user.verification.documentFront = documentFront;
+      user.verification.documentBack = documentBack;
+      user.verification.selfie = selfie;
+
+      await user.save();
+
+      return res.json({
+        success: true,
+        message: "Verificacao enviada com sucesso. Aguarde analise.",
+        verificationId: `ver_${crypto.randomBytes(12).toString("hex")}`,
+        status: "pending",
+        estimatedReviewTime: "24-48 horas",
+      });
+    } catch (error) {
+      console.error("Erro ao processar verificacao:", error);
+      return sendError(res, 500, "Erro ao processar verificacao");
+    }
+  }
+
   async getReceipt(req, res) {
     const transactionId = String(req.params.transactionId || "");
     if (!transactionId) {

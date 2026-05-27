@@ -60,6 +60,9 @@ export default function HomeScreen() {
   const {
     negotiationRideId,
     activeRequestingRideId,
+    activeServiceType,
+    activeRideCreatedAt,
+    activeRideSearchTimeout,
     waitingQueueCount,
     showCancelledModal,
     dismissCancelledModal,
@@ -69,6 +72,35 @@ export default function HomeScreen() {
 
   // Component States
   const [sheetSnapIndex, setSheetSnapIndex] = useState(0);
+  const [countdownText, setCountdownText] = useState("");
+
+  useEffect(() => {
+    if (!activeRequestingRideId || !activeRideCreatedAt) {
+      setCountdownText("");
+      return;
+    }
+
+    const updateTimer = () => {
+      const timeoutSecs = activeRideSearchTimeout || 300;
+      const createdTime = new Date(activeRideCreatedAt).getTime();
+      const expireTime = createdTime + timeoutSecs * 1000;
+      const diffMs = expireTime - Date.now();
+      
+      if (diffMs <= 0) {
+        setCountdownText("00:00");
+        return;
+      }
+
+      const totalSecs = Math.floor(diffMs / 1000);
+      const mins = Math.floor(totalSecs / 60);
+      const secs = totalSecs % 60;
+      setCountdownText(`${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [activeRequestingRideId, activeRideCreatedAt, activeRideSearchTimeout]);
 
   // Map Operational Visual States 🎨
   const [useDarkMap, setUseDarkMap] = useState(true);
@@ -251,10 +283,6 @@ export default function HomeScreen() {
     navigation.navigate("SafetyCenter");
   }, [navigation]);
 
-  // Loading Guard while Map Logic warms up
-  if (!region) {
-    return <LocationLoadingScreen />;
-  }
 
   return (
     <ErrorBoundary componentName="ClientHomeScreen">
@@ -341,8 +369,8 @@ export default function HomeScreen() {
                         navigation.navigate("DestinationSearch", {
                           pickup: { 
                             address: currentAddress || "Localização Atual",
-                            latitude: userRegion?.latitude || region.latitude,
-                            longitude: userRegion?.longitude || region.longitude,
+                            latitude: userRegion?.latitude || region?.latitude || -11.67,
+                            longitude: userRegion?.longitude || region?.longitude || -61.19,
                           },
                           dropoff: {
                             address: fav.formattedAddress || fav.address,
@@ -399,7 +427,126 @@ export default function HomeScreen() {
                     </TouchableOpacity>
                   </>
               </ScrollView>
-            </View>
+             </View>
+
+             {/* Active Requesting Ride Banner (Inline for Map Tab) */}
+             {!!activeRequestingRideId && !negotiationRideId && activeService === "ride" && (
+               <View style={{ paddingHorizontal: 20, marginTop: 16 }}>
+                 <TouchableOpacity
+                   activeOpacity={0.9}
+                   onPress={() => navigation.navigate("ActiveOrders")}
+                   style={{
+                     backgroundColor: "#F59E0B",
+                     borderRadius: 16,
+                     padding: 16,
+                     flexDirection: "row",
+                     alignItems: "center",
+                     borderWidth: 1,
+                     borderColor: "rgba(255,255,255,0.2)",
+                     shadowColor: "#000",
+                     shadowOffset: { width: 0, height: 4 },
+                     shadowOpacity: 0.2,
+                     shadowRadius: 8,
+                     elevation: 5,
+                   }}
+                 >
+                   <View style={{ backgroundColor: "rgba(9, 26, 47, 0.2)", padding: 8, borderRadius: 12, marginRight: 12 }}>
+                      <Info size={20} color="#091A2F" />
+                   </View>
+                   <View style={{ flex: 1 }}>
+                      <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 14, textTransform: "uppercase" }}>
+                        {activeServiceType === "delivery" ? "Oferta Ativa: Entrega" : "Oferta Ativa: Corrida"}{countdownText ? ` (${countdownText})` : ""}
+                      </Text>
+                      <Text style={{ color: "rgba(9, 26, 47, 0.8)", fontWeight: "700", fontSize: 12 }}>
+                        {activeServiceType === "delivery"
+                          ? "Aguardando entregadores analisarem seu pedido"
+                          : "Aguardando motoristas analisarem seu pedido"}
+                      </Text>
+                   </View>
+                   <View style={{ backgroundColor: "#091A2F", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}>
+                      <Text style={{ color: "#F59E0B", fontWeight: "900", fontSize: 10 }}>VER</Text>
+                   </View>
+                 </TouchableOpacity>
+               </View>
+             )}
+
+             {/* Active Proposals Banner (Inline for Map Tab) */}
+             {!!negotiationRideId && activeService === "ride" && (
+               <View style={{ paddingHorizontal: 20, marginTop: 16 }}>
+                 <TouchableOpacity
+                   activeOpacity={0.9}
+                   onPress={() => navigation.navigate("RideOffersMarketplace", { rideId: negotiationRideId })}
+                   style={{
+                     backgroundColor: "#02de95",
+                     borderRadius: 16,
+                     padding: 16,
+                     flexDirection: "row",
+                     alignItems: "center",
+                     borderWidth: 1,
+                     borderColor: "rgba(255,255,255,0.2)",
+                     shadowColor: "#000",
+                     shadowOffset: { width: 0, height: 4 },
+                     shadowOpacity: 0.2,
+                     shadowRadius: 8,
+                     elevation: 5,
+                   }}
+                 >
+                   <View style={{ backgroundColor: "rgba(9, 26, 47, 0.2)", padding: 8, borderRadius: 12, marginRight: 12 }}>
+                      <Info size={20} color="#091A2F" />
+                   </View>
+                   <View style={{ flex: 1 }}>
+                      <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 14, textTransform: "uppercase" }}>
+                        Propostas Recebidas
+                      </Text>
+                      <Text style={{ color: "rgba(9, 26, 47, 0.8)", fontWeight: "700", fontSize: 12 }}>
+                        Toque para avaliar as ofertas dos motoristas
+                      </Text>
+                   </View>
+                   <View style={{ backgroundColor: "#091A2F", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}>
+                      <Text style={{ color: "#02de95", fontWeight: "900", fontSize: 10 }}>VER</Text>
+                   </View>
+                 </TouchableOpacity>
+               </View>
+             )}
+
+             {/* Queue Count Banner (Inline for Map Tab) */}
+             {waitingQueueCount > 0 && !negotiationRideId && !activeRequestingRideId && activeService === "ride" && (
+               <View style={{ paddingHorizontal: 20, marginTop: 16 }}>
+                 <TouchableOpacity
+                   activeOpacity={0.9}
+                   onPress={() => navigation.navigate("ActiveOrders")}
+                   style={{
+                     backgroundColor: "#02de95",
+                     borderRadius: 16,
+                     padding: 16,
+                     flexDirection: "row",
+                     alignItems: "center",
+                     borderWidth: 1,
+                     borderColor: "rgba(255, 255, 255, 0.1)",
+                     shadowColor: "#000",
+                     shadowOffset: { width: 0, height: 4 },
+                     shadowOpacity: 0.15,
+                     shadowRadius: 6,
+                     elevation: 5,
+                   }}
+                 >
+                   <View style={{ backgroundColor: "rgba(9, 26, 47, 0.2)", padding: 8, borderRadius: 12, marginRight: 12 }}>
+                      <Info size={20} color="#091A2F" />
+                   </View>
+                   <View style={{ flex: 1 }}>
+                      <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 14, textTransform: "uppercase" }}>
+                        {waitingQueueCount === 1 ? "1 Pedido em Fila" : `${waitingQueueCount} Pedidos em Fila`}
+                      </Text>
+                      <Text style={{ color: "rgba(9, 26, 47, 0.8)", fontWeight: "700", fontSize: 12 }}>
+                        {waitingQueueCount === 1 ? "Toque para ver detalhes da busca" : "Toque para acompanhar todas as buscas"}
+                      </Text>
+                   </View>
+                   <View style={{ backgroundColor: "#091A2F", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}>
+                      <Text style={{ color: "#fff", fontWeight: "900", fontSize: 10 }}>VER</Text>
+                   </View>
+                 </TouchableOpacity>
+               </View>
+             )}
 
             {/* 4. Horizontal Gallery (Promo + Finance Cards) */}
             <View className="mt-5 px-5 mb-2.5">
@@ -874,7 +1021,7 @@ export default function HomeScreen() {
           </TouchableOpacity>
 
           {/* Option 2: Entrega */}
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={() => {
               setActiveService("delivery");
               setSelectedDeliveryVehicle("motorcycle");
@@ -918,7 +1065,7 @@ export default function HomeScreen() {
         </View>
 
         {/* Active Requesting Ride Banner */}
-        {!!activeRequestingRideId && !negotiationRideId && (
+        {!!activeRequestingRideId && !negotiationRideId && activeService !== "ride" && (
           <MotiView
             from={{ opacity: 0, translateY: -20 }}
             animate={{ opacity: 1, translateY: 0 }}
@@ -947,10 +1094,12 @@ export default function HomeScreen() {
               </View>
               <View style={{ flex: 1 }}>
                  <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 14, textTransform: "uppercase" }}>
-                   Oferta Ativa
+                   {activeServiceType === "delivery" ? "Oferta Ativa: Entrega" : "Oferta Ativa: Corrida"}{countdownText ? ` (${countdownText})` : ""}
                  </Text>
                  <Text style={{ color: "rgba(9, 26, 47, 0.8)", fontWeight: "700", fontSize: 12 }}>
-                   Aguardando entregadores analisarem seu pedido
+                   {activeServiceType === "delivery"
+                     ? "Aguardando entregadores analisarem seu pedido"
+                     : "Aguardando motoristas analisarem seu pedido"}
                  </Text>
               </View>
               <View style={{ backgroundColor: "#091A2F", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}>
@@ -961,7 +1110,7 @@ export default function HomeScreen() {
         )}
 
         {/* Yellow Active Proposals Banner */}
-        {!!negotiationRideId && (
+        {!!negotiationRideId && activeService !== "ride" && (
           <MotiView
             from={{ opacity: 0, translateY: -20 }}
             animate={{ opacity: 1, translateY: 0 }}
@@ -971,7 +1120,7 @@ export default function HomeScreen() {
               activeOpacity={0.9}
               onPress={() => navigation.navigate("RideOffersMarketplace", { rideId: negotiationRideId })}
               style={{
-                backgroundColor: "#F59E0B",
+                backgroundColor: "#02de95",
                 borderRadius: 16,
                 padding: 16,
                 flexDirection: "row",
@@ -997,13 +1146,13 @@ export default function HomeScreen() {
                  </Text>
               </View>
               <View style={{ backgroundColor: "#091A2F", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}>
-                 <Text style={{ color: "#F59E0B", fontWeight: "900", fontSize: 10 }}>VER</Text>
+                 <Text style={{ color: "#02de95", fontWeight: "900", fontSize: 10 }}>VER</Text>
               </View>
             </TouchableOpacity>
           </MotiView>
         )}
 
-        {waitingQueueCount > 0 && !negotiationRideId && !activeRequestingRideId && (
+        {waitingQueueCount > 0 && !negotiationRideId && !activeRequestingRideId && activeService !== "ride" && (
           <MotiView
             from={{ opacity: 0, translateY: -20 }}
             animate={{ opacity: 1, translateY: 0 }}
@@ -1058,7 +1207,7 @@ export default function HomeScreen() {
         <Modal
           visible={showCancelledModal}
           title="Pedido Expirado"
-          message="Nenhum entregador aceitou sua oferta dentro do prazo de 10 minutos. Tente novamente com uma oferta mais atrativa ou em outro horario."
+          message="Nenhum entregador aceitou sua oferta dentro do prazo de 5 minutos. Tente novamente com uma oferta mais atrativa ou em outro horario."
           type="warning"
           confirmText="Entendido"
           onClose={dismissCancelledModal}

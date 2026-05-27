@@ -99,6 +99,15 @@ export default function RideCompletedScreen() {
       });
       setRatingDone(true);
       Toast.show({ type: "success", text1: "Avaliação enviada!", text2: "Obrigado pelo seu feedback." });
+
+      // After rating, navigate to TipDriver screen
+      setTimeout(() => {
+        navigation.navigate("TipDriver", {
+          rideId,
+          driverName: driverName || "Motorista",
+          serviceType
+        });
+      }, 1500);
     } catch (error: any) {
       Toast.show({
         type: "error",

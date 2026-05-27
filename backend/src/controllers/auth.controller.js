@@ -295,9 +295,17 @@ function normalizeDriverStatusFromDocs(driverDocuments = {}) {
   const cnhFrontStatus = String(driverDocuments?.cnhFrontStatus || "pending");
   const cnhBackStatus = String(driverDocuments?.cnhBackStatus || "pending");
   const selfieStatus = String(driverDocuments?.selfieStatus || "pending");
+  const cpfStatus = String(driverDocuments?.cpfStatus || "pending");
+  const bankAccountStatus = String(driverDocuments?.bankAccountStatus || "pending");
 
-  if ([cnhFrontStatus, cnhBackStatus, selfieStatus].includes("rejected")) return "rejected";
-  if (cnhFrontStatus === "approved" && cnhBackStatus === "approved" && selfieStatus === "approved") {
+  if ([cnhFrontStatus, cnhBackStatus, selfieStatus, cpfStatus, bankAccountStatus].includes("rejected")) return "rejected";
+  if (
+    cnhFrontStatus === "approved" &&
+    cnhBackStatus === "approved" &&
+    selfieStatus === "approved" &&
+    cpfStatus === "approved" &&
+    bankAccountStatus === "approved"
+  ) {
     return "approved";
   }
   return "pending";
@@ -2043,8 +2051,8 @@ class AuthController {
       const { id } = req.params;
       const { field, status, reason } = req.body || {};
 
-      if (!["cnhFrontStatus", "cnhBackStatus", "selfieStatus"].includes(String(field || ""))) {
-        return sendError(res, 400, "Campo invalido. Use cnhFrontStatus, cnhBackStatus ou selfieStatus");
+      if (!["cnhFrontStatus", "cnhBackStatus", "selfieStatus", "cpfStatus", "bankAccountStatus"].includes(String(field || ""))) {
+        return sendError(res, 400, "Campo invalido. Use cnhFrontStatus, cnhBackStatus, selfieStatus, cpfStatus ou bankAccountStatus");
       }
       if (!["none", "pending", "approved", "rejected"].includes(String(status || ""))) {
         return sendError(res, 400, "Status invalido para o campo informado");

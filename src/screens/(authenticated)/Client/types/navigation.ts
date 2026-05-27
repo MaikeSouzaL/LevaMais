@@ -276,6 +276,7 @@ export type ClientStackParamList = {
       }
     | undefined;
   RideTracking: { rideId: string };
+  DeliveryTracking: { rideId: string };
   Chat: { rideId: string; driverName?: string };
   RideCompleted: {
     rideId: string;
@@ -313,7 +314,7 @@ export type ClientStackParamList = {
   };
   AddPaymentMethod: undefined;
   SafetyCenter: undefined;
-  TipDriver: { rideId: string; driverName?: string };
+  TipDriver: { rideId: string; driverName?: string; serviceType?: string };
   NotificationsCenter: undefined;
   SearchingDriver: { rideId: string; serviceType?: string };
   ActiveOrders: undefined;

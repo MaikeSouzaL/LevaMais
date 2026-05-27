@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { Text, View, Image, TouchableOpacity, Modal, Dimensions, ActivityIndicator, Alert, Platform } from "react-native";
 import { MaterialIcons, Ionicons, FontAwesome5 } from "@expo/vector-icons";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
 import Toast from "react-native-toast-message";
 
@@ -16,6 +16,7 @@ const { width, height } = Dimensions.get("window");
 type DocKey = "cnhFront" | "cnhBack" | "crlvFront" | "crlvBack" | "vehiclePhoto" | "selfie";
 
 export default function DriverDocumentsScreen() {
+  const navigation = useNavigation();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
@@ -328,6 +329,56 @@ export default function DriverDocumentsScreen() {
           </Text>
         </View>
       </SectionCard>
+
+      {/* 🟢 Botão Salvar e Voltar */}
+      <TouchableOpacity
+        onPress={() => {
+          if (completedCount < totalCount) {
+            Alert.alert(
+              "Documentação Incompleta",
+              "Você não enviou todos os documentos necessários. Deseja salvar o progresso atual e voltar para o início?",
+              [
+                { text: "Continuar Editando", style: "cancel" },
+                {
+                  text: "Salvar e Sair",
+                  onPress: () => {
+                    Toast.show({
+                      type: "success",
+                      text1: "Progresso salvo!",
+                      text2: "Conclua o envio mais tarde para ser aprovado.",
+                    });
+                    navigation.navigate("DriverHome" as never);
+                  }
+                }
+              ]
+            );
+          } else {
+            Toast.show({
+              type: "success",
+              text1: "Documentos salvos!",
+              text2: "Suas informações estão sob análise da nossa equipe.",
+            });
+            navigation.navigate("DriverHome" as never);
+          }
+        }}
+        style={{
+          backgroundColor: "#02de95",
+          paddingVertical: 16,
+          borderRadius: 16,
+          alignItems: "center",
+          justifyContent: "center",
+          marginBottom: 40,
+          shadowColor: "#02de95",
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.3,
+          shadowRadius: 8,
+          elevation: 5,
+        }}
+      >
+        <Text style={{ color: "#081322", fontSize: 16, fontWeight: "900", letterSpacing: 0.5 }}>
+          SALVAR E VOLTAR
+        </Text>
+      </TouchableOpacity>
 
       {/* 🌌 Lightbox Modal Viewer (Visualizador Imersivo) */}
       <Modal

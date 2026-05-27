@@ -11,6 +11,8 @@ const driverLocationRoutes = require("./routes/driverLocation.routes");
 const favoriteAddressRoutes = require("./routes/favoriteAddress.routes");
 const addressHistoryRoutes = require("./routes/addressHistory.routes");
 const senderRoutes = require("./routes/sender.routes");
+const paymentRoutes = require("./routes/payment.routes");
+const driverRoutes = require("./routes/driver.routes");
 
 function parseAllowedOrigins() {
   const fromEnv = String(
@@ -57,6 +59,8 @@ function applyRoutes(app) {
   app.use("/api/favorite-addresses", favoriteAddressRoutes);
   app.use("/api/address-history", addressHistoryRoutes);
   app.use("/api/senders", senderRoutes);
+  app.use("/api/payments", paymentRoutes);
+  app.use("/api/drivers", driverRoutes);
 
   app.get("/api/health", (req, res) => {
     res.json({

@@ -210,7 +210,20 @@ export default function SearchingDriverScreen() {
       } catch (err) {
               }
     }
-  }, [rideId]);
+
+    // Auto-navigate to Home after 2 seconds
+    Toast.show({
+      type: "info",
+      text1: "Tempo esgotado",
+      text2: "Nenhum motorista aceitou. Redirecionando...",
+    });
+    setTimeout(() => {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "Home" }],
+      });
+    }, 2000);
+  }, [rideId, navigation]);
   
   const offersUpdatedCallback = useCallback((data: any) => {
     if (data?.rideId === rideId && !doneRef.current) {
@@ -349,10 +362,13 @@ export default function SearchingDriverScreen() {
 
   useEffect(() => {
     connectAndSearch();
+    // Add listener for delivery_expired event (emitted by useActiveRideMonitor)
+    webSocketService.on("delivery_expired", rideExpiredCallback);
     return () => {
       cleanup();
       webSocketService.off("driver-found", driverFoundCallback);
       webSocketService.off("ride-expired", rideExpiredCallback);
+      webSocketService.off("delivery_expired", rideExpiredCallback);
       webSocketService.off("ride-cancelled", rideCancelledCallback);
       webSocketService.off("ride-offers-updated", offersUpdatedCallback);
     };

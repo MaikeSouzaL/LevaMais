@@ -14,7 +14,17 @@
       "Bash(Get-ChildItem *)",
       "Bash(git add *)",
       "Bash(git commit -m 'refactor: extract home screen logic into custom hooks to improve maintainability *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(clear *)",
+      "Bash(Select-Object -First 50)",
+      "Bash(npm run *)",
+      "Bash(Select-Object -Last 20)",
+      "Bash(git pull *)",
+      "Bash(Select-Object -Last 10)",
+      "Bash(powershell *)"
     ]
-  }
+  },
+  "disabledMcpjsonServers": [
+    "ruflo"
+  ]
 }

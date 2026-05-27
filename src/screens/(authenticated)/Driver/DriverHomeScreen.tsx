@@ -846,10 +846,26 @@ export default function DriverHomeScreen() {
       }
     };
 
+    // Deduplication: track recently processed cancellation events to avoid duplicate handling
+    if (!(globalThis as any).__driverCancellationDedup) {
+      (globalThis as any).__driverCancellationDedup = new Map<string, number>();
+    }
+    const dedupMap = (globalThis as any).__driverCancellationDedup as Map<string, number>;
+
     const onRideCancelled = async (payload: any) => {
       if (!mounted) return;
       const cancelledId = payload?.rideId;
       if (!cancelledId) return;
+
+      // Deduplication: prevent duplicate handling within 5 seconds
+      const now = Date.now();
+      const lastProcessed = dedupMap.get(cancelledId);
+      if (lastProcessed && now - lastProcessed < 5000) {
+        return;
+      }
+      dedupMap.set(cancelledId, now);
+      // Clean up after 10 seconds
+      setTimeout(() => dedupMap.delete(cancelledId), 10000);
 
       if (incomingRequest?.rideId && incomingRequest.rideId === cancelledId) {
         await clearIncoming();
@@ -937,6 +953,22 @@ export default function DriverHomeScreen() {
     webSocketService.on("ride-status-updated", onRideStatusChanged);
     webSocketService.on("ride-status-changed", onRideStatusChanged);
 
+    // Dedicated delivery event key listeners (radios)
+    webSocketService.on("delivery_open", onNewRideRequest);
+    webSocketService.on("delivery_cancelled", onRideCancelled);
+    webSocketService.on("delivery_negotiated", (payload: any) => {
+      syncAvailableRequests().catch(() => {});
+      onRideStatusChanged(payload);
+    });
+
+    // Dedicated ride event key listeners (radios)
+    webSocketService.on("ride_open", onNewRideRequest);
+    webSocketService.on("ride_cancelled", onRideCancelled);
+    webSocketService.on("ride_negotiated", (payload: any) => {
+      syncAvailableRequests().catch(() => {});
+      onRideStatusChanged(payload);
+    });
+
     webSocketService.connect().catch(() => {});
     syncAvailableRequests().catch(() => {});
 
@@ -952,8 +984,55 @@ export default function DriverHomeScreen() {
       webSocketService.off("delivery-selection-expired", onDeliverySelectionExpired);
       webSocketService.off("ride-status-updated", onRideStatusChanged);
       webSocketService.off("ride-status-changed", onRideStatusChanged);
+
+      // Dedicated delivery event key listeners (radios) off
+      webSocketService.off("delivery_open", onNewRideRequest);
+      webSocketService.off("delivery_cancelled", onRideCancelled);
+      webSocketService.off("delivery_negotiated");
+
+      // Dedicated ride event key listeners (radios) off
+      webSocketService.off("ride_open", onNewRideRequest);
+      webSocketService.off("ride_cancelled", onRideCancelled);
+      webSocketService.off("ride_negotiated");
     };
   }, [online, incomingRequest?.rideId, isFocused]);
+
+  // ⏱️ Countdown timer para oferta recebida
+  useEffect(() => {
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+    }
+
+    if (!incomingRequest?.rideId) {
+      setCountdown(null);
+      return;
+    }
+
+    // Inicializa com 60 segundos ou o valor vindo do payload
+    const initialSeconds = Number(incomingRequest?.searchTimeoutSeconds || 60);
+    setCountdown(initialSeconds);
+
+    countdownIntervalRef.current = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev === null || prev <= 1) {
+          if (countdownIntervalRef.current) {
+            clearInterval(countdownIntervalRef.current);
+            countdownIntervalRef.current = null;
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => {
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+      }
+    };
+  }, [incomingRequest?.rideId]);
 
   // 🕒 CronÃ´metro de Atividade Fluido (PrediÃ§Ã£o Local Suave)
   useEffect(() => {

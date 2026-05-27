@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { NavigationProp, useFocusEffect, useNavigation } from "@react-navigation/native";
 import Toast from "react-native-toast-message";
 import rideService from "@/services/ride.service";
@@ -9,6 +9,9 @@ import { ClientStackParamList } from "../../types/navigation";
 interface ActiveRideMonitorState {
   negotiationRideId: string | null;
   activeRequestingRideId: string | null;
+  activeServiceType: "ride" | "delivery" | null;
+  activeRideCreatedAt: string | null;
+  activeRideSearchTimeout: number | null;
   waitingQueueCount: number;
   expiredRideId: string | null;
   showCancelledModal: boolean;
@@ -22,9 +25,17 @@ interface ActiveRideMonitorState {
 export function useActiveRideMonitor() {
   const navigation = useNavigation<NavigationProp<ClientStackParamList>>();
 
+  // Deduplication: track recently processed rideIds to avoid duplicate event handling
+  const processedCancellations = useRef<Set<string>>(new Set());
+  const processedAcceptances = useRef<Set<string>>(new Set());
+  const processedPaymentExpired = useRef<Set<string>>(new Set());
+
   const [state, setState] = useState<ActiveRideMonitorState>({
     negotiationRideId: null,
     activeRequestingRideId: null,
+    activeServiceType: null,
+    activeRideCreatedAt: null,
+    activeRideSearchTimeout: null,
     waitingQueueCount: 0,
     expiredRideId: null,
     showCancelledModal: false,
@@ -51,6 +62,9 @@ export function useActiveRideMonitor() {
           ...prev,
           negotiationRideId: rideWithOffers._id,
           activeRequestingRideId: null,
+          activeServiceType: (rideWithOffers.serviceType as "ride" | "delivery") || "ride",
+          activeRideCreatedAt: rideWithOffers.createdAt || null,
+          activeRideSearchTimeout: rideWithOffers.searchTimeoutSeconds || 300,
         }));
       } else {
         // 2. Verifica se há corrida aguardando motoristas (requesting)
@@ -64,6 +78,9 @@ export function useActiveRideMonitor() {
           ...prev,
           negotiationRideId: null,
           activeRequestingRideId: requestingRide?._id || null,
+          activeServiceType: requestingRide ? ((requestingRide.serviceType as "ride" | "delivery") || "ride") : null,
+          activeRideCreatedAt: requestingRide ? (requestingRide.createdAt || null) : null,
+          activeRideSearchTimeout: requestingRide ? (requestingRide.searchTimeoutSeconds || 300) : null,
         }));
       }
 
@@ -105,6 +122,17 @@ export function useActiveRideMonitor() {
       const rId = data?.rideId;
       const dId = data?.driverId;
 
+      // Deduplication: prevent duplicate handling of same ride acceptance
+      if (rId && processedAcceptances.current.has(rId)) {
+        logger.debug("useActiveRideMonitor", "Duplicate acceptance event ignored", { rideId: rId });
+        return;
+      }
+      if (rId) {
+        processedAcceptances.current.add(rId);
+        // Clean up after 5 seconds
+        setTimeout(() => processedAcceptances.current.delete(rId), 5000);
+      }
+
       if (rId && dId) {
         try {
           await rideService.selectOffer(rId, dId);
@@ -122,6 +150,17 @@ export function useActiveRideMonitor() {
       logger.info("useActiveRideMonitor", "Corrida cancelada", data);
       const rId = data?.rideId || data?.ride?._id || data?._id;
 
+      // Deduplication: prevent duplicate handling of same ride cancellation
+      if (rId && processedCancellations.current.has(rId)) {
+        logger.debug("useActiveRideMonitor", "Duplicate cancellation event ignored", { rideId: rId });
+        return;
+      }
+      if (rId) {
+        processedCancellations.current.add(rId);
+        // Clean up after 5 seconds
+        setTimeout(() => processedCancellations.current.delete(rId), 5000);
+      }
+
       setState((prev) => ({
         ...prev,
         expiredRideId: rId || null,
@@ -135,6 +174,17 @@ export function useActiveRideMonitor() {
     const handlePaymentExpired = (data: any) => {
       logger.info("useActiveRideMonitor", "Pagamento expirado", data);
       const rId = data?.rideId || data?.ride?._id || data?._id;
+
+      // Deduplication: prevent duplicate handling of same payment expiration
+      if (rId && processedPaymentExpired.current.has(rId)) {
+        logger.debug("useActiveRideMonitor", "Duplicate payment expired event ignored", { rideId: rId });
+        return;
+      }
+      if (rId) {
+        processedPaymentExpired.current.add(rId);
+        // Clean up after 5 seconds
+        setTimeout(() => processedPaymentExpired.current.delete(rId), 5000);
+      }
 
       setState((prev) => ({
         ...prev,
@@ -159,12 +209,41 @@ export function useActiveRideMonitor() {
       webSocketService.on("driver-accepted-offer", handleDriverAccepted);
       webSocketService.on("ride-cancelled", handleRideCancelled);
       webSocketService.on("ride-payment-expired", handlePaymentExpired);
+
+      // Dedicated delivery event key listeners (radios)
+      webSocketService.on("delivery_accepted", handleDriverAccepted);
+      webSocketService.on("delivery_cancelled", handleRideCancelled);
+      webSocketService.on("delivery_negotiated", checkActiveRide);
+
+      // Dedicated ride event key listeners (radios)
+      webSocketService.on("ride_open", checkActiveRide);
+      webSocketService.on("ride_accepted", handleDriverAccepted);
+      webSocketService.on("ride_cancelled", handleRideCancelled);
+      webSocketService.on("ride_negotiated", checkActiveRide);
     }).catch((error) => {
       logger.error("useActiveRideMonitor", "Erro ao conectar WebSocket", error);
     });
 
-    // Polling como fallback a cada 6 segundos
-    const pollInterval = setInterval(checkActiveRide, 6000);
+    // Polling inteligente como fallback:
+    // Se o WebSocket estiver ativo e conectado, as atualizações em tempo real
+    // chegam instantaneamente pelos eventos do socket, então não precisamos
+    // sobrecarregar o servidor com requisições HTTP a cada 6 segundos.
+    // Faremos o polling rápido (a cada 8 segundos) apenas se o WebSocket estiver offline.
+    // E um polling lento (a cada 30 segundos) de segurança se o WebSocket estiver online.
+    let pollCounter = 0;
+    const pollInterval = setInterval(() => {
+      if (webSocketService.isConnected()) {
+        pollCounter += 5;
+        if (pollCounter >= 60) {
+          pollCounter = 0;
+          checkActiveRide();
+        }
+      } else {
+        // Se o WebSocket estiver offline/desconectado, executa o polling rápido de recuperação (a cada 5s)
+        pollCounter = 0;
+        checkActiveRide();
+      }
+    }, 5000);
 
     return () => {
       mounted = false;
@@ -174,6 +253,17 @@ export function useActiveRideMonitor() {
       webSocketService.off("driver-accepted-offer", handleDriverAccepted);
       webSocketService.off("ride-cancelled", handleRideCancelled);
       webSocketService.off("ride-payment-expired", handlePaymentExpired);
+
+      // Dedicated delivery event key listeners (radios) off
+      webSocketService.off("delivery_accepted", handleDriverAccepted);
+      webSocketService.off("delivery_cancelled", handleRideCancelled);
+      webSocketService.off("delivery_negotiated", checkActiveRide);
+
+      // Dedicated ride event key listeners (radios) off
+      webSocketService.off("ride_open", checkActiveRide);
+      webSocketService.off("ride_accepted", handleDriverAccepted);
+      webSocketService.off("ride_cancelled", handleRideCancelled);
+      webSocketService.off("ride-negotiated", checkActiveRide);
     };
   }, [checkActiveRide, navigation]);
 
@@ -183,6 +273,43 @@ export function useActiveRideMonitor() {
       checkActiveRide();
     }, [checkActiveRide])
   );
+
+  // ⏱️ Frontend safety-net: when the search timeout expires, force an immediate re-check
+  // The backend already auto-cancels via its own setTimeout, but this ensures the frontend
+  // reacts immediately even if the WebSocket event is slightly delayed.
+  useEffect(() => {
+    const { activeRequestingRideId: rideId, activeRideCreatedAt: createdAt, activeRideSearchTimeout: timeout } = state;
+    if (!rideId || !createdAt) return;
+
+    const timeoutSecs = timeout || 300;
+    const createdTime = new Date(createdAt).getTime();
+    const expireTime = createdTime + timeoutSecs * 1000;
+    const remainingMs = expireTime - Date.now();
+
+    const handleTimeoutCancel = async () => {
+      try {
+        const isDelivery = state.activeServiceType === "delivery";
+        logger.info("useActiveRideMonitor", `Timer expired! Emitting ${isDelivery ? "delivery_expired" : "ride_expired"} via socket and calling cancel HTTP`, { rideId });
+        webSocketService.emit(isDelivery ? "delivery_expired" : "ride_expired", { rideId });
+        await rideService.cancel(rideId, "no_driver_found");
+      } catch (err) {
+        logger.warn("useActiveRideMonitor", "Already cancelled or failed to cancel", err);
+      } finally {
+        checkActiveRide();
+      }
+    };
+
+    if (remainingMs <= 0) {
+      handleTimeoutCancel();
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      handleTimeoutCancel();
+    }, remainingMs);
+
+    return () => clearTimeout(timer);
+  }, [state.activeRequestingRideId, state.activeRideCreatedAt, state.activeRideSearchTimeout, checkActiveRide]);
 
   const dismissCancelledModal = useCallback(() => {
     setState((prev) => ({
@@ -195,7 +322,6 @@ export function useActiveRideMonitor() {
     if (state.expiredRideId) {
       navigation.navigate("RideOffersMarketplace", {
         rideId: state.expiredRideId,
-        autoOpenIncrease: true,
       });
     }
     setState((prev) => ({
@@ -215,6 +341,9 @@ export function useActiveRideMonitor() {
   return {
     negotiationRideId: state.negotiationRideId,
     activeRequestingRideId: state.activeRequestingRideId,
+    activeServiceType: state.activeServiceType,
+    activeRideCreatedAt: state.activeRideCreatedAt,
+    activeRideSearchTimeout: state.activeRideSearchTimeout,
     waitingQueueCount: state.waitingQueueCount,
     expiredRideId: state.expiredRideId,
     showCancelledModal: state.showCancelledModal,

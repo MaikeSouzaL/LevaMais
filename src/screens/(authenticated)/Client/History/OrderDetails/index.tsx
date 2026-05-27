@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, ScrollView, Text, View, TouchableOpacity, StatusBar } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
@@ -72,17 +72,22 @@ function SectionCard({ title, icon: Icon, iconColor, children }: { title: string
       from={{ opacity: 0, translateY: 10 }}
       animate={{ opacity: 1, translateY: 0 }}
       style={{
-        backgroundColor: "#11253E", borderRadius: 20, borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.06)", marginBottom: 14, overflow: "hidden",
+        backgroundColor: "#ffffff", borderRadius: 22, borderWidth: 1,
+        borderColor: "rgba(0,0,0,0.06)", marginBottom: 14, overflow: "hidden",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+        elevation: 3,
       }}
     >
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, padding: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.05)" }}>
-        <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: iconColor + "18", alignItems: "center", justifyContent: "center" }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, padding: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: "rgba(0,0,0,0.05)" }}>
+        <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: iconColor + "15", alignItems: "center", justifyContent: "center" }}>
           <Icon size={16} color={iconColor} />
         </View>
-        <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: "800", textTransform: "uppercase", letterSpacing: 1.2 }}>{title}</Text>
+        <Text style={{ color: "#091A2F", fontSize: 11, fontWeight: "900", textTransform: "uppercase", letterSpacing: 1.5 }}>{title}</Text>
       </View>
-      <View style={{ padding: 16, paddingTop: 14, gap: 10 }}>{children}</View>
+      <View style={{ padding: 16, paddingTop: 14, gap: 11 }}>{children}</View>
     </MotiView>
   );
 }
@@ -90,11 +95,11 @@ function SectionCard({ title, icon: Icon, iconColor, children }: { title: string
 function InfoRow({ label, value, highlight, mono }: { label: string; value: string; highlight?: boolean; mono?: boolean }) {
   return (
     <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
-      <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, flex: 1 }}>{label}</Text>
+      <Text style={{ color: "#555555", fontSize: 13, fontWeight: "600", flex: 1 }}>{label}</Text>
       <Text style={{
-        color: highlight ? "#02de95" : "#fff",
+        color: highlight ? "#00b578" : "#111111",
         fontSize: highlight ? 15 : 13,
-        fontWeight: highlight ? "900" : "600",
+        fontWeight: highlight ? "900" : "700",
         textAlign: "right", flex: 1,
         fontVariant: mono ? ["tabular-nums"] : undefined,
       }}>
@@ -139,18 +144,57 @@ export default function OrderDetailsScreen() {
 
   const handleRebook = () => {
     if (!ride) { navigation.navigate("Home"); return; }
-    navigation.navigate("DestinationSearch", {
-      pickup: {
-        address: ride.pickup?.address,
-        latitude: Number(ride.pickup?.latitude),
-        longitude: Number(ride.pickup?.longitude),
-      },
-      dropoff: {
-        address: ride.dropoff?.address,
-        latitude: Number(ride.dropoff?.latitude),
-        longitude: Number(ride.dropoff?.longitude),
-      },
-    });
+    
+    const isDelivery = ride.serviceType === "delivery" || ride.serviceType === "frete";
+    
+    if (isDelivery) {
+      const pickupProfile = {
+        address: ride.pickup?.address || "",
+        addressCoords: {
+          latitude: Number(ride.pickup?.latitude || 0),
+          longitude: Number(ride.pickup?.longitude || 0),
+        },
+        details: ride.details?.pickupComplement || "",
+        contactName: "",
+        contactPhone: "",
+      };
+
+      const dropoffProfile = {
+        address: ride.dropoff?.address || "",
+        addressCoords: {
+          latitude: Number(ride.dropoff?.latitude || 0),
+          longitude: Number(ride.dropoff?.longitude || 0),
+        },
+        details: ride.details?.dropoffComplement || "",
+        contactName: ride.details?.recipientName || "",
+        contactPhone: ride.details?.recipientPhone || "",
+      };
+
+      const vehicleType = (["motorcycle", "car", "van", "truck"].includes(String(ride.vehicleType))
+        ? ride.vehicleType
+        : "motorcycle") as any;
+
+      navigation.navigate("DeliveryDetails", {
+        flow: "send",
+        vehicleType,
+        pickupProfile,
+        dropoffProfile,
+        stops: [],
+      });
+    } else {
+      navigation.navigate("DestinationSearch", {
+        pickup: {
+          address: ride.pickup?.address,
+          latitude: Number(ride.pickup?.latitude),
+          longitude: Number(ride.pickup?.longitude),
+        },
+        dropoff: {
+          address: ride.dropoff?.address,
+          latitude: Number(ride.dropoff?.latitude),
+          longitude: Number(ride.dropoff?.longitude),
+        },
+      });
+    }
   };
 
   if (loading) {
@@ -233,58 +277,103 @@ export default function OrderDetailsScreen() {
           from={{ opacity: 0, translateY: -8 }}
           animate={{ opacity: 1, translateY: 0 }}
           style={{
-            backgroundColor: "#11253E", borderRadius: 24, padding: 20,
-            borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", marginBottom: 14,
+            backgroundColor: "#ffffff", borderRadius: 24, padding: 22,
+            borderWidth: 1, borderColor: "rgba(0,0,0,0.06)", marginBottom: 14,
             flexDirection: "row", alignItems: "center", gap: 16,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 6 },
+            shadowOpacity: 0.08,
+            shadowRadius: 8,
+            elevation: 3,
           }}
         >
-          <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: "rgba(2,222,149,0.1)", borderWidth: 1, borderColor: "rgba(2,222,149,0.2)", alignItems: "center", justifyContent: "center" }}>
-            <ServiceIcon size={26} color="#02de95" />
+          <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: "rgba(0,181,120,0.1)", borderWidth: 1, borderColor: "rgba(0,181,120,0.2)", alignItems: "center", justifyContent: "center" }}>
+            <ServiceIcon size={26} color="#00b578" />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: "rgba(255,255,255,0.45)", fontSize: 10, fontWeight: "700", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>
+            <Text style={{ color: "#555555", fontSize: 10, fontWeight: "800", textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 4 }}>
               {SERVICE_LABELS[ride.serviceType || ""] || "Pedido"} · {vehicleLabel}
             </Text>
-            <Text style={{ color: "#02de95", fontSize: 26, fontWeight: "900" }}>
+            <Text style={{ color: "#00b578", fontSize: 28, fontWeight: "900" }}>
               {formatBRL(ride.negotiation?.finalAgreedPrice || ride.pricing?.total || 0)}
             </Text>
-            <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 12, marginTop: 2 }}>
+            <Text style={{ color: "#888888", fontSize: 12, fontWeight: "600", marginTop: 2 }}>
               {formatDateTime(ride.completedAt || ride.cancelledAt || ride.createdAt)}
             </Text>
           </View>
         </MotiView>
 
         {/* Rota */}
-        <SectionCard title="Rota" icon={Route} iconColor="#60a5fa">
+        <SectionCard title="Rota" icon={Route} iconColor="#3b82f6">
           <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12, marginBottom: 8 }}>
             <View style={{ alignItems: "center", gap: 3, paddingTop: 3 }}>
-              <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: "#02de95" }} />
-              <View style={{ width: 2, height: 24, backgroundColor: "rgba(255,255,255,0.1)" }} />
+              <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: "#00b578" }} />
+              <View style={{ width: 2, height: 24, backgroundColor: "rgba(0,0,0,0.08)" }} />
               <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: "#ef4444" }} />
             </View>
             <View style={{ flex: 1, gap: 12 }}>
               <View>
-                <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: "700", textTransform: "uppercase", marginBottom: 3 }}>Coleta</Text>
-                <Text style={{ color: "#fff", fontSize: 13, fontWeight: "600", lineHeight: 18 }}>{ride.pickup?.address || "-"}</Text>
+                <Text style={{ color: "#888888", fontSize: 10, fontWeight: "800", textTransform: "uppercase", marginBottom: 3 }}>Coleta</Text>
+                <Text style={{ color: "#111111", fontSize: 14, fontWeight: "700", lineHeight: 18 }}>{ride.pickup?.address || "-"}</Text>
+                {ride.details?.pickupComplement ? (
+                  <Text style={{ color: "#555555", fontSize: 12, marginTop: 3, fontWeight: "600" }}>
+                    Comp.: {ride.details.pickupComplement}
+                  </Text>
+                ) : null}
               </View>
               <View>
-                <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: "700", textTransform: "uppercase", marginBottom: 3 }}>Entrega</Text>
-                <Text style={{ color: "#fff", fontSize: 13, fontWeight: "600", lineHeight: 18 }}>{ride.dropoff?.address || "-"}</Text>
+                <Text style={{ color: "#888888", fontSize: 10, fontWeight: "800", textTransform: "uppercase", marginBottom: 3 }}>Entrega</Text>
+                <Text style={{ color: "#111111", fontSize: 14, fontWeight: "700", lineHeight: 18 }}>{ride.dropoff?.address || "-"}</Text>
+                {ride.details?.dropoffComplement ? (
+                  <Text style={{ color: "#555555", fontSize: 12, marginTop: 3, fontWeight: "600" }}>
+                    Comp.: {ride.details.dropoffComplement}
+                  </Text>
+                ) : null}
               </View>
             </View>
           </View>
-          <View style={{ flexDirection: "row", gap: 12, paddingTop: 4, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.05)" }}>
+          <View style={{ flexDirection: "row", gap: 12, paddingTop: 6, borderTopWidth: 1, borderTopColor: "rgba(0,0,0,0.06)" }}>
             <View style={{ flex: 1, alignItems: "center" }}>
-              <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: "700", textTransform: "uppercase" }}>Distância</Text>
-              <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700", marginTop: 4 }}>{formatDistance(ride.distance)}</Text>
+              <Text style={{ color: "#888888", fontSize: 10, fontWeight: "800", textTransform: "uppercase" }}>Distância</Text>
+              <Text style={{ color: "#111111", fontSize: 15, fontWeight: "800", marginTop: 4 }}>{formatDistance(ride.distance)}</Text>
             </View>
-            <View style={{ width: 1, backgroundColor: "rgba(255,255,255,0.07)" }} />
+            <View style={{ width: 1, backgroundColor: "rgba(0,0,0,0.08)" }} />
             <View style={{ flex: 1, alignItems: "center" }}>
-              <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: "700", textTransform: "uppercase" }}>Tempo est.</Text>
-              <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700", marginTop: 4 }}>{formatDuration(ride.duration)}</Text>
+              <Text style={{ color: "#888888", fontSize: 10, fontWeight: "800", textTransform: "uppercase" }}>Tempo est.</Text>
+              <Text style={{ color: "#111111", fontSize: 15, fontWeight: "800", marginTop: 4 }}>{formatDuration(ride.duration)}</Text>
             </View>
           </View>
         </SectionCard>
+
+        {/* Dados da Encomenda */}
+        {isDelivery && ride.details && (
+          <SectionCard title="Dados da Encomenda" icon={Package} iconColor="#02de95">
+            {ride.details.itemType ? (
+              <InfoRow label="O que está enviando" value={ride.details.itemType} />
+            ) : null}
+            {ride.details.recipientName ? (
+              <InfoRow label="Destinatário" value={ride.details.recipientName} />
+            ) : null}
+            {ride.details.recipientPhone ? (
+              <InfoRow label="Telefone do destinatário" value={ride.details.recipientPhone} />
+            ) : null}
+            {ride.details.recipientInstructions ? (
+              <InfoRow label="Instruções de entrega" value={ride.details.recipientInstructions} />
+            ) : null}
+            {ride.details.pickupPin ? (
+              <InfoRow label="PIN de Coleta" value={ride.details.pickupPin} />
+            ) : null}
+            {ride.details.deliveryPin ? (
+              <InfoRow label="PIN de Entrega" value={ride.details.deliveryPin} />
+            ) : null}
+            {ride.details.isFragile !== undefined ? (
+              <InfoRow label="É frágil?" value={ride.details.isFragile ? "Sim" : "Não"} />
+            ) : null}
+            {ride.details.approximateWeightKg ? (
+              <InfoRow label="Peso estimado" value={`${ride.details.approximateWeightKg} kg`} />
+            ) : null}
+          </SectionCard>
+        )}
 
         {/* Serviço */}
         <SectionCard title="Serviço" icon={ServiceIcon} iconColor="#a78bfa">
@@ -296,28 +385,24 @@ export default function OrderDetailsScreen() {
           )}
         </SectionCard>
 
-        {/* Financeiro */}
-        <SectionCard title="Financeiro" icon={DollarSign} iconColor="#02de95">
-          {ride.negotiation?.enabled && (
-            <InfoRow label="Oferta do cliente" value={formatBRL(ride.negotiation?.clientOffer || 0)} mono />
+        {/* Resumo do Pagamento */}
+        <SectionCard title="Resumo do Pagamento" icon={DollarSign} iconColor="#02de95">
+          {ride.payment?.method && (
+            <InfoRow
+              label="Método de pagamento"
+              value={
+                ride.payment.method === "pix"
+                  ? "Pix"
+                  : ride.payment.method === "cash"
+                  ? "Dinheiro"
+                  : ride.payment.method === "wallet"
+                  ? "Saldo/Carteira"
+                  : "Cartão"
+              }
+            />
           )}
-          {ride.negotiation?.enabled && ride.negotiation?.finalAgreedPrice && (
-            <InfoRow label="Preço fechado" value={formatBRL(ride.negotiation?.finalAgreedPrice || 0)} mono />
-          )}
-          {ride.pricing?.basePrice ? (
-            <InfoRow label="Tarifa base" value={formatBRL(ride.pricing?.basePrice || 0)} mono />
-          ) : null}
-          {ride.pricing?.distancePrice ? (
-            <InfoRow label="Por distância" value={formatBRL(ride.pricing?.distancePrice || 0)} mono />
-          ) : null}
-          {ride.pricing?.serviceFee ? (
-            <InfoRow label="Taxa de serviço" value={formatBRL(ride.pricing?.serviceFee || 0)} mono />
-          ) : null}
-          <View style={{ height: 1, backgroundColor: "rgba(255,255,255,0.07)" }} />
+          <View style={{ height: 1, backgroundColor: "rgba(0,0,0,0.06)", marginVertical: 6 }} />
           <InfoRow label="Total pago" value={formatBRL(ride.pricing?.total || ride.negotiation?.finalAgreedPrice || 0)} highlight />
-          {ride.payment?.method?.type && (
-            <InfoRow label="Método de pagamento" value={ride.payment.method.type === "pix" ? "Pix" : ride.payment.method.type === "cash" ? "Dinheiro" : "Cartão"} />
-          )}
         </SectionCard>
 
         {/* Datas */}
@@ -328,18 +413,23 @@ export default function OrderDetailsScreen() {
         </SectionCard>
 
         {/* Ações */}
-        <View style={{ gap: 10, marginTop: 4 }}>
+        <View style={{ gap: 11, marginTop: 10 }}>
           <TouchableOpacity
             onPress={handleRebook}
             activeOpacity={0.85}
             style={{
-              height: 54, borderRadius: 16, backgroundColor: "#02de95",
+              height: 56, borderRadius: 18, backgroundColor: "#02de95",
               alignItems: "center", justifyContent: "center",
               flexDirection: "row", gap: 10,
+              shadowColor: "#02de95",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.3,
+              shadowRadius: 6,
+              elevation: 4,
             }}
           >
             <RotateCcw size={18} color="#091A2F" />
-            <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 14, textTransform: "uppercase", letterSpacing: 0.5 }}>
+            <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 14, textTransform: "uppercase", letterSpacing: 0.8 }}>
               Pedir Novamente
             </Text>
           </TouchableOpacity>
@@ -348,15 +438,15 @@ export default function OrderDetailsScreen() {
             onPress={() => navigation.navigate("Home")}
             activeOpacity={0.85}
             style={{
-              height: 50, borderRadius: 16,
-              borderWidth: 1, borderColor: "rgba(255,255,255,0.1)",
-              backgroundColor: "rgba(255,255,255,0.03)",
+              height: 54, borderRadius: 18,
+              borderWidth: 1.5, borderColor: "rgba(255,255,255,0.15)",
+              backgroundColor: "rgba(255,255,255,0.04)",
               alignItems: "center", justifyContent: "center",
               flexDirection: "row", gap: 10,
             }}
           >
-            <Home size={16} color="rgba(255,255,255,0.45)" />
-            <Text style={{ color: "rgba(255,255,255,0.45)", fontWeight: "700", fontSize: 14 }}>
+            <Home size={16} color="rgba(255,255,255,0.75)" />
+            <Text style={{ color: "rgba(255,255,255,0.75)", fontWeight: "800", fontSize: 14 }}>
               Voltar ao Início
             </Text>
           </TouchableOpacity>

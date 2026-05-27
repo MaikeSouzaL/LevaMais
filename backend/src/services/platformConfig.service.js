@@ -4,7 +4,7 @@ const DEFAULT_PLATFORM_CONFIG = {
   isDevelopmentMode: true,
   appFeePercentage: 15,
   feePerStop: 2, // Adicional por parada
-  rideSearchTimeoutSeconds: 60,
+  rideSearchTimeoutSeconds: 300,
   driverDailyGoalRides: 10,
   driverDailyBonusAmount: 20,
   appTimeZone: "America/Sao_Paulo",
@@ -14,6 +14,21 @@ const DEFAULT_PLATFORM_CONFIG = {
     car: { minimumKm: 3, minimumFee: 8, pricePerKm: 2.5 },
     van: { minimumKm: 5, minimumFee: 20, pricePerKm: 4 },
     truck: { minimumKm: 5, minimumFee: 35, pricePerKm: 6 },
+  },
+  // Preços específicos para CORRIDAS (separado de entregas)
+  ridePricing: {
+    motorcycle: {
+      baseFare: 5.00,        // tarifa base
+      perKm: 1.50,           // por km
+      minimumFare: 8.00,     // tarifa mínima
+      minimumDistance: 2,    // km mínimo
+    },
+    car: {
+      baseFare: 8.00,
+      perKm: 2.50,
+      minimumFare: 12.00,
+      minimumDistance: 2,
+    },
   },
   logisticsMultipliers: {
     priorityEconomic: 1.0,
@@ -145,6 +160,44 @@ function mergeConfig(raw = {}) {
         pricePerKm: sanitizeNumber(
           vehiclePricing?.truck?.pricePerKm,
           DEFAULT_PLATFORM_CONFIG.vehiclePricing.truck.pricePerKm,
+        ),
+      },
+    },
+    ridePricing: {
+      motorcycle: {
+        baseFare: sanitizeNumber(
+          raw.ridePricing?.motorcycle?.baseFare,
+          DEFAULT_PLATFORM_CONFIG.ridePricing.motorcycle.baseFare,
+        ),
+        perKm: sanitizeNumber(
+          raw.ridePricing?.motorcycle?.perKm,
+          DEFAULT_PLATFORM_CONFIG.ridePricing.motorcycle.perKm,
+        ),
+        minimumFare: sanitizeNumber(
+          raw.ridePricing?.motorcycle?.minimumFare,
+          DEFAULT_PLATFORM_CONFIG.ridePricing.motorcycle.minimumFare,
+        ),
+        minimumDistance: sanitizeNumber(
+          raw.ridePricing?.motorcycle?.minimumDistance,
+          DEFAULT_PLATFORM_CONFIG.ridePricing.motorcycle.minimumDistance,
+        ),
+      },
+      car: {
+        baseFare: sanitizeNumber(
+          raw.ridePricing?.car?.baseFare,
+          DEFAULT_PLATFORM_CONFIG.ridePricing.car.baseFare,
+        ),
+        perKm: sanitizeNumber(
+          raw.ridePricing?.car?.perKm,
+          DEFAULT_PLATFORM_CONFIG.ridePricing.car.perKm,
+        ),
+        minimumFare: sanitizeNumber(
+          raw.ridePricing?.car?.minimumFare,
+          DEFAULT_PLATFORM_CONFIG.ridePricing.car.minimumFare,
+        ),
+        minimumDistance: sanitizeNumber(
+          raw.ridePricing?.car?.minimumDistance,
+          DEFAULT_PLATFORM_CONFIG.ridePricing.car.minimumDistance,
         ),
       },
     },

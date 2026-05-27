@@ -8,6 +8,9 @@ node_modules/
 dist/
 web-build/
 expo-env.d.ts
+.claude/
+.claude-flow/
+.openclaude
 
 # Native
 .kotlin/
@@ -40,6 +43,7 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+/scratch
 
 # Google OAuth credentials (sensitive)
 client_secret_*.json

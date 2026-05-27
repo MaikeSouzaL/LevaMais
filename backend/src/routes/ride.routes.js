@@ -6,8 +6,11 @@ const { authenticateToken } = require("../middlewares/auth.middleware");
 // Todas as rotas exigem autenticaÃ§Ã£o
 router.use(authenticateToken);
 
-// Calcular preÃ§o (antes de criar corrida)
+// Calcular preço (antes de criar corrida)
 router.post("/calculate-price", rideController.calculatePrice);
+
+// Calcular estimativa de corrida (estilo inDriver - pré-cálculo para lance do cliente)
+router.post("/calculate-ride-estimate", rideController.calculateRideEstimate);
 
 // Criar nova corrida
 router.post("/", rideController.create);
@@ -47,6 +50,9 @@ router.post("/:rideId/tip", rideController.addTip);
 // Provas de entrega (fotos)
 router.post("/:rideId/proof/pickup", rideController.uploadPickupProof);
 router.post("/:rideId/proof/delivery", rideController.uploadDeliveryProof);
+
+// Validação de PIN (coleta e entrega)
+router.post("/:rideId/validate-pin", rideController.validatePin);
 
 // Buscar corrida ativa do usuÃ¡rio (principalmente motorista)
 

@@ -48,6 +48,104 @@ import {
 
 import { ClientStackParamList, DeliveryAddressProfile, DeliveryVehicleType } from "../../../types/navigation";
 import rideService, { CalculatePriceResponse, CreateRideRequest } from "@/services/ride.service";
+import paymentService from "@/services/payment.service";
+
+/**
+ * Converte string de data em português para ISO 8601
+ * Suporta: "Hoje, às 14:30", "Amanhã, às 08:30", "26/05, às 14:30"
+ */
+function parseScheduleToISO(scheduleStr: string | null): string | null {
+  if (!scheduleStr) return null;
+
+  try {
+    const now = new Date();
+    let targetDate: Date;
+
+    // Extrair hora e minuto (formato: "às HH:MM")
+    const timeMatch = scheduleStr.match(/às\s+(\d{1,2}):(\d{2})/);
+    if (!timeMatch) return null;
+
+    const hour = parseInt(timeMatch[1], 10);
+    const minute = parseInt(timeMatch[2], 10);
+
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+
+    // Determinar o dia
+    if (scheduleStr.toLowerCase().startsWith("hoje")) {
+      targetDate = new Date(now);
+    } else if (scheduleStr.toLowerCase().startsWith("amanhã")) {
+      targetDate = new Date(now);
+      targetDate.setDate(targetDate.getDate() + 1);
+    } else {
+      // Formato: "DD/MM" ou "DD/MM/YY"
+      const dateMatch = scheduleStr.match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);
+      if (dateMatch) {
+        const day = parseInt(dateMatch[1], 10);
+        const month = parseInt(dateMatch[2], 10) - 1; // Month é 0-indexed
+        let year = dateMatch[3] ? parseInt(dateMatch[3], 10) : now.getFullYear();
+
+        // Se ano tem 2 dígitos, adicionar 2000
+        if (year < 100) year += 2000;
+
+        targetDate = new Date(year, month, day);
+
+        // Validar se a data é válida
+        if (targetDate.getDate() !== day || targetDate.getMonth() !== month) {
+          return null;
+        }
+      } else {
+        return null;
+      }
+    }
+
+    // Aplicar hora e minuto
+    targetDate.setHours(hour, minute, 0, 0);
+
+    // Verificar se a data é no futuro
+    if (targetDate <= now) {
+      return null;
+    }
+
+    return targetDate.toISOString();
+  } catch (error) {
+    console.error("Erro ao parsear data de agendamento:", error);
+    return null;
+  }
+}
+
+/**
+ * Formata ISO 8601 para exibição em português
+ */
+function formatScheduleDisplay(isoStr: string | null): string {
+  if (!isoStr) return "Partida imediata";
+
+  try {
+    const date = new Date(isoStr);
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const timeStr = date.toLocaleTimeString("pt-BR", {
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+
+    const isToday = date.toDateString() === now.toDateString();
+    const isTomorrow = date.toDateString() === tomorrow.toDateString();
+
+    if (isToday) {
+      return `Hoje, às ${timeStr}`;
+    } else if (isTomorrow) {
+      return `Amanhã, às ${timeStr}`;
+    } else {
+      const day = String(date.getDate()).padStart(2, "0");
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      return `${day}/${month}, às ${timeStr}`;
+    }
+  } catch (error) {
+    return "Data inválida";
+  }
+}
 import { GlobalMap } from "@/components/GlobalMap";
 import MapView, { Marker, PROVIDER_GOOGLE, Polyline } from "react-native-maps";
 import MapViewDirections from "react-native-maps-directions";
@@ -157,6 +255,21 @@ export default function DeliveryDetailsScreen() {
   const [customOfferText, setCustomOfferText] = useState("");
   const [vehicleRotation, setVehicleRotation] = useState<number>(0);
 
+  // PIX Deposit states
+  const [depositAmount, setDepositAmount] = useState<number>(0);
+  const [depositLoading, setDepositLoading] = useState(false);
+  const [pixDepositData, setPixDepositData] = useState<any>(null);
+
+  // Identity verification states
+  const [verificationLoading, setVerificationLoading] = useState(false);
+
+  // Feedback states
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
+
+  // Credit card states
+  const [showAddCard, setShowAddCard] = useState(false);
+  const [cardLoading, setCardLoading] = useState(false);
+
   const calculateBearing = (lat1: number, lng1: number, lat2: number, lng2: number) => {
     const dLng = (lng2 - lng1) * (Math.PI / 180);
     const y = Math.sin(dLng) * Math.cos(lat2 * (Math.PI / 180));
@@ -174,6 +287,108 @@ export default function DeliveryDetailsScreen() {
     setStops((prev) => prev.filter((_, i) => i !== index));
     setRouteCoords([]);
     setAnimatedVehicleCoord(null);
+  };
+
+  // PIX Deposit Handler
+  const handlePixDeposit = async (amount: number) => {
+    try {
+      setDepositLoading(true);
+      const deposit = await paymentService.createPixDeposit(amount);
+      setPixDepositData(deposit);
+      Toast.show({
+        type: "success",
+        text1: "QR Code PIX gerado!",
+        text2: "Escaneie com seu banco para completar o depósito",
+      });
+    } catch (error: any) {
+      Toast.show({
+        type: "error",
+        text1: "Erro ao gerar depósito PIX",
+        text2: error?.message || "Tente novamente",
+      });
+    } finally {
+      setDepositLoading(false);
+    }
+  };
+
+  // Identity Verification Handler
+  const handleVerification = async () => {
+    try {
+      setVerificationLoading(true);
+      const verification = await paymentService.submitVerification({
+        documentType: "cnh",
+        documentFront: "placeholder_front",
+        documentBack: "placeholder_back",
+        selfie: "placeholder_selfie",
+      });
+      Toast.show({
+        type: "success",
+        text1: "Verificação enviada!",
+        text2: `Análise em ${verification.estimatedReviewTime}`,
+      });
+    } catch (error: any) {
+      Toast.show({
+        type: "error",
+        text1: "Erro ao enviar verificação",
+        text2: error?.message || "Tente novamente",
+      });
+    } finally {
+      setVerificationLoading(false);
+    }
+  };
+
+  // Exit Feedback Handler
+  const handleExitFeedback = async (reason: string, category: string = "general", details: string = "") => {
+    try {
+      setFeedbackLoading(true);
+      await paymentService.submitExitFeedback({ reason, category, details });
+      Toast.show({
+        type: "info",
+        text1: "Feedback enviado",
+        text2: "Obrigado por compartilhar sua opinião",
+      });
+      setShowExitReason(false);
+    } catch (error: any) {
+      Toast.show({
+        type: "error",
+        text1: "Erro ao enviar feedback",
+        text2: error?.message || "Tente novamente",
+      });
+    } finally {
+      setFeedbackLoading(false);
+    }
+  };
+
+  // Add Credit Card Handler
+  const handleAddCard = async (cardData: {
+    cardNumber: string;
+    holderName: string;
+    expiry: string;
+    cvv: string;
+  }) => {
+    try {
+      setCardLoading(true);
+      const [expiryMonth, expiryYear] = cardData.expiry.split("/").map(Number);
+      await paymentService.addCard({
+        ...cardData,
+        expiryMonth,
+        expiryYear: expiryYear < 100 ? 2000 + expiryYear : expiryYear,
+      });
+      Toast.show({
+        type: "success",
+        text1: "Cartão adicionado!",
+        text2: "Seu cartão foi salvo com sucesso",
+      });
+      setShowAddCard(false);
+    } catch (error: any) {
+      Toast.show({
+        type: "error",
+        text1: "Erro ao adicionar cartão",
+        text2: error?.message || "Tente novamente",
+      });
+    } finally {
+      setCardLoading(false);
+    }
   };
 
   const onDirectionsReady = (res: any) => {
@@ -208,8 +423,9 @@ export default function DeliveryDetailsScreen() {
       const p1 = routeCoordsRef.current[index];
       const p2 = routeCoordsRef.current[nextIndex];
       
-      const bearing = calculateBearing(p1.latitude, p1.longitude, p2.latitude, p2.longitude);
-      setVehicleRotation(bearing);
+      // Comentado para evitar que o ícone da motinha fique girando descontroladamente no mapa
+      // const bearing = calculateBearing(p1.latitude, p1.longitude, p2.latitude, p2.longitude);
+      // setVehicleRotation(bearing);
       setAnimatedVehicleCoord(p2);
       
       index = nextIndex;
@@ -324,7 +540,11 @@ export default function DeliveryDetailsScreen() {
     }
 
     const pickupPin = usePickupPin ? String(Math.floor(1000 + Math.random() * 9000)) : undefined;
-    const deliveryPin = useDropoffPin ? String(Math.floor(1000 + Math.random() * 9000)) : undefined;
+    let deliveryPin = undefined;
+    if (useDropoffPin) {
+      const phoneDigits = (routeProfiles.dropoffProfile.contactPhone || "").replace(/[^0-9]/g, "");
+      deliveryPin = phoneDigits.slice(-4);
+    }
     const itemType = selectedItemType === "other"
       ? customItemType.trim() || "other"
       : selectedItemType || "standard";
@@ -355,7 +575,7 @@ export default function DeliveryDetailsScreen() {
       },
       distance: priceData.distance,
       duration: priceData.duration,
-      scheduledFor: scheduledFor || undefined,
+      scheduledFor: parseScheduleToISO(scheduledFor) || undefined,
       routeCoordinates: [
         { latitude: pickupCoords.latitude, longitude: pickupCoords.longitude },
         ...stops.map((s) => ({ latitude: s.addressCoords?.latitude || 0, longitude: s.addressCoords?.longitude || 0 })),
@@ -509,7 +729,7 @@ export default function DeliveryDetailsScreen() {
                 <View style={{ position: "absolute", top: 2, width: 26, height: 26, alignItems: "center", justifyContent: "center", zIndex: 10 }}>
                   <Image
                     source={selectedVehicleType === "motorcycle" ? require("../../../../../../assets/Logo/leva_moto.png") : vehicleImages[selectedVehicleType]}
-                    style={{ width: 24, height: 24, transform: [{ rotate: `${vehicleRotation}deg` }] }}
+                    style={{ width: 24, height: 24 }} // Comentado transform para parar de girar: transform: [{ rotate: `${vehicleRotation}deg` }]
                     resizeMode="contain"
                   />
                 </View>
@@ -881,7 +1101,10 @@ export default function DeliveryDetailsScreen() {
       </View>
 
       {showItemDetails && (
-        <View className="absolute inset-0 z-50 bg-black/35">
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          className="absolute inset-0 z-50 bg-black/35"
+        >
           <View className="mt-[86px] flex-1 rounded-t-[22px] bg-white px-6 pb-6 pt-5">
             <View className="mb-7 flex-row items-center justify-between">
               <Text className="text-[27px] font-black text-[#111827]">Detalhes do item</Text>
@@ -961,7 +1184,7 @@ export default function DeliveryDetailsScreen() {
               <Text className="text-[21px] font-black text-[#111827]">Confirmar</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       )}
 
       {showVehicleSelector && (
@@ -1043,7 +1266,11 @@ export default function DeliveryDetailsScreen() {
               </View>
             </View>
 
-            <TouchableOpacity className="mb-5 flex-row items-center rounded-[22px] bg-white px-5 py-5" activeOpacity={0.85}>
+            <TouchableOpacity
+              className="mb-5 flex-row items-center rounded-[22px] bg-white px-5 py-5"
+              activeOpacity={0.85}
+              onPress={() => setShowAddCard(true)}
+            >
               <View className="mr-4 h-7 w-7 items-center justify-center rounded-lg bg-[#f1f2f4]">
                 <Plus size={18} color="#111827" strokeWidth={3} />
               </View>
@@ -1110,8 +1337,16 @@ export default function DeliveryDetailsScreen() {
           </ScrollView>
 
           <View className="absolute bottom-0 left-0 right-0 bg-[#f8f8fa] px-8 pb-7 pt-4">
-            <TouchableOpacity className="h-[56px] items-center justify-center rounded-[22px] bg-[#02de95]" activeOpacity={0.9}>
-              <Text className="text-[21px] font-black text-[#111827]">Depositar com Pix</Text>
+            <TouchableOpacity
+              className="h-[56px] items-center justify-center rounded-[22px] bg-[#02de95]"
+              activeOpacity={0.9}
+              onPress={() => handlePixDeposit(depositAmount || 30)}
+            >
+              {depositLoading ? (
+                <ActivityIndicator size="large" color="#111827" />
+              ) : (
+                <Text className="text-[21px] font-black text-[#111827]">Depositar com Pix</Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -1137,8 +1372,16 @@ export default function DeliveryDetailsScreen() {
             <Text className="mb-4 text-center text-sm leading-5 text-[#9ca3af]">
               Ao continuar, você concorda com nossos <Text className="text-[#ff7a32]">Termos de Uso de Pagamento</Text> e <Text className="text-[#ff7a32]">Termos de Uso de Crédito</Text>
             </Text>
-            <TouchableOpacity className="mb-7 h-[58px] items-center justify-center rounded-[16px] bg-[#02de95]" activeOpacity={0.9}>
-              <Text className="text-[21px] font-black text-black">Concordar e continuar</Text>
+            <TouchableOpacity
+              className="mb-7 h-[58px] items-center justify-center rounded-[16px] bg-[#02de95]"
+              activeOpacity={0.9}
+              onPress={() => handleVerification()}
+            >
+              {verificationLoading ? (
+                <ActivityIndicator size="large" color="#000" />
+              ) : (
+                <Text className="text-[21px] font-black text-black">Concordar e continuar</Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -1158,7 +1401,15 @@ export default function DeliveryDetailsScreen() {
               "Eu continuarei minha solicitação mais tarde",
               "Eu não sabia por que tinha que concluir a verificação de identidade",
             ].map((reason) => (
-              <TouchableOpacity key={reason} className="flex-row items-center border-b border-[#eef1f5] py-4" onPress={() => setExitReason(reason)} activeOpacity={0.85}>
+              <TouchableOpacity
+                key={reason}
+                className="flex-row items-center border-b border-[#eef1f5] py-4"
+                onPress={() => {
+                  setExitReason(reason);
+                  handleExitFeedback(reason, "");
+                }}
+                activeOpacity={0.85}
+              >
                 <Text className="flex-1 text-base leading-5 text-black">{reason}</Text>
                 <View className={exitReason === reason ? "h-6 w-6 rounded-full border-[7px] border-[#111827]" : "h-6 w-6 rounded-full border-2 border-[#d1d5db]"} />
               </TouchableOpacity>
@@ -1175,7 +1426,10 @@ export default function DeliveryDetailsScreen() {
       )}
 
       {showScheduleModal && (
-        <View className="absolute inset-0 z-[80] justify-end bg-black/60">
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          className="absolute inset-0 z-[80] justify-end bg-black/60"
+        >
           <TouchableOpacity className="flex-1" activeOpacity={1} onPress={() => { setShowScheduleModal(false); setIsCustomSchedule(false); }} />
           <View className="rounded-t-[28px] bg-white px-7 pb-8 pt-6">
             <View className="mb-5 flex-row items-center justify-between">
@@ -1307,11 +1561,14 @@ export default function DeliveryDetailsScreen() {
               </View>
             )}
           </View>
-        </View>
+        </KeyboardAvoidingView>
       )}
 
       {showCustomOfferInput && (
-        <View className="absolute inset-0 z-[80] justify-start bg-black/60 pt-24 px-5">
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          className="absolute inset-0 z-[80] justify-start bg-black/60 pt-24 px-5"
+        >
           <TouchableOpacity
             style={StyleSheet.absoluteFillObject}
             activeOpacity={1}
@@ -1374,7 +1631,7 @@ export default function DeliveryDetailsScreen() {
               <Text className="text-lg font-black text-[#091A2F]">Confirmar Proposta</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       )}
       </View>
     </KeyboardAvoidingView>

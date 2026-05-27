@@ -576,58 +576,22 @@ export default function DriverRideScreen() {
 
     setActionLoading(nextStatus);
     try {
-      if (isDelivery && nextStatus === "in_progress") {
-        try {
-          const photo = await takePhotoBase64();
-          await rideService.uploadPickupProof(rideId, photo);
-        } catch (e: any) {
-          const msg = String(e?.message || "");
-          const isCameraUnavailable =
-            msg.toLowerCase().includes("camera") ||
-            msg.toLowerCase().includes("activity");
-
-          if (!isCameraUnavailable) {
-            throw e;
-          }
-
-          const continueWithoutPhoto = await askContinueWithoutPhoto();
-          if (!continueWithoutPhoto) {
-            throw new Error("Inicio cancelado: foto de coleta nao enviada.");
-          }
-        }
+      // Redirecionar para telas dedicadas de confirmação de entrega
+      if (isDelivery && nextStatus === "arrived") {
+        // Chegou na coleta - redirecionar para confirmação de coleta
+        (navigation as any).navigate("DeliveryPickupConfirm", { rideId });
+        return;
       }
 
-      if (isDelivery && nextStatus === "completed") {
-        try {
-          const photo = await takePhotoBase64();
-          await rideService.uploadDeliveryProof(rideId, photo);
-        } catch (e: any) {
-          const msg = String(e?.message || "");
-          const isCameraUnavailable =
-            msg.toLowerCase().includes("camera") ||
-            msg.toLowerCase().includes("activity");
-
-          if (!isCameraUnavailable) {
-            throw e;
-          }
-
-          const continueWithoutPhoto = await askContinueWithoutPhoto();
-          if (!continueWithoutPhoto) {
-            throw new Error("Finalizacao cancelada: foto de entrega nao enviada.");
-          }
-        }
-      }
-
-      let enteredPin = "";
       if (isDelivery && nextStatus === "in_progress") {
-        enteredPin = await promptForPin("pickup");
-      } else if (isDelivery && nextStatus === "completed") {
-        enteredPin = await promptForPin("delivery");
+        // Em andamento - redirecionar para confirmação de entrega
+        (navigation as any).navigate("DeliveryDropoffConfirm", { rideId });
+        return;
       }
 
       const r = await rideService.updateStatus(rideId, nextStatus, false, {
-        pickupPin: nextStatus === "in_progress" ? enteredPin : undefined,
-        deliveryPin: nextStatus === "completed" ? enteredPin : undefined,
+        pickupPin: undefined,
+        deliveryPin: undefined,
       });
       setRide(r as any);
       setStatus(r?.status || nextStatus);

@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
 
@@ -37,6 +37,7 @@ export type DriverStatusCardProps = {
     recipientName?: string;
     recipientPhone?: string;
     recipientInstructions?: string;
+    pickupPin?: string;
     deliveryPin?: string;
     specialInstructions?: string;
   };
@@ -353,6 +354,14 @@ export function DriverStatusCard({
             <Text style={{ color: "rgba(255,255,255,0.8)", fontSize: 11 }}>
               InstruÃ§Ãµes: <Text style={{ color: "#fff", fontWeight: "500" }}>{details.recipientInstructions}</Text>
             </Text>
+          )}
+          {!!details?.pickupPin && (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 }}>
+              <MaterialIcons name="vpn-key" size={12} color="#02de95" />
+              <Text style={{ color: "#02de95", fontSize: 11, fontWeight: "900" }}>
+                PIN de Coleta (Passe ao Remetente): {details.pickupPin}
+              </Text>
+            </View>
           )}
           {!!details?.deliveryPin && (
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 }}>
