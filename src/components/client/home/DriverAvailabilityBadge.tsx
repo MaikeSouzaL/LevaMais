@@ -26,8 +26,10 @@ export const DriverAvailabilityBadge = memo(({
         animate={{ opacity: 1, translateY: 0 }}
         style={styles.container}
       >
-        <View style={styles.loadingPulse} />
-        <Text style={styles.loadingText}>Buscando motoristas...</Text>
+        <View style={styles.pillContainer}>
+          <View style={styles.loadingPulse} />
+          <Text style={styles.loadingText}>Buscando motoristas...</Text>
+        </View>
       </MotiView>
     );
   }
@@ -37,9 +39,11 @@ export const DriverAvailabilityBadge = memo(({
       <MotiView
         from={{ opacity: 0, translateY: -10 }}
         animate={{ opacity: 1, translateY: 0 }}
-        style={[styles.container, styles.errorContainer]}
+        style={styles.container}
       >
-        <Text style={styles.errorText}>{error}</Text>
+        <View style={[styles.pillContainer, styles.errorPill]}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
       </MotiView>
     );
   }
@@ -49,10 +53,12 @@ export const DriverAvailabilityBadge = memo(({
       <MotiView
         from={{ opacity: 0, translateY: -10 }}
         animate={{ opacity: 1, translateY: 0 }}
-        style={[styles.container, styles.emptyContainer]}
+        style={styles.container}
       >
-        <Users size={16} color={colors.text.secondary} />
-        <Text style={styles.emptyText}>Sem motoristas próximos</Text>
+        <View style={styles.pillContainer}>
+          <Users size={12} color="rgba(9, 26, 47, 0.6)" />
+          <Text style={styles.emptyText}>Sem motoristas próximos</Text>
+        </View>
       </MotiView>
     );
   }
@@ -63,13 +69,21 @@ export const DriverAvailabilityBadge = memo(({
       animate={{ opacity: 1, translateY: 0 }}
       style={styles.container}
     >
-      <View style={styles.iconContainer}>
-        <Users size={16} color={colors.primary[500]} />
-      </View>
-      <View style={styles.statsContainer}>
+      <View style={styles.pillContainer}>
+        {/* Sleek Green Pill Icon */}
+        <View style={styles.iconContainer}>
+          <Users size={11} color="#091A2F" />
+        </View>
+
+        {/* Total Driver Availability Text */}
         <Text style={styles.totalText}>
-          {totalNearby} {totalNearby === 1 ? "motorista" : "motoristas"} próximos
+          {totalNearby} {totalNearby === 1 ? "motorista próximo" : "motoristas próximos"}
         </Text>
+
+        {/* Subtle Vertical Divider */}
+        <View style={styles.divider} />
+
+        {/* Compact Badges */}
         <View style={styles.breakdownContainer}>
           {rideDrivers > 0 && (
             <View style={styles.badge}>
@@ -90,87 +104,87 @@ export const DriverAvailabilityBadge = memo(({
 const styles = StyleSheet.create({
   container: {
     position: "absolute",
-    top: 16,
-    left: 16,
-    right: 16,
-    backgroundColor: "rgba(15, 25, 40, 0.95)",
-    borderRadius: 12,
-    padding: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.1)",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    top: 14,
+    left: 14,
     zIndex: 100,
   },
-  loadingPulse: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: colors.primary[500],
-    marginRight: 8,
-  },
-  loadingText: {
-    color: colors.text.secondary,
-    fontSize: 13,
-    fontWeight: "500",
-  },
-  errorContainer: {
-    backgroundColor: "rgba(239, 68, 68, 0.15)",
-    borderColor: "rgba(239, 68, 68, 0.3)",
-  },
-  errorText: {
-    color: "#EF4444",
-    fontSize: 13,
-    fontWeight: "500",
-  },
-  emptyContainer: {
-    backgroundColor: "rgba(15, 25, 40, 0.9)",
+  pillContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.96)",
+    borderRadius: 24,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: "rgba(9, 26, 47, 0.08)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 4,
     gap: 8,
   },
-  emptyText: {
-    color: colors.text.secondary,
-    fontSize: 13,
-    fontWeight: "500",
-  },
   iconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "rgba(2, 222, 149, 0.16)",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
-  },
-  statsContainer: {
-    flex: 1,
   },
   totalText: {
-    color: colors.text.primary,
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: 6,
+    color: "#091A2F",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  divider: {
+    width: 1,
+    height: 12,
+    backgroundColor: "rgba(9, 26, 47, 0.12)",
   },
   breakdownContainer: {
     flexDirection: "row",
-    gap: 8,
+    gap: 5,
+    alignItems: "center",
   },
   badge: {
-    backgroundColor: "rgba(16, 185, 129, 0.2)",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
+    backgroundColor: "rgba(2, 222, 149, 0.12)",
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 12,
   },
   deliveryBadge: {
-    backgroundColor: "rgba(59, 130, 246, 0.2)",
+    backgroundColor: "rgba(59, 130, 246, 0.08)",
   },
   badgeText: {
-    color: colors.text.primary,
-    fontSize: 11,
+    color: "#091A2F",
+    fontSize: 9,
+    fontWeight: "800",
+  },
+  loadingPulse: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#02de95",
+    marginRight: 6,
+  },
+  loadingText: {
+    color: "#091A2F",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  errorPill: {
+    backgroundColor: "rgba(254, 226, 226, 0.95)",
+    borderColor: "rgba(239, 68, 68, 0.2)",
+  },
+  errorText: {
+    color: "#EF4444",
+    fontSize: 12,
     fontWeight: "600",
+  },
+  emptyText: {
+    color: "rgba(9, 26, 47, 0.6)",
+    fontSize: 12,
+    fontWeight: "700",
   },
 });

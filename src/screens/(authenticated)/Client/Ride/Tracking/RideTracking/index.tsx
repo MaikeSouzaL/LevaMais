@@ -21,6 +21,9 @@ import MapMarker from "@/components/MapMarker";
 import { MapActionButtons } from "@/components/MapActionButtons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ClientStackParamList } from "../../../types/navigation";
+import { SOSButton } from "@/components/client/tracking/SOSButton";
+import { ShareRideSheet } from "@/components/client/tracking/ShareRideSheet";
+import { DriverIdentityCard } from "@/components/client/tracking/DriverIdentityCard";
 
 const TERMINAL_STATUSES = [
   "completed",
@@ -261,10 +264,12 @@ export default function RideTrackingScreen() {
     setTimeout(() => setIsCentering(false), 600);
   };
 
-  const handleSOS = () => {
-    try {
-      (navigation as any).navigate("ClientSafety");
-    } catch {}
+  const [shareSheetVisible, setShareSheetVisible] = useState(false);
+  const [showSOS, setShowSOS] = useState(false);
+
+  const handleSOSActivated = () => {
+    setShowSOS(false);
+    Toast.show({ type: 'info', text1: 'Alerta enviado', text2: 'As autoridades foram notificadas.' });
   };
 
   const [ride, setRide] = useState<Ride | null>(null);
@@ -646,14 +651,7 @@ export default function RideTrackingScreen() {
   }, [pickupCoord, dropoffCoord, driverLocation]);
 
   const handleShareRide = () => {
-    const driverLabel = driverName || "motorista";
-    const serviceLabel =
-      ride?.serviceType === "delivery" || ride?.serviceType === "frete"
-        ? "entrega"
-        : "corrida";
-    Share.share({
-      message: `Estou em ${serviceLabel} no Leva Mais com ${driverLabel}. Pedido ${ride?._id || ""}.`,
-    }).catch(() => {});
+    setShareSheetVisible(true);
   };
 
   const isDriverGoingToPickup = [
@@ -757,7 +755,7 @@ export default function RideTrackingScreen() {
 
 
       <MapActionButtons
-        onSosPress={handleSOS}
+        onSosPress={() => setShowSOS(true)}
         onLocationPress={handleCenterMyLocation}
         onMapStylePress={handleToggleMapStyle}
         useDarkMap={useDarkMap}
@@ -876,7 +874,55 @@ export default function RideTrackingScreen() {
           </TouchableOpacity>
         </View>
       </View>
-    </SafeAreaView>
+      </SafeAreaView>
+
+      {/* Driver Identity Card — show when driver is coming to pickup */}
+      {isDriverGoingToPickup && ride?.driverId && typeof ride.driverId !== 'string' && (
+        <View style={{ position: 'absolute', bottom: Math.max(insets.bottom + 10, 16) + 280, left: 0, right: 0 }}>
+          <DriverIdentityCard
+            driver={{
+              id: String(ride.driverId._id || ''),
+              name: driverName || 'Motorista',
+              phone: ride.driverId.phone,
+              profilePhoto: ride.driverId.profilePhoto,
+              rating: typeof ride.driverId.rating === 'number' ? ride.driverId.rating : 5,
+              vehicle: {
+                type: ride.vehicleType || 'car',
+                plate: ride.driverId.vehicleInfo?.plate || 'XXX-0000',
+                model: ride.driverId.vehicleInfo?.model || 'Veículo',
+                color: ride.driverId.vehicleInfo?.color || 'Branco',
+              },
+            }}
+            eta={routeEtaText || undefined}
+            etaDistance={routeDistanceText || undefined}
+            onChat={() => {
+              useChatStore.getState().clearUnread(rideId);
+              navigation.navigate('Chat', { rideId, driverName: driverName || 'Motorista' });
+            }}
+            onCancel={() => navigation.navigate('ClientCancelRide', {
+              rideId,
+              total: ride?.pricing?.total,
+              status,
+              estimatedFee: cancellationFeePreview,
+            })}
+          />
+        </View>
+      )}
+
+      {/* SOS Modal */}
+      <SOSButton
+        rideId={rideId}
+        driverName={driverName || undefined}
+        onSosActivated={handleSOSActivated}
+      />
+
+      {/* Share Sheet */}
+      <ShareRideSheet
+        rideId={rideId}
+        driverName={driverName || undefined}
+        isVisible={shareSheetVisible}
+        onClose={() => setShareSheetVisible(false)}
+      />
     </ErrorBoundary>
   );
 }

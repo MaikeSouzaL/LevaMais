@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import { AppState, View, Text, TouchableOpacity, useColorScheme, Alert, StyleSheet } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { AppState, View, Text, TouchableOpacity, useColorScheme, Alert, StyleSheet, Image } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import Constants from "expo-constants";
@@ -40,8 +40,8 @@ import { Modal } from "../../../components/Modal";
 // 🌌 High-End Components & Modules Upgrade
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
-import { MotiView } from "moti";
-import { MapPin, Menu, Target, Layers, ShieldAlert, Info , AlertTriangle, X } from "lucide-react-native";
+import { MotiView, AnimatePresence } from "moti";
+import { MapPin, Menu, Target, Layers, ShieldAlert, Info , AlertTriangle, X, User } from "lucide-react-native";
 import { NewIncomingOfferSheet } from "@/components/driver/home/NewIncomingOfferSheet";
 import { PremiumMapMarker } from "@/components/maps/PremiumMapMarker";
 import { PremiumDottedRoute } from "@/components/routes/PremiumDottedRoute";
@@ -74,10 +74,13 @@ export default function DriverHomeScreen() {
   const navigation = useNavigation();
   const isFocused = useIsFocused();
   const colorScheme = useColorScheme();
+  const insets = useSafeAreaInsets();
   const userData = useAuthStore((s) => s.userData);
   const isApproved = userData?.driverStatus === "approved";
 
   const [online, setOnline] = useState(false);
+  const [onlineBanner, setOnlineBanner] = useState<{ visible: boolean; type: "online" | "offline" }>({ visible: false, type: "online" });
+  const isFirstOnlineChangeRef = useRef(true);
   const [services, setServices] = useState<{ ride: boolean; delivery: boolean }>(() => {
     const serviceTypes = userData?.driverPreferences?.serviceTypes;
     if (Array.isArray(serviceTypes)) {
@@ -110,6 +113,22 @@ export default function DriverHomeScreen() {
     }
   }, [userData?.driverPreferences?.serviceTypes, userData?.vehicleType]);
 
+  // Trigger online/offline banner on state change (disappears after 3 seconds)
+  useEffect(() => {
+    if (isFirstOnlineChangeRef.current) {
+      isFirstOnlineChangeRef.current = false;
+      return;
+    }
+    
+    setOnlineBanner({ visible: true, type: online ? "online" : "offline" });
+    
+    const timer = setTimeout(() => {
+      setOnlineBanner((prev) => ({ ...prev, visible: false }));
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, [online]);
+
   const servicesRef = useRef(services);
   useEffect(() => {
     servicesRef.current = services;
@@ -133,6 +152,18 @@ export default function DriverHomeScreen() {
   const [showPendingBanner, setShowPendingBanner] = useState(false);
   const [offersPulseToken, setOffersPulseToken] = useState(0);
   const [showPendingOfferHighlight, setShowPendingOfferHighlight] = useState(false);
+
+  useEffect(() => {
+    if (
+      pendingRequests === 0 &&
+      waitingQueueCount === 0 &&
+      pendingNegotiationsCount === 0 &&
+      clientCounteredCount === 0 &&
+      scheduledCount === 0
+    ) {
+      setShowPendingOfferHighlight(false);
+    }
+  }, [pendingRequests, waitingQueueCount, pendingNegotiationsCount, clientCounteredCount, scheduledCount]);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelModalReason, setCancelModalReason] = useState<string | null>(null);
@@ -353,6 +384,8 @@ export default function DriverHomeScreen() {
       };
 
       loadProfile();
+      syncAvailableRequests().catch(() => {});
+      refreshScheduledCount().catch(() => {});
 
       (async () => {
         try {
@@ -610,12 +643,23 @@ export default function DriverHomeScreen() {
   ];
 
   useEffect(() => {
-    if (isApproved && !userData?.tourSeen) {
-      setTimeout(() => {
-        setShowTour(true);
+    let timeoutId: NodeJS.Timeout;
+    
+    if (isApproved && userData?.tourSeen === false) {
+      timeoutId = setTimeout(() => {
+        const currentTourSeen = useAuthStore.getState().userData?.tourSeen;
+        if (!currentTourSeen) {
+          setShowTour(true);
+        }
       }, 1200);
     }
-  }, [isApproved]);
+    
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [isApproved, userData?.tourSeen]);
 
   const handleNextTourStep = async () => {
     if (tourStep < tourSteps.length - 1) {
@@ -1012,6 +1056,13 @@ export default function DriverHomeScreen() {
     };
   }, [incomingRequest?.rideId]);
 
+  // Trigger dismissIncomingSheet when countdown reaches 0 (moves to pending list, stops sound)
+  useEffect(() => {
+    if (countdown === 0 && incomingRequest?.rideId && !isIncomingRequestDismissed) {
+      dismissIncomingSheet();
+    }
+  }, [countdown, incomingRequest?.rideId, isIncomingRequestDismissed]);
+
   // 🕒 CronÃ´metro de Atividade Fluido (PrediÃ§Ã£o Local Suave)
   useEffect(() => {
     if (!online || !isFocused) return;
@@ -1056,6 +1107,19 @@ export default function DriverHomeScreen() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [online, isFocused]);
+
+  // Declaratively ensure location sharing matches online status
+  useEffect(() => {
+    if (online) {
+      if (!intervalRef.current) {
+        startSharing().catch(() => {});
+      }
+    } else {
+      if (intervalRef.current) {
+        stopSharing().catch(() => {});
+      }
+    }
+  }, [online]);
 
   useEffect(() => {
     return () => {
@@ -1572,6 +1636,57 @@ export default function DriverHomeScreen() {
         <View style={{ flex: 1, backgroundColor: "#091A2F" }}>
           <StatusBar style="light" />
 
+          {/* 📣 Online/Offline Premium Sliding Notification Banner */}
+          <AnimatePresence>
+            {onlineBanner.visible && (
+              <MotiView
+                from={{ translateY: -100, opacity: 0 }}
+                animate={{ translateY: insets.top + 68, opacity: 1 }}
+                exit={{ translateY: -100, opacity: 0 }}
+                transition={{ type: "spring", damping: 15 }}
+                style={{
+                  position: "absolute",
+                  left: 16,
+                  right: 16,
+                  zIndex: 49,
+                  backgroundColor: onlineBanner.type === "online" ? "#02de95" : "#EF4444",
+                  borderRadius: 14,
+                  paddingVertical: 14,
+                  paddingHorizontal: 18,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 6 },
+                  shadowOpacity: 0.22,
+                  shadowRadius: 10,
+                  elevation: 6,
+                  gap: 8,
+                }}
+              >
+                <View
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: 4,
+                    backgroundColor: "#091A2F",
+                  }}
+                />
+                <Text
+                  style={{
+                    color: "#091A2F",
+                    fontWeight: "900",
+                    fontSize: 12,
+                    letterSpacing: 0.6,
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {onlineBanner.type === "online" ? "Você está online! Recebendo ofertas." : "Você está offline!"}
+                </Text>
+              </MotiView>
+            )}
+          </AnimatePresence>
+
           {region && (
             <>
               <GlobalMap
@@ -1624,26 +1739,106 @@ export default function DriverHomeScreen() {
                 )}
               </GlobalMap>
 
-              {/* 🎛️ TOP FLOATING DASHBOARD HUD */}
-              <View className="absolute top-12 left-4 right-4 z-50 flex-row items-center gap-3">
-                 <TouchableOpacity
-                   onPress={() => (navigation as any).openDrawer?.()}
-                   className="h-[58px] w-[58px] items-center justify-center"
-                 >
-                    <Menu size={24} color="#FFF" />
-                 </TouchableOpacity>
+              {/* 🎛️ TOP SOLID DOCKING HEADER HUD */}
+              <View
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  zIndex: 50,
+                  backgroundColor: "#091A2F",
+                  paddingTop: insets.top,
+                  borderBottomWidth: 1.5,
+                  borderColor: "rgba(255,255,255,0.06)",
+                }}
+              >
+                <View
+                  style={{
+                    height: 76,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingHorizontal: 16,
+                  }}
+                >
+                  <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 12 }}>
+                    <TouchableOpacity
+                      onPress={() => (navigation as any).openDrawer?.()}
+                      style={{ position: "relative" }}
+                    >
+                      {userData?.fotoPerfil || userData?.profilePhoto ? (
+                        <Image
+                          source={{ uri: userData.fotoPerfil || userData.profilePhoto }}
+                          style={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: 20,
+                            borderWidth: 2,
+                            borderColor: "rgba(255, 255, 255, 0.8)",
+                          }}
+                        />
+                      ) : (
+                        <View
+                          style={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: 20,
+                            backgroundColor: "rgba(255, 255, 255, 0.1)",
+                            borderWidth: 1.5,
+                            borderColor: "rgba(255, 255, 255, 0.2)",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          <User size={18} color="#FFF" />
+                        </View>
+                      )}
+                      <View
+                        style={{
+                          position: "absolute",
+                          top: 0,
+                          right: 0,
+                          width: 10,
+                          height: 10,
+                          borderRadius: 5,
+                          backgroundColor: online ? "#02de95" : "#EF4444",
+                          borderWidth: 1.5,
+                          borderColor: "#091A2F",
+                        }}
+                      />
+                    </TouchableOpacity>
+                    
+                    <View style={{ justifyContent: "center" }}>
+                      <Text style={{ color: "#FFF", fontSize: 22, fontWeight: "bold", lineHeight: 25 }}>
+                        Olá,
+                      </Text>
+                      <Text style={{ color: "#02de95", fontSize: 22, fontWeight: "900", lineHeight: 25 }} numberOfLines={1} ellipsizeMode="tail">
+                        {userData?.name ? userData.name.split(" ")[0] : "Motorista"}!
+                      </Text>
+                    </View>
+                  </View>
 
-                 <View className="flex-1 flex-row justify-end">
-                   {hasActiveIncomingRequest && (
-                     <TouchableOpacity
-                       onPress={dismissIncomingSheet}
-                       className="h-[58px] w-[58px] items-center justify-center"
-                       activeOpacity={0.8}
-                     >
-                       <X size={24} color="#FFFFFF" />
-                     </TouchableOpacity>
-                   )}
-                 </View>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                    {hasActiveIncomingRequest && (
+                      <TouchableOpacity
+                        onPress={dismissIncomingSheet}
+                        style={{
+                          height: 38,
+                          width: 38,
+                          borderRadius: 19,
+                          backgroundColor: "rgba(255,255,255,0.06)",
+                          borderWidth: 1,
+                          borderColor: "rgba(255,255,255,0.1)",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <X size={16} color="#FFFFFF" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
               </View>
 
               {/* 🛠️ Map Action Buttons (Centering, Zoom, Layers, SOS) */}

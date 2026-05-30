@@ -65,6 +65,7 @@ export default function HomeScreen() {
     activeRideSearchTimeout,
     waitingQueueCount,
     showCancelledModal,
+    allRejected,
     dismissCancelledModal,
     confirmExpiredAction,
     setActiveRequestingRideId,
@@ -307,7 +308,10 @@ export default function HomeScreen() {
                   )}
                   <View className="absolute top-0 right-0 w-2.5 h-2.5 rounded-full bg-[#ef4444] border-[1.5px] border-[#02de95]" />
                 </TouchableOpacity>
-                <Text className="text-[#091A2F] text-[22px] font-bold">Olá, <Text className="text-[#091A2F] font-black">{user?.name || "Cliente"}</Text>!</Text>
+                <View className="justify-center">
+                  <Text className="text-white text-[22px] font-bold leading-6">Olá,</Text>
+                  <Text className="text-[#091A2F] text-[22px] font-black leading-6" numberOfLines={1} ellipsizeMode="tail">{user?.name || "Cliente"}!</Text>
+                </View>
               </View>
               <View className="flex-row items-center gap-3">
                 <TouchableOpacity className="bg-[#091A2F]/10 px-3 py-1 rounded-xl border border-[#091A2F]/20">
@@ -446,9 +450,9 @@ export default function HomeScreen() {
                    activeOpacity={0.9}
                    accessibilityLabel="Ver oferta ativa de corrida"
                    accessibilityRole="button"
-                   onPress={() => navigation.navigate("ActiveOrders")}
+                   onPress={() => navigation.navigate("RideOffersMarketplace", { rideId: activeRequestingRideId })}
                    style={{
-                     backgroundColor: "#F59E0B",
+                     backgroundColor: allRejected ? "#EF4444" : "#F59E0B",
                      borderRadius: 16,
                      padding: 16,
                      flexDirection: "row",
@@ -463,20 +467,20 @@ export default function HomeScreen() {
                    }}
                  >
                    <View style={{ backgroundColor: "rgba(9, 26, 47, 0.2)", padding: 8, borderRadius: 12, marginRight: 12 }}>
-                      <Info size={20} color="#091A2F" />
+                      <Info size={20} color={allRejected ? "#FFF" : "#091A2F"} />
                    </View>
                    <View style={{ flex: 1 }}>
-                      <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 14, textTransform: "uppercase" }}>
-                        {activeServiceType === "delivery" ? "Oferta Ativa: Entrega" : "Oferta Ativa: Corrida"}{countdownText ? ` (${countdownText})` : ""}
+                      <Text style={{ color: allRejected ? "#FFF" : "#091A2F", fontWeight: "900", fontSize: 14, textTransform: "uppercase" }}>
+                        {allRejected ? (activeServiceType === "delivery" ? "Nenhum Entregador Disponível" : "Nenhum Motorista Disponível") : (activeServiceType === "delivery" ? "Oferta Ativa: Entrega" : "Oferta Ativa: Corrida")}{countdownText ? ` (${countdownText})` : ""}
                       </Text>
-                      <Text style={{ color: "rgba(9, 26, 47, 0.8)", fontWeight: "700", fontSize: 12 }}>
+                      <Text style={{ color: allRejected ? "rgba(255, 255, 255, 0.9)" : "rgba(9, 26, 47, 0.8)", fontWeight: "700", fontSize: 12 }}>
                         {activeServiceType === "delivery"
-                          ? "Aguardando entregadores analisarem seu pedido"
-                          : "Aguardando motoristas analisarem seu pedido"}
+                          ? allRejected ? "Seu pedido foi recusado. Toque aqui para AUMENTAR a oferta." : "Aguardando entregadores analisarem seu pedido"
+                          : allRejected ? "Seu pedido foi recusado. Toque aqui para AUMENTAR a oferta." : "Aguardando motoristas analisarem seu pedido"}
                       </Text>
                    </View>
-                   <View style={{ backgroundColor: "#091A2F", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}>
-                      <Text style={{ color: "#F59E0B", fontWeight: "900", fontSize: 10 }}>VER</Text>
+                   <View style={{ backgroundColor: allRejected ? "#FFF" : "#091A2F", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}>
+                      <Text style={{ color: allRejected ? "#EF4444" : "#F59E0B", fontWeight: "900", fontSize: 10 }}>VER</Text>
                    </View>
                  </TouchableOpacity>
                </View>
@@ -670,7 +674,10 @@ export default function HomeScreen() {
                     )}
                     <View className="absolute top-0 right-0 w-2.5 h-2.5 rounded-full bg-[#ef4444] border-[1.5px] border-[#02de95]" />
                   </TouchableOpacity>
-                  <Text className="text-[#091A2F] text-[22px] font-bold">Olá, <Text className="text-[#091A2F] font-black">{user?.name || "Cliente"}</Text>!</Text>
+                  <View className="justify-center">
+                    <Text className="text-white text-[22px] font-bold leading-6">Olá,</Text>
+                    <Text className="text-[#091A2F] text-[22px] font-black leading-6" numberOfLines={1} ellipsizeMode="tail">{user?.name || "Cliente"}!</Text>
+                  </View>
                 </View>
                 <View className="flex-row items-center gap-3">
                   <TouchableOpacity className="bg-[#091A2F]/10 px-3 py-1 rounded-xl border border-[#091A2F]/15">
@@ -918,7 +925,10 @@ export default function HomeScreen() {
                   )}
                   <View className="absolute top-0 right-0 w-2.5 h-2.5 rounded-full bg-[#ef4444] border-[1.5px] border-[#091A2F]" />
                 </TouchableOpacity>
-                <Text className="text-white text-[22px] font-bold">Olá, <Text className="text-[#02de95] font-black">{user?.name || "Cliente"}</Text>!</Text>
+                <View className="justify-center">
+                  <Text className="text-white text-[22px] font-bold leading-6">Olá,</Text>
+                  <Text className="text-[#02de95] text-[22px] font-black leading-6" numberOfLines={1} ellipsizeMode="tail">{user?.name || "Cliente"}!</Text>
+                </View>
               </View>
               <View className="flex-row items-center gap-3">
                 <TouchableOpacity onPress={handleSOS} className="w-10 h-10 rounded-full bg-[#11253E] items-center justify-center border border-white/5" accessibilityLabel="Central de segurança" accessibilityRole="button">
@@ -1121,9 +1131,9 @@ export default function HomeScreen() {
           >
             <TouchableOpacity
               activeOpacity={0.9}
-              onPress={() => navigation.navigate("ActiveOrders")}
+              onPress={() => navigation.navigate("RideOffersMarketplace", { rideId: activeRequestingRideId })}
               style={{
-                backgroundColor: "#F59E0B",
+                backgroundColor: allRejected ? "#EF4444" : "#F59E0B",
                 borderRadius: 16,
                 padding: 16,
                 flexDirection: "row",
@@ -1138,20 +1148,20 @@ export default function HomeScreen() {
               }}
             >
               <View style={{ backgroundColor: "rgba(9, 26, 47, 0.2)", padding: 8, borderRadius: 12, marginRight: 12 }}>
-                 <Info size={20} color="#091A2F" />
+                 <Info size={20} color={allRejected ? "#FFF" : "#091A2F"} />
               </View>
               <View style={{ flex: 1 }}>
-                 <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 14, textTransform: "uppercase" }}>
-                   {activeServiceType === "delivery" ? "Oferta Ativa: Entrega" : "Oferta Ativa: Corrida"}{countdownText ? ` (${countdownText})` : ""}
+                 <Text style={{ color: allRejected ? "#FFF" : "#091A2F", fontWeight: "900", fontSize: 14, textTransform: "uppercase" }}>
+                   {allRejected ? (activeServiceType === "delivery" ? "Nenhum Entregador Disponível" : "Nenhum Motorista Disponível") : (activeServiceType === "delivery" ? "Oferta Ativa: Entrega" : "Oferta Ativa: Corrida")}{countdownText ? ` (${countdownText})` : ""}
                  </Text>
-                 <Text style={{ color: "rgba(9, 26, 47, 0.8)", fontWeight: "700", fontSize: 12 }}>
+                 <Text style={{ color: allRejected ? "rgba(255, 255, 255, 0.9)" : "rgba(9, 26, 47, 0.8)", fontWeight: "700", fontSize: 12 }}>
                    {activeServiceType === "delivery"
-                     ? "Aguardando entregadores analisarem seu pedido"
-                     : "Aguardando motoristas analisarem seu pedido"}
+                     ? allRejected ? "Seu pedido foi recusado. Toque aqui para AUMENTAR a oferta." : "Aguardando entregadores analisarem seu pedido"
+                     : allRejected ? "Seu pedido foi recusado. Toque aqui para AUMENTAR a oferta." : "Aguardando motoristas analisarem seu pedido"}
                  </Text>
               </View>
-              <View style={{ backgroundColor: "#091A2F", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}>
-                 <Text style={{ color: "#F59E0B", fontWeight: "900", fontSize: 10 }}>VER</Text>
+              <View style={{ backgroundColor: allRejected ? "#FFF" : "#091A2F", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}>
+                 <Text style={{ color: allRejected ? "#EF4444" : "#F59E0B", fontWeight: "900", fontSize: 10 }}>VER</Text>
               </View>
             </TouchableOpacity>
           </MotiView>

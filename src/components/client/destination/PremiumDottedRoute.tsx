@@ -34,23 +34,13 @@ export const PremiumDottedRoute = ({ coordinates }: PremiumDottedRouteProps) => 
 
   return (
     <>
-      {/* Inner High-Vis Dotted Path */}
+      {/* A single clean high-contrast solid dark navy line */}
       <Polyline
         coordinates={coordinates}
-        strokeColor={colors.primary[500]}
-        strokeWidth={3}
-        lineDashPattern={[2, 12]} // Clean separated dots
+        strokeColor="#091A2F"
+        strokeWidth={4}
         lineCap="round"
         zIndex={20}
-      />
-
-      {/* Soft Ambient Underglow */}
-      <Polyline
-        coordinates={coordinates}
-        strokeColor="rgba(2, 222, 149, 0.15)"
-        strokeWidth={8}
-        lineCap="round"
-        zIndex={19}
       />
 
       {/* Micro-Pulse iterating along path */}

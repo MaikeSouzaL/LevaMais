@@ -16,6 +16,7 @@ export type UserType = "client" | "driver" | "admin" | null | undefined;
  * so existing call-sites don't break during migration.
  */
 export interface UserData extends User {
+  id?: string;
   /** @deprecated use `name` */
   nome: string;
   /** @deprecated use `phone` */
@@ -53,6 +54,7 @@ function normalizeUserData(data: UserData): UserData {
 
   return {
     ...data,
+    id: data._id || data.id,
     // Canonical English fields — prefer these in new code
     name: resolvedName,
     phone: resolvedPhone,

@@ -1,7 +1,7 @@
 import React, { memo, useEffect, useState } from "react";
-import { StyleSheet, View, Platform, Image } from "react-native";
+import { StyleSheet, View, Platform, Image, TouchableOpacity } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
-import { Car, Bike, User } from "lucide-react-native";
+import { Car, Bike, User, Navigation } from "lucide-react-native";
 
 import { colors } from "@/theme";
 import { MotiView } from "moti";
@@ -28,7 +28,6 @@ const mapSoftDarkStyle = [
   { featureType: "transit", elementType: "geometry", stylers: [{ color: "#1e3045" }] },
   { featureType: "administrative", elementType: "geometry.stroke", stylers: [{ color: "#2d4a65" }] },
 ];
-
 
 interface RealtimeVehicle {
   id: string;
@@ -96,19 +95,27 @@ export const ClientRealtimeMap = memo(({
     return () => clearInterval(interval);
   }, [userRegion?.latitude, userRegion?.longitude]);
 
-  const [hasCentered, setHasCentered] = useState(false);
-
   useEffect(() => {
-    if (mapRef.current && userRegion?.latitude && !hasCentered) {
+    if (mapRef.current && userRegion?.latitude) {
       mapRef.current.animateToRegion({
         latitude: userRegion.latitude,
         longitude: userRegion.longitude,
         latitudeDelta: 0.003,
         longitudeDelta: 0.003,
       }, 1000);
-      setHasCentered(true);
     }
-  }, [userRegion?.latitude, userRegion?.longitude, hasCentered]);
+  }, [userRegion?.latitude, userRegion?.longitude]);
+
+  const handleCenterUser = () => {
+    if (mapRef.current && userRegion?.latitude) {
+      mapRef.current.animateToRegion({
+        latitude: userRegion.latitude,
+        longitude: userRegion.longitude,
+        latitudeDelta: 0.003,
+        longitudeDelta: 0.003,
+      }, 800);
+    }
+  };
 
   return (
     <View style={StyleSheet.absoluteFill}>
@@ -119,6 +126,7 @@ export const ClientRealtimeMap = memo(({
         customMapStyle={useDarkStyle ? mapSoftDarkStyle : []}
         initialRegion={region}
         showsUserLocation={true}
+        showsMyLocationButton={false} // Desativa o botão nativo do SDK no topo-direito
         showsCompass={false}
         showsPointsOfInterest={true}
         showsBuildings={true}
@@ -162,6 +170,34 @@ export const ClientRealtimeMap = memo(({
         loading={availabilityLoading}
         error={availabilityError}
       />
+
+      {/* 🧭 Custom Floating GPS Target Button */}
+      {userRegion?.latitude && (
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={handleCenterUser}
+          style={{
+            position: "absolute",
+            bottom: 82, // Posicionado logo acima da barra de busca do cliente
+            right: 14,
+            width: 42,
+            height: 42,
+            borderRadius: 21,
+            backgroundColor: "rgba(255, 255, 255, 0.96)",
+            borderWidth: 1,
+            borderColor: "rgba(9, 26, 47, 0.08)",
+            alignItems: "center",
+            justifyContent: "center",
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.1,
+            shadowRadius: 5,
+            elevation: 4,
+          }}
+        >
+          <Navigation size={16} color="#091A2F" fill="#091A2F" />
+        </TouchableOpacity>
+      )}
     </View>
   );
 });

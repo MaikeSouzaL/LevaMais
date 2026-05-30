@@ -109,9 +109,34 @@ function TripSummaryCard({ offer }: TripSummaryCardProps) {
                   <Text className="text-[#02de95] text-[9px] font-black uppercase tracking-wider">Verificado</Text>
                 </View>
               </View>
-              <View className="flex-row items-center">
-                <Star size={12} color="#fbbf24" fill="#fbbf24" className="mr-1" />
-                <Text className="text-[#fbbf24] font-bold text-xs">{rating}</Text>
+              <View className="flex-row items-center gap-2 mt-1">
+                <View className="flex-row items-center mr-2">
+                  <Star size={12} color="#fbbf24" fill="#fbbf24" className="mr-1" />
+                  <Text className="text-[#fbbf24] font-bold text-xs">{rating}</Text>
+                </View>
+                {(() => {
+                  const isDelivery = offer.serviceType === 'delivery';
+                  const badgeColor = isDelivery ? '#10B981' : '#3B82F6';
+                  const badgeBg = isDelivery ? 'rgba(16, 185, 129, 0.1)' : 'rgba(59, 130, 246, 0.1)';
+                  const badgeBorder = isDelivery ? 'rgba(16, 185, 129, 0.3)' : 'rgba(59, 130, 246, 0.3)';
+                  const label = isDelivery ? 'Entrega 📦' : 'Corrida 🚗';
+                  return (
+                    <View
+                      style={{
+                        backgroundColor: badgeBg,
+                        borderColor: badgeBorder,
+                        borderWidth: 1,
+                        borderRadius: 8,
+                        paddingVertical: 2,
+                        paddingHorizontal: 8,
+                      }}
+                    >
+                      <Text style={{ color: badgeColor, fontSize: 10, fontWeight: '800' }}>
+                        {label}
+                      </Text>
+                    </View>
+                  );
+                })()}
               </View>
             </View>
           </View>

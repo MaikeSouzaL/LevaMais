@@ -727,6 +727,7 @@ class AuthController {
         driverPreferences, // <-- Added driverPreferences
         // compliance
         acceptedTerms,
+        tourSeen, // <-- Added tourSeen
         // CPF/CNPJ & Company Details
         cpf,
         cnpj,
@@ -857,6 +858,9 @@ class AuthController {
       }
       if (queueRedispatchInterval !== undefined) {
         user.queueRedispatchInterval = queueRedispatchInterval === null ? null : Number(queueRedispatchInterval);
+      }
+      if (tourSeen !== undefined) {
+        user.tourSeen = Boolean(tourSeen);
       }
 
       if (user.userType === "driver") {

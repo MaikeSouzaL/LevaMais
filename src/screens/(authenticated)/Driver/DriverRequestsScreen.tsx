@@ -113,7 +113,6 @@ export default function DriverRequestsScreen() {
     navigation.setOptions({ headerShown: false });
   }, [navigation]);
 
-  const currentDriverId = useAuthStore((s) => s.userData?.id);
   const [requests, setRequests] = useState<RideRequestItem[]>([]);
   const [driverFilterInfo, setDriverFilterInfo] = useState<{
     status?: string;
@@ -735,7 +734,7 @@ export default function DriverRequestsScreen() {
           paddingTop: Math.max(insets.top, 16),
           paddingHorizontal: 24,
           paddingBottom: 16,
-          backgroundColor: "transparent",
+          backgroundColor: "#091A2F",
           borderBottomWidth: 1,
           borderBottomColor: "rgba(255, 255, 255, 0.04)",
           zIndex: 99,

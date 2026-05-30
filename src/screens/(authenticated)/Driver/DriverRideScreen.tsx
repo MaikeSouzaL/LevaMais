@@ -759,6 +759,7 @@ export default function DriverRideScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: "#091A2F" }} edges={["top"]}>
       <ActiveDeliveryHeader
         driverPhoto={driverAvatar}
+        isDelivery={isDelivery}
         canCancel={canCancel}
         onCancelPress={() => {
           try {

@@ -179,4 +179,10 @@ router.delete(
   authController.deleteUserById.bind(authController),
 );
 
+// ── Motoristas Favoritos ──
+const { addFavoriteDriver, removeFavoriteDriver, getFavoriteDrivers } = require("../controllers/ride.advanced.mixin");
+router.post("/favorite-drivers", authenticateToken, addFavoriteDriver);
+router.delete("/favorite-drivers", authenticateToken, removeFavoriteDriver);
+router.get("/favorite-drivers", authenticateToken, getFavoriteDrivers);
+
 module.exports = router;

@@ -54,16 +54,16 @@ export function ActiveDeliveryBottomSheet({
   const isAtPickup = canStart || status === "arrived";
   const isGoingToDropoff = canComplete || status === "in_progress";
 
-  let headerBadge = "ENTREGA ATIVA";
+  let headerBadge = isDelivery ? "ENTREGA ATIVA" : "CORRIDA ATIVA";
   let headerTitle = pickupAddress;
   if (isGoingToPickup) {
-    headerBadge = "INDO PARA A COLETA";
+    headerBadge = isDelivery ? "INDO PARA A COLETA" : "INDO BUSCAR PASSAGEIRO";
     headerTitle = pickupAddress;
   } else if (isAtPickup) {
-    headerBadge = "AGUARDANDO RETIRADA";
+    headerBadge = isDelivery ? "AGUARDANDO RETIRADA" : "AGUARDANDO EMBARQUE";
     headerTitle = pickupAddress;
   } else if (isGoingToDropoff) {
-    headerBadge = "A CAMINHO DA ENTREGA";
+    headerBadge = isDelivery ? "A CAMINHO DA ENTREGA" : "A CAMINHO DO DESTINO";
     headerTitle = dropoffAddress;
   }
 
@@ -156,7 +156,7 @@ export function ActiveDeliveryBottomSheet({
 
       {isAtPickup && (
         <ArrivedButton
-          label="INICIAR CORRIDA"
+          label={isDelivery ? "INICIAR ENTREGA" : "INICIAR CORRIDA"}
           loading={actionLoading}
           onPress={onPrimaryActionPress}
         />
@@ -171,7 +171,7 @@ export function ActiveDeliveryBottomSheet({
           />
         ) : (
           <ArrivedButton
-            label="FINALIZAR ENTREGA"
+            label={isDelivery ? "FINALIZAR ENTREGA" : "FINALIZAR CORRIDA"}
             loading={actionLoading}
             onPress={onPrimaryActionPress}
           />

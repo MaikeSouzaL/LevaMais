@@ -6,12 +6,14 @@ type ActiveDeliveryHeaderProps = {
   driverPhoto?: string;
   onCancelPress?: () => void;
   canCancel?: boolean;
+  isDelivery?: boolean;
 };
 
 export function ActiveDeliveryHeader({
   driverPhoto,
   onCancelPress,
   canCancel = true,
+  isDelivery = false,
 }: ActiveDeliveryHeaderProps) {
   return (
     <View className="h-16 px-4 flex-row items-center justify-between bg-[#091A2F] border-b border-white/[0.05]">
@@ -27,7 +29,7 @@ export function ActiveDeliveryHeader({
           </View>
         )}
         <Text className="text-white font-extrabold text-base tracking-wide">
-          Entrega ativa
+          {isDelivery ? "Entrega Ativa 📦" : "Corrida Ativa 🚗"}
         </Text>
       </View>
 

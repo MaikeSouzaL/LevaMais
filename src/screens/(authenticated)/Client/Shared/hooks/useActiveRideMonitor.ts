@@ -15,6 +15,7 @@ interface ActiveRideMonitorState {
   waitingQueueCount: number;
   expiredRideId: string | null;
   showCancelledModal: boolean;
+  allRejected: boolean;
 }
 
 /**
@@ -39,6 +40,7 @@ export function useActiveRideMonitor() {
     waitingQueueCount: 0,
     expiredRideId: null,
     showCancelledModal: false,
+    allRejected: false,
   });
 
   const checkActiveRide = useCallback(async () => {
@@ -65,6 +67,7 @@ export function useActiveRideMonitor() {
           activeServiceType: (rideWithOffers.serviceType as "ride" | "delivery") || "ride",
           activeRideCreatedAt: rideWithOffers.createdAt || null,
           activeRideSearchTimeout: rideWithOffers.searchTimeoutSeconds || 300,
+          allRejected: false,
         }));
       } else {
         // 2. Verifica se há corrida aguardando motoristas (requesting)
@@ -81,6 +84,7 @@ export function useActiveRideMonitor() {
           activeServiceType: requestingRide ? ((requestingRide.serviceType as "ride" | "delivery") || "ride") : null,
           activeRideCreatedAt: requestingRide ? (requestingRide.createdAt || null) : null,
           activeRideSearchTimeout: requestingRide ? (requestingRide.searchTimeoutSeconds || 300) : null,
+          allRejected: requestingRide ? Boolean(requestingRide.allRejected) : false,
         }));
       }
 
@@ -343,6 +347,7 @@ export function useActiveRideMonitor() {
     waitingQueueCount: state.waitingQueueCount,
     expiredRideId: state.expiredRideId,
     showCancelledModal: state.showCancelledModal,
+    allRejected: state.allRejected,
     dismissCancelledModal,
     confirmExpiredAction,
     setActiveRequestingRideId,

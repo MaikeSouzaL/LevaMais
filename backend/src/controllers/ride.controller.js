@@ -755,7 +755,37 @@ class RideController {
           .populate("clientId", "name phone profilePhoto")
           .populate("driverId", "name phone profilePhoto");
 
-        return res.json({ active: rides.length > 0, count: rides.length, rides });
+        // Dynamically add allRejected flag
+        const enrichedRides = [];
+        for (const ride of rides) {
+          const rideObj = ride.toObject();
+          if (ride.status === "requesting") {
+            const searchRadius = 15000;
+            const nearbyDrivers = await DriverLocation.findNearby(
+              ride.pickup.latitude,
+              ride.pickup.longitude,
+              searchRadius,
+              ride.vehicleType,
+              100,
+              ride.serviceType,
+            ).catch(() => []);
+
+            const nextAvailable = nearbyDrivers.find((d) => {
+              const id = String(d.driverId);
+              const rejected = ride.rejectedBy?.some(
+                (r) => String(r.driverId) === id,
+              );
+              return !rejected;
+            });
+
+            rideObj.allRejected = !nextAvailable;
+          } else {
+            rideObj.allRejected = false;
+          }
+          enrichedRides.push(rideObj);
+        }
+
+        return res.json({ active: enrichedRides.length > 0, count: enrichedRides.length, rides: enrichedRides });
       }
 
       if (userType === "driver") {
@@ -1669,8 +1699,30 @@ class RideController {
         (a, b) => Number(a.amount || 0) - Number(b.amount || 0),
       );
 
+      // Check if all available drivers rejected
+      const searchRadius = 15000;
+      const nearbyDrivers = await DriverLocation.findNearby(
+        ride.pickup.latitude,
+        ride.pickup.longitude,
+        searchRadius,
+        ride.vehicleType,
+        100,
+        ride.serviceType,
+      ).catch(() => []);
+
+      const nextAvailable = nearbyDrivers.find((d) => {
+        const id = String(d.driverId);
+        const rejected = ride.rejectedBy?.some(
+          (r) => String(r.driverId) === id,
+        );
+        return !rejected;
+      });
+
+      const isAllRejected = ride.status === "requesting" && !nextAvailable;
+
       return res.json({
         success: true,
+        allRejected: isAllRejected,
         negotiation: {
           enabled: Boolean(negotiation.enabled),
           clientOffer: negotiation.clientOffer ?? null,

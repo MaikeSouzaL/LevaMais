@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Text, TouchableOpacity, StatusBar, ScrollView, TextInput, Dimensions } from "react-native";
+import { View, Text, TouchableOpacity, StatusBar, ScrollView, TextInput, Dimensions, ActivityIndicator } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { BlurView } from "expo-blur";
 import Toast from "react-native-toast-message";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { MotiView, AnimatePresence } from "moti";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { AlertCircle, RefreshCw, TrendingUp, Zap, TrendingDown, Trash2 } from "lucide-react-native";
+import { AlertCircle, RefreshCw, TrendingUp, Zap, TrendingDown, Trash2, ChevronLeft } from "lucide-react-native";
 
 import rideService, { RideOffer } from "@/services/ride.service";
 import webSocketService from "@/services/websocket.service";
@@ -15,7 +15,6 @@ import { formatBRL } from "@/utils/mappers";
 
 // Custom Premium Hooks & Components ✨
 import { Modal } from "@/components/Modal";
-import { MarketplaceHeader } from "@/components/client/offers/MarketplaceHeader";
 import { DriverOfferListItem } from "@/components/client/offers/DriverOfferListItem";
 
 import { GlobalMap } from "@/components/GlobalMap";
@@ -86,6 +85,7 @@ export default function RideOffersMarketplaceScreen() {
   const [rideDetails, setRideDetails] = useState<any>(null);
   const [negotiation, setNegotiation] = useState<any>(null);
   const [offers, setOffers] = useState<RideOffer[]>([]);
+  const [allRejected, setAllRejected] = useState(false);
 
   // States for General Increase Offer Flow (when all driver reject)
   const [showIncreaseModal, setShowIncreaseModal] = useState(false);
@@ -157,6 +157,14 @@ export default function RideOffersMarketplaceScreen() {
       setNegotiation(data.negotiation);
       const filtered = (data.offers || []).filter((o) => o.status !== "rejected");
       
+      if (filtered.length > 0) {
+        setAllRejected(false);
+      } else if (data.allRejected === true) {
+        setAllRejected(true);
+      } else {
+        setAllRejected(false);
+      }
+      
       setOffers((prev) => {
         // Play sound if number of active offers increased
         if (filtered.length > prev.length) {
@@ -179,6 +187,7 @@ export default function RideOffersMarketplaceScreen() {
         text2: `A proposta base foi aumentada em +${formatBRL(amount)} com sucesso!`,
       });
       setShowIncreaseModal(false);
+      setAllRejected(false);
       await loadRideDetails();
       await loadOffers();
     } catch (e: any) {
@@ -243,6 +252,11 @@ export default function RideOffersMarketplaceScreen() {
 
     const onOffersUpdated = async (data: any) => {
       if (mounted && data?.rideId === rideId) {
+        if (data?.reason === "driver_rejected_some") {
+          setAllRejected(true);
+        } else {
+          setAllRejected(false);
+        }
         // Capture count before reload
         const countBefore = prevOfferCount;
         await loadOffers().catch(() => {});
@@ -380,55 +394,176 @@ export default function RideOffersMarketplaceScreen() {
       {/* 📡 Operational Blurred Tactical Background */}
       <TacticalBackground pickup={rideDetails?.pickup} />
 
-      {/* 👑 Premium Top Inset & HUD Header */}
-      <View style={{ height: insets.top + 80, backgroundColor: "transparent", zIndex: 10 }}>
-        <MarketplaceHeader 
-          onBack={() => navigation.replace("Home")} 
-          offerCount={sortedOffers.length} 
-          useDarkMap={true}
-        />
-      </View>
+      {/* 🟢 Gorgeous Curved Green Top Header Block */}
+      <View 
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: insets.top + 145,
+          backgroundColor: "#091A2F",
+          borderBottomLeftRadius: 32,
+          borderBottomRightRadius: 32,
+          borderBottomWidth: 1.5,
+          borderColor: "rgba(2, 222, 149, 0.25)",
+          zIndex: 40,
+          paddingHorizontal: 20,
+          paddingTop: insets.top + 12,
+          shadowColor: "#02de95",
+          shadowOffset: { width: 0, height: 6 },
+          shadowOpacity: 0.1,
+          shadowRadius: 15,
+          elevation: 10,
+        }}
+      >
+        {/* Navigation Row */}
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          {/* Back Chevron */}
+          <TouchableOpacity 
+            onPress={() => navigation.replace("Home")}
+            style={{
+              height: 44,
+              width: 44,
+              borderRadius: 14,
+              backgroundColor: "rgba(255, 255, 255, 0.05)",
+              borderWidth: 1.2,
+              borderColor: "rgba(255, 255, 255, 0.1)",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+            activeOpacity={0.85}
+          >
+            <ChevronLeft color="#02de95" size={24} strokeWidth={2.5} />
+          </TouchableOpacity>
 
-      {/* 💰 Sua Proposta Base with Semi-Translucence */}
-      <View style={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)", backgroundColor: "rgba(11, 26, 42, 0.7)", zIndex: 10, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-        <View>
-          <Text className="text-white/40 text-[10px] font-black uppercase tracking-wider mb-0.5">
-            Sua Proposta Base
-          </Text>
-          <Text className="text-white font-black text-3xl">
-            {formatBRL(Number(negotiation?.clientOffer || rideDetails?.pricing?.total || 0))}
-          </Text>
+          {/* Center Title Pill */}
+          <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+            <View style={{
+              backgroundColor: "rgba(2, 222, 149, 0.08)",
+              borderWidth: 1.2,
+              borderColor: "rgba(2, 222, 149, 0.25)",
+              borderRadius: 20,
+              paddingHorizontal: 14,
+              paddingVertical: 6,
+              flexDirection: "row",
+              alignItems: "center",
+            }}>
+              <View style={{ marginRight: 6, position: "relative", alignItems: "center", justifyContent: "center" }}>
+                <MotiView
+                  from={{ scale: 0.8, opacity: 0.5 }}
+                  animate={{ scale: 1.7, opacity: 0 }}
+                  transition={{ loop: true, duration: 2000, type: "timing" }}
+                  style={{
+                    position: "absolute",
+                    width: 10,
+                    height: 10,
+                    borderRadius: 5,
+                    backgroundColor: "#02de95",
+                  }}
+                />
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#02de95", zIndex: 10 }} />
+              </View>
+              <View style={{ alignItems: "center" }}>
+                <Text style={{ color: "#02de95", fontWeight: "900", fontSize: 13, letterSpacing: 1.5, textTransform: "uppercase" }}>
+                  Propostas Ativas
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Right Spacer for Perfect Centering */}
+          <View style={{ width: 44 }} />
         </View>
 
-        {!["no_drivers_available", "cancelled_no_driver"].includes(rideDetails?.status || "") && (
-          <TouchableOpacity
-            onPress={() => setShowIncreaseModal(true)}
-            className="flex-row items-center gap-2 bg-amber-500/10 border border-amber-500/30 px-4 py-2.5 rounded-xl"
-            activeOpacity={0.8}
-          >
-            <TrendingUp size={14} color="#FBBF24" />
-            <Text className="text-amber-400 font-black text-xs uppercase tracking-wider">Aumentar</Text>
-          </TouchableOpacity>
-        )}
+        {/* Row 2: Proposal Info directly integrated into Header (no nested card!) */}
+        <MotiView
+          from={{ opacity: 0, translateY: 10 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ type: "spring", duration: 800 }}
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginTop: 8,
+            paddingHorizontal: 4,
+          }}
+        >
+          <View>
+            <Text style={{ color: "rgba(255, 255, 255, 0.45)", fontSize: 10, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>
+              Sua Proposta Base
+            </Text>
+            <Text style={{ color: "#FFF", fontSize: 26, fontWeight: "900" }}>
+              {formatBRL(Number(negotiation?.clientOffer || rideDetails?.pricing?.total || 0))}
+            </Text>
+          </View>
+
+          {!["no_drivers_available", "cancelled_no_driver"].includes(rideDetails?.status || "") && !allRejected && (
+            <TouchableOpacity
+              onPress={() => setShowIncreaseModal(true)}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 6,
+                backgroundColor: "#FBBF24",
+                paddingHorizontal: 16,
+                paddingVertical: 10,
+                borderRadius: 12,
+                shadowColor: "#FBBF24",
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.2,
+                shadowRadius: 6,
+                elevation: 4,
+              }}
+              activeOpacity={0.85}
+            >
+              <TrendingUp size={14} color="#091A2F" strokeWidth={2.5} />
+              <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5 }}>Aumentar</Text>
+            </TouchableOpacity>
+          )}
+        </MotiView>
       </View>
 
       {/* 🧬 Scrollable Vertical Matrix of Counter-Offers */}
       <ScrollView 
         style={{ flex: 1, backgroundColor: "transparent", zIndex: 10 }} 
-        contentContainerStyle={{ padding: 24, paddingBottom: 150 }}
+        contentContainerStyle={{ paddingTop: insets.top + 160, paddingHorizontal: 24, paddingBottom: 150 }}
       >
         {/* 💡 Accelerate Advice Indicator */}
-        {!loading && sortedOffers.length === 0 && !["no_drivers_available", "cancelled_no_driver"].includes(rideDetails?.status || "") && (
+        {!loading && sortedOffers.length === 0 && !["no_drivers_available", "cancelled_no_driver"].includes(rideDetails?.status || "") && !allRejected && (
           <MotiView 
             from={{ opacity: 0, translateY: -10 }} 
             animate={{ opacity: 1, translateY: 0 }}
-            className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 mb-5 flex-row items-center"
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: "#FFFBEB",
+              borderWidth: 1.2,
+              borderColor: "#FCD34D",
+              borderRadius: 20,
+              padding: 16,
+              marginBottom: 20,
+              shadowColor: "#D97706",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.05,
+              shadowRadius: 10,
+              elevation: 2,
+            }}
           >
-            <View className="w-9 h-9 rounded-full bg-amber-500/20 items-center justify-center mr-3 flex-shrink-0">
-               <AlertCircle size={18} color="#FBBF24" />
+            <View style={{
+              width: 36,
+              height: 36,
+              borderRadius: 18,
+              backgroundColor: "#FEF3C7",
+              alignItems: "center",
+              justifyContent: "center",
+              marginRight: 12,
+              flexShrink: 0,
+            }}>
+               <AlertCircle size={20} color="#D97706" />
             </View>
-            <View className="flex-1">
-               <Text className="text-amber-500/90 text-[11px] font-bold leading-relaxed">
+            <View style={{ flex: 1 }}>
+               <Text style={{ color: "#92400E", fontSize: 11.5, fontWeight: "800", lineHeight: 18 }}>
                  Caso esteja demorando muito, tente aumentar a sua oferta acima para que o seu pedido seja aceito mais rapidamente pelos motoristas!
                </Text>
             </View>
@@ -446,7 +581,7 @@ export default function RideOffersMarketplaceScreen() {
                 Sincronizando propostas...
               </Text>
             </MotiView>
-          ) : ["no_drivers_available", "cancelled_no_driver"].includes(rideDetails?.status || "") ? (
+          ) : ["no_drivers_available", "cancelled_no_driver"].includes(rideDetails?.status || "") || allRejected ? (
             <MotiView 
               from={{ opacity: 0, scale: 0.95 }} 
               animate={{ opacity: 1, scale: 1 }}
@@ -568,15 +703,20 @@ export default function RideOffersMarketplaceScreen() {
               animate={{ opacity: 1, scale: 1 }}
               transition={{ type: "spring", duration: 800 }}
               style={{
-                backgroundColor: "rgba(255,255,255,0.02)",
+                backgroundColor: "#FFFFFF",
                 borderWidth: 1,
-                borderColor: "rgba(255,255,255,0.06)",
+                borderColor: "rgba(9, 26, 47, 0.06)",
                 borderRadius: 24,
                 padding: 32,
                 alignItems: "center",
                 justifyContent: "center",
                 marginTop: 24,
                 overflow: "hidden",
+                shadowColor: "#091A2F",
+                shadowOffset: { width: 0, height: 8 },
+                shadowOpacity: 0.06,
+                shadowRadius: 16,
+                elevation: 4,
               }}
             >
               {/* 📡 Radar Sonar Animation (Hologram Neon Effect) */}
@@ -680,11 +820,34 @@ export default function RideOffersMarketplaceScreen() {
                 </View>
               </View>
               
-              <Text style={{ color: "#fff", fontWeight: "900", fontSize: 18, marginBottom: 8, textAlign: "center" }}>
+              <MotiView
+                from={{ opacity: 0.6 }}
+                animate={{ opacity: [0.6, 1, 0.6] }}
+                transition={{ loop: true, duration: 1800, type: "timing" }}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  backgroundColor: "rgba(2, 222, 149, 0.08)",
+                  borderWidth: 1.2,
+                  borderColor: "rgba(2, 222, 149, 0.2)",
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 12,
+                  marginBottom: 16,
+                  alignSelf: "center",
+                }}
+              >
+                <ActivityIndicator size="small" color="#02de95" style={{ marginRight: 6 }} />
+                <Text style={{ color: "#02de95", fontSize: 11, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  Buscando entregadores...
+                </Text>
+              </MotiView>
+
+              <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 18, marginBottom: 8, textAlign: "center" }}>
                 Aguardando Propostas...
               </Text>
               
-              <Text style={{ color: "rgba(255,255,255,0.4)", textAlign: "center", fontSize: 13, lineHeight: 20, maxWidth: 280 }}>
+              <Text style={{ color: "rgba(9, 26, 47, 0.6)", textAlign: "center", fontSize: 13, lineHeight: 20, maxWidth: 280 }}>
                 Os entregadores parceiros mais próximos da sua região já receberam o alerta. Em breve as propostas aparecerão abaixo!
               </Text>
             </MotiView>
@@ -895,13 +1058,18 @@ export default function RideOffersMarketplaceScreen() {
                width: "100%",
                height: 48,
                borderRadius: 16,
-               backgroundColor: "rgba(255, 255, 255, 0.03)",
-               borderWidth: 1,
-               borderColor: "rgba(255, 255, 255, 0.08)",
+               backgroundColor: "#11253E",
+               borderWidth: 1.2,
+               borderColor: "rgba(239, 68, 68, 0.25)",
+               shadowColor: "#ef4444",
+               shadowOffset: { width: 0, height: 4 },
+               shadowOpacity: 0.08,
+               shadowRadius: 10,
+               elevation: 4,
             }}
          >
-            <Trash2 size={14} color="rgba(255,255,255,0.35)" style={{ marginRight: 8 }} />
-            <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 11.5, fontWeight: "700", letterSpacing: 0.5, textTransform: "uppercase" }}>
+            <Trash2 size={14} color="#ef4444" style={{ marginRight: 8 }} />
+            <Text style={{ color: "#ef4444", fontSize: 11.5, fontWeight: "800", letterSpacing: 0.5, textTransform: "uppercase" }}>
                Cancelar Solicitação
             </Text>
          </TouchableOpacity>

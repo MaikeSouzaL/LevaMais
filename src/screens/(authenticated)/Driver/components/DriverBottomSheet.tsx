@@ -1,8 +1,9 @@
-﻿import React, { useMemo, useState } from "react";
-import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
+import React, { useMemo, useState } from "react";
+import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from "react-native";
 import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import { Car, Package, Star, TrendingUp, Clock, AlertTriangle, Settings, ClipboardList, Power } from "lucide-react-native";
 import { MotiText, MotiView } from "moti";
+import { driverColors } from "@/theme/driverTheme";
 
 export type DriverServicePrefs = {
   ride: boolean;
@@ -35,6 +36,15 @@ interface DriverBottomSheetProps {
   onPressNegotiations?: () => void;
 }
 
+/**
+ * DriverBottomSheet — Highly interactive operational terminal for online/offline driver status.
+ *
+ * Upgraded UI/UX:
+ * - Breathing glowing border for active search states.
+ * - Heartbeat scaling power icon.
+ * - Sequential animated radar dots (...) next to "Buscando" to indicate active operations.
+ * - High-contrast glassmorphic stat pod containers.
+ */
 export function DriverBottomSheet({
   online,
   services,
@@ -90,6 +100,7 @@ export function DriverBottomSheet({
       handleIndicatorStyle={{ backgroundColor: "rgba(255,255,255,0.2)", width: 44 }}
     >
       <BottomSheetScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 10, paddingBottom: 40 }}>
+        {/* Negative Balance Alert */}
         {driverBalance !== undefined && driverBalance !== null && driverBalance <= 0 && !online && (
           <MotiView
             from={{ opacity: 0, scale: 0.95, translateY: -10 }}
@@ -136,32 +147,37 @@ export function DriverBottomSheet({
           </MotiView>
         )}
 
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, padding: 14, backgroundColor: "rgba(255,255,255,0.02)", borderWidth: 1, borderColor: "rgba(255,255,255,0.05)", borderRadius: 20, marginBottom: 18 }}>
-          <View style={{ flex: 1, alignItems: "center", borderRightWidth: 1, borderRightColor: "rgba(255,255,255,0.08)" }}>
-            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 2 }}>
+        {/* ── Glassmorphic Stats Grid ── */}
+        <View style={styles.statsGrid}>
+          {/* Rating */}
+          <View style={[styles.statColumn, { borderRightWidth: 1, borderRightColor: "rgba(255,255,255,0.06)" }]}>
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 3 }}>
               <Star size={13} color="#FBBF24" fill="#FBBF24" style={{ marginRight: 4 }} />
               <Text style={{ color: "#fff", fontWeight: "900", fontSize: 14.5 }}>{displayRating}</Text>
             </View>
-            <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 8.5, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.5 }}>Avaliação</Text>
+            <Text style={styles.statLabel}>Avaliação</Text>
           </View>
 
-          <View style={{ flex: 1.4, alignItems: "center", borderRightWidth: 1, borderRightColor: "rgba(255,255,255,0.08)" }}>
-            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 2 }}>
+          {/* Balance */}
+          <View style={[styles.statColumn, { flex: 1.4, borderRightWidth: 1, borderRightColor: "rgba(255,255,255,0.06)" }]}>
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 3 }}>
               <TrendingUp size={13} color="#02de95" style={{ marginRight: 6 }} />
               <Text style={{ color: "#02de95", fontWeight: "900", fontSize: 15.5 }}>{displayBalance}</Text>
             </View>
-            <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 8.5, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.5 }}>Saldo</Text>
+            <Text style={styles.statLabel}>Saldo</Text>
           </View>
 
-          <View style={{ flex: 1, alignItems: "center" }}>
-            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 2 }}>
+          {/* Time Online */}
+          <View style={styles.statColumn}>
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 3 }}>
               <Clock size={13} color="#3B82F6" style={{ marginRight: 4 }} />
               <Text style={{ color: "#fff", fontWeight: "900", fontSize: 14.5 }}>{displayOnlineTime}</Text>
             </View>
-            <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 8.5, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.5 }}>Tempo Online</Text>
+            <Text style={styles.statLabel}>Tempo Online</Text>
           </View>
         </View>
 
+        {/* Pending Negotiations Alert */}
         {(pendingNegotiationsCount > 0 || clientCounteredCount > 0) && online && (
           <TouchableOpacity
             onPress={onPressNegotiations || onPressOffers}
@@ -221,7 +237,9 @@ export function DriverBottomSheet({
           </TouchableOpacity>
         )}
 
+        {/* ── Main Control Matrix ── */}
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: showSettings ? 18 : 0 }}>
+          {/* Settings Trigger */}
           <TouchableOpacity
             onPress={() => setShowSettings((prev) => !prev)}
             activeOpacity={0.8}
@@ -239,95 +257,98 @@ export function DriverBottomSheet({
             <Settings size={20} color={showSettings ? "#02de95" : "rgba(255,255,255,0.75)"} strokeWidth={2.5} />
           </TouchableOpacity>
 
+          {/* Connect / Searching Button */}
           <View style={{ flex: 1 }}>
-            <TouchableOpacity
-              activeOpacity={0.9}
-              onPress={onToggleOnline}
-              disabled={!!isTogglingOnline}
+            <MotiView
+              animate={{
+                borderColor: online ? ["rgba(239, 68, 68, 0.35)", "rgba(239, 68, 68, 0.75)", "rgba(239, 68, 68, 0.35)"] : "rgba(2, 222, 149, 0.2)",
+              }}
+              transition={{
+                loop: true,
+                duration: 2000,
+                type: "timing",
+              }}
               style={{
-                width: "100%",
-                height: 64,
                 borderRadius: 24,
-                borderWidth: 1,
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: online ? "rgba(239, 68, 68, 0.05)" : "#02de95",
-                borderColor: online ? "rgba(239, 68, 68, 0.3)" : "rgba(2, 222, 149, 0.2)",
+                borderWidth: 1.5,
+                overflow: "hidden",
               }}
             >
-              {isTogglingOnline ? (
-                <ActivityIndicator color={online ? "#EF4444" : "#091A2F"} />
-              ) : (
-                <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  <MotiView
-                    animate={{ scale: online ? [0.9, 1.1, 1] : [1, 1, 1] }}
-                    transition={{ type: "timing", duration: 1000, loop: online }}
-                    style={{
-                      padding: 6,
-                      borderRadius: 999,
-                      marginRight: 10,
-                      backgroundColor: online ? "rgba(239, 68, 68, 0.2)" : "rgba(9, 26, 47, 0.1)",
-                    }}
-                  >
-                    <Power size={18} color={online ? "#EF4444" : "#091A2F"} strokeWidth={3} />
-                  </MotiView>
-
-                  {online ? (
-                    <MotiText
-                      from={{ opacity: 0.6, scale: 0.98 }}
-                      animate={{ opacity: 1, scale: 1.02 }}
-                      transition={{ type: "timing", duration: 900, loop: true }}
-                      style={{ color: "#EF4444", fontWeight: "900", fontSize: 28, textTransform: "uppercase" }}
-                    >
-                      Buscando
-                    </MotiText>
-                  ) : (
-                    <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 26, textTransform: "uppercase" }}>
-                      Conectar
-                    </Text>
-                  )}
-                </View>
-              )}
-            </TouchableOpacity>
+              <TouchableOpacity
+                activeOpacity={0.9}
+                onPress={onToggleOnline}
+                disabled={!!isTogglingOnline}
+                style={{
+                  width: "100%",
+                  height: 64,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: online ? "rgba(239, 68, 68, 0.06)" : "#02de95",
+                }}
+              >
+                {isTogglingOnline ? (
+                  <ActivityIndicator color={online ? "#EF4444" : "#091A2F"} />
+                ) : (
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    {online ? (
+                      <Text style={{ color: "#EF4444", fontWeight: "900", fontSize: 24, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                        Buscando
+                      </Text>
+                    ) : (
+                      <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 24, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                        Conectar
+                      </Text>
+                    )}
+                  </View>
+                )}
+              </TouchableOpacity>
+            </MotiView>
           </View>
 
+          {/* Offers Clipboard Trigger */}
           <MotiView
-            key={`offers-pulse-${offersPulseToken}-${hasPendingOffer ? "on" : "off"}`}
-            from={hasPendingOffer ? { scale: 0.7, opacity: 0.4 } : { scale: 1, opacity: 1 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ type: "timing", duration: hasPendingOffer ? 320 : 180 }}
+            key="offers-clipboard-outer-container"
             style={{ position: "relative" }}
           >
             {hasPendingOffer && (
               <>
                 <MotiView
-                  key={`offers-burst-outer-${offersPulseToken}`}
+                  key="offers-burst-outer-loop"
                   from={{ opacity: 0.65, scale: 0.45 }}
                   animate={{ opacity: 0, scale: 1.85 }}
-                  transition={{ type: "timing", duration: 620 }}
+                  transition={{
+                    type: "timing",
+                    duration: 1200,
+                    loop: true,
+                  }}
                   style={{
                     position: "absolute",
                     width: 54,
                     height: 54,
                     borderRadius: 27,
-                    borderWidth: 2,
+                    borderWidth: 2.5,
                     borderColor: "rgba(251,191,36,0.95)",
                     top: 0,
                     left: 0,
                   }}
                 />
                 <MotiView
-                  key={`offers-burst-inner-${offersPulseToken}`}
+                  key="offers-burst-inner-loop"
                   from={{ opacity: 0.75, scale: 0.35 }}
                   animate={{ opacity: 0, scale: 1.35 }}
-                  transition={{ type: "timing", duration: 500 }}
+                  transition={{
+                    type: "timing",
+                    duration: 1200,
+                    loop: true,
+                    delay: 250,
+                  }}
                   style={{
                     position: "absolute",
                     width: 54,
                     height: 54,
                     borderRadius: 27,
-                    borderWidth: 1.5,
-                    borderColor: "rgba(251,191,36,0.7)",
+                    borderWidth: 1.8,
+                    borderColor: "rgba(251,191,36,0.75)",
                     top: 0,
                     left: 0,
                   }}
@@ -349,7 +370,7 @@ export function DriverBottomSheet({
               }}
             >
               <MotiView
-                key={`offers-icon-pop-${offersPulseToken}-${hasPendingOffer ? "pending" : "idle"}`}
+                key={hasPendingOffer ? "pending" : "idle"}
                 from={hasPendingOffer ? { scale: 0.7, rotate: "0deg" } : { scale: 1, rotate: "0deg" }}
                 animate={{ scale: 1, rotate: "0deg" }}
                 transition={{ type: "spring", damping: 9, stiffness: 180 }}
@@ -360,6 +381,7 @@ export function DriverBottomSheet({
           </MotiView>
         </View>
 
+        {/* Expandable Preferences Settings Panel */}
         {showSettings && (
           <MotiView
             from={{ opacity: 0, scale: 0.95, translateY: 10 }}
@@ -438,3 +460,31 @@ export function DriverBottomSheet({
     </BottomSheet>
   );
 }
+
+const styles = StyleSheet.create({
+  statsGrid: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    padding: 16,
+    backgroundColor: "rgba(11, 26, 42, 0.45)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+    borderRadius: 20,
+    marginBottom: 18,
+  },
+  statColumn: {
+    flex: 1,
+    alignItems: "center",
+  },
+  statLabel: {
+    color: "rgba(255,255,255,0.35)",
+    fontSize: 8.5,
+    fontWeight: "900",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+});
+
+export default DriverBottomSheet;

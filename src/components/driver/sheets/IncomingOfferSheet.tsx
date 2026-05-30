@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { MotiView, AnimatePresence } from 'moti';
-import { Clock, Route, Star, Minus, Plus, Send } from 'lucide-react-native';
+import { Clock, Route, Star, Minus, Plus, Send, Car, Package } from 'lucide-react-native';
 import { formatBRL } from '@/utils/mappers';
 import CountdownRing from '../feedback/CountdownRing';
 import { driverColors, driverRadius } from '@/theme/driverTheme';
@@ -103,6 +103,7 @@ export function IncomingOfferSheet({
     <AnimatePresence>
       {isVisible && offer?.rideId && (
         <MotiView
+          key={offer?.rideId || 'none'}
           from={{ opacity: 0, translateY: 300 }}
           animate={{ opacity: 1, translateY: 0 }}
           exit={{ opacity: 0, translateY: 300 }}
@@ -155,6 +156,47 @@ export function IncomingOfferSheet({
                 marginBottom: 10,
               }}
             >
+              {/* Service Type Capsule Header */}
+              {(() => {
+                const isDelivery = offer?.serviceType === 'delivery';
+                const badgeColor = isDelivery ? '#10B981' : '#3B82F6';
+                const badgeBg = isDelivery ? 'rgba(16, 185, 129, 0.08)' : 'rgba(59, 130, 246, 0.08)';
+                const badgeBorder = isDelivery ? 'rgba(16, 185, 129, 0.25)' : 'rgba(59, 130, 246, 0.25)';
+                const label = isDelivery ? 'ENTREGA DE ENCOMENDA 📦' : 'CORRIDA DE PASSAGEIRO 🚗';
+                const IconComponent = isDelivery ? Package : Car;
+
+                return (
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      backgroundColor: badgeBg,
+                      borderWidth: 1.2,
+                      borderColor: badgeBorder,
+                      borderRadius: 12,
+                      paddingVertical: 6,
+                      paddingHorizontal: 12,
+                      marginBottom: 12,
+                      alignSelf: 'flex-start',
+                      gap: 6,
+                    }}
+                  >
+                    <IconComponent size={14} color={badgeColor} strokeWidth={2.5} />
+                    <Text
+                      style={{
+                        color: badgeColor,
+                        fontSize: 10,
+                        fontWeight: '900',
+                        letterSpacing: 0.8,
+                        textTransform: 'uppercase',
+                      }}
+                    >
+                      {label}
+                    </Text>
+                  </View>
+                );
+              })()}
+
               {/* Price + Countdown */}
               <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6 }}>
                 <View>

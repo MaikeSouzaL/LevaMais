@@ -146,6 +146,30 @@ export function RideRequestCard({
         {/* ── Header Row: Status + Countdown ── */}
         <View style={row}>
           <StatusPill variant={pillVariant} size="sm" label={pillLabel} />
+          {(() => {
+            const isDelivery = item.serviceType === 'delivery';
+            const badgeColor = isDelivery ? '#10B981' : '#3B82F6';
+            const badgeBg = isDelivery ? 'rgba(16, 185, 129, 0.08)' : 'rgba(59, 130, 246, 0.08)';
+            const badgeBorder = isDelivery ? 'rgba(16, 185, 129, 0.25)' : 'rgba(59, 130, 246, 0.25)';
+            const label = isDelivery ? 'Entrega 📦' : 'Corrida 🚗';
+            return (
+              <View
+                style={{
+                  backgroundColor: badgeBg,
+                  borderColor: badgeBorder,
+                  borderWidth: 1,
+                  borderRadius: 8,
+                  paddingVertical: 3,
+                  paddingHorizontal: 8,
+                  marginLeft: 8,
+                }}
+              >
+                <Text style={{ color: badgeColor, fontSize: 9, fontWeight: '900', textTransform: 'uppercase' }}>
+                  {label}
+                </Text>
+              </View>
+            );
+          })()}
           <View style={{ flex: 1 }} />
           {!isCancelled && !isRejected && item.countdown != null && item.countdown > 0 && (
             <CountdownRing current={item.countdown} total={60} size={40} strokeWidth={3} />

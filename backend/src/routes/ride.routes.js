@@ -3,6 +3,7 @@ const router = express.Router();
 const rideController = require("../controllers/ride.controller");
 const chatController = require("../controllers/chat.controller");
 const { triggerSOS, generateShareToken, publicTrack } = require("../controllers/ride.safety.mixin");
+const { addStop, changeDropoff } = require("../controllers/ride.advanced.mixin");
 const { authenticateToken } = require("../middlewares/auth.middleware");
 
 // ── Public routes (no auth) ──
@@ -80,6 +81,31 @@ router.get("/earnings-history", rideController.getEarningsHistory);
 // Buscar motoristas próximos
 router.get("/nearby-drivers", rideController.getNearbyDrivers);
 
+// ── Surge Pricing & Heatmap ──
+const { calculateSurgeMultiplier, getHeatmapData } = require("../services/surge-pricing.service");
+
+router.get("/surge/:lat/:lng", async (req, res) => {
+  try {
+    const { lat, lng } = req.params;
+    const radius = Number(req.query.radius) || 10;
+    const result = await calculateSurgeMultiplier(Number(lat), Number(lng), radius);
+    res.json({ success: true, ...result });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+router.get("/heatmap/:lat/:lng", async (req, res) => {
+  try {
+    const { lat, lng } = req.params;
+    const radius = Number(req.query.radius) || 20;
+    const points = await getHeatmapData(Number(lat), Number(lng), radius);
+    res.json({ success: true, points });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 // Buscar corrida por ID
 router.get("/:rideId", rideController.getById);
 
@@ -91,6 +117,12 @@ router.get("/:rideId/chat", chatController.getChatHistory);
 
 // SOS / Emergência
 router.post("/:rideId/sos", triggerSOS);
+
+// Múltiplas paradas
+router.patch("/:rideId/add-stop", addStop);
+
+// Alterar destino
+router.patch("/:rideId/change-dropoff", changeDropoff);
 
 // Compartilhamento (share token)
 router.get("/:rideId/share-token", generateShareToken);

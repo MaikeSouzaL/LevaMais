@@ -5,11 +5,14 @@ import {
   TouchableOpacity,
   StatusBar,
   Animated,
+  Dimensions,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MotiView } from "moti";
-import { CheckCircle, X, Package, Clock } from "lucide-react-native";
+import { Check, X, Package, Clock } from "lucide-react-native";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 export default function OrderSentScreen() {
   const navigation = useNavigation<any>();
@@ -17,17 +20,7 @@ export default function OrderSentScreen() {
   const insets = useSafeAreaInsets();
   const rideId = String(route.params?.rideId || "");
   const pulse = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1.08, duration: 900, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 1, duration: 900, useNativeDriver: true }),
-      ])
-    );
-    anim.start();
-    return () => anim.stop();
-  }, []);
+  const progress = useRef(new Animated.Value(1)).current;
 
   const handleClose = () => {
     // Pass rideId directly so Home can show the banner immediately (no polling wait)
@@ -37,46 +30,122 @@ export default function OrderSentScreen() {
     });
   };
 
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1.08, duration: 900, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: 900, useNativeDriver: true }),
+      ])
+    );
+    anim.start();
+
+    const progressAnim = Animated.timing(progress, {
+      toValue: 0,
+      duration: 5000, // 5 seconds
+      useNativeDriver: true,
+    });
+
+    progressAnim.start(({ finished }) => {
+      if (finished) {
+        handleClose();
+      }
+    });
+
+    return () => {
+      anim.stop();
+      progressAnim.stop();
+    };
+  }, []);
+
   return (
     <View style={{ flex: 1, backgroundColor: "#091A2F" }}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-      {/* Close (X) button top-right */}
-      <TouchableOpacity
-        onPress={handleClose}
+      {/* Dynamic Progress Bar */}
+      <View
         style={{
           position: "absolute",
-          top: insets.top + 16,
-          right: 20,
-          zIndex: 50,
+          top: insets.top,
+          left: 0,
+          right: 0,
+          height: 4,
           backgroundColor: "rgba(255,255,255,0.08)",
-          borderRadius: 20,
-          padding: 8,
+          zIndex: 100,
+          overflow: "hidden",
         }}
       >
-        <X size={22} color="#fff" />
-      </TouchableOpacity>
+        <Animated.View
+          style={{
+            width: "100%",
+            height: "100%",
+            backgroundColor: "#02de95",
+            transform: [
+              {
+                translateX: progress.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [-SCREEN_WIDTH, 0],
+                }),
+              },
+            ],
+          }}
+        />
+      </View>
 
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 }}>
-        {/* Pulsing icon */}
+        {/* Pulsing high-end glassmorphic success badge */}
         <Animated.View style={{ transform: [{ scale: pulse }], marginBottom: 28 }}>
-          <MotiView
-            from={{ opacity: 0, scale: 0.6 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ type: "spring", damping: 14 }}
-            style={{
-              width: 112,
-              height: 112,
-              borderRadius: 56,
-              backgroundColor: "rgba(2,222,149,0.12)",
-              alignItems: "center",
-              justifyContent: "center",
-              borderWidth: 2,
-              borderColor: "rgba(2,222,149,0.35)",
-            }}
-          >
-            <CheckCircle size={52} color="#02de95" strokeWidth={1.8} />
-          </MotiView>
+          <View style={{ alignItems: "center", justifyContent: "center" }}>
+            {/* Outer halo ripple */}
+            <MotiView
+              from={{ scale: 0.8, opacity: 0.5 }}
+              animate={{ scale: 1.35, opacity: 0 }}
+              transition={{ loop: true, type: "timing", duration: 1800 }}
+              style={{
+                position: "absolute",
+                width: 112,
+                height: 112,
+                borderRadius: 56,
+                borderWidth: 2.5,
+                borderColor: "rgba(2,222,149,0.4)",
+              }}
+            />
+            
+            {/* Second glowing glass capsule */}
+            <MotiView
+              from={{ opacity: 0, scale: 0.7 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ type: "spring", damping: 15 }}
+              style={{
+                width: 112,
+                height: 112,
+                borderRadius: 56,
+                backgroundColor: "rgba(2,222,149,0.06)",
+                borderWidth: 1.5,
+                borderColor: "rgba(2,222,149,0.25)",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              {/* Inner Solid Premium Core Puck */}
+              <View
+                style={{
+                  width: 80,
+                  height: 80,
+                  borderRadius: 40,
+                  backgroundColor: "#02de95",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  shadowColor: "#02de95",
+                  shadowOffset: { width: 0, height: 6 },
+                  shadowOpacity: 0.45,
+                  shadowRadius: 12,
+                  elevation: 8,
+                }}
+              >
+                <Check size={38} color="#091A2F" strokeWidth={3.5} />
+              </View>
+            </MotiView>
+          </View>
         </Animated.View>
 
         <MotiView
@@ -194,38 +263,24 @@ export default function OrderSentScreen() {
         </MotiView>
       </View>
 
-      {/* Bottom CTA */}
+      {/* Bottom Helper Info (No Buttons!) */}
       <MotiView
         from={{ opacity: 0, translateY: 24 }}
         animate={{ opacity: 1, translateY: 0 }}
         transition={{ delay: 500 }}
         style={{
           paddingHorizontal: 24,
-          paddingBottom: insets.bottom + 24,
+          paddingBottom: Math.max(insets.bottom, 24),
           paddingTop: 16,
         }}
       >
-        <TouchableOpacity
-          onPress={handleClose}
-          style={{
-            height: 54,
-            borderRadius: 16,
-            backgroundColor: "#02de95",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-          activeOpacity={0.85}
-        >
-          <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 15, textTransform: "uppercase" }}>
-            Voltar para Início
-          </Text>
-        </TouchableOpacity>
         <Text
           style={{
-            color: "rgba(255,255,255,0.4)",
-            fontSize: 11,
+            color: "rgba(255,255,255,0.45)",
+            fontSize: 12,
+            fontWeight: "700",
             textAlign: "center",
-            marginTop: 10,
+            lineHeight: 18,
           }}
         >
           Um banner branco aparecerá na tela inicial quando você receber propostas

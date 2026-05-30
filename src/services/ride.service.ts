@@ -480,6 +480,7 @@ class RideService {
       selectedDriverId?: string | null;
     };
     offers: RideOffer[];
+    allRejected?: boolean;
   }> {
     const response = await api.get(`/rides/${rideId}/offers`);
     return {
@@ -490,6 +491,7 @@ class RideService {
         finalAgreedPrice: null,
       },
       offers: response.data?.offers || [],
+      allRejected: response.data?.allRejected,
     };
   }
 

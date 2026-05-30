@@ -11,21 +11,11 @@ export const PremiumDottedRoute = ({ coordinates }: PremiumDottedRouteProps) => 
 
   return (
     <>
-      {/* Base ambient subtle path glow - ensures route shape is softly established */}
+      {/* A single clean high-contrast solid dark navy line */}
       <Polyline
         coordinates={coordinates}
-        strokeColor="rgba(2, 222, 149, 0.15)"
-        strokeWidth={8}
-        lineCap="round"
-        zIndex={19}
-      />
-
-      {/* The Primary Brand Dotted Route */}
-      <Polyline
-        coordinates={coordinates}
-        strokeColor="#02de95" // Matches tailwind primary explicitly for polyline engine
-        strokeWidth={3}
-        lineDashPattern={[3, 12]}
+        strokeColor="#091A2F"
+        strokeWidth={4}
         lineCap="round"
         zIndex={20}
       />
