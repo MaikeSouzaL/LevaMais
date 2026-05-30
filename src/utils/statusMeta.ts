@@ -83,6 +83,12 @@ export function getStatusMeta(status?: string, serviceType?: string): StatusMeta
       color: "#ef4444",
       bg: "rgba(239,68,68,0.16)",
     },
+    arrived_at_dropoff: {
+      title: "Chegou no destino",
+      subtitle: "Entregador chegou ao local de entrega. Aguardando finalizacao.",
+      color: "#f97316",
+      bg: "rgba(249,115,22,0.18)",
+    },
     expired: {
       title: "Busca expirada",
       subtitle: "A solicitacao expirou por falta de aceite.",

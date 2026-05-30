@@ -166,7 +166,9 @@ export default function ActiveOrdersScreen() {
     } else if (["cancelled", "cancelled_by_client", "cancelled_by_driver"].includes(status)) {
       navigation.navigate("OrderDetails", { rideId: ride._id, order: ride });
     } else {
-      navigation.navigate("RideTracking", { rideId: ride._id });
+      // Roteia para a tela de tracking correta baseado no tipo de serviço
+      const trackingScreen = ride?.serviceType === "delivery" ? "DeliveryTracking" : "RideTracking";
+      navigation.navigate(trackingScreen, { rideId: ride._id });
     }
   };
 

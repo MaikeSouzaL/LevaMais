@@ -41,7 +41,7 @@ class WalletService {
    * Get wallet balance
    */
   async getBalance(): Promise<Balance> {
-    const response = await api.get("/wallet/balance");
+    const response = await api.get("/drivers/balance");
     return response.data;
   }
 

@@ -3,28 +3,13 @@
  * Define todos os tipos relacionados ao usuário
  */
 
-/**
- * Tipo de usuário
- */
-export type UserType = 'client' | 'driver' | 'admin';
+// Re-export canonical types from the models module
+export type { User, UserType } from "../../../../types/models";
 
-/**
- * Usuário
- */
-export interface User {
-  id: string;
-  type: UserType;
-  name: string;
-  email: string;
-  phone: string;
-  cpf?: string;
-  photo?: string;
-  city?: string;
-  state?: string;
-  notificationsEnabled: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
+import type { User } from "../../../../types/models";
+
+// Re-export UserType as a convenience alias
+export type { UserType } from "../../../../types/models";
 
 /**
  * Perfil do cliente

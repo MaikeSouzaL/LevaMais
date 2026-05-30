@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import {
   View,
   Text,
@@ -206,7 +206,7 @@ export function NewIncomingOfferSheet({
                   <ActivityIndicator color="#081325" size="small" />
                 ) : (
                   <Text style={{ color: "#081325", fontWeight: "900", fontSize: 15, textTransform: "uppercase", letterSpacing: 0.5 }}>
-                    ACEITAR CORRIDA • {formatBRL(baseValue)}
+                    ACEITAR • {formatBRL(baseValue)}
                   </Text>
                 )}
               </TouchableOpacity>

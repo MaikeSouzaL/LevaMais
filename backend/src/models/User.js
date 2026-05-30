@@ -3,35 +3,34 @@ const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 
 // 🔐 SECURITY CONFIGURATION
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || "d6f9a2e1b4c7d0e3f6a9b2c5d8e1f4a7"; // Must be 32 bytes
+const _RAW_ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
+if (!_RAW_ENCRYPTION_KEY) {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("ENCRYPTION_KEY environment variable is required in production");
+  }
+  console.warn("[User Model] ENCRYPTION_KEY not set — using dev fallback. CPF/CNPJ encryption is NOT secure in this mode.");
+}
+const ENCRYPTION_KEY = _RAW_ENCRYPTION_KEY || "d6f9a2e1b4c7d0e3f6a9b2c5d8e1f4a7"; // Must be 32 bytes — dev fallback only
 const IV_LENGTH = 16; 
 
 function encrypt(text) {
   if (!text) return text;
-  try {
-    const iv = crypto.randomBytes(IV_LENGTH);
-    const cipher = crypto.createCipheriv("aes-256-cbc", Buffer.from(ENCRYPTION_KEY), iv);
-    let encrypted = cipher.update(text);
-    encrypted = Buffer.concat([encrypted, cipher.final()]);
-    return iv.toString("hex") + ":" + encrypted.toString("hex");
-  } catch (e) {
-    return text;
-  }
+  const iv = crypto.randomBytes(IV_LENGTH);
+  const cipher = crypto.createCipheriv("aes-256-cbc", Buffer.from(ENCRYPTION_KEY), iv);
+  let encrypted = cipher.update(text);
+  encrypted = Buffer.concat([encrypted, cipher.final()]);
+  return iv.toString("hex") + ":" + encrypted.toString("hex");
 }
 
 function decrypt(text) {
-  if (!text || typeof text !== 'string' || !text.includes(":")) return text;
-  try {
-    const textParts = text.split(":");
-    const iv = Buffer.from(textParts.shift(), "hex");
-    const encryptedText = Buffer.from(textParts.join(":"), "hex");
-    const decipher = crypto.createDecipheriv("aes-256-cbc", Buffer.from(ENCRYPTION_KEY), iv);
-    let decrypted = decipher.update(encryptedText);
-    decrypted = Buffer.concat([decrypted, decipher.final()]);
-    return decrypted.toString();
-  } catch (e) {
-    return text;
-  }
+  if (!text || typeof text !== "string" || !text.includes(":")) return text;
+  const textParts = text.split(":");
+  const iv = Buffer.from(textParts.shift(), "hex");
+  const encryptedText = Buffer.from(textParts.join(":"), "hex");
+  const decipher = crypto.createDecipheriv("aes-256-cbc", Buffer.from(ENCRYPTION_KEY), iv);
+  let decrypted = decipher.update(encryptedText);
+  decrypted = Buffer.concat([decrypted, decipher.final()]);
+  return decrypted.toString();
 }
 
 function generateHash(text) {

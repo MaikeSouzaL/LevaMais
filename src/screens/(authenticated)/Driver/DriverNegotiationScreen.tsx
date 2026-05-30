@@ -855,7 +855,7 @@ export default function DriverNegotiationScreen() {
                 className="w-full h-16 bg-[#02de95] rounded-2xl items-center justify-center flex-row shadow-lg shadow-[#02de95]/20"
              >
                 <Check size={20} color="#091A2F" className="mr-2" strokeWidth={3} />
-                <Text className="text-[#091A2F] font-black text-base uppercase tracking-wider">Aceitar e Iniciar Corrida</Text>
+                <Text className="text-[#091A2F] font-black text-base uppercase tracking-wider">Aceitar e Iniciar</Text>
              </TouchableOpacity>
 
              <TouchableOpacity

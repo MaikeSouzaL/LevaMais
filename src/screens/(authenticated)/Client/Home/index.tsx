@@ -297,7 +297,7 @@ export default function HomeScreen() {
             {/* 1. Header (Greeting & Actions) */}
             <View className="flex-row justify-between items-center px-5 pb-0 mt-2 relative z-10">
               <View className="flex-row items-center gap-3">
-                <TouchableOpacity onPress={handleMenuPress} className="relative">
+                <TouchableOpacity onPress={handleMenuPress} className="relative" accessibilityLabel="Abrir menu" accessibilityRole="button">
                   {user?.fotoPerfil || user?.profilePhoto ? (
                     <Image source={{ uri: user.fotoPerfil || user.profilePhoto }} className="w-11 h-11 rounded-full border-[2px] border-white" />
                   ) : (
@@ -313,7 +313,7 @@ export default function HomeScreen() {
                 <TouchableOpacity className="bg-[#091A2F]/10 px-3 py-1 rounded-xl border border-[#091A2F]/20">
                   <Text className="text-[#091A2F] text-xs font-bold">Pix</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={handleSOS} className="w-10 h-10 rounded-full bg-[#091A2F]/10 items-center justify-center border border-[#091A2F]/20">
+                <TouchableOpacity onPress={handleSOS} className="w-10 h-10 rounded-full bg-[#091A2F]/10 items-center justify-center border border-[#091A2F]/20" accessibilityLabel="Central de segurança" accessibilityRole="button">
                   <QrCode size={20} color="#091A2F" />
                 </TouchableOpacity>
               </View>
@@ -337,17 +337,19 @@ export default function HomeScreen() {
             </View>
             
             {/* 3. Overlapping Search Bar */}
-            <TouchableOpacity 
+            <TouchableOpacity
               activeOpacity={0.95}
               onPress={handleSearchPress}
               className="bg-[#02de95] mx-5 h-[64px] rounded-[36px] flex-row items-center px-6 -mt-16 z-20"
-              style={{ 
-                shadowColor: "#000", 
-                shadowOffset: { width: 0, height: 6 }, 
-                shadowOpacity: 0.22, 
-                shadowRadius: 12, 
-                elevation: 10 
+              style={{
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 6 },
+                shadowOpacity: 0.22,
+                shadowRadius: 12,
+                elevation: 10
               }}
+              accessibilityLabel="Buscar destino"
+              accessibilityRole="search"
             >
               <Search size={28} color="#091A2F" style={{ marginRight: 14 }} />
               <Text className="text-[#091A2F] text-xl font-black">Para onde vamos?</Text>
@@ -365,9 +367,11 @@ export default function HomeScreen() {
                     <TouchableOpacity
                       key={fav.id || index}
                       className="flex-row items-center bg-[#11253E] px-3.5 py-2 rounded-[20px] border border-white/[0.03]"
+                      accessibilityLabel={`Endereço favorito: ${fav.name?.toLowerCase() || "favorito"}`}
+                      accessibilityRole="button"
                       onPress={() => {
                         navigation.navigate("DestinationSearch", {
-                          pickup: { 
+                          pickup: {
                             address: currentAddress || "Localização Atual",
                             latitude: userRegion?.latitude || region?.latitude || -11.67,
                             longitude: userRegion?.longitude || region?.longitude || -61.19,
@@ -398,6 +402,8 @@ export default function HomeScreen() {
                 <>
                     <TouchableOpacity
                       className="flex-row items-center bg-[#11253E] px-3.5 py-2 rounded-[20px] border border-white/[0.03]"
+                      accessibilityLabel="Adicionar endereço de casa"
+                      accessibilityRole="button"
                       onPress={() => handleOpenFavoriteShortcut("home")}
                     >
                       <View className="w-6 h-6 rounded-full bg-[#02de95]/10 items-center justify-center mr-2">
@@ -408,6 +414,8 @@ export default function HomeScreen() {
 
                     <TouchableOpacity
                       className="flex-row items-center bg-[#11253E] px-3.5 py-2 rounded-[20px] border border-white/[0.03]"
+                      accessibilityLabel="Adicionar endereço de trabalho"
+                      accessibilityRole="button"
                       onPress={() => handleOpenFavoriteShortcut("work")}
                     >
                       <View className="w-6 h-6 rounded-full bg-[#02de95]/10 items-center justify-center mr-2">
@@ -418,6 +426,8 @@ export default function HomeScreen() {
 
                     <TouchableOpacity
                       className="flex-row items-center bg-[#11253E] px-3.5 py-2 rounded-[20px] border border-white/[0.03]"
+                      accessibilityLabel="Adicionar endereço favorito"
+                      accessibilityRole="button"
                       onPress={() => handleOpenFavoriteShortcut("favorite")}
                     >
                       <View className="w-6 h-6 rounded-full bg-[#02de95]/10 items-center justify-center mr-2">
@@ -434,6 +444,8 @@ export default function HomeScreen() {
                <View style={{ paddingHorizontal: 20, marginTop: 16 }}>
                  <TouchableOpacity
                    activeOpacity={0.9}
+                   accessibilityLabel="Ver oferta ativa de corrida"
+                   accessibilityRole="button"
                    onPress={() => navigation.navigate("ActiveOrders")}
                    style={{
                      backgroundColor: "#F59E0B",
@@ -475,6 +487,8 @@ export default function HomeScreen() {
                <View style={{ paddingHorizontal: 20, marginTop: 16 }}>
                  <TouchableOpacity
                    activeOpacity={0.9}
+                   accessibilityLabel="Ver propostas recebidas"
+                   accessibilityRole="button"
                    onPress={() => navigation.navigate("RideOffersMarketplace", { rideId: negotiationRideId })}
                    style={{
                      backgroundColor: "#02de95",
@@ -514,6 +528,8 @@ export default function HomeScreen() {
                <View style={{ paddingHorizontal: 20, marginTop: 16 }}>
                  <TouchableOpacity
                    activeOpacity={0.9}
+                   accessibilityLabel="Ver pedidos em fila de espera"
+                   accessibilityRole="button"
                    onPress={() => navigation.navigate("ActiveOrders")}
                    style={{
                      backgroundColor: "#02de95",
@@ -558,8 +574,10 @@ export default function HomeScreen() {
                 contentContainerStyle={{ gap: 12, paddingRight: 20 }}
               >
                 {/* Promo Card */}
-                <TouchableOpacity 
+                <TouchableOpacity
                   activeOpacity={0.9}
+                  accessibilityLabel="Solicitar corrida agora"
+                  accessibilityRole="button"
                   onPress={() => handleServiceSelect("ride")}
                   className="w-[325px] h-[135px] bg-[#11253E] rounded-[24px] p-4 flex-row items-center border border-white/[0.04] overflow-hidden"
                 >
@@ -593,8 +611,10 @@ export default function HomeScreen() {
                 </TouchableOpacity>
 
                 {/* Indique e Ganhe Card */}
-                <TouchableOpacity 
+                <TouchableOpacity
                   activeOpacity={0.9}
+                  accessibilityLabel="Indique e ganhe"
+                  accessibilityRole="button"
                   onPress={() => Alert.alert("Indique e Ganhe", "Em breve: Indique amigos e ganhe créditos!")}
                   className="w-[325px] h-[135px] bg-[#11253E] rounded-[24px] p-4 flex-row items-center border border-white/[0.04] overflow-hidden"
                 >
@@ -640,7 +660,7 @@ export default function HomeScreen() {
             >
               <View className="flex-row justify-between items-center px-5 pb-0">
                 <View className="flex-row items-center gap-3">
-                  <TouchableOpacity onPress={handleMenuPress} className="relative">
+                  <TouchableOpacity onPress={handleMenuPress} className="relative" accessibilityLabel="Abrir menu" accessibilityRole="button">
                     {user?.fotoPerfil || user?.profilePhoto ? (
                       <Image source={{ uri: user.fotoPerfil || user.profilePhoto }} className="w-11 h-11 rounded-full border-[1.5px] border-[#091A2F]" />
                     ) : (
@@ -656,7 +676,7 @@ export default function HomeScreen() {
                   <TouchableOpacity className="bg-[#091A2F]/10 px-3 py-1 rounded-xl border border-[#091A2F]/15">
                     <Text className="text-[#091A2F] text-xs font-bold">Pix</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={handleSOS} className="w-10 h-10 rounded-full bg-[#091A2F]/10 items-center justify-center border border-[#091A2F]/15">
+                  <TouchableOpacity onPress={handleSOS} className="w-10 h-10 rounded-full bg-[#091A2F]/10 items-center justify-center border border-[#091A2F]/15" accessibilityLabel="Central de segurança" accessibilityRole="button">
                     <QrCode size={20} color="#091A2F" />
                   </TouchableOpacity>
                 </View>
@@ -697,6 +717,8 @@ export default function HomeScreen() {
                         backgroundColor: "transparent",
                         borderColor: isSelected ? "#02de95" : "transparent",
                       }}
+                      accessibilityLabel={`Veículo de entrega: ${vehicle.title}`}
+                      accessibilityRole="button"
                     >
                       <View
                         className="absolute top-2 right-2 z-20 w-6.5 h-6.5 rounded-full items-center justify-center"
@@ -731,6 +753,8 @@ export default function HomeScreen() {
               >
                 <TouchableOpacity
                   className="flex-row items-center bg-white px-3.5 py-2 rounded-[20px]"
+                  accessibilityLabel="Adicionar endereço de casa"
+                  accessibilityRole="button"
                   onPress={() => handleOpenFavoriteShortcut("home")}
                 >
                   <View className="w-6 h-6 rounded-full bg-[#091A2F]/10 items-center justify-center mr-2">
@@ -741,6 +765,8 @@ export default function HomeScreen() {
 
                 <TouchableOpacity
                   className="flex-row items-center bg-white px-3.5 py-2 rounded-[20px]"
+                  accessibilityLabel="Adicionar endereço de trabalho"
+                  accessibilityRole="button"
                   onPress={() => handleOpenFavoriteShortcut("work")}
                 >
                   <View className="w-6 h-6 rounded-full bg-[#091A2F]/10 items-center justify-center mr-2">
@@ -751,6 +777,8 @@ export default function HomeScreen() {
 
                 <TouchableOpacity
                   className="flex-row items-center bg-white px-3.5 py-2 rounded-[20px]"
+                  accessibilityLabel="Adicionar endereço favorito"
+                  accessibilityRole="button"
                   onPress={() => handleOpenFavoriteShortcut("favorite")}
                 >
                   <View className="w-6 h-6 rounded-full bg-[#091A2F]/10 items-center justify-center mr-2">
@@ -764,9 +792,12 @@ export default function HomeScreen() {
             {/* Delivery Card with tabs Enviar / Receber */}
             <View className="bg-[#11253E] mx-5 rounded-[24px] p-5 border border-white/[0.03]" style={{ shadowColor: "#000", shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.2, shadowRadius: 10, elevation: 8 }}>
               <View className="flex-row border-b border-white/[0.05] mb-5">
-                <TouchableOpacity 
+                <TouchableOpacity
                   onPress={() => setDeliveryMode("send")}
                   className="py-2.5 px-4 relative"
+                  accessibilityLabel="Modo enviar entrega"
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: deliveryMode === "send" }}
                 >
                   <Text className={`text-base font-bold ${deliveryMode === 'send' ? 'text-[#02de95]' : 'text-white/40'}`}>
                     Enviar
@@ -774,9 +805,12 @@ export default function HomeScreen() {
                   {deliveryMode === "send" && <View className="absolute bottom-[-1px] left-4 right-4 h-[3px] bg-[#02de95] rounded-t-full" />}
                 </TouchableOpacity>
 
-                <TouchableOpacity 
+                <TouchableOpacity
                   onPress={() => setDeliveryMode("receive")}
                   className="py-2.5 px-4 relative"
+                  accessibilityLabel="Modo receber entrega"
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: deliveryMode === "receive" }}
                 >
                   <Text className={`text-base font-bold ${deliveryMode === 'receive' ? 'text-[#02de95]' : 'text-white/40'}`}>
                     Receber
@@ -813,6 +847,8 @@ export default function HomeScreen() {
                     <TouchableOpacity
                       activeOpacity={0.7}
                       className="flex-1 justify-center"
+                      accessibilityLabel="Selecionar local de retirada"
+                      accessibilityRole="button"
                       onPress={() => openDeliveryAddressInfo("pickup")}
                     >
                       <Text className="text-[9px] font-black uppercase tracking-wider mb-0.5 text-[#02de95]">
@@ -838,6 +874,8 @@ export default function HomeScreen() {
                       activeOpacity={0.7}
                       onPress={() => openDeliveryAddressInfo("dropoff")}
                       className="flex-row items-center h-full justify-between"
+                      accessibilityLabel="Selecionar local de entrega"
+                      accessibilityRole="button"
                     >
                       <View className="flex-1 justify-center pr-3">
                         <Text className="text-[9px] font-black uppercase tracking-wider mb-0.5 text-[#F59E0B]">
@@ -870,7 +908,7 @@ export default function HomeScreen() {
             {/* Header */}
             <View className="flex-row justify-between items-center px-5 pb-0">
               <View className="flex-row items-center gap-3">
-                <TouchableOpacity onPress={handleMenuPress} className="relative">
+                <TouchableOpacity onPress={handleMenuPress} className="relative" accessibilityLabel="Abrir menu" accessibilityRole="button">
                   {user?.fotoPerfil || user?.profilePhoto ? (
                     <Image source={{ uri: user.fotoPerfil || user.profilePhoto }} className="w-11 h-11 rounded-full border-[1.5px] border-[#02de95]" />
                   ) : (
@@ -883,7 +921,7 @@ export default function HomeScreen() {
                 <Text className="text-white text-[22px] font-bold">Olá, <Text className="text-[#02de95] font-black">{user?.name || "Cliente"}</Text>!</Text>
               </View>
               <View className="flex-row items-center gap-3">
-                <TouchableOpacity onPress={handleSOS} className="w-10 h-10 rounded-full bg-[#11253E] items-center justify-center border border-white/5">
+                <TouchableOpacity onPress={handleSOS} className="w-10 h-10 rounded-full bg-[#11253E] items-center justify-center border border-white/5" accessibilityLabel="Central de segurança" accessibilityRole="button">
                   <QrCode size={20} color="#fff" />
                 </TouchableOpacity>
               </View>
@@ -895,8 +933,10 @@ export default function HomeScreen() {
               <Text className="text-white text-3xl font-bold mb-5">R$ 0,00</Text>
               
               <View className="flex-row gap-3">
-                <TouchableOpacity 
+                <TouchableOpacity
                   className="flex-1 bg-[#02de95] h-12 rounded-2xl items-center justify-center"
+                  accessibilityLabel="Adicionar saldo"
+                  accessibilityRole="button"
                   onPress={() => Alert.alert("Adicionar Saldo", "Recurso em desenvolvimento.")}
                 >
                   <Text className="text-[#091A2F] text-sm font-bold">Adicionar Saldo</Text>
@@ -914,8 +954,10 @@ export default function HomeScreen() {
             <View className="mt-[30px] px-5">
               <Text className="text-white text-base font-bold mb-3.5">Serviços Financeiros</Text>
               
-              <TouchableOpacity 
+              <TouchableOpacity
                 className="flex-row items-center bg-[#11253E] rounded-[20px] p-4 mb-3 border border-white/[0.03]"
+                accessibilityLabel="Pagar com Pix ou Boleto"
+                accessibilityRole="button"
                 onPress={() => Alert.alert("Pagar Boleto", "Recurso em desenvolvimento.")}
               >
                 <View className="w-11 h-11 rounded-[14px] bg-[#02de95]/10 items-center justify-center mr-4">
@@ -1001,10 +1043,12 @@ export default function HomeScreen() {
           />
 
           {/* Option 1: Corrida */}
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={() => setActiveService("ride")}
             className="flex-1 items-center justify-center h-full z-10"
             activeOpacity={0.8}
+            accessibilityLabel="Modo corrida"
+            accessibilityRole="button"
           >
             {activeService === "ride" ? (
               <View className="w-[64px] h-[64px] items-center justify-center">
@@ -1028,6 +1072,8 @@ export default function HomeScreen() {
             }}
             className="flex-1 items-center justify-center h-full z-10"
             activeOpacity={0.8}
+            accessibilityLabel="Modo entrega"
+            accessibilityRole="button"
           >
             {activeService === "delivery" ? (
               <View className="w-[64px] h-[64px] items-center justify-center">
@@ -1044,10 +1090,12 @@ export default function HomeScreen() {
           </TouchableOpacity>
 
           {/* Option 3: Pay / Wallet */}
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={() => setActiveService("pay")}
             className="flex-1 items-center justify-center h-full z-10"
             activeOpacity={0.8}
+            accessibilityLabel="Pagamentos"
+            accessibilityRole="button"
           >
             {activeService === "pay" ? (
               <View className="w-[64px] h-[64px] items-center justify-center">

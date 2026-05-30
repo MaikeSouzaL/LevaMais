@@ -139,30 +139,16 @@ export default function PaymentScreenEnhanced() {
     }
 
     setProcessing(true);
+    let rideId = null;
+    let transactionId = null;
     try {
-      logger.info("PaymentScreen", `Processando pagamento via ${paymentForm.method}`);
+      logger.info("PaymentScreen", "Iniciando fluxo: criar corrida primeiro, depois pagamento");
 
       if (!order.pickupLatLng || !order.dropoffLatLng) {
-        throw new Error("Coordenadas de coleta/destino inválidas");
+        throw new Error("Coordenadas de coleta/destino invalidas");
       }
 
-      const paymentResponse = await paymentService.processPayment({
-        amount: finalAmount,
-        method: paymentForm.method,
-        description: `${serviceType} em ${order.pickup?.address || "Local"}`,
-        pixKey: paymentForm.pixKey || undefined,
-      });
-
-      if (!paymentResponse.success) {
-        throw new Error(paymentResponse.error || "Erro ao processar pagamento");
-      }
-
-      logger.info(
-        "PaymentScreen",
-        "Pagamento processado com sucesso",
-        paymentResponse
-      );
-
+      // Step 1: Create the ride FIRST (status: pending_payment)
       const ride = await rideService.create({
         serviceType: mapServiceModeToApi(order.serviceMode),
         vehicleType: mapVehicleTypeToApi(order.vehicleType),
@@ -185,11 +171,11 @@ export default function PaymentScreenEnhanced() {
         },
         distance: {
           value: (order.pricing?.distanceKm || 0) * 1000,
-          text: `${(order.pricing?.distanceKm || 0).toFixed(1)} km`,
+          text: String(((order.pricing?.distanceKm || 0).toFixed(1)) + " km"),
         },
         duration: {
           value: (order.etaMinutes || 0) * 60,
-          text: order.etaText || `${order.etaMinutes || 0} min`,
+          text: order.etaText || String((order.etaMinutes || 0) + " min"),
         },
         routeCoordinates:
           Array.isArray(order.routeCoordinates) && order.routeCoordinates.length >= 2
@@ -207,7 +193,29 @@ export default function PaymentScreenEnhanced() {
         },
       });
 
-      logger.info("PaymentScreen", "Corrida criada com sucesso", ride);
+      rideId = ride._id;
+      logger.info("PaymentScreen", "Corrida criada (pending_payment)", { rideId });
+
+      // Step 2: Only now process payment
+      const paymentResponse = await paymentService.processPayment({
+        amount: finalAmount,
+        method: paymentForm.method,
+        description: String(serviceType + " em " + (order.pickup?.address || "Local")),
+        pixKey: paymentForm.pixKey || undefined,
+      });
+
+      if (!paymentResponse.success) {
+        logger.error("PaymentScreen", "Pagamento falhou, cancelando corrida", { rideId });
+        try {
+          await rideService.cancel(rideId, "payment_failed");
+        } catch (cancelErr) {
+          logger.error("PaymentScreen", "Falha ao cancelar corrida apos pagamento falho", cancelErr);
+        }
+        throw new Error(paymentResponse.error || "Erro ao processar pagamento");
+      }
+
+      transactionId = paymentResponse.transactionId || null;
+      logger.info("PaymentScreen", "Pagamento processado com sucesso", { rideId, transactionId });
 
       Toast.show({
         type: "success",
@@ -220,16 +228,16 @@ export default function PaymentScreenEnhanced() {
         routes: [
           {
             name: "SearchingDriver",
-            params: { rideId: ride._id, serviceType: order.serviceMode },
+            params: { rideId, serviceType: order.serviceMode },
           },
         ],
       });
     } catch (error) {
-      logger.error("PaymentScreen", "Erro ao processar pagamento", error as Error);
-      handleError(
-        error as Error,
-        "Erro ao processar pagamento. Tente novamente."
-      );
+      logger.error("PaymentScreen", "Erro ao processar pagamento", error);
+      if (transactionId && rideId) {
+        logger.error("PaymentScreen", "CRITICAL: Payment succeeded but post-payment flow failed. Manual refund may be needed.", { rideId, transactionId, error: error?.message });
+      }
+      handleError(error, "Erro ao processar pagamento. Tente novamente.");
     } finally {
       setProcessing(false);
     }

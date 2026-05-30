@@ -1,4 +1,6 @@
 // Tipos para a API
+// Re-export canonical User type from models module
+export type { User } from "./models";
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -27,30 +29,6 @@ export interface GoogleAuthData {
   email: string;
   name: string;
   profilePhoto?: string;
-}
-
-export interface User {
-  _id: string;
-  name: string;
-  email: string;
-  phone?: string;
-  city?: string;
-  userType: 'client' | 'driver' | 'admin';
-  vehicleType?: "motorcycle" | "car" | "van" | "truck";
-  vehicleInfo?: {
-    plate?: string;
-    model?: string;
-    color?: string;
-    year?: number;
-  };
-  googleId?: string;
-  profilePhoto?: string;
-  acceptedTerms: boolean;
-  driverStatus?: "none" | "pending" | "approved" | "rejected";
-  tourSeen?: boolean;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
 }
 
 export interface AuthResponse {

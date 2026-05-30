@@ -155,6 +155,7 @@ export default function DriverHomeScreen() {
   const hasIncomingRequestRef = useRef(false);
   const didSetInitialRegionRef = useRef(false);
   const lastAppStateRef = useRef(AppState.currentState);
+  const cancellationDedupRef = useRef<Map<string, number>>(new Map());
 
   const vehicleType = (userData?.vehicleType ||
     "motorcycle") as DriverVehicleType;
@@ -329,14 +330,6 @@ export default function DriverHomeScreen() {
         await showIncomingRideRequest(realtimeRequests[0], response.count || requests.length);
       } else {
         setPendingRequests(0);
-        // Se não há chamadas imediatas mas há negociações pendentes,
-        // redireciona para DriverRequests na aba de negociação
-        const negotiations = response?.pendingNegotiationsCount || 0;
-        const countered = response?.clientCounteredCount || 0;
-        if ((negotiations > 0 || countered > 0) && !hasIncomingRequestRef.current) {
-          (navigation as any).navigate("DriverRequests", { initialTab: "negotiation" });
-          return;
-        }
       }
     } catch (e) {
       console.error("Error syncing available requests:", e);
@@ -372,12 +365,6 @@ export default function DriverHomeScreen() {
             });
             return;
           }
-
-          // Se não tem corrida ativa, verifica negociações pendentes
-          const negotiations = await rideService.getPendingNegotiations();
-          if (active && negotiations?.count > 0 && negotiations.requests.length > 0) {
-            (navigation as any).navigate("DriverRequests", { initialTab: "negotiation" });
-          }
         } catch {}
       })();
 
@@ -409,12 +396,6 @@ export default function DriverHomeScreen() {
               rideId: response.ride._id,
             });
             return;
-          }
-
-          // Se não tem corrida ativa, verifica negociações pendentes
-          const negotiations = await rideService.getPendingNegotiations();
-          if (negotiations?.count > 0 && negotiations.requests.length > 0) {
-            (navigation as any).navigate("DriverRequests", { initialTab: "negotiation" });
           }
         })
         .catch(() => {});
@@ -847,10 +828,7 @@ export default function DriverHomeScreen() {
     };
 
     // Deduplication: track recently processed cancellation events to avoid duplicate handling
-    if (!(globalThis as any).__driverCancellationDedup) {
-      (globalThis as any).__driverCancellationDedup = new Map<string, number>();
-    }
-    const dedupMap = (globalThis as any).__driverCancellationDedup as Map<string, number>;
+    const dedupMap = cancellationDedupRef.current;
 
     const onRideCancelled = async (payload: any) => {
       if (!mounted) return;
@@ -954,17 +932,17 @@ export default function DriverHomeScreen() {
     webSocketService.on("ride-status-changed", onRideStatusChanged);
 
     // Dedicated delivery event key listeners (radios)
-    webSocketService.on("delivery_open", onNewRideRequest);
-    webSocketService.on("delivery_cancelled", onRideCancelled);
-    webSocketService.on("delivery_negotiated", (payload: any) => {
+    webSocketService.on("delivery-open", onNewRideRequest);
+    webSocketService.on("delivery-cancelled", onRideCancelled);
+    webSocketService.on("delivery-negotiated", (payload: any) => {
       syncAvailableRequests().catch(() => {});
       onRideStatusChanged(payload);
     });
 
     // Dedicated ride event key listeners (radios)
-    webSocketService.on("ride_open", onNewRideRequest);
-    webSocketService.on("ride_cancelled", onRideCancelled);
-    webSocketService.on("ride_negotiated", (payload: any) => {
+    webSocketService.on("ride-open", onNewRideRequest);
+    webSocketService.on("ride-cancelled", onRideCancelled);
+    webSocketService.on("ride-negotiated", (payload: any) => {
       syncAvailableRequests().catch(() => {});
       onRideStatusChanged(payload);
     });
@@ -986,14 +964,14 @@ export default function DriverHomeScreen() {
       webSocketService.off("ride-status-changed", onRideStatusChanged);
 
       // Dedicated delivery event key listeners (radios) off
-      webSocketService.off("delivery_open", onNewRideRequest);
-      webSocketService.off("delivery_cancelled", onRideCancelled);
-      webSocketService.off("delivery_negotiated");
+      webSocketService.off("delivery-open", onNewRideRequest);
+      webSocketService.off("delivery-cancelled", onRideCancelled);
+      webSocketService.off("delivery-negotiated");
 
       // Dedicated ride event key listeners (radios) off
-      webSocketService.off("ride_open", onNewRideRequest);
-      webSocketService.off("ride_cancelled", onRideCancelled);
-      webSocketService.off("ride_negotiated");
+      webSocketService.off("ride-open", onNewRideRequest);
+      webSocketService.off("ride-cancelled", onRideCancelled);
+      webSocketService.off("ride-negotiated");
     };
   }, [online, incomingRequest?.rideId, isFocused]);
 
@@ -1444,13 +1422,23 @@ export default function DriverHomeScreen() {
       }
 
       if (incomingRequest?.negotiation?.enabled) {
-        await rideService.respondToOffer(incomingRequest.rideId, { action: "accept" });
+        const result = await rideService.respondToOffer(incomingRequest.rideId, { action: "accept" });
+        await clearIncoming();
+        if (result?.rideMatched) {
+          (navigation as any).navigate("DriverRide", { rideId: incomingRequest.rideId });
+          Toast.show({
+            type: "success",
+            text1: "Corrida aceita!",
+            text2: "Dirija com cuidado!",
+          });
+          return;
+        }
         Toast.show({
           type: "success",
           text1: "Oferta aceita",
           text2: "Aguardando cliente selecionar sua proposta.",
         });
-        // We do NOT call clearIncoming() here. The IncomingRideCard will display the 'Aguardando Resposta' state.
+        (navigation as any).navigate("DriverRequests", { initialTab: "realtime" });
         return;
       }
 
@@ -1491,14 +1479,13 @@ export default function DriverHomeScreen() {
         amount,
         message: message || "Negociação justa",
       });
-      await driverAlertService.stop().catch(() => {});
-
+      await clearIncoming();
       Toast.show({
         type: "success",
         text1: "Proposta Enviada! 🚀",
         text2: `Sua oferta de R$ ${amount.toFixed(2).replace(".", ",")} foi enviada ao cliente.`,
       });
-      // We do NOT call clearIncoming() here. The IncomingRideCard will display the 'Aguardando Resposta' state.
+      (navigation as any).navigate("DriverRequests", { initialTab: "realtime" });
     } catch (err: any) {
       Toast.show({
         type: "error",

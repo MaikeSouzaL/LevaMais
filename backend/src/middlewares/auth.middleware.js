@@ -14,7 +14,14 @@ async function resolveUserFromToken(token) {
   if (!token) return null;
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || "secret");
+    const JWT_SECRET = process.env.JWT_SECRET;
+    if (!JWT_SECRET) {
+      if (process.env.NODE_ENV === "production") {
+        throw new Error("JWT_SECRET environment variable is required in production");
+      }
+    }
+    const jwtSecret = JWT_SECRET || "auth-dev-secret-do-not-use-in-production";
+    const decoded = jwt.verify(token, jwtSecret);
     const user = await User.findById(decoded.id);
     if (!user) {
       console.log(`[AuthMiddleware] User NOT found for ID: ${decoded.id}`);
@@ -94,10 +101,13 @@ function authorizeRoles(...roles) {
 // Admin auth de transicao: JWT admin OU chave administrativa
 async function requireAdmin(req, res, next) {
   try {
-    const adminApiKey = process.env.ADMIN_API_KEY || "dev-admin-key";
+    const adminApiKey = process.env.ADMIN_API_KEY;
     const providedKey = req.headers["x-admin-key"];
 
-    if (providedKey && providedKey === adminApiKey) {
+    if (adminApiKey && providedKey && providedKey === adminApiKey) {
+      console.log(
+        `[AdminAuth] Admin key used from IP ${req.ip || "unknown"} at ${new Date().toISOString()}`,
+      );
       req.user = {
         id: "admin-api-key",
         email: "admin@system.local",

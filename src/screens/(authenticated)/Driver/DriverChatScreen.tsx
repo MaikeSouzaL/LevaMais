@@ -139,11 +139,15 @@ export default function DriverChatScreen() {
     setMessage("");
 
     try {
-      const saved = await chatService.sendRideMessage(rideId, txt);
+      chatService.sendViaSocket(rideId, txt);
       setMessages((prev) => {
-        const id = String(saved?.id || saved?._id || "");
-        if (id && prev.some((item) => item.id === id)) return prev;
-        return [...prev, toChatItem(saved, currentUserId)];
+        const tempId = `out-${Date.now()}`;
+        return [...prev, {
+          id: tempId,
+          text: txt,
+          sent: true,
+          timestamp: Date.now(),
+        }];
       });
     } catch (e: any) {
       Toast.show({

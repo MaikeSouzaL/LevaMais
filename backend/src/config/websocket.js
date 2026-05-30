@@ -3,6 +3,7 @@ const jwt = require("jsonwebtoken");
 const Ride = require("../models/Ride");
 const RideTrackPoint = require("../models/RideTrackPoint");
 const DriverLocation = require("../models/DriverLocation");
+const ChatMessage = require("../models/ChatMessage");
 
 let io;
 
@@ -79,7 +80,14 @@ function initializeWebSocket(server) {
         return next(new Error("Token nao fornecido"));
       }
 
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || "secret");
+      const JWT_SECRET = process.env.JWT_SECRET;
+      if (!JWT_SECRET) {
+        if (process.env.NODE_ENV === "production") {
+          return next(new Error("JWT_SECRET environment variable is required in production"));
+        }
+      }
+      const jwtSecret = JWT_SECRET || "ws-dev-secret-do-not-use-in-production";
+      const decoded = jwt.verify(token, jwtSecret);
 
       // Token do app (auth.controller) usa { id, userType? }
       socket.userId = decoded.id || decoded.userId;
@@ -242,39 +250,58 @@ function initializeWebSocket(server) {
       }
     });
 
-    // Evento: Mensagem de chat (via WebSocket, sem persistência)
-    socket.on("send-message", (data, ack) => {
+    // Evento: Mensagem de chat (WebSocket + persistência no banco)
+    socket.on("send-message", async (data, ack) => {
       try {
         const rideId = String(data?.rideId || "").trim();
-        const message = String(data?.message || "");
+        const message = String(data?.message || "").trim();
 
-        const payload = {
+        if (!rideId || !message) {
+          if (typeof ack === "function") ack({ success: false, message: "rideId e message sao obrigatorios" });
+          return;
+        }
+
+        // Verifica que o socket pertence à corrida
+        const ride = await resolveRideForSocket(rideId, socket);
+        const userType = normalizeUserType(socket.userType);
+        const isParticipant =
+          isSameId(ride.clientId, socket.userId) || isSameId(ride.driverId, socket.userId);
+        if (!isParticipant && userType !== "admin") {
+          if (typeof ack === "function") ack({ success: false, message: "Voce nao participa desta corrida" });
+          return;
+        }
+
+        // Persiste no banco
+        const chatDoc = await ChatMessage.create({
           rideId,
           senderId: socket.userId,
-          senderType: socket.userType,
+          senderType: userType,
           message,
-          timestamp: new Date().toISOString(),
+        });
+
+        const payload = {
+          _id: String(chatDoc._id),
+          rideId,
+          senderId: socket.userId,
+          senderType: userType,
+          message,
+          timestamp: chatDoc.createdAt.toISOString(),
         };
 
-        const receiverType = payload.senderType === "driver" ? "client" : "driver";
-        const receiverId = data?.receiverId;
-        if (receiverId) {
-          io.to(`${receiverType}-${receiverId}`).emit("new-message", payload);
-          io.to(`${payload.senderType}-${payload.senderId}`).emit("new-message", payload);
-        }
+        // Envia para ambos os participantes
+        const clientId = ride.clientId?._id || ride.clientId;
+        const driverId = ride.driverId?._id || ride.driverId;
+        if (clientId) io.to(`client-${clientId}`).emit("new-message", payload);
+        if (driverId) io.to(`driver-${driverId}`).emit("new-message", payload);
 
         if (typeof ack === "function") {
           ack({ success: true, message: payload });
         }
       } catch (error) {
         const msg = String(error?.message || "Erro ao enviar mensagem");
-        console.error("Erro ao enviar mensagem:", msg);
-
+        console.error("[WebSocket] Chat error:", msg);
         socket.emit("chat-error", { message: msg });
-
-        if (typeof ack === "function") {
-          ack({ success: false, message: msg });
-        }
+        if (typeof ack === "function") ack({ success: false, message: msg });
       }
     });
 
@@ -302,13 +329,13 @@ function initializeWebSocket(server) {
           console.log(`[WebSocket] Delivery ${rideId} marked as expired (cancelled_no_driver)`);
 
           // Broadcast to client room and everyone
-          io.to(`client-${ride.clientId}`).emit("delivery_cancelled", {
+          io.to(`client-${ride.clientId}`).emit("delivery-cancelled", {
             rideId: String(ride._id),
             reason: "expired",
           });
 
           // Broadcast to all to close sheet and remove from list
-          io.emit("delivery_cancelled", {
+          io.emit("delivery-cancelled", {
             rideId: String(ride._id),
             reason: "expired",
           });
@@ -342,13 +369,13 @@ function initializeWebSocket(server) {
           console.log(`[WebSocket] Ride ${rideId} marked as expired (cancelled_no_driver)`);
 
           // Broadcast to client room and everyone
-          io.to(`client-${ride.clientId}`).emit("ride_cancelled", {
+          io.to(`client-${ride.clientId}`).emit("ride-cancelled", {
             rideId: String(ride._id),
             reason: "expired",
           });
 
           // Broadcast to all to close sheet and remove from list
-          io.emit("ride_cancelled", {
+          io.emit("ride-cancelled", {
             rideId: String(ride._id),
             reason: "expired",
           });

@@ -390,17 +390,22 @@ const driverController = {
           balance: 0,
           totalDeposits: 0,
           totalDeductions: 0,
+          operationalCredit: 50,
           transactions: [],
         };
       }
 
-      if (user.driverBalance.balance < amount) {
+      const totalAvailable = (user.driverBalance.balance || 0) + (user.driverBalance.operationalCredit || 0);
+      if (totalAvailable < amount) {
         return res.status(400).json({
           error: "Saldo insuficiente",
           required: amount,
-          available: user.driverBalance.balance,
+          available: totalAvailable,
         });
       }
+
+      // 3. Deducao prioriza credito operacional primeiro
+      const opCredit = user.driverBalance.operationalCredit || 0;
 
       // Create withdrawal request
       user.driverBalance.balance -= amount;
@@ -563,14 +568,16 @@ const driverController = {
         });
       }
 
-      // 5. Verificar saldo
+      // 5. Verificar saldo (permite saldo zero — motorista novo ganha credito operacional)
       const balance = user.driverBalance?.balance || 0;
-      if (balance <= 0) {
-        return res.status(400).json({
-          error: "Saldo insuficiente para trabalhar",
-          currentBalance: balance,
-          message: "Voce precisa ter um saldo positivo para ficar online",
-        });
+      const operationalCredit = user.driverBalance?.operationalCredit || 0;
+      const totalAvailable = balance + operationalCredit;
+      if (totalAvailable <= 0) {
+        // Concede credito operacional inicial para novos motoristas
+        user.driverBalance = user.driverBalance || {};
+        user.driverBalance.operationalCredit = 50; // R$ 50 de credito inicial
+        user.driverBalance.balance = user.driverBalance.balance || 0;
+        await user.save();
       }
 
       const now = new Date();

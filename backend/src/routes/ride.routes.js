@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const rideController = require("../controllers/ride.controller");
+const chatController = require("../controllers/chat.controller");
 const { authenticateToken } = require("../middlewares/auth.middleware");
 
 // Todas as rotas exigem autenticaÃ§Ã£o
@@ -78,6 +79,12 @@ router.get("/nearby-drivers", rideController.getNearbyDrivers);
 
 // Buscar corrida por ID
 router.get("/:rideId", rideController.getById);
+
+// Entrar na fila de espera
+router.post("/:rideId/queue", rideController.enterWaitingQueue);
+
+// Chat history
+router.get("/:rideId/chat", chatController.getChatHistory);
 
 // HistÃ³rico de corridas
 router.get("/", rideController.getHistory);

@@ -28,26 +28,45 @@ export const colors = {
   // Texto
   text: {
     primary: '#ffffff',
-    secondary: 'rgba(255, 255, 255, 0.75)',
-    tertiary: 'rgba(255, 255, 255, 0.55)',
-    disabled: 'rgba(255, 255, 255, 0.35)',
+    secondary: 'rgba(255, 255, 255, 0.70)',
+    tertiary: 'rgba(255, 255, 255, 0.45)',
+    disabled: 'rgba(255, 255, 255, 0.25)',
+    inverse: '#091A2F',
   },
 
-  // Status
+  // Status semânticos
+  status: {
+    searching: '#60A5FA',
+    enRoute: '#38BDF8',
+    arrived: '#02DE95',
+    inProgress: '#02DE95',
+    completed: '#02DE95',
+    cancelled: '#EF4444',
+    pending: '#F59E0B',
+  },
+
+  // Status (legado)
   success: '#10b981',
   warning: '#f59e0b',
   error: '#ef4444',
   info: '#3b82f6',
 
   // Overlay
-  overlay: 'rgba(0, 0, 0, 0.5)',
-  overlayLight: 'rgba(0, 0, 0, 0.3)',
+  overlay: {
+    heavy: 'rgba(0, 0, 0, 0.60)',
+    medium: 'rgba(0, 0, 0, 0.40)',
+    light: 'rgba(0, 0, 0, 0.20)',
+    legacy: 'rgba(0, 0, 0, 0.5)',
+    lightLegacy: 'rgba(0, 0, 0, 0.3)',
+  },
 
   // Borders
   border: {
+    subtle: 'rgba(255, 255, 255, 0.08)',
+    default: 'rgba(255, 255, 255, 0.12)',
+    strong: 'rgba(255, 255, 255, 0.20)',
     light: 'rgba(255, 255, 255, 0.08)',
     medium: 'rgba(255, 255, 255, 0.12)',
-    strong: 'rgba(255, 255, 255, 0.20)',
   },
 } as const;
 

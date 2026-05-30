@@ -365,12 +365,16 @@ class AuthController {
     const userId = typeof user === "string" ? user : user?._id;
     const userType = typeof user === "string" ? undefined : user?.userType;
 
+    const JWT_SECRET = process.env.JWT_SECRET;
+    if (!JWT_SECRET && process.env.NODE_ENV === "production") {
+      throw new Error("JWT_SECRET environment variable is required in production");
+    }
+    const jwtSecret = JWT_SECRET || "auth-dev-secret-do-not-use-in-production";
+    const expiresIn = process.env.JWT_EXPIRE || "7d";
     return jwt.sign(
       { id: String(userId), userType },
-      process.env.JWT_SECRET || "secret",
-      {
-        expiresIn: process.env.JWT_EXPIRE || "7d",
-      },
+      jwtSecret,
+      { expiresIn },
     );
   }
 

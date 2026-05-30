@@ -10,6 +10,9 @@ import Toast from "react-native-toast-message";
 
 import DriverHeader from "./components/DriverHeader";
 import { DriverStatusCard } from "./components/DriverStatusCard";
+import { ActiveDeliveryHeader } from "./components/ActiveDeliveryHeader";
+import { FloatingMapControls } from "./components/FloatingMapControls";
+import { ActiveDeliveryBottomSheet } from "./components/ActiveDeliveryBottomSheet";
 import {
   DriverCancelReasonModal,
   CancelReason,
@@ -418,6 +421,7 @@ export default function DriverRideScreen() {
         await webSocketService.connect();
         webSocketService.on("ride-status-updated", onStatusUpdated);
         webSocketService.on("ride-cancelled", onRideCancelled);
+        webSocketService.on("delivery-cancelled", onRideCancelled);
         webSocketService.on("new-message", onNewMsg);
         webSocketService.on("client-location-update", onClientLocationUpdate);
       } catch {}
@@ -427,6 +431,7 @@ export default function DriverRideScreen() {
       mounted = false;
       webSocketService.off("ride-status-updated", onStatusUpdated);
       webSocketService.off("ride-cancelled", onRideCancelled);
+      webSocketService.off("delivery-cancelled", onRideCancelled);
       webSocketService.off("new-message", onNewMsg);
       webSocketService.off("client-location-update", onClientLocationUpdate);
     };
@@ -574,24 +579,29 @@ export default function DriverRideScreen() {
     if (nextStatus === "in_progress" && !canStart) return;
     if (nextStatus === "completed" && !canComplete) return;
 
+    let inputPickupPin: string | undefined = undefined;
+    let inputDeliveryPin: string | undefined = undefined;
+
+    if (nextStatus === "in_progress" && ride?.details?.pickupPin) {
+      try {
+        inputPickupPin = await promptForPin("pickup");
+      } catch {
+        return;
+      }
+    }
+    if (nextStatus === "completed" && ride?.details?.deliveryPin) {
+      try {
+        inputDeliveryPin = await promptForPin("delivery");
+      } catch {
+        return;
+      }
+    }
+
     setActionLoading(nextStatus);
     try {
-      // Redirecionar para telas dedicadas de confirmação de entrega
-      if (isDelivery && nextStatus === "arrived") {
-        // Chegou na coleta - redirecionar para confirmação de coleta
-        (navigation as any).navigate("DeliveryPickupConfirm", { rideId });
-        return;
-      }
-
-      if (isDelivery && nextStatus === "in_progress") {
-        // Em andamento - redirecionar para confirmação de entrega
-        (navigation as any).navigate("DeliveryDropoffConfirm", { rideId });
-        return;
-      }
-
       const r = await rideService.updateStatus(rideId, nextStatus, false, {
-        pickupPin: undefined,
-        deliveryPin: undefined,
+        pickupPin: inputPickupPin,
+        deliveryPin: inputDeliveryPin,
       });
       setRide(r as any);
       setStatus(r?.status || nextStatus);
@@ -602,6 +612,13 @@ export default function DriverRideScreen() {
       if (nextStatus === "arrived") {
         webSocketService.emit("driver-arrived", { rideId });
         Toast.show({ type: "success", text1: "Voce marcou: Cheguei" });
+        // Redirecionar para confirmacao de coleta (delivery)
+        if (isDelivery) {
+          setTimeout(() => {
+            (navigation as any).navigate("DeliveryPickupConfirm", { rideId });
+          }, 500);
+          return;
+        }
       }
       if (nextStatus === "in_progress") {
         webSocketService.emit("start-ride", { rideId });
@@ -736,28 +753,20 @@ export default function DriverRideScreen() {
     };
   }, [driverCoords?.latitude, driverCoords?.longitude, targetCoords?.latitude, targetCoords?.longitude]);
 
+  const driverAvatar = useAuthStore((s) => s.userData?.profilePhoto || s.userData?.fotoPerfil);
+
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#091A2F" }}>
-      <DriverHeader
-        title={isDelivery ? "Entrega ativa" : "Corrida ativa"}
-        right={
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-            <TouchableOpacity
-              onPress={() => {
-                if (!canCancel) return;
-                try {
-                  (navigation as any).navigate("DriverCancelRide", { rideId });
-                } catch {
-                  setCancelModalOpen(true);
-                }
-              }}
-            >
-              <Text style={{ color: "#ef4444", fontWeight: "900" }}>
-                Cancelar
-              </Text>
-            </TouchableOpacity>
-          </View>
-        }
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#091A2F" }} edges={["top"]}>
+      <ActiveDeliveryHeader
+        driverPhoto={driverAvatar}
+        canCancel={canCancel}
+        onCancelPress={() => {
+          try {
+            (navigation as any).navigate("DriverCancelRide", { rideId });
+          } catch {
+            setCancelModalOpen(true);
+          }
+        }}
       />
 
       <View style={{ flex: 1 }}>
@@ -788,17 +797,17 @@ export default function DriverRideScreen() {
              </Marker>
           )}
           {!!clientCoords && (
-            <Marker
-              coordinate={{
-                latitude: clientCoords.latitude,
-                longitude: clientCoords.longitude,
-              }}
-              title="Cliente"
-              tracksViewChanges={false}
-              anchor={{ x: 0.5, y: 1 }}
-            >
-              <MapMarker type="client" />
-            </Marker>
+             <Marker
+               coordinate={{
+                 latitude: clientCoords.latitude,
+                 longitude: clientCoords.longitude,
+               }}
+               title="Cliente"
+               tracksViewChanges={false}
+               anchor={{ x: 0.5, y: 1 }}
+             >
+               <MapMarker type="client" />
+             </Marker>
           )}
           {routeCoords.length >= 2 ? (
             <Polyline
@@ -841,74 +850,27 @@ export default function DriverRideScreen() {
           )}
         </GlobalMap>
 
-        <View
-          style={{
-            position: "absolute",
-            right: 12,
-            top: 92,
-            gap: 8,
-            alignItems: "center",
-          }}
-        >
-          {[
-            { label: "ETA", value: liveEtaText || "--" },
-            { label: "KM", value: liveDistanceText || "--" },
-            { label: "VEL", value: `${Math.round(liveSpeedKmh)}` },
-          ].map((item) => (
-            <View
-              key={item.label}
-              style={{
-                width: 58,
-                height: 58,
-                borderRadius: 29,
-                backgroundColor: "rgba(12,25,39,0.9)",
-                borderWidth: 1,
-                borderColor: "rgba(2,222,149,0.35)",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Text style={{ color: "rgba(255,255,255,0.65)", fontSize: 9, fontWeight: "800" }}>
-                {item.label}
-              </Text>
-              <Text style={{ color: "#02de95", fontWeight: "900", fontSize: 13, marginTop: 1 }}>
-                {item.value}
-              </Text>
-            </View>
-          ))}
-        </View>
-
-        <MapActionButtons
-          onSosPress={handleSOS}
-          onLocationPress={handleCenterMyLocation}
-          onMapStylePress={handleToggleMapStyle}
-          useDarkMap={useDarkMap}
+        {/* Floating GPS Map Controls */}
+        <FloatingMapControls
+          duration={liveEtaText || ride?.duration?.text}
+          onCenterLocation={handleCenterMyLocation}
+          onToggleStyle={handleToggleMapStyle}
           isCentering={isCentering}
           isSwitchingStyle={isSwitchingMapStyle}
-          topOffset={300}
         />
 
-        <View style={{ position: "absolute", left: 16, right: 16, bottom: 16 }}>
-          <DriverStatusCard
-            statusLabel={statusLabel}
+        {/* Active Delivery Bottom Sheet */}
+        <View style={{ position: "absolute", left: 0, right: 0, bottom: 0 }}>
+          <ActiveDeliveryBottomSheet
+            status={status}
             pickupAddress={ride?.pickup?.address}
             dropoffAddress={ride?.dropoff?.address}
-            details={ride?.details}
-            payment={ride?.payment}
-            clientName={(ride?.clientId as any)?.name || "Cliente"}
-            showRouteDetails
-            canArrive={canArrive}
-            canStart={canStart}
-            canComplete={canComplete}
-            actionLoading={actionLoading}
-            onArrive={() => update("arrived")}
-            onStart={() => update("in_progress")}
-            onComplete={() => update("completed")}
-            isAwaitingPayment={isAwaitingPayment}
-            isDelivery={isDelivery}
-            arrivedAtDropoff={arrivedAtDropoff}
-            canArriveDropoff={canArriveDropoff}
-            onArriveDropoff={handleArriveDropoff}
+            distance={liveDistanceText || ride?.distance?.text}
+            duration={liveEtaText || ride?.duration?.text}
+            earnings={ride?.pricing?.total || ride?.pricing?.driverValue}
+            paymentLabel={ride?.payment?.method}
+            recipientPhone={ride?.details?.recipientPhone}
+            unreadCount={unreadCount}
             onChat={() => {
               if (!rideId) return;
               useChatStore.getState().clearUnread(rideId);
@@ -917,7 +879,29 @@ export default function DriverRideScreen() {
                 clientName: (ride?.clientId as any)?.name || "Cliente",
               });
             }}
-            unreadCount={unreadCount}
+            onReportProblem={() => {
+              try {
+                (navigation as any).navigate("DriverCancelRide", { rideId });
+              } catch {
+                setCancelModalOpen(true);
+              }
+            }}
+            onPrimaryActionPress={() => {
+              if (canArrive) {
+                update("arrived");
+              } else if (canStart) {
+                update("in_progress");
+              } else if (canComplete) {
+                update("completed");
+              }
+            }}
+            actionLoading={actionLoading != null}
+            canArrive={canArrive}
+            canStart={canStart}
+            canComplete={canComplete}
+            isDelivery={isDelivery}
+            canArriveDropoff={canArriveDropoff}
+            onArriveDropoff={handleArriveDropoff}
           />
         </View>
       </View>

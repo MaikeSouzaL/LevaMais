@@ -242,12 +242,7 @@ module.exports.attach = function attach(RideController, deps) {
         return res.status(400).json({ error: "Prova de foto apenas para entregas" });
       }
 
-      // regra: precisa ter prova de coleta antes de prova de entrega
-      if (!ride.proofs?.pickupPhoto) {
-        return res.status(400).json({
-          error: "Envie a foto da coleta antes da foto da entrega",
-        });
-      }
+      // foto da coleta e opcional
 
       ride.proofs = ride.proofs || {};
       ride.proofs.deliveryPhoto = String(photoBase64);

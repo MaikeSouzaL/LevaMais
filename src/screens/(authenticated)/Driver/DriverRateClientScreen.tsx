@@ -120,7 +120,7 @@ export default function DriverRateClientScreen() {
         ) : ride ? (
           <View className="bg-[rgba(2,222,149,0.06)] rounded-3xl border border-[rgba(2,222,149,0.18)] p-4 mb-5 items-center">
             <Text className="text-white/50 text-xs font-black tracking-wider">VOCÊ FATUROU NESSA CORRIDA</Text>
-            <Text className="text-[#02de95] text-4xl font-black mt-1">R$ {Number(ride.pricing?.driverValue ?? ride.pricing?.total ?? 0).toFixed(2)}</Text>
+            <Text className="text-[#02de95] text-4xl font-black mt-1">R$ {Number(ride.pricing?.total ?? ride.pricing?.driverValue ?? 0).toFixed(2)}</Text>
             
             <View className="w-full h-px bg-white/10 my-3.5" />
             

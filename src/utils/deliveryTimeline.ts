@@ -5,7 +5,7 @@ export interface DeliveryTimelineStep {
   active: boolean;
 }
 
-export function getDeliveryTimeline(status: string): DeliveryTimelineStep[] {
+export function getDeliveryTimeline(status: string, arrivedAtDropoff?: boolean): DeliveryTimelineStep[] {
   const isDone = (target: string) => {
     if (target === "to_pickup") {
       return ["driver_assigned", "accepted", "driver_arriving", "arrived", "in_progress", "completed"].includes(status);
@@ -20,7 +20,7 @@ export function getDeliveryTimeline(status: string): DeliveryTimelineStep[] {
       return ["in_progress", "completed"].includes(status);
     }
     if (target === "arrived_dropoff") {
-      return ["completed"].includes(status);
+      return Boolean(arrivedAtDropoff) || ["completed"].includes(status);
     }
     if (target === "completed") {
       return ["completed"].includes(status);
@@ -45,19 +45,19 @@ export function getDeliveryTimeline(status: string): DeliveryTimelineStep[] {
       key: "picked_up",
       label: "Pacote coletado",
       done: isDone("picked_up"),
-      active: status === "in_progress",
+      active: status === "in_progress" && !arrivedAtDropoff,
     },
     {
       key: "to_dropoff",
       label: "A caminho da entrega",
       done: isDone("to_dropoff"),
-      active: status === "in_progress",
+      active: status === "in_progress" && !arrivedAtDropoff,
     },
     {
       key: "arrived_dropoff",
       label: "Chegou no destino",
       done: isDone("arrived_dropoff"),
-      active: false,
+      active: status === "in_progress" && Boolean(arrivedAtDropoff),
     },
     {
       key: "completed",

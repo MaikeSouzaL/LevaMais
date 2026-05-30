@@ -101,10 +101,17 @@ export function useActiveRideMonitor() {
           primaryRide.driverId &&
           ["accepted", "driver_arriving", "arrived", "in_progress"].includes(primaryRide.status)
         ) {
-          navigation.reset({
-            index: 0,
-            routes: [{ name: "RideTracking", params: { rideId: primaryRide._id } }],
-          });
+          const trackingScreen = primaryRide.serviceType === "delivery" ? "DeliveryTracking" : "RideTracking";
+          try {
+            (navigation as any).navigate(trackingScreen, { rideId: primaryRide._id });
+          } catch {
+            // fallback: if navigate fails (drawer nesting), try replace
+            try {
+              (navigation as any).replace(trackingScreen, { rideId: primaryRide._id });
+            } catch {
+              // ignore — let the interval re-check
+            }
+          }
           return;
         }
       }
@@ -120,7 +127,6 @@ export function useActiveRideMonitor() {
     const handleDriverAccepted = async (data: any) => {
       logger.info("useActiveRideMonitor", "Motorista aceitou oferta", data);
       const rId = data?.rideId;
-      const dId = data?.driverId;
 
       // Deduplication: prevent duplicate handling of same ride acceptance
       if (rId && processedAcceptances.current.has(rId)) {
@@ -133,17 +139,7 @@ export function useActiveRideMonitor() {
         setTimeout(() => processedAcceptances.current.delete(rId), 5000);
       }
 
-      if (rId && dId) {
-        try {
-          await rideService.selectOffer(rId, dId);
-          navigation.navigate("DeliveryPaymentConfirm", { rideId: rId });
-        } catch (error) {
-          logger.error("useActiveRideMonitor", "Erro ao selecionar oferta, indo para marketplace", error);
-          navigation.navigate("RideOffersMarketplace", { rideId: rId });
-        }
-      } else if (rId) {
-        navigation.navigate("RideOffersMarketplace", { rideId: rId });
-      }
+      await checkActiveRide();
     };
 
     const handleRideCancelled = (data: any) => {
@@ -211,15 +207,15 @@ export function useActiveRideMonitor() {
       webSocketService.on("ride-payment-expired", handlePaymentExpired);
 
       // Dedicated delivery event key listeners (radios)
-      webSocketService.on("delivery_accepted", handleDriverAccepted);
-      webSocketService.on("delivery_cancelled", handleRideCancelled);
-      webSocketService.on("delivery_negotiated", checkActiveRide);
+      webSocketService.on("delivery-accepted", handleDriverAccepted);
+      webSocketService.on("delivery-cancelled", handleRideCancelled);
+      webSocketService.on("delivery-negotiated", checkActiveRide);
 
       // Dedicated ride event key listeners (radios)
-      webSocketService.on("ride_open", checkActiveRide);
-      webSocketService.on("ride_accepted", handleDriverAccepted);
-      webSocketService.on("ride_cancelled", handleRideCancelled);
-      webSocketService.on("ride_negotiated", checkActiveRide);
+      webSocketService.on("ride-open", checkActiveRide);
+      webSocketService.on("ride-accepted", handleDriverAccepted);
+      webSocketService.on("ride-cancelled", handleRideCancelled);
+      webSocketService.on("ride-negotiated", checkActiveRide);
     }).catch((error) => {
       logger.error("useActiveRideMonitor", "Erro ao conectar WebSocket", error);
     });
@@ -255,14 +251,14 @@ export function useActiveRideMonitor() {
       webSocketService.off("ride-payment-expired", handlePaymentExpired);
 
       // Dedicated delivery event key listeners (radios) off
-      webSocketService.off("delivery_accepted", handleDriverAccepted);
-      webSocketService.off("delivery_cancelled", handleRideCancelled);
-      webSocketService.off("delivery_negotiated", checkActiveRide);
+      webSocketService.off("delivery-accepted", handleDriverAccepted);
+      webSocketService.off("delivery-cancelled", handleRideCancelled);
+      webSocketService.off("delivery-negotiated", checkActiveRide);
 
       // Dedicated ride event key listeners (radios) off
-      webSocketService.off("ride_open", checkActiveRide);
-      webSocketService.off("ride_accepted", handleDriverAccepted);
-      webSocketService.off("ride_cancelled", handleRideCancelled);
+      webSocketService.off("ride-open", checkActiveRide);
+      webSocketService.off("ride-accepted", handleDriverAccepted);
+      webSocketService.off("ride-cancelled", handleRideCancelled);
       webSocketService.off("ride-negotiated", checkActiveRide);
     };
   }, [checkActiveRide, navigation]);

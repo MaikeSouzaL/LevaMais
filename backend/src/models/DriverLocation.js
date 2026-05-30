@@ -111,7 +111,7 @@ driverLocationSchema.statics.findNearby = async function (
           coordinates: [longitude, latitude],
         },
         distanceField: "calculatedDistance", 
-        maxDistance: Math.max(maxDistance, 300000), 
+        maxDistance: Math.min(maxDistance, 300000), 
         spherical: true,
         query: {
           status: "available",

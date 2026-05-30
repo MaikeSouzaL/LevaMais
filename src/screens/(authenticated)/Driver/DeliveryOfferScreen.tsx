@@ -132,13 +132,24 @@ export default function DeliveryOfferScreen() {
       if (!offer?._id) return;
 
       if (offer.negotiation?.enabled) {
-        await rideService.respondToOffer(offer._id, {
+        const result = await rideService.respondToOffer(offer._id, {
           action: "accept",
           amount: offer.negotiation?.clientOffer || offer.pricing?.total || 20,
           message: "Aceito pelo valor sugerido",
         });
 
         if (timerRef.current) clearInterval(timerRef.current);
+
+        if (result?.rideMatched) {
+          // Aceite direto — vai direto pra corrida
+          navigation.replace("DriverRide", { rideId: offer._id });
+          Toast.show({
+            type: "success",
+            text1: "Corrida aceita!",
+            text2: "Dirija com cuidado!",
+          });
+          return;
+        }
 
         navigation.replace("DriverNegotiation", {
           offerId: offer._id,
@@ -148,7 +159,7 @@ export default function DeliveryOfferScreen() {
         Toast.show({
           type: "success",
           text1: "Interesse enviado! 🚀",
-          text2: "Aguardando confirmação de pagamento do cliente.",
+          text2: "Aguardando confirmação do cliente.",
         });
         return;
       }

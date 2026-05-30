@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { View, Text, TouchableOpacity, ActivityIndicator, StatusBar } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import Toast from "react-native-toast-message";
@@ -317,7 +317,7 @@ export default function SearchingDriverScreen() {
           doneRef.current = true;
           clearInterval(pollInterval);
           cleanup();
-          navigation.replace("DeliveryPaymentConfirm", { rideId: ride._id });
+          navigation.replace("DeliveryTracking", { rideId: ride._id });
           return;
         }
 

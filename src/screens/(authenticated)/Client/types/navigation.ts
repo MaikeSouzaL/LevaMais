@@ -3,6 +3,8 @@
  * Fonte de verdade para as rotas do fluxo cliente (drawer + stack).
  */
 
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+
 export type DeliveryAddressProfile = {
   address: string;
   addressCoords: { latitude: number; longitude: number } | null;
@@ -327,9 +329,41 @@ export type ClientStackParamList = {
   InviteFriends: undefined;
   SupportCenter: undefined;
   OrderSent: { rideId?: string };
+  RideBidSetup:
+    | {
+        pickup?: { address: string; latitude: number; longitude: number };
+        dropoff?: { address: string; latitude: number; longitude: number };
+        routeCoordinates?: Array<{ latitude: number; longitude: number }>;
+        vehicleType?: string;
+        initialDistanceKm?: number;
+        initialDurationMin?: number;
+        preferScheduled?: boolean;
+      }
+    | undefined;
+  RideBiddingScreen:
+    | {
+        pickup: { address: string; latitude: number; longitude: number };
+        dropoff: { address: string; latitude: number; longitude: number };
+        routeCoordinates?: Array<{ latitude: number; longitude: number }>;
+        vehicleType: string;
+        clientOffer: number;
+        estimate: {
+          suggestedPrice: number;
+          minPrice: number;
+          maxPrice: number;
+          distanceKm: number;
+          durationMin: number;
+          pricingBreakdown: {
+            baseFare: number;
+            distancePrice: number;
+            total: number;
+          };
+        };
+      }
+    | undefined;
 };
 
-export type HomeScreenNavigationProp = any;
-export type AddressPickerScreenNavigationProp = any;
-export type SelectVehicleScreenNavigationProp = any;
-export type RideTrackingScreenNavigationProp = any;
+export type HomeScreenNavigationProp = NativeStackNavigationProp<ClientStackParamList, 'Home'>;
+export type AddressPickerScreenNavigationProp = NativeStackNavigationProp<ClientStackParamList, 'LocationPicker'>;
+export type SelectVehicleScreenNavigationProp = NativeStackNavigationProp<ClientStackParamList, 'SelectVehicle'>;
+export type RideTrackingScreenNavigationProp = NativeStackNavigationProp<ClientStackParamList, 'RideTracking'>;

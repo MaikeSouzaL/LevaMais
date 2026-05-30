@@ -1,11 +1,7 @@
 import React from "react";
-import { View, Text, TouchableOpacity } from "react-native";
-import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
-
-import ActionButton from "../../../../components/ui/ActionButton";
-import { driverTheme } from "./driverTheme";
-import { PaymentProcessingCard } from "./payment/PaymentProcessingCard";
-import type { PaymentRealtimeState } from "./payment/PaymentStateManager";
+import { View, Text, TouchableOpacity, Linking } from "react-native";
+import { Phone, MessageSquare, AlertTriangle } from "lucide-react-native";
+import { MotiView } from "moti";
 
 export type DriverStatusCardProps = {
   statusLabel: string;
@@ -15,23 +11,23 @@ export type DriverStatusCardProps = {
   canArrive: boolean;
   canStart: boolean;
   canComplete: boolean;
-  actionLoading:
-    | null
-    | "cancel"
-    | "driver_arriving"
-    | "arrived"
-    | "in_progress"
-    | "completed"
-    | "arrived_at_dropoff";
+  actionLoading: null | "cancel" | "driver_arriving" | "arrived" | "in_progress" | "completed" | "arrived_at_dropoff";
   onArrive: () => void;
   onStart: () => void;
   onComplete: () => void;
   onChat?: () => void;
   unreadCount?: number;
   clientName?: string;
+  clientRating?: number;
+  distance?: string;
+  duration?: string;
+  pricing?: { total?: number; driverValue?: number };
   details?: {
     itemType?: string;
+    cargoSize?: string;
     priority?: number;
+    approximateWeightKg?: number;
+    isFragile?: boolean;
     pickupComplement?: string;
     dropoffComplement?: string;
     recipientName?: string;
@@ -40,20 +36,14 @@ export type DriverStatusCardProps = {
     pickupPin?: string;
     deliveryPin?: string;
     specialInstructions?: string;
+    insurance?: string;
   };
-  payment?: {
-    method?: {
-      type?: string;
-    } | string;
-  };
-  // Novos campos para fluxo delivery
-  isAwaitingPayment?: boolean;
+  payment?: { method?: { type?: string } | string };
   isDelivery?: boolean;
   arrivedAtDropoff?: boolean;
   canArriveDropoff?: boolean;
   onArriveDropoff?: () => void;
-  paymentRealtimeState?: PaymentRealtimeState;
-  paymentEtaSeconds?: number;
+  status?: string;
 };
 
 export function DriverStatusCard({
@@ -69,457 +59,279 @@ export function DriverStatusCard({
   onStart,
   onComplete,
   onChat,
-  unreadCount,
+  unreadCount = 0,
   clientName,
+  clientRating,
+  distance,
+  duration,
+  pricing,
   details,
   payment,
-  isAwaitingPayment = false,
   isDelivery = false,
   arrivedAtDropoff = false,
   canArriveDropoff = false,
   onArriveDropoff,
-  paymentRealtimeState,
-  paymentEtaSeconds = 300,
+  status,
 }: DriverStatusCardProps) {
   const busy = actionLoading != null;
+  
+  const isGoingToPickup = canArrive || status === "accepted" || status === "driver_arriving";
+  const isAtPickup = canStart || status === "arrived";
+  const isGoingToDropoff = canComplete || status === "in_progress";
 
-  // Custom visual theme based on current trip phase
-  const getPhaseTheme = () => {
-    if (canArrive) return { color: "#fbbf24", bg: "rgba(251,191,36,0.08)", icon: "navigation" };
-    if (canStart) return { color: "#02de95", bg: "rgba(2,222,149,0.08)", icon: "pin-drop" };
-    return { color: "#3b82f6", bg: "rgba(59,130,246,0.08)", icon: "local-shipping" };
+  let headerBadge = "Entrega ativa";
+  let headerTitle = pickupAddress || "Endereço de Coleta";
+  if (isGoingToPickup) {
+    headerBadge = "Indo para a coleta";
+    headerTitle = pickupAddress || "R. Josias da Silva, 295";
+  } else if (isAtPickup) {
+    headerBadge = "No local da coleta";
+    headerTitle = pickupAddress || "Aguardando Coleta";
+  } else if (isGoingToDropoff) {
+    headerBadge = "A caminho da entrega";
+    headerTitle = dropoffAddress || "Av. Maceió, 1132";
+  }
+
+  const getAddressSubtitle = (address: string) => {
+    if (!address) return "Pimenta Bueno - RO";
+    const parts = address.split(",");
+    if (parts.length > 2) {
+      return `${parts[1]?.trim() || ""} - ${parts[2]?.trim() || ""}`;
+    }
+    return address;
   };
+  
+  const headerSubtitle = getAddressSubtitle(headerTitle);
 
-  const phase = getPhaseTheme();
-
-  // Helper to extract initials for avatar
-  const getInitials = (name: string) => {
-    return name
-      .split(" ")
-      .slice(0, 2)
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase();
-  };
+  const rawPaymentType = typeof payment?.method === "object" ? payment?.method?.type : payment?.method;
+  const paymentLabel =
+    rawPaymentType === "pix" ? "PIX" : rawPaymentType === "card" || rawPaymentType === "credit_card" ? "Cartão" : "Dinheiro";
+  
+  const driverEarning = pricing?.driverValue || pricing?.total || 0;
 
   return (
-    <View
-      style={{
-        backgroundColor: "#0b1a2f",
-        borderRadius: 24,
-        padding: 20,
-        borderWidth: 1.5,
-        borderColor: "rgba(255, 255, 255, 0.06)",
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.4,
-        shadowRadius: 15,
-        elevation: 10,
-      }}
+    <MotiView
+      from={{ opacity: 0, translateY: 20 }}
+      animate={{ opacity: 1, translateY: 0 }}
+      transition={{ type: "spring", damping: 18 }}
+      className="bg-[#091A2F] rounded-3xl p-5 border border-white/[0.06] w-full"
+      style={{ shadowColor: "#000", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.4, shadowRadius: 15, elevation: 10 }}
     >
-      {/* Top Header: Phase Badge & Chat Quick Action */}
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <View
-            style={{
-              paddingHorizontal: 12,
-              paddingVertical: 6,
-              borderRadius: 12,
-              backgroundColor: phase.bg,
-              borderWidth: 1,
-              borderColor: `${phase.color}30`,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 6,
-            }}
-          >
-            <MaterialIcons name={phase.icon as any} size={14} color={phase.color} />
-            <Text style={{ color: phase.color, fontSize: 10.5, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.5 }}>
-              {statusLabel}
+      {/* ── 1. Cabeçalho do modal ── */}
+      <View className="flex-row items-center justify-between mb-4">
+        <View className="flex-1 mr-3">
+          <View className="bg-[#02de95]/10 border border-[#02de95]/20 self-start px-2.5 py-0.5 rounded-lg mb-1.5">
+            <Text className="text-[#02de95] text-[9px] font-black uppercase tracking-wider">
+              {headerBadge}
             </Text>
           </View>
+          <Text className="text-white text-base font-black leading-tight" numberOfLines={1}>
+            {headerTitle}
+          </Text>
+          <Text className="text-white/50 text-[11px] font-medium mt-0.5">
+            {headerSubtitle}
+          </Text>
         </View>
 
-        {!!onChat && (
+        {duration && (
+          <View className="w-12 h-12 rounded-full bg-[#02de95]/10 border border-[#02de95]/30 items-center justify-center flex-shrink-0">
+            <Text className="text-[#02de95] text-[8px] font-black uppercase tracking-wider">ETA</Text>
+            <Text className="text-white text-xs font-black -mt-0.5">
+              {duration.replace("mins", "min").replace("minutos", "min")}
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {/* ── 2. Linha de indicadores ── */}
+      <View className="flex-row gap-2 mb-4">
+        <View className="flex-1 bg-[#11253E] border border-white/[0.04] rounded-2xl px-3 py-3 items-center">
+          <Text className="text-white/40 text-[9px] font-black uppercase tracking-wider mb-0.5">Distância</Text>
+          <Text className="text-white text-sm font-black">{distance || "9,2 km"}</Text>
+        </View>
+        <View className="flex-1 bg-[#11253E] border border-white/[0.04] rounded-2xl px-3 py-3 items-center">
+          <Text className="text-white/40 text-[9px] font-black uppercase tracking-wider mb-0.5">Tempo</Text>
+          <Text className="text-white text-sm font-black">{duration || "15 min"}</Text>
+        </View>
+        <View className="flex-1 bg-emerald-500/[0.06] border border-emerald-500/15 rounded-2xl px-3 py-3 items-center">
+          <Text className="text-emerald-400/60 text-[9px] font-black uppercase tracking-wider mb-0.5">Ganho</Text>
+          <Text className="text-[#02de95] text-sm font-black">
+            R$ {Number(driverEarning || 11.00).toFixed(2).replace(".", ",")}
+          </Text>
+        </View>
+      </View>
+
+      {/* ── 3. Pagamento ── */}
+      <View className="bg-[#11253E] border border-white/[0.04] rounded-2xl p-3.5 mb-4 flex-row items-center justify-between">
+        <View>
+          <Text className="text-white/40 text-[8px] font-black uppercase tracking-wider mb-0.5">Pagamento</Text>
+          <Text className="text-[#02de95] text-sm font-black uppercase tracking-wide">
+            {paymentLabel === "Dinheiro" ? "DINHEIRO" : paymentLabel.toUpperCase()}
+          </Text>
+        </View>
+        <View className="bg-[#02de95]/10 px-3 py-1 rounded-xl border border-[#02de95]/20">
+          <Text className="text-[#02de95] text-[9px] font-bold uppercase tracking-wide">Direto ao Motorista</Text>
+        </View>
+      </View>
+
+      {/* ── 4. Rota ── */}
+      {showRouteDetails && (
+        <View className="bg-[#11253E] border border-white/[0.04] rounded-2xl p-4 mb-4">
+          <Text className="text-white/40 text-[8px] font-black uppercase tracking-wider mb-3">Trajeto da Entrega</Text>
+          <View className="flex-row gap-3">
+            <View className="items-center pt-1.5">
+              <View className="w-3 h-3 rounded-full bg-[#02de95] border-2 border-[#11253E]" />
+              <View className="w-[1.5px] h-8 bg-white/[0.08] my-1 rounded-full" />
+              <View className="w-3 h-3 rounded-full bg-[#f59e0b] border-2 border-[#11253E]" />
+            </View>
+            <View className="flex-1 gap-3.5">
+              <View>
+                <Text className="text-white/40 text-[8px] font-black uppercase tracking-wider">Coleta</Text>
+                <Text className="text-white text-xs font-semibold mt-0.5" numberOfLines={1}>
+                  {pickupAddress || "R. Josias da Silva, 295 - Pimenta Bueno, RO"}
+                </Text>
+              </View>
+              <View>
+                <Text className="text-white/40 text-[8px] font-black uppercase tracking-wider">Entrega</Text>
+                <Text className="text-white text-xs font-semibold mt-0.5" numberOfLines={1}>
+                  {dropoffAddress || "Av. Maceió, 1132 - Pimenta Bueno, RO"}
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {/* ── 5. Remetente & 6. Carga ── */}
+      <View className="flex-row gap-2 mb-4">
+        <View className="flex-1 bg-[#11253E] border border-white/[0.04] rounded-2xl p-3.5">
+          <Text className="text-white/40 text-[8px] font-black uppercase tracking-wider mb-0.5">Remetente</Text>
+          <Text className="text-white text-xs font-extrabold" numberOfLines={1}>
+            {clientName || "Maike de Souza Leite"}
+          </Text>
+        </View>
+
+        <View className="flex-1 bg-[#11253E] border border-white/[0.04] rounded-2xl p-3.5">
+          <Text className="text-white/40 text-[8px] font-black uppercase tracking-wider mb-0.5">Tipo de Carga</Text>
+          <Text className="text-white text-xs font-extrabold" numberOfLines={1}>
+            {details?.itemType || "Standard"}
+          </Text>
+        </View>
+      </View>
+
+      {/* ── 7. PIN (Somente a etapa atual) ── */}
+      {isGoingToPickup || isAtPickup ? (
+        details?.pickupPin ? (
+          <View className="bg-[#11253E] border border-[#02de95]/20 rounded-2xl p-4 mb-4 flex-row items-center justify-between">
+            <View>
+              <Text className="text-[#02de95] text-[8px] font-black uppercase tracking-wider mb-0.5">PIN de Coleta</Text>
+              <Text className="text-white/50 text-[10px]">Solicite ao remetente antes de iniciar</Text>
+            </View>
+            <View className="bg-[#02de95]/10 px-4 py-2 rounded-xl border border-[#02de95]/30">
+              <Text className="text-[#02de95] text-lg font-black tracking-wider">{details.pickupPin}</Text>
+            </View>
+          </View>
+        ) : null
+      ) : (
+        details?.deliveryPin ? (
+          <View className="bg-[#11253E] border border-[#f59e0b]/20 rounded-2xl p-4 mb-4 flex-row items-center justify-between">
+            <View>
+              <Text className="text-[#f59e0b] text-[8px] font-black uppercase tracking-wider mb-0.5">PIN de Entrega</Text>
+              <Text className="text-white/50 text-[10px]">Solicite ao destinatário para finalizar</Text>
+            </View>
+            <View className="bg-[#f59e0b]/10 px-4 py-2 rounded-xl border border-[#f59e0b]/30">
+              <Text className="text-[#f59e0b] text-lg font-black tracking-wider">{details.deliveryPin}</Text>
+            </View>
+          </View>
+        ) : null
+      )}
+
+      {/* ── 8. Ações secundárias ── */}
+      <View className="flex-row gap-2 mb-4">
+        {/* Ligar */}
+        <TouchableOpacity
+          onPress={() => {
+            const phone = details?.recipientPhone || "";
+            if (phone) {
+              Linking.openURL(`tel:${phone}`);
+            }
+          }}
+          activeOpacity={0.8}
+          className="flex-1 h-11 rounded-2xl bg-[#1E2D3D] border border-white/[0.04] flex-row items-center justify-center gap-1.5"
+        >
+          <Phone size={14} color="rgba(255, 255, 255, 0.7)" />
+          <Text className="text-white/80 text-[11px] font-bold">Ligar</Text>
+        </TouchableOpacity>
+
+        {/* Chat */}
+        {onChat && (
           <TouchableOpacity
             onPress={onChat}
-            activeOpacity={0.85}
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: 22,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: "rgba(2,222,149,0.08)",
-              borderWidth: 1.5,
-              borderColor: "rgba(2,222,149,0.25)",
-            }}
+            activeOpacity={0.8}
+            className="flex-1 h-11 rounded-2xl bg-[#1E2D3D] border border-white/[0.04] flex-row items-center justify-center gap-1.5 relative"
           >
-            <MaterialIcons name="chat-bubble-outline" size={20} color="#02de95" />
-            {!!unreadCount && unreadCount > 0 && (
-              <View
-                style={{
-                  position: "absolute",
-                  top: -2,
-                  right: -2,
-                  minWidth: 18,
-                  height: 18,
-                  borderRadius: 9,
-                  backgroundColor: "#ef4444",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  paddingHorizontal: 4,
-                  borderWidth: 1.5,
-                  borderColor: "#0b1a2f",
-                }}
-              >
-                <Text style={{ color: "#fff", fontSize: 9.5, fontWeight: "900" }}>
-                  {unreadCount > 9 ? "9+" : unreadCount}
-                </Text>
+            <MessageSquare size={14} color="#02de95" fill="rgba(2, 222, 149, 0.1)" />
+            <Text className="text-[#02de95] text-[11px] font-extrabold">Chat</Text>
+            {unreadCount > 0 && (
+              <View className="absolute -top-1 -right-1 min-w-[16px] h-[16px] rounded-full bg-red-500 items-center justify-center px-1 border border-[#091A2F]">
+                <Text className="text-white text-[8px] font-black">{unreadCount > 9 ? "9+" : unreadCount}</Text>
               </View>
             )}
           </TouchableOpacity>
         )}
+
+        {/* Problema */}
+        <TouchableOpacity
+          onPress={() => {
+            // Se houver uma forma de reportar ou cancelar
+          }}
+          activeOpacity={0.8}
+          className="flex-1 h-11 rounded-2xl bg-[#1E2D3D] border border-white/[0.04] flex-row items-center justify-center gap-1.5"
+        >
+          <AlertTriangle size={14} color="#ef4444" />
+          <Text className="text-red-500/90 text-[11px] font-extrabold">Problema</Text>
+        </TouchableOpacity>
       </View>
 
-      {/* Client Profile Information Row */}
-      {!!clientName && (
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            backgroundColor: "rgba(255, 255, 255, 0.03)",
-            padding: 12,
-            borderRadius: 16,
-            borderWidth: 1,
-            borderColor: "rgba(255, 255, 255, 0.04)",
-            marginBottom: 16,
-          }}
-        >
-          <View
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 18,
-              backgroundColor: "rgba(2, 222, 149, 0.12)",
-              borderWidth: 1,
-              borderColor: "rgba(2, 222, 149, 0.25)",
-              alignItems: "center",
-              justifyContent: "center",
-              marginRight: 12,
-            }}
-          >
-            <Text style={{ color: "#02de95", fontSize: 13, fontWeight: "900" }}>
-              {getInitials(clientName)}
+      {/* ── 9. Botão principal ── */}
+      <View className="mt-1">
+        {canArrive && (
+          <TouchableOpacity onPress={onArrive} disabled={busy} activeOpacity={0.85}
+            className="w-full h-14 bg-[#02de95] rounded-2xl items-center justify-center"
+            style={{ shadowColor: "#02de95", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 4 }}>
+            <Text className="text-[#091A2F] text-sm font-black uppercase tracking-wider">
+              {actionLoading === "arrived" ? "Marcando chegada..." : "CHEGUEI NA COLETA"}
             </Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 9, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.3 }}>
-              {isDelivery ? "Remetente da Encomenda" : "Passageiro da Corrida"}
+          </TouchableOpacity>
+        )}
+
+        {canStart && (
+          <TouchableOpacity onPress={onStart} disabled={busy} activeOpacity={0.85}
+            className="w-full h-14 bg-[#02de95] rounded-2xl items-center justify-center"
+            style={{ shadowColor: "#02de95", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 4 }}>
+            <Text className="text-[#091A2F] text-sm font-black uppercase tracking-wider">
+              {actionLoading === "in_progress" ? "Iniciando..." : "INICIAR CORRIDA"}
             </Text>
-            <Text style={{ color: "#ffffff", fontSize: 13.5, fontWeight: "900", marginTop: 1 }}>
-              {clientName}
+          </TouchableOpacity>
+        )}
+
+        {isDelivery && canArriveDropoff ? (
+          <TouchableOpacity onPress={onArriveDropoff} disabled={busy} activeOpacity={0.85}
+            className="w-full h-14 bg-emerald-500/10 border-[1.5px] border-[#02de95] rounded-2xl items-center justify-center">
+            <Text className="text-[#02de95] text-sm font-black uppercase tracking-wider">
+              {actionLoading === "arrived_at_dropoff" ? "Marcando chegada..." : "CHEGUEI NO DESTINO"}
             </Text>
-          </View>
-        </View>
-      )}
-
-      {/* Journey Addresses Vertical Timeline (Identical to high-end ride sharing) */}
-      {showRouteDetails && (
-        <View
-          style={{
-            backgroundColor: "rgba(255, 255, 255, 0.02)",
-            borderRadius: 18,
-            padding: 14,
-            borderWidth: 1,
-            borderColor: "rgba(255, 255, 255, 0.04)",
-            marginBottom: 14,
-            flexDirection: "row",
-            gap: 12,
-          }}
-        >
-          {/* Timeline Visual Lines */}
-          <View style={{ alignItems: "center", paddingTop: 4 }}>
-            <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: "#02de95", borderWidth: 2, borderColor: "#0b1a2f" }} />
-            <View style={{ width: 1.5, flex: 1, backgroundColor: "rgba(255,255,255,0.08)", marginVertical: 4, borderStyle: "dashed", borderRadius: 1 }} />
-            <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: "#ef4444", borderWidth: 2, borderColor: "#0b1a2f" }} />
-          </View>
-
-          {/* Address Content Blocks */}
-          <View style={{ flex: 1, gap: 14 }}>
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 8.5, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.3 }}>
-                Ponto de Coleta
-              </Text>
-              <Text style={{ color: "#ffffff", fontSize: 11.5, fontWeight: "500", marginTop: 2, lineHeight: 15 }} numberOfLines={2}>
-                {pickupAddress || "Carregando local..."}
-              </Text>
-            </View>
-
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 8.5, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.3 }}>
-                Ponto de Entrega
-              </Text>
-              <Text style={{ color: "#ffffff", fontSize: 11.5, fontWeight: "500", marginTop: 2, lineHeight: 15 }} numberOfLines={2}>
-                {dropoffAddress || "Carregando destino..."}
-              </Text>
-            </View>
-          </View>
-        </View>
-      )}
-
-      {/* Payment Method Badge */}
-      {(() => {
-        const rawType = typeof payment?.method === "object" ? payment?.method?.type : payment?.method;
-        const type = rawType || "cash";
-
-        let label = "DINHEIRO EM MÃƒOS";
-        let color = "#02de95";
-        let icon = "money-bill-wave";
-
-        if (type === "pix") {
-          label = "PAGAMENTO VIA PIX";
-          color = "#32BCAD";
-          icon = "qrcode";
-        } else if (["card", "credit_card", "debit_card"].includes(String(type))) {
-          label = "CARTÃƒO DE CRÃ‰DITO/DÃ‰BITO";
-          color = "#3b82f6";
-          icon = "credit-card";
-        }
-
-        return (
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              backgroundColor: `${color}08`,
-              paddingHorizontal: 12,
-              paddingVertical: 10,
-              borderRadius: 12,
-              borderWidth: 1,
-              borderColor: `${color}20`,
-              marginBottom: 12,
-            }}
-          >
-            <FontAwesome5 name={icon} size={11} color={color} />
-            <Text style={{ color: "#fff", fontSize: 10, fontWeight: "800", marginLeft: 8, letterSpacing: 0.2 }}>
-              MEIO DE PAGAMENTO: <Text style={{ color: color }}>{label}</Text>
+          </TouchableOpacity>
+        ) : canComplete ? (
+          <TouchableOpacity onPress={onComplete} disabled={busy} activeOpacity={0.85}
+            className="w-full h-14 bg-[#02de95] rounded-2xl items-center justify-center"
+            style={{ shadowColor: "#02de95", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 4 }}>
+            <Text className="text-[#091A2F] text-sm font-black uppercase tracking-wider">
+              {actionLoading === "completed" ? "Finalizando..." : "FINALIZAR ENTREGA"}
             </Text>
-          </View>
-        );
-      })()}
-
-      {/* Cargo Complement details */}
-      {(!!details?.recipientName ||
-        !!details?.recipientPhone ||
-        !!details?.pickupComplement ||
-        !!details?.dropoffComplement ||
-        !!details?.recipientInstructions ||
-        !!details?.deliveryPin) && (
-        <View
-          style={{
-            padding: 12,
-            backgroundColor: "rgba(59,130,246,0.06)",
-            borderRadius: 16,
-            borderWidth: 1,
-            borderColor: "rgba(59,130,246,0.15)",
-            marginBottom: 12,
-            gap: 4,
-          }}
-        >
-          <Text style={{ color: "#60a5fa", fontSize: 9.5, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>
-            ðŸ“¦ InformaÃ§Ãµes Adicionais da Carga
-          </Text>
-          {!!details?.recipientName && (
-            <Text style={{ color: "rgba(255,255,255,0.8)", fontSize: 11 }}>
-              DestinatÃ¡rio: <Text style={{ color: "#fff", fontWeight: "700" }}>{details.recipientName}</Text>
-            </Text>
-          )}
-          {!!details?.recipientPhone && (
-            <Text style={{ color: "rgba(255,255,255,0.8)", fontSize: 11 }}>
-              Contato: <Text style={{ color: "#fff", fontWeight: "700" }}>{details.recipientPhone}</Text>
-            </Text>
-          )}
-          {!!details?.pickupComplement && (
-            <Text style={{ color: "rgba(255,255,255,0.8)", fontSize: 11 }}>
-              AnotaÃ§Ãµes Coleta: <Text style={{ color: "#fff", fontWeight: "500" }}>{details.pickupComplement}</Text>
-            </Text>
-          )}
-          {!!details?.dropoffComplement && (
-            <Text style={{ color: "rgba(255,255,255,0.8)", fontSize: 11 }}>
-              AnotaÃ§Ãµes Destino: <Text style={{ color: "#fff", fontWeight: "500" }}>{details.dropoffComplement}</Text>
-            </Text>
-          )}
-          {!!details?.recipientInstructions && (
-            <Text style={{ color: "rgba(255,255,255,0.8)", fontSize: 11 }}>
-              InstruÃ§Ãµes: <Text style={{ color: "#fff", fontWeight: "500" }}>{details.recipientInstructions}</Text>
-            </Text>
-          )}
-          {!!details?.pickupPin && (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 }}>
-              <MaterialIcons name="vpn-key" size={12} color="#02de95" />
-              <Text style={{ color: "#02de95", fontSize: 11, fontWeight: "900" }}>
-                PIN de Coleta (Passe ao Remetente): {details.pickupPin}
-              </Text>
-            </View>
-          )}
-          {!!details?.deliveryPin && (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 }}>
-              <MaterialIcons name="security" size={12} color="#F59E0B" />
-              <Text style={{ color: "#F59E0B", fontSize: 11, fontWeight: "900" }}>
-                PIN da Entrega: {details.deliveryPin}
-              </Text>
-            </View>
-          )}
-        </View>
-      )}
-
-      {/* Special Delivery Instructions */}
-      {!!details?.specialInstructions && (
-        <View
-          style={{
-            padding: 12,
-            backgroundColor: "rgba(2, 222, 149, 0.04)",
-            borderRadius: 14,
-            borderLeftWidth: 3,
-            borderLeftColor: "#02de95",
-            marginBottom: 12,
-          }}
-        >
-          <Text style={{ color: "rgba(2, 222, 149, 0.7)", fontSize: 9, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.3 }}>
-            Requisitos de Transporte:
-          </Text>
-          <Text style={{ color: "#fff", fontSize: 11.5, marginTop: 2, fontWeight: "500" }}>
-            {details.specialInstructions}
-          </Text>
-        </View>
-      )}
-
-      {isAwaitingPayment && (
-        <PaymentProcessingCard
-          forcedState={paymentRealtimeState}
-          estimatedSeconds={paymentEtaSeconds}
-        />
-      )}
-
-      {/* Dropoff Arrived banner (delivery flow) */}
-      {isDelivery && arrivedAtDropoff && (
-        <View
-          style={{
-            padding: 8,
-            backgroundColor: "rgba(2,222,149,0.06)",
-            borderRadius: 10,
-            alignItems: "center",
-            marginBottom: 12,
-            borderWidth: 1,
-            borderColor: "rgba(2,222,149,0.15)",
-          }}
-        >
-          <Text style={{ color: "#02de95", fontSize: 10, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5 }}>
-            ðŸ Chegada no ponto de entrega registrada!
-          </Text>
-        </View>
-      )}
-
-      {/* Driver progression Action Buttons Grid */}
-      {!isAwaitingPayment && (
-        <View style={{ flexDirection: "row", gap: 10, marginTop: 4 }}>
-          {canArrive && (
-            <TouchableOpacity
-              onPress={onArrive}
-              disabled={busy}
-              activeOpacity={0.8}
-              style={{
-                flex: 1,
-                height: 48,
-                backgroundColor: "rgba(251, 191, 36, 0.15)",
-                borderWidth: 1.5,
-                borderColor: "#fbbf24",
-                borderRadius: 14,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Text style={{ color: "#fbbf24", fontSize: 13.5, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.3 }}>
-                {actionLoading === "arrived" ? "Registrando..." : "Marcar Cheguei"}
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          {canStart && (
-            <TouchableOpacity
-              onPress={onStart}
-              disabled={busy}
-              activeOpacity={0.8}
-              style={{
-                flex: 1,
-                height: 48,
-                backgroundColor: "#02de95",
-                borderRadius: 14,
-                alignItems: "center",
-                justifyContent: "center",
-                shadowColor: "#02de95",
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.2,
-                shadowRadius: 6,
-                elevation: 3,
-              }}
-            >
-              <Text style={{ color: "#091A2F", fontSize: 13.5, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.5 }}>
-                {actionLoading === "in_progress" ? "Iniciando..." : "Iniciar Viagem"}
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          {/* Conditional: Arrived Dropoff or Finalize */}
-          {isDelivery && canArriveDropoff ? (
-            <TouchableOpacity
-              onPress={onArriveDropoff}
-              disabled={busy}
-              activeOpacity={0.8}
-              style={{
-                flex: 1,
-                height: 48,
-                backgroundColor: "rgba(2, 222, 149, 0.1)",
-                borderWidth: 1.5,
-                borderColor: "#02de95",
-                borderRadius: 14,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Text style={{ color: "#02de95", fontSize: 13, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.3 }}>
-                {actionLoading === "arrived_at_dropoff" ? "Registrando..." : "Cheguei no Destino"}
-              </Text>
-            </TouchableOpacity>
-          ) : (
-            canComplete && (
-              <TouchableOpacity
-                onPress={onComplete}
-                disabled={busy}
-                activeOpacity={0.8}
-                style={{
-                  flex: 1,
-                  height: 48,
-                  backgroundColor: "#02de95",
-                  borderRadius: 14,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  shadowColor: "#02de95",
-                  shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.2,
-                  shadowRadius: 6,
-                  elevation: 3,
-                }}
-              >
-                <Text style={{ color: "#091A2F", fontSize: 13.5, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.5 }}>
-                  {actionLoading === "completed" ? "Finalizando..." : "Finalizar Entrega"}
-                </Text>
-              </TouchableOpacity>
-            )
-          )}
-        </View>
-      )}
-    </View>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+    </MotiView>
   );
 }

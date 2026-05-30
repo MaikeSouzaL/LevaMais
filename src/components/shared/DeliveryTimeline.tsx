@@ -4,10 +4,11 @@ import { getDeliveryTimeline } from "@/utils/deliveryTimeline";
 
 interface DeliveryTimelineProps {
   status: string;
+  arrivedAtDropoff?: boolean;
 }
 
-export default function DeliveryTimeline({ status }: DeliveryTimelineProps) {
-  const steps = getDeliveryTimeline(status);
+export default function DeliveryTimeline({ status, arrivedAtDropoff }: DeliveryTimelineProps) {
+  const steps = getDeliveryTimeline(status, arrivedAtDropoff);
 
   return (
     <View className="space-y-3">

@@ -6,8 +6,8 @@
 
 export { colors, gradients } from './colors';
 export { spacing, borderRadius, touchTargets, shadows } from './dimensions';
-export { fonts, fontSize, lineHeight, fontWeight } from './typography';
-export { animations, transitions } from './animations';
+export { fonts, fontFamily, fontSize, lineHeight, fontWeight, textStyles } from './typography';
+export { animations, transitions, duration as animationDuration, spring } from './animations';
 export { breakpoints, containerPadding, maxWidth } from './layout';
 export { iconSizes } from './icons';
 
@@ -40,8 +40,11 @@ const theme = {
     BACKGROUND: "#091A2F", // Fundo principal agora é escuro
   },
   FONT_FAMILY: {
-    REGULAR: "Roboto_400Regular",
-    BOLD: "Roboto_700Bold",
+    REGULAR: "Inter_400Regular",
+    MEDIUM: "Inter_500Medium",
+    SEMIBOLD: "Inter_600SemiBold",
+    BOLD: "Inter_700Bold",
+    BLACK: "Inter_900Black",
   },
   FONT_SIZE: {
     XS: 12,

@@ -131,11 +131,13 @@ export const DestinationSearchInput = ({
               }}
               autoFocus
               returnKeyType="search"
+              accessibilityLabel="Endereço de destino"
+              accessibilityHint="Digite o endereço para onde deseja ir"
             />
             {loading ? (
               <ActivityIndicator size="small" color={colors.primary[500]} className="ml-2" />
             ) : destinationText.length > 0 ? (
-              <TouchableOpacity onPress={() => onDestinationChange("")} className="ml-2">
+              <TouchableOpacity onPress={() => onDestinationChange("")} className="ml-2" accessibilityLabel="Limpar texto de destino" accessibilityRole="button" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <X size={16} color={colors.text.secondary} />
               </TouchableOpacity>
             ) : (
@@ -165,6 +167,9 @@ export const DestinationSearchInput = ({
                     onPress={() => handleSelect(item)}
                     className="flex-row items-center px-4 py-3"
                     activeOpacity={0.7}
+                    accessibilityLabel={`Selecionar ${item.mainText}`}
+                    accessibilityHint={`${item.mainText}, ${item.secondaryText}`}
+                    accessibilityRole="button"
                   >
                     <View className="w-8 h-8 rounded-full bg-white/5 items-center justify-center mr-3">
                       <History size={16} color={colors.text.tertiary} />

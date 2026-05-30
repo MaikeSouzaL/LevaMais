@@ -3,58 +3,29 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
+import type { User } from "../types/models";
 
 export type UserType = "client" | "driver" | "admin" | null | undefined;
 
-export interface UserData {
-  id: string;
-  name: string;
+/**
+ * Auth store user shape. Extends the canonical User model with
+ * backward-compatible Portuguese field aliases (populated from their
+ * canonical English counterparts by normalizeUserData).
+ *
+ * Consumers should prefer the English fields; the PT aliases exist only
+ * so existing call-sites don't break during migration.
+ */
+export interface UserData extends User {
+  /** @deprecated use `name` */
   nome: string;
-  email: string;
+  /** @deprecated use `phone` */
   telefone: string;
-  phone?: string;
+  /** @deprecated use `city` */
   cidade: string;
-  city?: string;
+  /** @deprecated use `profilePhoto` */
   fotoPerfil?: string;
-  profilePhoto?: string;
-  googleId?: string;
+  /** @deprecated use `acceptedTerms` */
   aceitouTermos: boolean;
-  acceptedTerms?: boolean;
-  tourSeen?: boolean;
-  isActive?: boolean;
-  expoPushToken?: string;
-  vehicleType?: unknown;
-  vehicleInfo?: unknown;
-  driverStatus?: "none" | "pending" | "approved" | "rejected";
-  enableMapAnimation?: boolean;
-  driverPreferences?: {
-    serviceTypes?: Array<"ride" | "delivery">;
-    selectedVehicles?: Array<"motorcycle" | "car" | "van" | "truck">;
-    searchRadiusKm?: number;
-    autoAccept?: boolean;
-  };
-  // CPF/CNPJ & Company Details
-  cpf?: string;
-  cnpj?: string;
-  companyName?: string;
-  companyEmail?: string;
-  companyPhone?: string;
-  paymentMethods?: Array<any>;
-  clientVerification?: {
-    status?: "none" | "pending" | "approved" | "rejected";
-    cpfStatus?: "unchecked" | "pending" | "manual_review" | "valid" | "invalid" | string;
-    selfieStatus?: "none" | "pending" | "approved" | "rejected" | string;
-    documents?: {
-      selfie?: string;
-      rgFront?: string;
-      rgBack?: string;
-    };
-    rejectionReason?: string;
-    submittedAt?: string;
-    reviewedAt?: string;
-    reviewedBy?: string;
-  } | null;
-  mapTheme?: "light" | "dark" | string;
 }
 
 export interface AuthState {
@@ -77,20 +48,22 @@ export interface AuthState {
 
 function normalizeUserData(data: UserData): UserData {
   const resolvedName = data.name?.trim() || data.nome?.trim() || "";
-  const resolvedCity = data.cidade || data.city || "";
-  const resolvedPhone = data.telefone || data.phone || "";
+  const resolvedCity = data.city || data.cidade || "";
+  const resolvedPhone = data.phone || data.telefone || "";
 
   return {
     ...data,
+    // Canonical English fields — prefer these in new code
     name: resolvedName,
-    nome: resolvedName,
-    cidade: resolvedCity,
-    city: resolvedCity,
-    telefone: resolvedPhone,
     phone: resolvedPhone,
+    city: resolvedCity,
     email: data.email?.trim().toLowerCase() || "",
-    aceitouTermos: Boolean(data.aceitouTermos || data.acceptedTerms),
     acceptedTerms: Boolean(data.acceptedTerms || data.aceitouTermos),
+    // Backward-compat Portuguese aliases — populated from canonical fields
+    nome: resolvedName,
+    telefone: resolvedPhone,
+    cidade: resolvedCity,
+    aceitouTermos: Boolean(data.aceitouTermos || data.acceptedTerms),
   };
 }
 

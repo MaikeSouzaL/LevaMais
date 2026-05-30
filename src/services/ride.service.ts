@@ -454,7 +454,7 @@ class RideService {
     rideId: string,
     payload: RatePayload,
   ): Promise<void> {
-    await api.post(`/rides/${rideId}/rate-client`, payload);
+    await api.post(`/rides/${rideId}/rate-driver`, payload);
   }
 
   /**
@@ -464,7 +464,7 @@ class RideService {
     rideId: string,
     payload: RatePayload,
   ): Promise<void> {
-    await api.post(`/rides/${rideId}/rate-driver`, payload);
+    await api.post(`/rides/${rideId}/rate-client`, payload);
   }
 
   async addTip(rideId: string, amount: number): Promise<void> {
@@ -496,8 +496,9 @@ class RideService {
   async respondToOffer(
     rideId: string,
     payload: { action: "accept" | "counter" | "reject"; amount?: number; message?: string },
-  ): Promise<void> {
-    await api.post(`/rides/${rideId}/offers/respond`, payload);
+  ): Promise<{ success: boolean; rideMatched?: boolean; message?: string }> {
+    const response = await api.post(`/rides/${rideId}/offers/respond`, payload);
+    return response.data;
   }
 
   async selectOffer(rideId: string, driverId: string): Promise<Ride> {

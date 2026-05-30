@@ -1,4 +1,8 @@
 /**
+ * @deprecated Use AppBottomSheet or AppBottomSheetModal from src/components/ui/ instead.
+ * This custom PanResponder-based bottom sheet duplicates @gorhom/bottom-sheet functionality.
+ * It will be removed in a future version.
+ *
  * BottomSheet - Componente genérico de bottom sheet
  * Baseado no padrão do Uber e 99
  */

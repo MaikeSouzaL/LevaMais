@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const http = require("http");
 const path = require("path");
+const rateLimit = require("express-rate-limit");
 const { initializeWebSocket } = require("./config/websocket");
 
 // Routes imports continue...
@@ -13,6 +14,11 @@ const addressHistoryRoutes = require("./routes/addressHistory.routes");
 const senderRoutes = require("./routes/sender.routes");
 const paymentRoutes = require("./routes/payment.routes");
 const driverRoutes = require("./routes/driver.routes");
+const promotionRoutes = require("./routes/promotion.routes");
+const walletRoutes = require("./routes/wallet.routes");
+const shiftOfferRoutes = require("./routes/shiftOffer.routes");
+const purposeRoutes = require("./routes/purpose.routes");
+const pricingRoutes = require("./routes/pricing.routes");
 
 function parseAllowedOrigins() {
   const fromEnv = String(
@@ -45,6 +51,37 @@ function applyMiddlewares(app) {
       credentials: corsOrigin === "*" ? false : true,
     }),
   );
+
+  // Rate limiting global — 200 req/min por IP
+  const globalLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 200,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+      success: false,
+      message: "Muitas requisicoes. Aguarde um momento.",
+    },
+  });
+  app.use("/api", globalLimiter);
+
+  // Rate limit mais restrito para auth
+  const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+      success: false,
+      message: "Muitas tentativas. Tente novamente mais tarde.",
+    },
+  });
+  app.use("/api/auth/login", authLimiter);
+  app.use("/api/auth/register", authLimiter);
+  app.use("/api/auth/forgot-password", authLimiter);
+  app.use("/api/auth/verify-phone-code", authLimiter);
+  app.use("/api/auth/reset-password", authLimiter);
+
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
@@ -61,6 +98,11 @@ function applyRoutes(app) {
   app.use("/api/senders", senderRoutes);
   app.use("/api/payments", paymentRoutes);
   app.use("/api/drivers", driverRoutes);
+  app.use("/api/promotions", promotionRoutes);
+  app.use("/api/wallet", walletRoutes);
+  app.use("/api/shift-offers", shiftOfferRoutes);
+  app.use("/api/purposes", purposeRoutes);
+  app.use("/api/pricing", pricingRoutes);
 
   app.get("/api/health", (req, res) => {
     res.json({
@@ -88,6 +130,26 @@ function createServer(options = {}) {
     const io = initializeWebSocket(server);
     app.set("io", io);
   }
+
+  app.use((err, req, res, next) => {
+    if (err) {
+      if (err.code === "LIMIT_FILE_SIZE") {
+        return res.status(413).json({
+          success: false,
+          message: "Arquivo muito grande. Limite de 5MB.",
+        });
+      }
+      console.error("Unhandled error:", err);
+      return res.status(500).json({
+        success: false,
+        message: "Erro interno do servidor",
+        error: process.env.NODE_ENV !== "production"
+          ? err.message
+          : undefined,
+      });
+    }
+    next();
+  });
 
   return { app, server };
 }

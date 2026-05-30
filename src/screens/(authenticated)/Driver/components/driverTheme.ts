@@ -1,3 +1,14 @@
+/**
+ * @deprecated Import from @/theme instead. This file duplicates design tokens.
+ * Use colors, spacing, typography from src/theme/ directly.
+ *
+ * NOTE: Several values here are UNIQUE and not present in the main theme:
+ *   - cardBg / cardBgSolid (#111816) — old surface color not in main theme
+ *   - textMuted (0.65), textSubtle (0.70) — custom opacity levels
+ *   - onDanger (#111816) — old surface color
+ *   - radius.lg (18), spacing.xs (6), sm (10), md (14), xl (18) — custom scale
+ *   - typography objects — driver-specific font styles
+ */
 export const driverTheme = {
   colors: {
     screenBg: "#091A2F",

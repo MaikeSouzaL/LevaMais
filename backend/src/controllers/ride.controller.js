@@ -3,6 +3,8 @@ const RideHistory = require("../models/RideHistory");
 const DriverLocation = require("../models/DriverLocation");
 const User = require("../models/User");
 const Promotion = require("../models/Promotion");
+const ShiftOffer = require("../models/ShiftOffer");
+
 const { getRuntimeConfig } = require("../services/platformConfig.service");
 const { calculateDeliveryPricingSnapshot, fetchRouteMetricsWithGoogleMaps } = require("../services/delivery-pricing.service");
 
@@ -439,9 +441,9 @@ class RideController {
             });
             io.to(`driver-${driver.driverId}`).emit("new-ride-request", payload);
             if (ride.serviceType === "delivery") {
-              io.to(`driver-${driver.driverId}`).emit("delivery_open", payload);
+              io.to(`driver-${driver.driverId}`).emit("delivery-open", payload);
             } else {
-              io.to(`driver-${driver.driverId}`).emit("ride_open", payload);
+              io.to(`driver-${driver.driverId}`).emit("ride-open", payload);
             }
           }
         } catch (driverEmitErr) {
@@ -513,9 +515,9 @@ class RideController {
               const cancelPayload1 = { rideId: ride._id, reason: "no_driver_found" };
               io.to(`client-${clientId}`).emit("ride-cancelled", cancelPayload1);
               if (ride.serviceType === "delivery") {
-                io.to(`client-${clientId}`).emit("delivery_cancelled", cancelPayload1);
+                io.to(`client-${clientId}`).emit("delivery-cancelled", cancelPayload1);
               } else {
-                io.to(`client-${clientId}`).emit("ride_cancelled", cancelPayload1);
+                io.to(`client-${clientId}`).emit("ride-cancelled", cancelPayload1);
               }
             }
 
@@ -526,9 +528,9 @@ class RideController {
                   const cancelPayload2 = { rideId: ride._id, reason: "tempo_limite_esgotado" };
                   io.to(`driver-${driver.driverId}`).emit("ride-cancelled", cancelPayload2);
                   if (ride.serviceType === "delivery") {
-                    io.to(`driver-${driver.driverId}`).emit("delivery_cancelled", cancelPayload2);
+                    io.to(`driver-${driver.driverId}`).emit("delivery-cancelled", cancelPayload2);
                   } else {
-                    io.to(`driver-${driver.driverId}`).emit("ride_cancelled", cancelPayload2);
+                    io.to(`driver-${driver.driverId}`).emit("ride-cancelled", cancelPayload2);
                   }
                 }
               });
@@ -632,9 +634,9 @@ class RideController {
             };
             io.to("driver-" + previousDriverId).emit("ride-cancelled", cancelPayload3);
             if (ride.serviceType === "delivery") {
-              io.to("driver-" + previousDriverId).emit("delivery_cancelled", cancelPayload3);
+              io.to("driver-" + previousDriverId).emit("delivery-cancelled", cancelPayload3);
             } else {
-              io.to("driver-" + previousDriverId).emit("ride_cancelled", cancelPayload3);
+              io.to("driver-" + previousDriverId).emit("ride-cancelled", cancelPayload3);
             }
           }
           const clientId = ride.clientId?._id || ride.clientId;
@@ -1483,13 +1485,22 @@ class RideController {
         };
         io.to(`client-${ride.clientId._id}`).emit("driver-found", acceptPayload);
         if (ride.serviceType === "delivery") {
-          io.to(`client-${ride.clientId._id}`).emit("delivery_accepted", acceptPayload);
+          io.to(`client-${ride.clientId._id}`).emit("delivery-accepted", acceptPayload);
         } else {
-          io.to(`client-${ride.clientId._id}`).emit("ride_accepted", acceptPayload);
+          io.to(`client-${ride.clientId._id}`).emit("ride-accepted", acceptPayload);
         }
 
         // Notificar outros motoristas que a corrida foi aceita
         io.emit("ride-taken", { rideId: ride._id });
+
+        // Emitir status atualizado para o client e ride room
+        const statusPayload = {
+          rideId: ride._id,
+          status: ride.status,
+          timestamp: new Date().toISOString(),
+        };
+        io.to(`client-${ride.clientId._id}`).emit("ride-status-updated", statusPayload);
+        io.to(`ride:${ride._id}`).emit("ride-status-updated", statusPayload);
       }
 
       res.json({
@@ -1594,9 +1605,9 @@ class RideController {
           const payloadNext = buildRideRequestPayload(ride, { distanceToPickup: 0, clientRidesCount });
           io.to(`driver-${next.driverId}`).emit("new-ride-request", payloadNext);
           if (ride.serviceType === "delivery") {
-            io.to(`driver-${next.driverId}`).emit("delivery_open", payloadNext);
+            io.to(`driver-${next.driverId}`).emit("delivery-open", payloadNext);
           } else {
-            io.to(`driver-${next.driverId}`).emit("ride_open", payloadNext);
+            io.to(`driver-${next.driverId}`).emit("ride-open", payloadNext);
           }
         } else {
           // Keep the ride alive in 'requesting' state so it can wait for the full searchTimeoutSeconds
@@ -1771,7 +1782,11 @@ class RideController {
         status = "accepted";
         if (existingOffer && existingOffer.status === "client_countered") {
           amount = existingOffer.amount;
-          shouldAutoMatch = true; // Directly agreed! Ã°Å¸Å¡â‚¬
+          shouldAutoMatch = true; // Contraproposta do cliente aceita — match direto
+        } else {
+          // Aceite direto do motorista: pula negociação e vai direto pra corrida
+          shouldAutoMatch = true;
+          status = "accepted";
         }
       } else if (action === "counter") {
         if (!Number.isFinite(providedAmount) || providedAmount <= 0) {
@@ -1815,7 +1830,8 @@ class RideController {
         ride.negotiation.selectedDriverId = driverId;
         ride.negotiation.selectedAt = now;
         ride.driverId = driverId;
-        ride.status = "driver_assigned";
+        ride.status = "accepted";
+        ride.acceptedAt = now;
         ride.requestedAt = now;
 
         await ride.save();
@@ -1830,9 +1846,9 @@ class RideController {
           });
           io.to(`driver-${driverId}`).emit("new-ride-request", payloadDr);
           if (ride.serviceType === "delivery") {
-            io.to(`driver-${driverId}`).emit("delivery_open", payloadDr);
+            io.to(`driver-${driverId}`).emit("delivery-open", payloadDr);
           } else {
-            io.to(`driver-${driverId}`).emit("ride_open", payloadDr);
+            io.to(`driver-${driverId}`).emit("ride-open", payloadDr);
           }
 
           io.to(`client-${ride.clientId._id || ride.clientId}`).emit("ride-offer-selected", {
@@ -1841,9 +1857,9 @@ class RideController {
             finalPrice
           });
           if (ride.serviceType === "delivery") {
-            io.to(`client-${ride.clientId._id || ride.clientId}`).emit("delivery_negotiated", { rideId: ride._id, action: "offer_selected", driverId });
+            io.to(`client-${ride.clientId._id || ride.clientId}`).emit("delivery-negotiated", { rideId: ride._id, action: "offer_selected", driverId });
           } else {
-            io.to(`client-${ride.clientId._id || ride.clientId}`).emit("ride_negotiated", { rideId: ride._id, action: "offer_selected", driverId });
+            io.to(`client-${ride.clientId._id || ride.clientId}`).emit("ride-negotiated", { rideId: ride._id, action: "offer_selected", driverId });
           }
         }
 
@@ -1864,9 +1880,9 @@ class RideController {
           rideId: ride._id,
         });
         if (ride.serviceType === "delivery") {
-          io.to(`client-${clientId}`).emit("delivery_negotiated", { rideId: ride._id, action: "proposal_received" });
+          io.to(`client-${clientId}`).emit("delivery-negotiated", { rideId: ride._id, action: "proposal_received" });
         } else {
-          io.to(`client-${clientId}`).emit("ride_negotiated", { rideId: ride._id, action: "proposal_received" });
+          io.to(`client-${clientId}`).emit("ride-negotiated", { rideId: ride._id, action: "proposal_received" });
         }
 
         if (status === "accepted") {
@@ -1876,9 +1892,9 @@ class RideController {
             amount,
           });
           if (ride.serviceType === "delivery") {
-            io.to(`client-${clientId}`).emit("delivery_negotiated", { rideId: ride._id, action: "proposal_accepted", driverId });
+            io.to(`client-${clientId}`).emit("delivery-negotiated", { rideId: ride._id, action: "proposal_accepted", driverId });
           } else {
-            io.to(`client-${clientId}`).emit("ride_negotiated", { rideId: ride._id, action: "proposal_accepted", driverId });
+            io.to(`client-${clientId}`).emit("ride-negotiated", { rideId: ride._id, action: "proposal_accepted", driverId });
           }
         }
       }
@@ -1940,9 +1956,9 @@ class RideController {
       if (io) {
         io.to(`client-${clientId}`).emit("ride-offers-updated", { rideId: ride._id });
         if (ride.serviceType === "delivery") {
-          io.to(`client-${clientId}`).emit("delivery_negotiated", { rideId: ride._id, action: "proposal_updated" });
+          io.to(`client-${clientId}`).emit("delivery-negotiated", { rideId: ride._id, action: "proposal_updated" });
         } else {
-          io.to(`client-${clientId}`).emit("ride_negotiated", { rideId: ride._id, action: "proposal_updated" });
+          io.to(`client-${clientId}`).emit("ride-negotiated", { rideId: ride._id, action: "proposal_updated" });
         }
 
         io.to(`driver-${driverId}`).emit("client-counter-proposal", {
@@ -1950,9 +1966,9 @@ class RideController {
           amount: offer.amount
         });
         if (ride.serviceType === "delivery") {
-          io.to(`driver-${driverId}`).emit("delivery_negotiated", { rideId: ride._id, action: "counter_proposal" });
+          io.to(`driver-${driverId}`).emit("delivery-negotiated", { rideId: ride._id, action: "counter_proposal" });
         } else {
-          io.to(`driver-${driverId}`).emit("ride_negotiated", { rideId: ride._id, action: "counter_proposal" });
+          io.to(`driver-${driverId}`).emit("ride-negotiated", { rideId: ride._id, action: "counter_proposal" });
         }
 
         io.to(`driver-${driverId}`).emit("waiting-queue-updated", { rideId: ride._id });
@@ -2014,11 +2030,18 @@ class RideController {
         Number(ride.splitDetails?.platformConfigUsed || 15),
       );
 
+      const rawMethod = ride.payment?.method?.type || ride.payment?.method || "cash";
+      const method = normalizePaymentMethod(rawMethod) || "cash";
+      ride.payment = ride.payment || {};
+      ride.payment.method = method;
+      ride.payment.status = method === "cash" ? "pending" : "completed";
+      ride.payment.paidAt = new Date();
+
       ride.negotiation.finalAgreedPrice = finalPrice;
       ride.negotiation.selectedDriverId = selectedDriverId;
       ride.negotiation.selectedAt = new Date();
       ride.driverId = selectedDriverId;
-      ride.status = "payment_pending";
+      ride.status = "driver_assigned";
       ride.requestedAt = new Date();
 
       await ride.save();
@@ -2028,31 +2051,30 @@ class RideController {
       const io = req.app.get("io");
       if (io) {
         const clientRidesCount = await Ride.countDocuments({ clientId: ride.clientId?._id || ride.clientId, status: "completed" }).catch(() => 0);
-        const payloadAwaiting = buildRideRequestPayload(ride, {
+        const payloadAssigned = buildRideRequestPayload(ride, {
           negotiationSelected: true,
           clientRidesCount,
         });
-        io.to(`driver-${selectedDriverId}`).emit("client-selected-offer-awaiting-payment", payloadAwaiting);
+        io.to(`driver-${selectedDriverId}`).emit("new-ride-request", payloadAssigned);
+        io.to(`driver-${selectedDriverId}`).emit("client-selected-offer-awaiting-payment", payloadAssigned);
         if (ride.serviceType === "delivery") {
-          io.to(`driver-${selectedDriverId}`).emit("delivery_negotiated", { rideId: ride._id, action: "proposal_accepted", driverId: selectedDriverId });
+          io.to(`driver-${selectedDriverId}`).emit("delivery-negotiated", { rideId: ride._id, action: "proposal_accepted", driverId: selectedDriverId });
         } else {
-          io.to(`driver-${selectedDriverId}`).emit("ride_negotiated", { rideId: ride._id, action: "proposal_accepted", driverId: selectedDriverId });
+          io.to(`driver-${selectedDriverId}`).emit("ride-negotiated", { rideId: ride._id, action: "proposal_accepted", driverId: selectedDriverId });
         }
 
+        io.to(`client-${ride.clientId._id || ride.clientId}`).emit("ride-status-updated", ride);
         io.to(`client-${ride.clientId._id || ride.clientId}`).emit("ride-offer-selected", {
           rideId: ride._id,
           driverId: selectedDriverId,
           finalPrice,
         });
         if (ride.serviceType === "delivery") {
-          io.to(`client-${ride.clientId._id || ride.clientId}`).emit("delivery_negotiated", { rideId: ride._id, action: "offer_selected", driverId: selectedDriverId });
+          io.to(`client-${ride.clientId._id || ride.clientId}`).emit("delivery-negotiated", { rideId: ride._id, action: "offer_selected", driverId: selectedDriverId });
         } else {
-          io.to(`client-${ride.clientId._id || ride.clientId}`).emit("ride_negotiated", { rideId: ride._id, action: "offer_selected", driverId: selectedDriverId });
+          io.to(`client-${ride.clientId._id || ride.clientId}`).emit("ride-negotiated", { rideId: ride._id, action: "offer_selected", driverId: selectedDriverId });
         }
       }
-
-      // Schedule payment pending timeout (5 minutes default)
-      module.exports.schedulePaymentPendingTimeout(ride._id, io);
 
       return res.json({
         success: true,
@@ -2215,16 +2237,16 @@ class RideController {
         if (io) {
           io.to(`client-${clientId}`).emit("ride-offers-updated", { rideId });
           if (ride.serviceType === "delivery") {
-            io.to(`client-${clientId}`).emit("delivery_negotiated", { rideId, action: "proposal_rejected" });
+            io.to(`client-${clientId}`).emit("delivery-negotiated", { rideId, action: "proposal_rejected" });
           } else {
-            io.to(`client-${clientId}`).emit("ride_negotiated", { rideId, action: "proposal_rejected" });
+            io.to(`client-${clientId}`).emit("ride-negotiated", { rideId, action: "proposal_rejected" });
           }
 
           io.to(`driver-${driverId}`).emit("ride-offer-rejected-by-client", { rideId });
           if (ride.serviceType === "delivery") {
-            io.to(`driver-${driverId}`).emit("delivery_negotiated", { rideId, action: "proposal_rejected" });
+            io.to(`driver-${driverId}`).emit("delivery-negotiated", { rideId, action: "proposal_rejected" });
           } else {
-            io.to(`driver-${driverId}`).emit("ride_negotiated", { rideId, action: "proposal_rejected" });
+            io.to(`driver-${driverId}`).emit("ride-negotiated", { rideId, action: "proposal_rejected" });
           }
         }
       }
@@ -2293,6 +2315,17 @@ class RideController {
       // Notificar via WebSocket
       const io = req.app.get("io");
       if (io) {
+        // Always emit ride-status-updated to the client so their UI reflects the new status
+        const clientRoomId = `client-${ride.clientId}`;
+        io.to(clientRoomId).emit("ride-status-updated", {
+          rideId: ride._id,
+          status: ride.status,
+          cancelledBy: isClient ? "client" : "driver",
+          reason,
+          cancellationFee,
+          timestamp: new Date().toISOString(),
+        });
+
         const targetId = isClient ? ride.driverId : ride.clientId;
         const targetType = isClient ? "driver" : "client";
 
@@ -2305,9 +2338,9 @@ class RideController {
           };
           io.to(`${targetType}-${targetId}`).emit("ride-cancelled", cancelPayload4);
           if (ride.serviceType === "delivery") {
-            io.to(`${targetType}-${targetId}`).emit("delivery_cancelled", cancelPayload4);
+            io.to(`${targetType}-${targetId}`).emit("delivery-cancelled", cancelPayload4);
           } else {
-            io.to(`${targetType}-${targetId}`).emit("ride_cancelled", cancelPayload4);
+            io.to(`${targetType}-${targetId}`).emit("ride-cancelled", cancelPayload4);
           }
         } else if (isClient && !ride.driverId) {
           // Broadcast cancel message to ALL connected drivers to guarantee popup is cleared instantly everywhere
@@ -2318,9 +2351,9 @@ class RideController {
           };
           io.emit("ride-cancelled", cancelPayload5);
           if (ride.serviceType === "delivery") {
-            io.emit("delivery_cancelled", cancelPayload5);
+            io.emit("delivery-cancelled", cancelPayload5);
           } else {
-            io.emit("ride_cancelled", cancelPayload5);
+            io.emit("ride-cancelled", cancelPayload5);
           }
         }
       }
@@ -2598,6 +2631,18 @@ class RideController {
         }
         ride.arrivedAtDropoff = new Date();
         await ride.save();
+
+        const io = req.app.get("io");
+        if (io) {
+          io.to(`client-${ride.clientId}`).emit("ride-status-updated", {
+            rideId: ride._id,
+            status: ride.status,
+            arrivedAtDropoff: true,
+            arrivedAtDropoffTime: ride.arrivedAtDropoff,
+            timestamp: new Date().toISOString(),
+          });
+        }
+
         return res.json({ success: true, message: "Chegada no destino registrada", ride });
       }
 
@@ -2625,9 +2670,6 @@ class RideController {
 
       if (ride.serviceType === "delivery" || ride.serviceType === "frete") {
         if (nextStatus === "in_progress") {
-          if (!ride.proofs?.pickupPhoto) {
-            return sendError(res, 400, "Envie a foto da coleta antes de iniciar");
-          }
           if (ride.details?.pickupPin && !ride.proofs?.pickupPinValidated) {
             return sendError(res, 400, "Valide o PIN de coleta antes de iniciar a entrega");
           }
@@ -2637,9 +2679,6 @@ class RideController {
           const expectedPin = String(ride.details?.deliveryPin || "").trim();
           if (expectedPin && reqPin !== expectedPin) {
             return sendError(res, 400, "PIN de entrega incorreto. Verifique com o recebedor.");
-          }
-          if (!ride.proofs?.deliveryPhoto) {
-            return sendError(res, 400, "Envie a foto da entrega antes de finalizar");
           }
         }
       }
@@ -2803,11 +2842,16 @@ class RideController {
 
       const io = req.app.get("io");
       if (io) {
-        io.to(`client-${ride.clientId}`).emit("ride-status-updated", {
+        const statusPayload = {
           rideId: ride._id,
           status: ride.status,
           timestamp: new Date().toISOString(),
-        });
+        };
+        if (ride.arrivedAtDropoff) {
+          statusPayload.arrivedAtDropoff = true;
+          statusPayload.arrivedAtDropoffTime = ride.arrivedAtDropoff;
+        }
+        io.to(`client-${ride.clientId}`).emit("ride-status-updated", statusPayload);
       }
 
       res.json({
@@ -3845,7 +3889,7 @@ class RideController {
 
       // Disparos em tempo real via sockets e push! ðŸ›¡ï¸âš¡
       if (io) {
-        io.to(`ride_${rideId}`).emit("ride-status-updated", ride);
+        io.to(`ride:${rideId}`).emit("ride-status-updated", ride);
         
         const formattedVal = `R$ ${Number(newOffer).toFixed(2).replace(".", ",")}`;
         

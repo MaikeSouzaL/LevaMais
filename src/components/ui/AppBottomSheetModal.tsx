@@ -59,7 +59,7 @@ export const AppBottomSheetModal = forwardRef<AppBottomSheetModalRef, Props>(
       enableHandlePanningGesture,
       enableContentPanningGesture,
       onDismiss,
-      backgroundColor = "#111816",
+      backgroundColor = "#11253E",
       handleIndicatorColor = "rgba(255,255,255,0.2)",
       contentPaddingBottom = 24,
       contentPaddingHorizontal = 16,

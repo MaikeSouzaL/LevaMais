@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Linking, Share } from "react-native";
+import { View, Text, TouchableOpacity, Linking, Share } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
@@ -11,7 +11,6 @@ import Toast from "react-native-toast-message";
 import * as Location from "expo-location";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
-import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
 import rideService, { Ride } from "@/services/ride.service";
 import webSocketService from "@/services/websocket.service";
 import { useAuthStore } from "@/context/authStore";
@@ -131,7 +130,7 @@ function getStatusMeta(status?: string, serviceType?: string) {
   return map[status || ""] || {
     title: "Acompanhando pedido",
     subtitle: "Estamos atualizando os dados do pedido.",
-    color: colors.text.primary,
+    color: "#fff",
     bg: "rgba(255,255,255,0.12)",
   };
 }
@@ -671,10 +670,10 @@ export default function RideTrackingScreen() {
 
   return (
     <ErrorBoundary componentName="RideTrackingScreen">
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView className="flex-1 bg-[#091A2F]">
       <GlobalMap
         ref={mapRef}
-        style={styles.map}
+        className="absolute inset-0"
         initialRegion={{
           latitude: pickupCoord?.latitude || -23.5505,
           longitude: pickupCoord?.longitude || -46.6333,
@@ -721,34 +720,36 @@ export default function RideTrackingScreen() {
 )}
       </GlobalMap>
 
-      <View style={[styles.topCard, { top: Math.max(insets.top + 10, spacing.xl) }]}>
-        <View style={styles.topHeaderRow}>
-          <Text style={styles.stepLabel}>ACOMPANHAMENTO EM TEMPO REAL</Text>
+      <View className="absolute left-4 right-4 bg-[rgba(12,25,39,0.95)] border border-white/10 rounded-xl p-4" style={{ top: Math.max(insets.top + 10, 20) }}>
+        <View className="flex-row justify-between items-center gap-1">
+          <Text className="text-[rgba(255,255,255,0.5)] text-[10px] font-bold tracking-widest mb-1">ACOMPANHAMENTO EM TEMPO REAL</Text>
           {(ride?.serviceType === "delivery" || ride?.serviceType === "frete") && (
             <TouchableOpacity
-              style={styles.minimizeBtn}
+              className="flex-row items-center gap-1 px-2 py-1.5 rounded-full border border-white/20 bg-white/[0.08]"
+              accessibilityLabel="Voltar para início"
+              accessibilityRole="button"
               onPress={() => navigation.navigate("Home")}
             >
-              <MaterialIcons name="home" size={14} color={colors.text.primary} />
-              <Text style={styles.minimizeText}>Inicio</Text>
+              <MaterialIcons name="home" size={14} color="#fff" />
+              <Text className="text-white text-[11px] font-bold">Inicio</Text>
             </TouchableOpacity>
           )}
         </View>
-        <View style={[styles.statusBadge, { backgroundColor: statusMeta.bg }]}>
-          <View style={[styles.statusDot, { backgroundColor: statusMeta.color }]} />
-          <Text style={[styles.statusText, { color: statusMeta.color }]}>{statusMeta.title}</Text>
+        <View className="flex-row items-center gap-1 px-2 py-1.5 rounded-full self-start" style={{ backgroundColor: statusMeta.bg }}>
+          <View className="w-2 h-2 rounded-full" style={{ backgroundColor: statusMeta.color }} />
+          <Text className="text-[10px] font-bold" style={{ color: statusMeta.color }}>{statusMeta.title}</Text>
         </View>
-        <Text style={styles.topSubtitle}>{statusMeta.subtitle}</Text>
+        <Text className="text-[rgba(255,255,255,0.85)] text-[13px] mt-1.5 leading-5">{statusMeta.subtitle}</Text>
         {isDriverGoingToPickup && (
-          <View style={styles.arrivalCard}>
+          <View className="mt-3 p-4 rounded-xl border border-[rgba(96,165,250,0.24)] bg-[rgba(96,165,250,0.10)] flex-row items-center justify-between">
             <View>
-              <Text style={styles.arrivalLabel}>Chegada na coleta</Text>
-              <Text style={styles.arrivalValue}>{routeEtaText || "Calculando..."}</Text>
+              <Text className="text-[rgba(255,255,255,0.5)] text-[10px] font-bold uppercase">Chegada na coleta</Text>
+              <Text className="text-white text-[17px] font-bold mt-1">{routeEtaText || "Calculando..."}</Text>
             </View>
-            <View style={styles.arrivalDivider} />
+            <View className="w-[1px] h-9 bg-white/[0.12]" />
             <View>
-              <Text style={styles.arrivalLabel}>Distancia</Text>
-              <Text style={styles.arrivalValue}>{routeDistanceText || "--"}</Text>
+              <Text className="text-[rgba(255,255,255,0.5)] text-[10px] font-bold uppercase">Distancia</Text>
+              <Text className="text-white text-[17px] font-bold mt-1">{routeDistanceText || "--"}</Text>
             </View>
           </View>
         )}
@@ -764,39 +765,24 @@ export default function RideTrackingScreen() {
         isSwitchingStyle={isSwitchingMapStyle}
         bottomOffset={320}
       />
-      <View style={[styles.bottomCard, { bottom: Math.max(insets.bottom + 10, spacing.lg) }]}>
-        <Text style={styles.bottomTitle}>
+      <View className="absolute left-4 right-4 bg-[rgba(12,25,39,0.96)] border border-white/10 rounded-2xl p-4" style={{ bottom: Math.max(insets.bottom + 10, 16) }}>
+        <Text className="text-white text-[17px] font-bold mb-2">
           {status === "in_progress" ? `${rideLabel} em andamento` : "Resumo do pedido"}
         </Text>
 
         {isDeliveryFlow && (
           <>
-            <View style={styles.timelineCard}>
-              <Text style={styles.timelineTitle}>Fases da entrega</Text>
+            <View className="mb-3 p-3 rounded-xl border border-white/10 bg-white/[0.03]">
+              <Text className="text-white text-[13px] font-bold mb-2">Fases da entrega</Text>
               {deliveryTimeline.map((step, index) => (
-                <View key={step.key} style={styles.timelineRow}>
-                  <View style={styles.timelineMarkerWrap}>
-                    <View
-                      style={[
-                        styles.timelineDot,
-                        step.done ? styles.timelineDotDone : step.active ? styles.timelineDotActive : styles.timelineDotIdle,
-                      ]}
-                    />
+                <View key={step.key} className="flex-row items-start gap-2 min-h-[28px]">
+                  <View className="w-[14px] items-center">
+                    <View className={`w-[10px] h-[10px] rounded-full mt-0.5 ${step.done ? "bg-[#02de95]" : step.active ? "bg-[#60a5fa]" : "bg-white/25"}`} />
                     {index < deliveryTimeline.length - 1 && (
-                      <View
-                        style={[
-                          styles.timelineLine,
-                          step.done ? styles.timelineLineDone : styles.timelineLineIdle,
-                        ]}
-                      />
+                      <View className={`w-[2px] flex-1 mt-0.5 rounded-sm ${step.done ? "bg-[rgba(2,222,149,0.6)]" : "bg-white/[0.14]"}`} />
                     )}
                   </View>
-                  <Text
-                    style={[
-                      styles.timelineLabel,
-                      step.done ? styles.timelineLabelDone : step.active ? styles.timelineLabelActive : styles.timelineLabelIdle,
-                    ]}
-                  >
+                  <Text className={`flex-1 text-xs leading-[18px] pb-2 ${step.done ? "text-white font-bold" : step.active ? "text-[#93c5fd] font-bold" : "text-[rgba(255,255,255,0.5)]"}`}>
                     {step.label}
                   </Text>
                 </View>
@@ -804,20 +790,20 @@ export default function RideTrackingScreen() {
             </View>
 
             {(!!ride?.details?.pickupPin || !!ride?.details?.deliveryPin) && (
-              <View style={styles.pinsCard}>
+              <View className="mb-3 p-3 rounded-xl border border-[rgba(2,222,149,0.3)] bg-[rgba(2,222,149,0.06)] flex-row items-center justify-between">
                 {!!ride?.details?.pickupPin && (
-                  <View style={styles.pinCol}>
-                    <Text style={styles.pinLabel}>PIN Coleta (Remetente)</Text>
-                    <Text style={styles.pinValue}>{ride.details.pickupPin}</Text>
+                  <View className="flex-1 items-center">
+                    <Text className="text-[rgba(255,255,255,0.7)] text-[9px] font-bold uppercase mb-1">PIN Coleta (Remetente)</Text>
+                    <Text className="text-[#02de95] text-lg font-extrabold tracking-wider">{ride.details.pickupPin}</Text>
                   </View>
                 )}
                 {!!ride?.details?.pickupPin && !!ride?.details?.deliveryPin && (
-                  <View style={styles.pinDivider} />
+                  <View className="w-[1px] h-8 bg-white/[0.15]" />
                 )}
                 {!!ride?.details?.deliveryPin && (
-                  <View style={styles.pinCol}>
-                    <Text style={styles.pinLabel}>PIN Entrega (Recebedor)</Text>
-                    <Text style={styles.pinValue}>{ride.details.deliveryPin}</Text>
+                  <View className="flex-1 items-center">
+                    <Text className="text-[rgba(255,255,255,0.7)] text-[9px] font-bold uppercase mb-1">PIN Entrega (Recebedor)</Text>
+                    <Text className="text-[#02de95] text-lg font-extrabold tracking-wider">{ride.details.deliveryPin}</Text>
                   </View>
                 )}
               </View>
@@ -825,27 +811,27 @@ export default function RideTrackingScreen() {
           </>
         )}
 
-        <Text style={styles.addressLine} numberOfLines={1}>
+        <Text className="text-[rgba(255,255,255,0.6)] text-[13px] mb-1" numberOfLines={1}>
           Coleta: {ride?.pickup?.address || "-"}
         </Text>
-        <Text style={styles.addressLine} numberOfLines={1}>
+        <Text className="text-[rgba(255,255,255,0.6)] text-[13px] mb-1" numberOfLines={1}>
           Destino: {ride?.dropoff?.address || "-"}
         </Text>
 
-        <View style={styles.metaRow}>
-          <Text style={styles.metaText}>
+        <View className="mt-2 flex-row justify-between gap-2">
+          <Text className="flex-1 text-[rgba(255,255,255,0.5)] text-[10px]">
             Motorista: {driverName || "Aguardando atribuicao"}
           </Text>
-          <Text style={styles.metaText}>
+          <Text className="flex-1 text-[rgba(255,255,255,0.5)] text-[10px]">
             Total: {ride?.pricing?.total != null ? `R$ ${Number(ride.pricing.total).toFixed(2)}` : "-"}
           </Text>
         </View>
 
-        {loading && <Text style={styles.loadingText}>Atualizando dados...</Text>}
+        {loading && <Text className="text-[rgba(255,255,255,0.5)] text-[10px] mt-1">Atualizando dados...</Text>}
 
-        <View style={styles.actionsRow}>
+        <View className="mt-3 flex-row flex-wrap gap-2">
           <TouchableOpacity
-            style={styles.actionBtn}
+            className="flex-1 min-w-[88px] flex-row items-center justify-center gap-1 py-2 rounded-lg border border-[rgba(2,222,149,0.35)] bg-[rgba(2,222,149,0.12)]"
             onPress={() => {
               useChatStore.getState().clearUnread(rideId);
               navigation.navigate("Chat", {
@@ -853,24 +839,26 @@ export default function RideTrackingScreen() {
                 driverName: driverName || "Motorista",
               });
             }}
+            accessibilityLabel={`Abrir chat com ${driverName || 'motorista'}`}
+            accessibilityRole="button"
           >
-            <MaterialIcons name="chat-bubble-outline" size={17} color={colors.text.primary} />
-            <Text style={styles.actionBtnText}>Chat</Text>
+            <MaterialIcons name="chat-bubble-outline" size={17} color="#fff" />
+            <Text className="text-white text-[13px] font-semibold">Chat</Text>
             {unreadCount > 0 && (
-              <View style={styles.chatBadge}>
-                <Text style={styles.chatBadgeText}>{unreadCount > 9 ? "9+" : unreadCount}</Text>
+              <View className="absolute -top-1 right-1 min-w-[18px] h-[18px] rounded-full bg-[#ef4444] items-center justify-center px-1">
+                <Text className="text-white text-[10px] font-bold">{unreadCount > 9 ? "9+" : unreadCount}</Text>
               </View>
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionBtn} onPress={handleShareRide}>
-            <MaterialIcons name="ios-share" size={17} color={colors.text.primary} />
-            <Text style={styles.actionBtnText}>Compartilhar</Text>
+          <TouchableOpacity className="flex-1 min-w-[88px] flex-row items-center justify-center gap-1 py-2 rounded-lg border border-[rgba(2,222,149,0.35)] bg-[rgba(2,222,149,0.12)]" onPress={handleShareRide} accessibilityLabel="Compartilhar viagem" accessibilityRole="button">
+            <MaterialIcons name="ios-share" size={17} color="#fff" />
+            <Text className="text-white text-[13px] font-semibold">Compartilhar</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             disabled={!canCancel}
-            style={[styles.actionBtnDanger, !canCancel && styles.actionBtnDisabled]}
+            className={`flex-1 min-w-[88px] flex-row items-center justify-center gap-1 py-2 rounded-lg border border-[rgba(239,68,68,0.45)] bg-[rgba(239,68,68,0.12)] ${!canCancel ? "opacity-45" : ""}`}
             onPress={() =>
               navigation.navigate("ClientCancelRide", {
                 rideId,
@@ -879,9 +867,12 @@ export default function RideTrackingScreen() {
                 estimatedFee: cancellationFeePreview,
               })
             }
+            accessibilityLabel="Cancelar corrida"
+            accessibilityRole="button"
+            accessibilityState={{ disabled: !canCancel }}
           >
             <MaterialIcons name="close" size={17} color="#ef4444" />
-            <Text style={styles.actionBtnDangerText}>Cancelar</Text>
+            <Text className="text-[#ef4444] text-[13px] font-semibold">Cancelar</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -890,283 +881,4 @@ export default function RideTrackingScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background.primary },
-  map: { ...StyleSheet.absoluteFillObject },
-  topCard: {
-    position: "absolute",
-    left: spacing.lg,
-    right: spacing.lg,
-    backgroundColor: "rgba(12,25,39,0.95)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-  },
-  stepLabel: {
-    color: colors.text.tertiary,
-    fontSize: fontSize.xs,
-    fontWeight: fontWeight.bold,
-    letterSpacing: 0.9,
-    marginBottom: spacing.xs,
-  },
-  topHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-  minimizeBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 6,
-    borderRadius: borderRadius.full,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.2)",
-    backgroundColor: "rgba(255,255,255,0.08)",
-    flexShrink: 0,
-  },
-  minimizeText: {
-    color: colors.text.primary,
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  statusBadge: {
-    alignSelf: "flex-start",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 6,
-    borderRadius: borderRadius.full,
-  },
-  statusDot: { width: 8, height: 8, borderRadius: 4 },
-  statusText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold },
-  topSubtitle: {
-    color: "rgba(255,255,255,0.85)",
-    fontSize: fontSize.sm,
-    marginTop: spacing.sm,
-    lineHeight: 20,
-  },
-  arrivalCard: {
-    marginTop: spacing.md,
-    padding: spacing.md,
-    borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    borderColor: "rgba(96,165,250,0.24)",
-    backgroundColor: "rgba(96,165,250,0.10)",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  arrivalLabel: {
-    color: colors.text.tertiary,
-    fontSize: fontSize.xs,
-    fontWeight: fontWeight.bold,
-    textTransform: "uppercase",
-  },
-  arrivalValue: {
-    color: colors.text.primary,
-    fontSize: fontSize.lg,
-    fontWeight: fontWeight.bold,
-    marginTop: 3,
-  },
-  arrivalDivider: {
-    width: 1,
-    height: 36,
-    backgroundColor: "rgba(255,255,255,0.12)",
-  },
-  pinsCard: {
-    marginBottom: spacing.md,
-    padding: spacing.md,
-    borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    borderColor: "rgba(2,222,149,0.3)",
-    backgroundColor: "rgba(2,222,149,0.06)",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  pinCol: {
-    flex: 1,
-    alignItems: "center",
-  },
-  pinLabel: {
-    color: "rgba(255,255,255,0.7)",
-    fontSize: 9,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    marginBottom: 4,
-  },
-  pinValue: {
-    color: "#02de95",
-    fontSize: 18,
-    fontWeight: "800",
-    letterSpacing: 1,
-  },
-  pinDivider: {
-    width: 1,
-    height: 32,
-    backgroundColor: "rgba(255,255,255,0.15)",
-  },
-  timelineCard: {
-    marginBottom: spacing.md,
-    padding: spacing.sm,
-    borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
-    backgroundColor: "rgba(255,255,255,0.03)",
-  },
-  timelineTitle: {
-    color: colors.text.primary,
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.bold,
-    marginBottom: spacing.sm,
-  },
-  timelineRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: spacing.sm,
-    minHeight: 28,
-  },
-  timelineMarkerWrap: {
-    width: 14,
-    alignItems: "center",
-  },
-  timelineDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginTop: 2,
-  },
-  timelineDotDone: {
-    backgroundColor: "#02de95",
-  },
-  timelineDotActive: {
-    backgroundColor: "#60a5fa",
-  },
-  timelineDotIdle: {
-    backgroundColor: "rgba(255,255,255,0.24)",
-  },
-  timelineLine: {
-    width: 2,
-    flex: 1,
-    marginTop: 2,
-    borderRadius: 1,
-  },
-  timelineLineDone: {
-    backgroundColor: "rgba(2,222,149,0.6)",
-  },
-  timelineLineIdle: {
-    backgroundColor: "rgba(255,255,255,0.14)",
-  },
-  timelineLabel: {
-    flex: 1,
-    fontSize: fontSize.xs,
-    lineHeight: 18,
-    paddingBottom: 8,
-  },
-  timelineLabelDone: {
-    color: colors.text.primary,
-    fontWeight: "700",
-  },
-  timelineLabelActive: {
-    color: "#93c5fd",
-    fontWeight: "700",
-  },
-  timelineLabelIdle: {
-    color: colors.text.tertiary,
-  },
-  bottomCard: {
-    position: "absolute",
-    left: spacing.lg,
-    right: spacing.lg,
-    backgroundColor: "rgba(12,25,39,0.96)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-    borderRadius: borderRadius.xl,
-    padding: spacing.lg,
-  },
-  bottomTitle: {
-    color: colors.text.primary,
-    fontSize: fontSize.lg,
-    fontWeight: fontWeight.bold,
-    marginBottom: spacing.sm,
-  },
-  addressLine: { color: colors.text.secondary, fontSize: fontSize.sm, marginBottom: 4 },
-  metaRow: {
-    marginTop: spacing.sm,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: spacing.sm,
-  },
-  metaText: { flex: 1, color: colors.text.tertiary, fontSize: fontSize.xs },
-  loadingText: {
-    color: colors.text.tertiary,
-    fontSize: fontSize.xs,
-    marginTop: spacing.xs,
-  },
-  actionsRow: {
-    marginTop: spacing.md,
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-  },
-  actionBtn: {
-    flexGrow: 1,
-    minWidth: 88,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.xs,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: "rgba(2,222,149,0.35)",
-    backgroundColor: "rgba(2,222,149,0.12)",
-  },
-  actionBtnText: {
-    color: colors.text.primary,
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.semibold,
-  },
-  chatBadge: {
-    position: "absolute",
-    top: -4,
-    right: 4,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: "#ef4444",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 4,
-  },
-  chatBadgeText: {
-    color: "#fff",
-    fontSize: 10,
-    fontWeight: fontWeight.bold,
-  },
-  actionBtnDanger: {
-    flexGrow: 1,
-    minWidth: 88,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.xs,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: "rgba(239,68,68,0.45)",
-    backgroundColor: "rgba(239,68,68,0.12)",
-  },
-  actionBtnDangerText: {
-    color: "#ef4444",
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.semibold,
-  },
-  actionBtnDisabled: { opacity: 0.45 },
-});
 

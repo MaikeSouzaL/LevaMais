@@ -211,10 +211,16 @@ export default function RideOffersMarketplaceScreen() {
   }, [loadRideDetails]);
 
   useEffect(() => {
-    if (String(rideDetails?.status || "") === "driver_assigned" && rideId) {
+    const currentStatus = String(rideDetails?.status || "");
+    if (rideId && (currentStatus === "accepted" || currentStatus === "in_progress")) {
+      // Aceite direto do motorista (shouldAutoMatch) — vai direto pro tracking
+      const trackingScreen = rideDetails?.serviceType === "delivery" ? "DeliveryTracking" : "RideTracking";
+      navigation.replace(trackingScreen, { rideId });
+    } else if (currentStatus === "driver_assigned" && rideId) {
+      // Aceite após negociação — confirma pagamento
       navigation.replace("DeliveryPaymentConfirm", { rideId });
     }
-  }, [navigation, rideDetails?.status, rideId]);
+  }, [navigation, rideDetails?.status, rideDetails?.serviceType, rideId]);
 
 
   useEffect(() => {
@@ -305,9 +311,9 @@ export default function RideOffersMarketplaceScreen() {
       Toast.show({
         type: "success",
         text1: "Proposta aceita! 🎉",
-        text2: "Entregador selecionado! Confirme a forma de pagamento.",
+        text2: "Entregador selecionado com sucesso!",
       });
-      navigation.replace("DeliveryPaymentConfirm", { rideId });
+      navigation.replace("DeliveryTracking", { rideId });
     } catch (e: any) {
       Toast.show({
         type: "error",

@@ -40,11 +40,14 @@ export default function RideBiddingScreen({ route, navigation }: any) {
 
   useEffect(() => {
     if (ride?._id) {
-      setupWebSocket();
+      const cleanupSocket = setupWebSocket();
       loadOffers();
 
       const interval = setInterval(loadOffers, 5000);
-      return () => clearInterval(interval);
+      return () => {
+        if (cleanupSocket) cleanupSocket();
+        clearInterval(interval);
+      };
     }
   }, [ride?._id]);
 
@@ -101,24 +104,27 @@ export default function RideBiddingScreen({ route, navigation }: any) {
   const setupWebSocket = () => {
     if (!ride?._id) return;
 
-    webSocketService.on("new-offer", (data: any) => {
-      if (data.rideId === ride._id) {
-        loadOffers();
-        Toast.show({
-          type: "info",
-          text1: "Nova proposta!",
-          text2: "Um motorista enviou uma proposta",
-        });
-      }
-    });
-
-    webSocketService.on("offer-updated", (data: any) => {
+    // Eventos alinhados com o backend (ride.controller.js)
+    webSocketService.on("ride-offers-updated", (data: any) => {
       if (data.rideId === ride._id) {
         loadOffers();
       }
     });
 
-    webSocketService.on("ride-accepted", (data: any) => {
+    webSocketService.on("ride_negotiated", (data: any) => {
+      if (data.rideId === ride._id) {
+        loadOffers();
+        if (data.action === "proposal_received") {
+          Toast.show({
+            type: "info",
+            text1: "Nova proposta!",
+            text2: "Um motorista enviou uma proposta",
+          });
+        }
+      }
+    });
+
+    webSocketService.on("ride-offer-selected", (data: any) => {
       if (data.rideId === ride._id) {
         Toast.show({
           type: "success",
@@ -130,9 +136,9 @@ export default function RideBiddingScreen({ route, navigation }: any) {
     });
 
     return () => {
-      webSocketService.off("new-offer");
-      webSocketService.off("offer-updated");
-      webSocketService.off("ride-accepted");
+      webSocketService.off("ride-offers-updated");
+      webSocketService.off("ride_negotiated");
+      webSocketService.off("ride-offer-selected");
     };
   };
 

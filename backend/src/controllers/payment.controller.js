@@ -1,6 +1,7 @@
 const crypto = require("crypto");
 const User = require("../models/User");
 const PaymentWebhookEvent = require("../models/PaymentWebhookEvent");
+const { processPayment: gatewayProcess } = require("../services/payment-gateway.service");
 
 function sendError(res, status, message, extras = {}) {
   return res.status(status).json({
@@ -566,7 +567,7 @@ class PaymentController {
         return sendError(res, 400, "Valor invalido");
       }
 
-      const user = await User.findById(req.user.id).select("wallet paymentMethods");
+      const user = await User.findById(req.user.id).select("wallet paymentMethods name email");
       if (!user) return sendError(res, 404, "Usuario nao encontrado");
 
       if (paymentMethod === "credit_card" && cardId) {
@@ -582,50 +583,48 @@ class PaymentController {
         return sendError(res, 400, "Chave PIX invalida");
       }
 
-      const transactionId = `pay_${crypto.randomBytes(10).toString("hex")}`;
+      // Delegate to payment gateway service
+      const result = await gatewayProcess({
+        method: paymentMethod,
+        amount: amountValue,
+        description: description || "Pagamento Leva+",
+        user,
+        cardId,
+        pixKey,
+      });
 
-      if (paymentMethod === "wallet") {
-        user.wallet = user.wallet || { balance: 0, transactions: [] };
-        const currentBalance = toMoney(user.wallet.balance || 0);
-        if (currentBalance < amountValue) {
-          return sendError(res, 400, "Saldo insuficiente", {
-            available: currentBalance,
-          });
-        }
-
-        user.wallet.balance = toMoney(currentBalance - amountValue);
-        user.wallet.transactions = user.wallet.transactions || [];
-        user.wallet.transactions.push({
-          type: "ride_payment",
-          amount: amountValue,
-          description: description || "Pagamento de corrida/entrega",
-          referenceId: transactionId,
-          createdAt: new Date(),
-        });
-
-        await user.save();
-      }
+      // Log webhook event for idempotency
+      await PaymentWebhookEvent.create({
+        transactionId: result.transactionId,
+        event: "payment.processed",
+        userId: req.user.id,
+        amount: amountValue,
+        status: result.status === "completed" ? "processed" : "acknowledged",
+        rawPayload: { method: paymentMethod, gateway: result.gatewayResponse },
+      });
 
       return res.status(201).json({
         success: true,
-        transactionId,
+        transactionId: result.transactionId,
         amount: amountValue,
         method: paymentMethod,
-        status: "completed",
+        status: result.status,
         receipt: {
-          id: transactionId,
+          id: result.transactionId,
           date: new Date().toISOString(),
           amount: amountValue,
           method: paymentMethod,
         },
         gateway: {
-          provider: "internal-mvp",
-          settlement: paymentMethod === "wallet" ? "captured" : "authorized",
+          provider: result.gatewayResponse.provider,
+          settlement: result.gatewayResponse.settlement,
+          pixQrCode: result.gatewayResponse.pixQrCode,
+          pixCopyPaste: result.gatewayResponse.pixCopyPaste,
         },
       });
     } catch (error) {
-      console.error("Erro ao processar pagamento:", error);
-      return sendError(res, 500, "Erro ao processar pagamento");
+      console.error("[Payment] Process error:", error.message);
+      return sendError(res, error.statusCode || 500, error.message || "Erro ao processar pagamento");
     }
   }
 

@@ -12,20 +12,20 @@ module.exports = {
       colors: {
         primary: "#02de95",
         "background-light": "#f5f8f7",
-        "background-dark": "#0f231c",
-        "surface-dark": "#16201d",
-        "card-dark": "#1b2823",
+        "background-dark": "#091A2F",
+        "surface-dark": "#11253E",
+        "card-dark": "#1E2D3D",
         brand: {
           light: "#02de95", // Verde Leva+
           mid: "#00C483",
-          dark: "#0f231c", // Fundo escuro
+          dark: "#091A2F", // Fundo escuro
         },
         secondary: {
           blue: "#60A5FA", // Azul para segurança
         },
         surface: {
-          primary: "#16201d", // Surface escuro
-          secondary: "#1b2823", // Card escuro
+          primary: "#11253E", // Surface escuro
+          secondary: "#1E2D3D", // Card escuro
         },
         gray: {
           100: "#E1E1E6",
@@ -37,11 +37,14 @@ module.exports = {
           700: "#29292E",
           800: "#202024",
         },
-        background: "#0f231c", // Fundo geral
+        background: "#091A2F", // Fundo geral
       },
       fontFamily: {
-        regular: "Roboto_400Regular",
-        bold: "Roboto_700Bold",
+        regular: "Inter_400Regular",
+        medium: "Inter_500Medium",
+        semibold: "Inter_600SemiBold",
+        bold: "Inter_700Bold",
+        black: "Inter_900Black",
       },
       boxShadow: {
         glow: "0 0 15px rgba(2, 222, 149, 0.4)",
