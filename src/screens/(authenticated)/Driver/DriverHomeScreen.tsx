@@ -169,6 +169,7 @@ export default function DriverHomeScreen() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelModalReason, setCancelModalReason] = useState<string | null>(null);
   const [showNoBalanceModal, setShowNoBalanceModal] = useState(false);
+  const [showOnlineTimeModal, setShowOnlineTimeModal] = useState(false);
   const [routeCoords, setRouteCoords] = useState<LatLng[]>([]);
   const [driverCoords, setDriverCoords] = useState<{latitude: number, longitude: number, heading?: number} | null>(null);
   const [showDepositModal, setShowDepositModal] = useState(false);
@@ -1813,6 +1814,15 @@ export default function DriverHomeScreen() {
 
 
 
+  const displayOnlineTime = (() => {
+    if (driverStats?.onlineTime == null) return "00:00:00";
+    const totalSecs = Math.round(driverStats.onlineTime);
+    const h = Math.floor(totalSecs / 3600);
+    const m = Math.floor((totalSecs % 3600) / 60);
+    const s = totalSecs % 60;
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  })();
+
   return (
     <ErrorBoundary>
       <GestureHandlerRootView style={{ flex: 1 }}>
@@ -2255,6 +2265,9 @@ export default function DriverHomeScreen() {
                 onPressOffers={() => (navigation as any).navigate("DriverRequests", { initialTab: "realtime" })}
                 hasPendingOffer={showPendingOfferHighlight}
                 offersPulseToken={offersPulseToken}
+                onPressRating={() => (navigation as any).navigate("DriverRatings")}
+                onPressBalance={() => (navigation as any).navigate("DriverFinance", { screen: "DriverEarnings" })}
+                onPressTime={() => setShowOnlineTimeModal(true)}
               />
             </View>
           )}
@@ -2291,6 +2304,16 @@ export default function DriverHomeScreen() {
               setShowDepositModal(false);
               loadBalance(); 
             }}
+          />
+
+          <Modal
+            visible={showOnlineTimeModal}
+            title="Tempo Online Hoje"
+            message={`Você está conectado há exatamente ${displayOnlineTime} hoje.\n\nSeu tempo online é redefinido automaticamente à meia-noite e o total acumulado é salvo com segurança em seu histórico diário de trabalho!`}
+            type="info"
+            confirmText="Entendido"
+            onClose={() => setShowOnlineTimeModal(false)}
+            onConfirm={() => setShowOnlineTimeModal(false)}
           />
 
 

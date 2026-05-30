@@ -5,28 +5,70 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   SectionList,
-  Animated,
   RefreshControl,
+  StyleSheet,
+  StatusBar,
+  ScrollView,
 } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
-import { useFocusEffect } from "@react-navigation/native";
-import { DriverScreen } from "./components/DriverScreen";
-import driverService, { BalanceTransaction } from "../../../services/driver.service";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import {
+  ArrowLeft,
+  FileText,
+  Plus,
+  Car,
+  Wallet,
+  ArrowDownLeft,
+  ChevronRight,
+  ChevronDown,
+  Calendar,
+  Hash,
+  CreditCard,
+} from "lucide-react-native";
+import { MotiView } from "moti";
 import Toast from "react-native-toast-message";
-import { LinearGradient } from "expo-linear-gradient";
+
+import driverService, { BalanceTransaction } from "../../../services/driver.service";
+
+// Spec-defined colors matching Tailwind Config from HTML
+const colors = {
+  background: "#051424",
+  onSurface: "#d4e4fa",
+  onSurfaceVariant: "#c5c6cd",
+  secondary: "#70ffba",
+  onSecondary: "#003822",
+  secondaryFixed: "#4dffb1",
+  surfaceContainerHigh: "#1c2b3c",
+  surfaceContainerHighest: "#273647",
+  surfaceContainer: "#122131",
+  surface: "#051424",
+  surfaceContainerLow: "#0d1c2d",
+  outlineVariant: "#45474d",
+  tertiary: "#b0c9e8",
+  primary: "#bbc6e3",
+  error: "#ffb4ab",
+  errorContainer: "#93000a",
+};
 
 function formatBRL(value: number) {
   try {
     return new Intl.NumberFormat("pt-BR", {
       style: "currency",
       currency: "BRL",
-    }).format(value);
+    }).format(Math.abs(value));
   } catch {
-    return `R$ ${Number(value || 0).toFixed(2)}`;
+    return `R$ ${Math.abs(value || 0).toFixed(2)}`;
   }
 }
 
+function checkIsCredit(item: BalanceTransaction) {
+  const type = String(item.type || "").toLowerCase();
+  if (type === "deposit" || type === "driver_topup") return true;
+  if (type === "deduction" || type === "app_fee_debit" || type === "withdrawal") return false;
+  return item.amount >= 0;
+}
+
 export default function DriverStatementScreen() {
+  const navigation = useNavigation<any>();
   const [items, setItems] = useState<BalanceTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -34,49 +76,58 @@ export default function DriverStatementScreen() {
   const [filter, setFilter] = useState<"all" | "credit" | "debit">("all");
   const [page, setPage] = useState(1);
   const [hasNext, setHasNext] = useState(false);
-  const [fadeAnim] = useState(new Animated.Value(1));
+  const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
 
-  const loadStatement = useCallback(async (nextPage = 1, options?: { isRefresh?: boolean; append?: boolean }) => {
-    const isRefresh = Boolean(options?.isRefresh);
-    const append = Boolean(options?.append);
+  const loadStatement = useCallback(
+    async (nextPage = 1, options?: { isRefresh?: boolean; append?: boolean }) => {
+      const isRefresh = Boolean(options?.isRefresh);
+      const append = Boolean(options?.append);
 
-    try {
-      if (isRefresh) {
-        setRefreshing(true);
-      } else if (append) {
-        setLoadingMore(true);
-      } else {
-        setLoading(true);
+      try {
+        if (isRefresh) {
+          setRefreshing(true);
+        } else if (append) {
+          setLoadingMore(true);
+        } else {
+          setLoading(true);
+        }
+
+        const response = await driverService.getBalanceHistory(300);
+        const pageSize = 30;
+        const start = (nextPage - 1) * pageSize;
+        const pageItems = response.slice(start, start + pageSize);
+        setHasNext(start + pageSize < response.length);
+        setPage(nextPage);
+        setItems((prev) => (append ? [...prev, ...pageItems] : pageItems));
+      } catch (error) {
+        console.error("Failed to load statement:", error);
+        Toast.show({ type: "error", text1: "Erro ao carregar extrato" });
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
+        setRefreshing(false);
       }
-
-       const response = await driverService.getBalanceHistory(300);
-       const pageSize = 30; const start = (nextPage - 1) * pageSize; const pageItems = response.slice(start, start + pageSize); setHasNext(start + pageSize < response.length);
-       setPage(nextPage);
-       setItems((prev) => (append ? [...prev, ...pageItems] : pageItems));
-     } catch (error) {
-       console.error('Failed to load statement:', error);
-       Toast.show({ type: "error", text1: "Erro ao carregar extrato" });
-     } finally {
-      setLoading(false);
-      setLoadingMore(false);
-      setRefreshing(false);
-    }
-  }, []);
+    },
+    []
+  );
 
   useFocusEffect(
     useCallback(() => {
       loadStatement(1);
-    }, [loadStatement]),
+    }, [loadStatement])
   );
 
   const filteredItems = useMemo(() => {
     if (filter === "all") return items;
-    if (filter === "credit") return items.filter((item) => item.amount >= 0);
-    return items.filter((item) => item.amount < 0);
+    if (filter === "credit") return items.filter((item) => checkIsCredit(item));
+    return items.filter((item) => !checkIsCredit(item));
   }, [items, filter]);
 
   const summary = useMemo(() => {
-    const total = filteredItems.reduce((acc, item) => acc + item.amount, 0);
+    const total = filteredItems.reduce((acc, item) => {
+      const isCredit = checkIsCredit(item);
+      return acc + (isCredit ? item.amount : -item.amount);
+    }, 0);
     return { total, count: filteredItems.length };
   }, [filteredItems]);
 
@@ -103,19 +154,11 @@ export default function DriverStatementScreen() {
       groups[key].push(item);
     });
 
-    return Object.keys(groups).map((title) => ({ title, data: groups[title] }));
+    return Object.keys(groups).map((title) => ({
+      title,
+      data: groups[title],
+    }));
   }, [filteredItems]);
-
-  const handleFilterChange = (next: typeof filter) => {
-    if (next === filter) return;
-
-    Animated.sequence([
-      Animated.timing(fadeAnim, { toValue: 0, duration: 150, useNativeDriver: true }),
-      Animated.timing(fadeAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
-    ]).start();
-
-    setFilter(next);
-  };
 
   const handleLoadMore = () => {
     if (loading || loadingMore || refreshing || !hasNext) return;
@@ -123,174 +166,549 @@ export default function DriverStatementScreen() {
   };
 
   return (
-    <DriverScreen title="Extrato">
-      <View style={{ marginBottom: 20 }}>
-        <LinearGradient
-          colors={["#11253E", "#091A2F"]}
-          style={{
-            padding: 20,
-            borderRadius: 24,
-            borderWidth: 1,
-            borderColor: filter === "all" ? "rgba(2,222,149,0.2)" : "rgba(255,255,255,0.05)",
-            marginBottom: 20,
-          }}
-        >
-          <Text
-            style={{
-              color: "rgba(255,255,255,0.6)",
-              fontSize: 13,
-              textTransform: "uppercase",
-              letterSpacing: 1,
-              fontWeight: "700",
-            }}
-          >
-            {filter === "all" ? "Saldo do periodo" : filter === "credit" ? "Total entradas" : "Total saidas"}
-          </Text>
-          <Text style={{ color: "#fff", fontSize: 36, fontWeight: "800", marginTop: 4 }}>
-            {formatBRL(summary.total)}
-          </Text>
-          <View style={{ flexDirection: "row", marginTop: 12, alignItems: "center", gap: 6 }}>
-            <MaterialIcons name="receipt" size={16} color="#02de95" />
-            <Text style={{ color: "#02de95", fontWeight: "600" }}>{summary.count} lancamentos</Text>
-          </View>
-        </LinearGradient>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
 
-        <View style={{ flexDirection: "row", gap: 10 }}>
-          {([
-            { key: "all", label: "Tudo" },
-            { key: "credit", label: "Entradas" },
-            { key: "debit", label: "Saidas" },
-          ] as const).map((option) => (
-            <TouchableOpacity
-              key={option.key}
-              onPress={() => handleFilterChange(option.key)}
-              style={{
-                paddingVertical: 10,
-                paddingHorizontal: 20,
-                borderRadius: 30,
-                backgroundColor: filter === option.key ? "#02de95" : "transparent",
-                borderWidth: 1,
-                borderColor: filter === option.key ? "#02de95" : "rgba(255,255,255,0.15)",
-              }}
-            >
-              <Text
-                style={{
-                  color: filter === option.key ? "#091A2F" : "rgba(255,255,255,0.7)",
-                  fontWeight: "700",
-                  fontSize: 13,
-                }}
-              >
-                {option.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+      {/* ── TopAppBar ── */}
+      <View style={styles.topAppBar}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backBtn}
+          activeOpacity={0.7}
+        >
+          <ArrowLeft size={24} color={colors.onSurface} />
+        </TouchableOpacity>
+        <Text style={styles.topAppBarTitle}>Ganhos e carteira</Text>
       </View>
 
-      {loading ? (
-        <ActivityIndicator size="large" color="#02de95" style={{ marginTop: 40 }} />
-      ) : (
-        <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
+      {/* ── Main Content ── */}
+      <View style={styles.main}>
+        {/* Header Title Section */}
+        <View style={styles.headerSection}>
+          <View style={styles.iconCircle}>
+            <FileText size={20} color={colors.onSurfaceVariant} />
+          </View>
+          <Text style={styles.headerTitle}>Extrato</Text>
+        </View>
+
+        {/* Balance Card */}
+        <View style={styles.balanceCard}>
+          <View style={styles.cardGlow} />
+          <Text style={styles.balanceLabel}>Saldo do Período</Text>
+          <Text style={styles.balanceValue}>
+            {summary.total < 0 ? "-" : ""}
+            {formatBRL(summary.total)}
+          </Text>
+          <Text style={styles.balanceCount}>
+            {summary.count} {summary.count === 1 ? "lançamento" : "lançamentos"}
+          </Text>
+        </View>
+
+        {/* Filters / Chips */}
+        <View style={styles.filterRow}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterScroll}
+          >
+            {([
+              { key: "all", label: "Tudo" },
+              { key: "credit", label: "Entradas" },
+              { key: "debit", label: "Saídas" },
+            ] as const).map((option) => {
+              const isActive = filter === option.key;
+              return (
+                <TouchableOpacity
+                  key={option.key}
+                  onPress={() => setFilter(option.key)}
+                  activeOpacity={0.8}
+                  style={[
+                    styles.chipBtn,
+                    isActive && styles.chipBtnActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.chipText,
+                      isActive && styles.chipTextActive,
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+
+        {/* Transactions List */}
+        {loading ? (
+          <View style={styles.centered}>
+            <ActivityIndicator size="large" color={colors.secondary} />
+          </View>
+        ) : (
           <SectionList
             sections={sections}
             stickySectionHeadersEnabled={false}
             keyExtractor={(item) => String(item.id || `${item.createdAt}-${item.amount}`)}
-            contentContainerStyle={{ paddingBottom: 40 }}
+            contentContainerStyle={styles.listContent}
+            onEndReached={handleLoadMore}
+            onEndReachedThreshold={0.3}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
                 onRefresh={() => loadStatement(1, { isRefresh: true })}
-                tintColor="#02de95"
+                tintColor={colors.secondary}
+                colors={[colors.secondary]}
               />
             }
-            onEndReachedThreshold={0.3}
-            onEndReached={handleLoadMore}
             renderSectionHeader={({ section: { title } }) => (
-              <View style={{ backgroundColor: "#091A2F", paddingVertical: 12, marginTop: 8 }}>
-                <Text
-                  style={{
-                    color: "rgba(255,255,255,0.4)",
-                    fontWeight: "700",
-                    fontSize: 13,
-                    textTransform: "uppercase",
-                    letterSpacing: 0.5,
-                  }}
-                >
-                  {title}
-                </Text>
-              </View>
+              <Text style={styles.sectionHeader}>{title}</Text>
             )}
             renderItem={({ item }) => {
-              const isCredit = item.amount >= 0;
-              const time = new Date(item.createdAt).toLocaleTimeString("pt-BR", {
+              const isCredit = checkIsCredit(item);
+              const formattedTime = new Date(item.createdAt).toLocaleTimeString("pt-BR", {
                 hour: "2-digit",
                 minute: "2-digit",
               });
+              const formattedDate = new Date(item.createdAt).toLocaleDateString("pt-BR", {
+                day: "2-digit",
+                month: "long",
+                year: "numeric",
+              });
+
+              // Icon resolution matching spec
+              let IconComp = Car;
+              if (item.type === "withdrawal") {
+                IconComp = ArrowDownLeft;
+              } else if (item.type === "deposit" || item.type === "driver_topup") {
+                IconComp = Plus;
+              }
+
+              const hasRide = !!item.rideId;
+              const isExpanded = expandedItemId === item.id;
+
+              const handlePress = () => {
+                if (hasRide) {
+                  // Navigate to full ride details screen
+                  navigation.navigate("DriverRideDetails" as never, { rideId: item.rideId } as never);
+                } else {
+                  // Toggle inline expanded deposit/topup receipt
+                  setExpandedItemId(isExpanded ? null : item.id);
+                }
+              };
 
               return (
-                <LinearGradient
-                  colors={["rgba(255,255,255,0.05)", "rgba(255,255,255,0.02)"]}
-                  style={{
-                    flexDirection: "row",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: 16,
-                    borderRadius: 20,
-                    marginBottom: 10,
-                    borderWidth: 1,
-                    borderColor: "rgba(255,255,255,0.05)",
-                  }}
-                >
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+                <TouchableOpacity activeOpacity={0.7} onPress={handlePress}>
+                  <MotiView
+                    from={{ opacity: 0, translateY: 6 }}
+                    animate={{ opacity: 1, translateY: 0 }}
+                    transition={{ type: "spring", damping: 18 }}
+                    style={[styles.itemCard, isCredit && styles.itemCardCredit]}
+                  >
+                    {/* Left Circle Icon */}
                     <View
-                      style={{
-                        width: 44,
-                        height: 44,
-                        borderRadius: 22,
-                        backgroundColor: isCredit ? "rgba(2,222,149,0.1)" : "rgba(239,68,68,0.1)",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        borderWidth: 1,
-                        borderColor: isCredit ? "rgba(2,222,149,0.2)" : "rgba(239,68,68,0.2)",
-                      }}
+                      style={[
+                        styles.itemIconCircle,
+                        isCredit && styles.itemIconCircleCredit,
+                      ]}
                     >
-                      <MaterialIcons
-                        name={item.type === "withdrawal" ? "account-balance-wallet" : "directions-car"}
-                        size={22}
-                        color={isCredit ? "#02de95" : "#ef4444"}
+                      <IconComp
+                        size={20}
+                        color={isCredit ? colors.secondary : colors.onSurfaceVariant}
                       />
                     </View>
-                    <View>
-                      <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>{item.reason || "Transação"}</Text>
-                      <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 13 }}>{time}</Text>
-                    </View>
-                  </View>
 
-                  <Text
-                    style={{
-                      color: isCredit ? "#02de95" : "#fff",
-                      fontWeight: "900",
-                      fontSize: 18,
-                    }}
-                  >
-                    {isCredit ? "+" : ""}
-                    {formatBRL(item.amount)}
-                  </Text>
-                </LinearGradient>
+                    {/* Middle Info */}
+                    <View style={styles.itemMeta}>
+                      <Text style={styles.itemTitle} numberOfLines={1}>
+                        {item.reason || (isCredit ? "Recarga / Depósito" : "Taxa da plataforma")}
+                      </Text>
+                      {item.rideId && (
+                        <Text style={styles.itemRideId} numberOfLines={1}>
+                          {item.rideId}
+                        </Text>
+                      )}
+                      <Text style={styles.itemTime}>{formattedTime}</Text>
+                    </View>
+
+                    {/* Right: Price + Chevron */}
+                    <View style={{ alignItems: "flex-end", gap: 4 }}>
+                      <Text
+                        style={[
+                          styles.itemPrice,
+                          isCredit ? styles.priceCredit : styles.priceDebit,
+                        ]}
+                      >
+                        {isCredit ? "+" : "-"}
+                        {formatBRL(item.amount)}
+                      </Text>
+                      {hasRide ? (
+                        <ChevronRight size={14} color={colors.onSurfaceVariant} />
+                      ) : (
+                        <ChevronDown
+                          size={14}
+                          color={colors.onSurfaceVariant}
+                          style={isExpanded ? { transform: [{ rotate: "180deg" }] } : undefined}
+                        />
+                      )}
+                    </View>
+                  </MotiView>
+
+                  {/* Expanded Deposit/Topup Receipt */}
+                  {isExpanded && !hasRide && (
+                    <MotiView
+                      from={{ opacity: 0, scale: 0.97 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ type: "spring", damping: 20 }}
+                      style={styles.receiptCard}
+                    >
+                      <Text style={styles.receiptTitle}>Comprovante de Recarga</Text>
+                      <View style={styles.receiptDivider} />
+
+                      <View style={styles.receiptRow}>
+                        <View style={styles.receiptIconWrap}>
+                          <CreditCard size={14} color={colors.onSurfaceVariant} />
+                        </View>
+                        <Text style={styles.receiptLabel}>Tipo</Text>
+                        <Text style={styles.receiptValue}>
+                          {item.type === "driver_topup" ? "Recarga de saldo" : item.type === "withdrawal" ? "Saque" : "Transação"}
+                        </Text>
+                      </View>
+
+                      <View style={styles.receiptRow}>
+                        <View style={styles.receiptIconWrap}>
+                          <Plus size={14} color={colors.secondary} />
+                        </View>
+                        <Text style={styles.receiptLabel}>Valor</Text>
+                        <Text style={[styles.receiptValue, { color: colors.secondary, fontWeight: "700" }]}>
+                          +{formatBRL(item.amount)}
+                        </Text>
+                      </View>
+
+                      <View style={styles.receiptRow}>
+                        <View style={styles.receiptIconWrap}>
+                          <Calendar size={14} color={colors.onSurfaceVariant} />
+                        </View>
+                        <Text style={styles.receiptLabel}>Data</Text>
+                        <Text style={styles.receiptValue}>{formattedDate}</Text>
+                      </View>
+
+                      <View style={styles.receiptRow}>
+                        <View style={styles.receiptIconWrap}>
+                          <Hash size={14} color={colors.onSurfaceVariant} />
+                        </View>
+                        <Text style={styles.receiptLabel}>ID</Text>
+                        <Text style={[styles.receiptValue, { fontSize: 11 }]} numberOfLines={1}>
+                          {item.id}
+                        </Text>
+                      </View>
+
+                      <View style={styles.receiptRow}>
+                        <View style={styles.receiptIconWrap}>
+                          <FileText size={14} color={colors.onSurfaceVariant} />
+                        </View>
+                        <Text style={styles.receiptLabel}>Status</Text>
+                        <View style={styles.receiptStatusBadge}>
+                          <View style={[styles.receiptStatusDot, { backgroundColor: colors.secondary }]} />
+                          <Text style={[styles.receiptValue, { color: colors.secondary }]}>
+                            {item.status === "completed" ? "Confirmado" : item.status || "Confirmado"}
+                          </Text>
+                        </View>
+                      </View>
+                    </MotiView>
+                  )}
+                </TouchableOpacity>
               );
             }}
             ListEmptyComponent={
-              <View style={{ alignItems: "center", marginTop: 40, opacity: 0.5 }}>
-                <MaterialIcons name="receipt-long" size={64} color="#fff" />
-                <Text style={{ color: "#fff", marginTop: 16, fontSize: 16 }}>Nenhuma movimentacao</Text>
+              <View style={styles.emptyView}>
+                <FileText size={48} color="rgba(255,255,255,0.15)" />
+                <Text style={styles.emptyText}>Nenhuma movimentação encontrada</Text>
               </View>
             }
             ListFooterComponent={
-              loadingMore ? <ActivityIndicator size="small" color="#02de95" style={{ marginVertical: 16 }} /> : null
+              loadingMore ? (
+                <ActivityIndicator
+                  size="small"
+                  color={colors.secondary}
+                  style={{ marginVertical: 16 }}
+                />
+              ) : null
             }
           />
-        </Animated.View>
-      )}
-    </DriverScreen>
+        )}
+      </View>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  topAppBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 64,
+    paddingHorizontal: 20,
+    backgroundColor: colors.background,
+  },
+  backBtn: {
+    padding: 8,
+    borderRadius: 9999,
+    marginRight: 12,
+  },
+  topAppBarTitle: {
+    color: colors.onSurface,
+    fontSize: 20,
+    fontWeight: "700",
+  },
+  main: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+  },
+  headerSection: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 20,
+  },
+  iconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.surfaceContainerHigh,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: {
+    color: colors.onSurface,
+    fontSize: 20,
+    fontWeight: "700",
+  },
+  balanceCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+    position: "relative",
+    overflow: "hidden",
+    shadowColor: colors.secondary,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.05,
+    shadowRadius: 30,
+    elevation: 3,
+    marginBottom: 20,
+  },
+  cardGlow: {
+    position: "absolute",
+    inset: 0,
+    backgroundColor: colors.surfaceContainerHigh,
+    opacity: 0.5,
+  },
+  balanceLabel: {
+    color: colors.onSurfaceVariant,
+    fontSize: 12,
+    fontWeight: "500",
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+    zIndex: 10,
+  },
+  balanceValue: {
+    color: colors.onSurface,
+    fontSize: 40,
+    fontWeight: "800",
+    marginTop: 6,
+    zIndex: 10,
+  },
+  balanceCount: {
+    color: colors.secondary,
+    fontSize: 12,
+    fontWeight: "500",
+    marginTop: 6,
+    zIndex: 10,
+  },
+  filterRow: {
+    marginBottom: 16,
+    marginHorizontal: -20,
+  },
+  filterScroll: {
+    paddingHorizontal: 20,
+    gap: 8,
+  },
+  chipBtn: {
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 9999,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant,
+  },
+  chipBtnActive: {
+    backgroundColor: colors.secondary,
+    borderColor: colors.secondary,
+    shadowColor: colors.secondary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  chipText: {
+    color: colors.onSurfaceVariant,
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  chipTextActive: {
+    color: colors.onSecondary,
+    fontWeight: "700",
+  },
+  centered: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  listContent: {
+    paddingBottom: 40,
+  },
+  sectionHeader: {
+    color: colors.onSurfaceVariant,
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+    paddingLeft: 4,
+    marginTop: 20,
+    marginBottom: 12,
+  },
+  itemCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.05)",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 8,
+    position: "relative",
+    overflow: "hidden",
+  },
+  itemCardCredit: {
+    // Subtle credit glow style from HTML
+  },
+  itemIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.surfaceContainerHighest,
+    borderWidth: 1,
+    borderColor: "rgba(69, 71, 77, 0.3)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 16,
+  },
+  itemIconCircleCredit: {
+    borderColor: "rgba(112, 255, 186, 0.2)",
+  },
+  itemMeta: {
+    flex: 1,
+    gap: 2,
+  },
+  itemTitle: {
+    color: colors.onSurface,
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  itemRideId: {
+    color: colors.onSurfaceVariant,
+    fontSize: 12,
+    opacity: 0.8,
+  },
+  itemTime: {
+    color: colors.onSurfaceVariant,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  itemPrice: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginLeft: 8,
+  },
+  priceCredit: {
+    color: colors.secondary,
+    fontWeight: "700",
+  },
+  priceDebit: {
+    color: colors.onSurfaceVariant,
+  },
+  emptyView: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 60,
+    gap: 16,
+  },
+  emptyText: {
+    color: colors.onSurfaceVariant,
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  receiptCard: {
+    backgroundColor: colors.surfaceContainerHigh,
+    borderRadius: 12,
+    padding: 16,
+    marginTop: -4,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "rgba(112, 255, 186, 0.1)",
+    gap: 12,
+  },
+  receiptTitle: {
+    color: colors.onSurface,
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  receiptDivider: {
+    height: 1,
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
+  },
+  receiptRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  receiptIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  receiptLabel: {
+    color: colors.onSurfaceVariant,
+    fontSize: 13,
+    fontWeight: "500",
+    minWidth: 50,
+  },
+  receiptValue: {
+    color: colors.onSurface,
+    fontSize: 13,
+    fontWeight: "500",
+    flex: 1,
+    textAlign: "right",
+  },
+  receiptStatusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  receiptStatusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+});

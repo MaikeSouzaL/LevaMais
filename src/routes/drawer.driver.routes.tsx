@@ -261,7 +261,7 @@ export default function DrawerDriverRoutes({ initialRideId }: DrawerDriverRoutes
     >
       <Drawer.Screen name="DriverHome" component={DriverHomeScreen} options={{ title: "Início", headerShown: false }} />
       <Drawer.Screen name="DriverRequests" component={DriverRequestsScreen} options={{ title: "Solicitações" }} />
-      <Drawer.Screen name="DriverFinance" component={DriverFinanceStack} options={{ title: "Ganhos e carteira" }} />
+      <Drawer.Screen name="DriverFinance" component={DriverFinanceStack} options={{ title: "Ganhos e carteira", headerShown: false }} />
       <Drawer.Screen name="DriverShiftOffers" component={DriverShiftOffersScreen} options={{ title: "Plantões" }} />
       <Drawer.Screen name="DriverHistory" component={DriverHistoryScreen} options={{ title: "Histórico" }} />
       <Drawer.Screen name="DriverVehicle" component={DriverVehicleScreen} options={{ title: "Veículo" }} />

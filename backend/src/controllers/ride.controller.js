@@ -3264,7 +3264,7 @@ class RideController {
         {
           $project: {
             // Agrupamento por timezone configuravel (APP_TIMEZONE)
-            
+            completedAt: 1,
             // Use valor salvo ou calcula 80% fallback para legados
             val: {
               $ifNull: [
@@ -3311,7 +3311,7 @@ class RideController {
           // Format Label
           let label = "";
           if (period === "week") {
-            const days = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "SÃƒÂ¡b"];
+            const days = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
             label = days[current.getDay()];
           } else {
             label = `${current.getDate()}/${current.getMonth() + 1}`;

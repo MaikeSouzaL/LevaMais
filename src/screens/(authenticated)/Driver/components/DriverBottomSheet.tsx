@@ -40,6 +40,9 @@ interface DriverBottomSheetProps {
   pendingNegotiationsCount?: number;
   clientCounteredCount?: number;
   onPressNegotiations?: () => void;
+  onPressRating?: () => void;
+  onPressBalance?: () => void;
+  onPressTime?: () => void;
 }
 
 /**
@@ -75,6 +78,9 @@ export function DriverBottomSheet({
   pendingNegotiationsCount = 0,
   clientCounteredCount = 0,
   onPressNegotiations,
+  onPressRating,
+  onPressBalance,
+  onPressTime,
 }: DriverBottomSheetProps) {
   const [showSettings, setShowSettings] = useState(false);
 
@@ -163,31 +169,43 @@ export function DriverBottomSheet({
         {/* ── Glassmorphic Stats Grid ── */}
         <View style={styles.statsGrid}>
           {/* Rating */}
-          <View style={[styles.statColumn, { borderRightWidth: 1, borderRightColor: "rgba(255,255,255,0.06)" }]}>
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={onPressRating}
+            style={[styles.statColumn, { borderRightWidth: 1, borderRightColor: "rgba(255,255,255,0.06)" }]}
+          >
             <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 3 }}>
               <Star size={13} color="#FBBF24" fill="#FBBF24" style={{ marginRight: 4 }} />
               <Text style={{ color: "#fff", fontWeight: "900", fontSize: 14.5 }}>{displayRating}</Text>
             </View>
             <Text style={styles.statLabel}>Avaliação</Text>
-          </View>
+          </TouchableOpacity>
 
           {/* Balance */}
-          <View style={[styles.statColumn, { flex: 1.4, borderRightWidth: 1, borderRightColor: "rgba(255,255,255,0.06)" }]}>
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={onPressBalance}
+            style={[styles.statColumn, { flex: 1.4, borderRightWidth: 1, borderRightColor: "rgba(255,255,255,0.06)" }]}
+          >
             <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 3 }}>
               <TrendingUp size={13} color="#02de95" style={{ marginRight: 6 }} />
               <Text style={{ color: "#02de95", fontWeight: "900", fontSize: 15.5 }}>{displayBalance}</Text>
             </View>
             <Text style={styles.statLabel}>Saldo</Text>
-          </View>
+          </TouchableOpacity>
 
           {/* Time Online */}
-          <View style={styles.statColumn}>
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={onPressTime}
+            style={styles.statColumn}
+          >
             <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 3 }}>
               <Clock size={13} color="#3B82F6" style={{ marginRight: 4 }} />
               <Text style={{ color: "#fff", fontWeight: "900", fontSize: 14.5 }}>{displayOnlineTime}</Text>
             </View>
             <Text style={styles.statLabel}>Tempo Online</Text>
-          </View>
+          </TouchableOpacity>
         </View>
 
         {/* Pending Negotiations Alert */}

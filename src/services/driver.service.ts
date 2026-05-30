@@ -22,7 +22,7 @@ export interface DriverDeposit {
 
 export interface BalanceTransaction {
   id: string;
-  type: 'deposit' | 'deduction' | 'withdrawal';
+  type: 'deposit' | 'deduction' | 'withdrawal' | 'driver_topup' | 'app_fee_debit';
   amount: number;
   reason?: string;
   rideId?: string;
