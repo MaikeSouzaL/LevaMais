@@ -1,120 +1,87 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { TouchableOpacity, View, Text, Image, ActivityIndicator, Alert } from "react-native";
-import Toast from "react-native-toast-message";
-import { MaterialIcons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
-import * as ImagePicker from "expo-image-picker";
+import React, { useEffect, useMemo, useState } from 'react';
+import { TouchableOpacity, View, Text, Image, ActivityIndicator, ScrollView, StyleSheet } from 'react-native';
+import Toast from 'react-native-toast-message';
+import { MaterialIcons, Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import { MotiView } from 'moti';
+import { Star, Car, Calendar, Camera, ChevronRight, ShieldCheck, Edit3 } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
 
-import SectionCard from "../../../components/ui/SectionCard";
-import TextField from "../../../components/ui/TextField";
-import ActionButton from "../../../components/ui/ActionButton";
-import userService from "../../../services/user.service";
-import { DriverScreen } from "./components/DriverScreen";
-import { useAuthStore } from "../../../context/authStore";
+import SectionCard from '../../../components/ui/SectionCard';
+import TextField from '../../../components/ui/TextField';
+import ActionButton from '../../../components/ui/ActionButton';
+import userService from '../../../services/user.service';
+import { DriverScreen } from './components/DriverScreen';
+import { useAuthStore } from '../../../context/authStore';
+import GlassCard from '@/components/driver/cards/GlassCard';
+import MetricCard from '@/components/driver/cards/MetricCard';
+import ProgressBar from '@/components/driver/feedback/ProgressBar';
+import { driverColors, driverTypography, driverRadius, driverSpacing } from '@/theme/driverTheme';
 
 export default function DriverProfileScreen() {
   const navigation = useNavigation<any>();
   const cachedUser = useAuthStore((s) => s.userData);
   const updateAuthCache = useAuthStore((s) => s.updateUserData);
-  
+
   const [loading, setLoading] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  
-  // Pre-hydrate immediately from local session cache! ⚡
-  const [name, setName] = useState(cachedUser?.name || cachedUser?.nome || "");
-  const [phone, setPhone] = useState(cachedUser?.phone || cachedUser?.telefone || "");
-  const [city, setCity] = useState(cachedUser?.city || cachedUser?.cidade || "");
+  const [name, setName] = useState(cachedUser?.name || cachedUser?.nome || '');
+  const [phone, setPhone] = useState(cachedUser?.phone || cachedUser?.telefone || '');
+  const [city, setCity] = useState(cachedUser?.city || cachedUser?.cidade || '');
   const [profilePhoto, setProfilePhoto] = useState<string | null>(cachedUser?.fotoPerfil || null);
+  const [driverData, setDriverData] = useState<any>({});
+  const [expandedSection, setExpandedSection] = useState<string | null>(null);
 
   const canSave = useMemo(() => name.trim().length >= 2, [name]);
 
   useEffect(() => {
     let mounted = true;
-
     (async () => {
       setLoading(true);
       try {
-        console.log("[Profile] Buscando dados do servidor...");
         const u = await userService.getProfile();
-        
-        if (__DEV__) {
-          console.log("[Profile] Resposta do servidor:", JSON.stringify(u));
-        }
-        
         if (!mounted) return;
-        
-        // Sync states with DB values
         const resolvedName = u?.name || u?.nome || name;
         const resolvedPhone = u?.phone || u?.telefone || phone;
         const resolvedCity = u?.city || u?.cidade || city;
         const photoUrl = u?.profilePhoto || u?.driverDocuments?.selfie || profilePhoto || undefined;
-        
         setName(resolvedName);
         setPhone(resolvedPhone);
         setCity(resolvedCity);
         setProfilePhoto(photoUrl ?? null);
+        setDriverData(u || {});
 
-        // Gracefully refresh local store cache for other screens
         updateAuthCache({
-          name: resolvedName,
-          nome: resolvedName,
-          telefone: resolvedPhone,
-          cidade: resolvedCity,
-          fotoPerfil: photoUrl,
+          name: resolvedName, nome: resolvedName,
+          telefone: resolvedPhone, cidade: resolvedCity, fotoPerfil: photoUrl,
         });
-
       } catch (e: any) {
-        console.error("[Profile] Erro ao carregar perfil:", e);
-        Toast.show({
-          type: "error",
-          text1: "Falha ao carregar",
-          text2: e?.message || "Verifique sua internet.",
-        });
+        console.error('[Profile] Erro ao carregar:', e);
+        Toast.show({ type: 'error', text1: 'Falha ao carregar', text2: e?.message });
       } finally {
         if (mounted) setLoading(false);
       }
     })();
-
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, []);
 
   async function pickImage() {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== "granted") {
-        Toast.show({
-          type: "info",
-          text1: "Permissão negada",
-          text2: "Precisamos de acesso à galeria para alterar sua foto.",
-        });
+      if (status !== 'granted') {
+        Toast.show({ type: 'info', text1: 'Permissão negada', text2: 'Precisamos de acesso à galeria.' });
         return;
       }
-
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.7,
+        mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, aspect: [1, 1], quality: 0.7,
       });
-
       if (result.canceled || !result.assets?.[0]?.uri) return;
-
-      const localUri = result.assets[0].uri;
       setUploadingPhoto(true);
-      
-      // Instantly stream photo binary up to the dedicated profile uploader 🚀
-      const remoteUrl = await userService.uploadProfilePhoto(localUri);
+      const remoteUrl = await userService.uploadProfilePhoto(result.assets[0].uri);
       setProfilePhoto(remoteUrl);
-      
-      Toast.show({ type: "success", text1: "Foto de perfil atualizada!" });
+      Toast.show({ type: 'success', text1: 'Foto atualizada!' });
     } catch (e: any) {
-      Toast.show({
-        type: "error",
-        text1: "Falha no upload",
-        text2: e?.message || "Não foi possível enviar a imagem.",
-      });
+      Toast.show({ type: 'error', text1: 'Falha no upload', text2: e?.message });
     } finally {
       setUploadingPhoto(false);
     }
@@ -124,165 +91,209 @@ export default function DriverProfileScreen() {
     if (!canSave) return;
     setLoading(true);
     try {
-      const updated = await userService.updateProfile({
-        name: name.trim(),
-        phone: phone.trim(),
-        city: city.trim(),
-      });
-      
-      // Update local cache immediately 🚀
+      const updated = await userService.updateProfile({ name: name.trim(), phone: phone.trim(), city: city.trim() });
       updateAuthCache({
-        name: updated?.name || name.trim(),
-        nome: updated?.name || name.trim(),
-        telefone: updated?.phone || phone.trim(),
-        cidade: updated?.city || city.trim(),
+        name: updated?.name || name.trim(), nome: updated?.name || name.trim(),
+        telefone: updated?.phone || phone.trim(), cidade: updated?.city || city.trim(),
       });
-
-      Toast.show({ type: "success", text1: "Perfil atualizado" });
+      Toast.show({ type: 'success', text1: 'Perfil atualizado' });
     } catch (e: any) {
-      Toast.show({
-        type: "error",
-        text1: "Não foi possível salvar",
-        text2: e?.message,
-      });
-    } finally {
-      setLoading(false);
-    }
+      Toast.show({ type: 'error', text1: 'Erro ao salvar', text2: e?.message });
+    } finally { setLoading(false); }
   }
+
+  const isVerified = driverData.driverStatus === 'approved';
+  const rating = driverData.ratingStats?.averageStars || 5;
+  const totalRatings = driverData.ratingStats?.totalRatings || 0;
+  const totalRides = driverData.completedRides || 0;
+  const memberSince = driverData.createdAt
+    ? new Date(driverData.createdAt).getFullYear()
+    : new Date().getFullYear();
+
+  const toggleSection = (key: string) => setExpandedSection(prev => prev === key ? null : key);
 
   return (
     <DriverScreen title="Perfil" hideHeader={true} scroll={true}>
-      {/* High-end Interactive Avatar Selector Component 👑 */}
-      <View style={{ alignItems: "center", marginVertical: 24 }}>
-        <TouchableOpacity 
-          activeOpacity={0.85}
-          onPress={pickImage}
-          disabled={uploadingPhoto}
-          style={{
-            width: 110,
-            height: 110,
-            borderRadius: 55,
-            borderWidth: 2,
-            borderColor: "#02de95",
-            backgroundColor: "rgba(255,255,255,0.04)",
-            justifyContent: "center",
-            alignItems: "center",
-            position: "relative",
-            shadowColor: "#02de95",
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.2,
-            shadowRadius: 10,
-            elevation: 4,
-          }}
-        >
+      {/* ── Header with blur map bg ── */}
+      <View style={styles.headerBg}>
+        {/* Avatar */}
+        <TouchableOpacity activeOpacity={0.85} onPress={pickImage} disabled={uploadingPhoto} style={styles.avatarOuter}>
           {uploadingPhoto ? (
-            <ActivityIndicator color="#02de95" size="small" />
+            <ActivityIndicator color={driverColors.accent} size="large" />
           ) : profilePhoto ? (
-            <Image 
-              source={{ uri: profilePhoto }} 
-              style={{ width: "100%", height: "100%", borderRadius: 55 }} 
-            />
+            <Image source={{ uri: profilePhoto }} style={styles.avatarImage} />
           ) : (
-            <MaterialIcons name="person" size={60} color="rgba(255,255,255,0.2)" />
+            <MaterialIcons name="person" size={56} color={driverColors.textMuted} />
           )}
-          
-          {/* Absolute camera edit badge over the bottom-right curve */}
-          <View style={{
-            position: "absolute",
-            bottom: 0,
-            right: 2,
-            backgroundColor: "#02de95",
-            width: 32,
-            height: 32,
-            borderRadius: 16,
-            justifyContent: "center",
-            alignItems: "center",
-            borderWidth: 3,
-            borderColor: "#091A2F", // Using default screen dark bg
-          }}>
-            <MaterialIcons name="camera-alt" size={15} color="#091A2F" />
+          <View style={styles.cameraBadge}>
+            <Camera size={13} color={driverColors.bg} />
           </View>
         </TouchableOpacity>
-        <Text style={{ 
-          color: "rgba(255,255,255,0.4)", 
-          fontSize: 12, 
-          fontWeight: "700", 
-          marginTop: 10,
-          textTransform: "uppercase",
-          letterSpacing: 0.5
-        }}>
-          Alterar foto de perfil
-        </Text>
+
+        {/* Name + Verification */}
+        <View style={styles.nameRow}>
+          <Text style={styles.userName}>{name || 'Motorista'}</Text>
+          {isVerified && (
+            <View style={styles.verifiedBadge}>
+              <ShieldCheck size={12} color={driverColors.accent} />
+            </View>
+          )}
+        </View>
+        <Text style={styles.userSubtitle}>Motorista parceiro LevaMais</Text>
+
+        {/* Metrics */}
+        <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
+          <MetricCard
+            icon={<Star size={14} color="#FBBF24" fill="#FBBF24" />}
+            label="Avaliação"
+            value={rating.toFixed(1)}
+            accent="yellow"
+          />
+          <MetricCard
+            icon={<Car size={14} color={driverColors.accent} />}
+            label="Corridas"
+            value={totalRides}
+            accent="green"
+          />
+          <MetricCard
+            icon={<Calendar size={14} color={driverColors.info} />}
+            label="Desde"
+            value={memberSince}
+            accent="blue"
+          />
+        </View>
       </View>
 
-      <SectionCard>
-        <Text style={{ color: "#fff", fontWeight: "900" }}>Dados</Text>
-        <View style={{ height: 12 }} />
-        <TextField label="Nome" value={name} onChangeText={setName} />
-        <TextField label="Telefone" value={phone} onChangeText={setPhone} />
-        <TextField label="Cidade" value={city} onChangeText={setCity} />
-      </SectionCard>
+      {/* ── Sections (accordion) ── */}
+      <View style={{ paddingHorizontal: driverSpacing.lg, marginTop: 20, gap: 12 }}>
+        {/* Informações Pessoais */}
+        <GlassCard variant="default" padding="md" onPress={() => toggleSection('personal')}>
+          <View style={sectionHeader}>
+            <Ionicons name="person-circle-outline" size={20} color={driverColors.accent} />
+            <Text style={sectionTitle}>Informações Pessoais</Text>
+            <MaterialIcons name={expandedSection === 'personal' ? 'expand-less' : 'expand-more'} size={24} color={driverColors.textMuted} />
+          </View>
+          {expandedSection === 'personal' && (
+            <MotiView from={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} style={{ marginTop: 12, gap: 10 }}>
+              <TextField label="Nome" value={name} onChangeText={setName} />
+              <TextField label="Telefone" value={phone} onChangeText={setPhone} />
+              <TextField label="Cidade" value={city} onChangeText={setCity} />
+            </MotiView>
+          )}
+        </GlassCard>
 
-      <SectionCard>
-        <Text style={{ color: "#fff", fontWeight: "900", marginBottom: 8 }}>
-          Atalhos de conta
-        </Text>
+        {/* Documentos */}
+        <GlassCard variant="default" padding="md" onPress={() => navigation.navigate('DriverDocuments')}>
+          <View style={sectionHeader}>
+            <Ionicons name="document-text-outline" size={20} color={driverColors.accent} />
+            <Text style={sectionTitle}>Documentos</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={{ color: isVerified ? driverColors.accent : driverColors.warning, fontSize: 11, fontWeight: '700' }}>
+                {isVerified ? 'Verificado' : 'Pendente'}
+              </Text>
+              <MaterialIcons name="chevron-right" size={22} color={driverColors.textMuted} />
+            </View>
+          </View>
+        </GlassCard>
 
-        <QuickAccessRow
-          icon="description"
-          title="Documentos"
-          subtitle="Status da sua documentacao"
-          onPress={() => navigation.navigate("DriverDocuments")}
-        />
-        <QuickAccessRow
-          icon="tune"
-          title="Preferencias"
-          subtitle="Corridas, entregas e aceite"
-          onPress={() => navigation.navigate("DriverWorkPreferences")}
-        />
-        <QuickAccessRow
-          icon="star"
-          title="Avaliacoes"
-          subtitle="Notas e feedback dos clientes"
-          onPress={() => navigation.navigate("DriverRatings")}
-        />
-      </SectionCard>
+        {/* Veículos */}
+        <GlassCard variant="default" padding="md" onPress={() => navigation.navigate('DriverVehicle')}>
+          <View style={sectionHeader}>
+            <Ionicons name="car-outline" size={20} color={driverColors.accent} />
+            <Text style={sectionTitle}>Veículos</Text>
+            <MaterialIcons name="chevron-right" size={22} color={driverColors.textMuted} />
+          </View>
+        </GlassCard>
 
-      <ActionButton
-        title={loading ? "Salvando..." : "Salvar"}
-        variant="primary"
-        onPress={save}
-        disabled={!canSave || loading}
-      />
+        {/* Pagamentos e Conta */}
+        <GlassCard variant="default" padding="md" onPress={() => navigation.navigate('DriverPayouts')}>
+          <View style={sectionHeader}>
+            <Ionicons name="wallet-outline" size={20} color={driverColors.accent} />
+            <Text style={sectionTitle}>Pagamentos e Conta</Text>
+            <MaterialIcons name="chevron-right" size={22} color={driverColors.textMuted} />
+          </View>
+        </GlassCard>
+
+        {/* Preferências */}
+        <GlassCard variant="default" padding="md" onPress={() => navigation.navigate('DriverWorkPreferences')}>
+          <View style={sectionHeader}>
+            <Ionicons name="options-outline" size={20} color={driverColors.accent} />
+            <Text style={sectionTitle}>Preferências de Trabalho</Text>
+            <MaterialIcons name="chevron-right" size={22} color={driverColors.textMuted} />
+          </View>
+        </GlassCard>
+
+        {/* Avaliações */}
+        <GlassCard variant="default" padding="md" onPress={() => navigation.navigate('DriverRatings')}>
+          <View style={sectionHeader}>
+            <Star size={18} color={driverColors.accent} />
+            <Text style={sectionTitle}>Avaliações ({totalRatings})</Text>
+            <MaterialIcons name="chevron-right" size={22} color={driverColors.textMuted} />
+          </View>
+        </GlassCard>
+      </View>
+
+      {/* Save Button */}
+      <View style={{ paddingHorizontal: driverSpacing.lg, marginTop: 20, marginBottom: 40 }}>
+        <ActionButton title={loading ? 'Salvando...' : 'Salvar alterações'} variant="primary" onPress={save} disabled={!canSave || loading} />
+      </View>
     </DriverScreen>
   );
 }
 
-function QuickAccessRow(props: {
-  icon: keyof typeof MaterialIcons.glyphMap;
-  title: string;
-  subtitle: string;
-  onPress: () => void;
-}) {
-  return (
-    <TouchableOpacity
-      activeOpacity={0.85}
-      onPress={props.onPress}
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 10,
-        paddingVertical: 10,
-      }}
-    >
-      <MaterialIcons name={props.icon} size={20} color="#02de95" />
-      <View style={{ flex: 1 }}>
-        <Text style={{ color: "#fff", fontWeight: "800" }}>{props.title}</Text>
-        <Text style={{ color: "rgba(255,255,255,0.6)", marginTop: 2 }}>
-          {props.subtitle}
-        </Text>
-      </View>
-      <MaterialIcons name="chevron-right" size={20} color="rgba(255,255,255,0.5)" />
-    </TouchableOpacity>
-  );
-}
+const sectionHeader: any = { flexDirection: 'row', alignItems: 'center', gap: 10 };
+const sectionTitle: any = { flex: 1, color: driverColors.text, fontSize: 14, fontWeight: '800' };
+
+const styles = StyleSheet.create({
+  headerBg: {
+    alignItems: 'center',
+    paddingTop: 24,
+    paddingHorizontal: driverSpacing.lg,
+  },
+  avatarOuter: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 3,
+    borderColor: driverColors.accent,
+    backgroundColor: driverColors.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: driverColors.accent,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  avatarImage: {
+    width: '100%', height: '100%', borderRadius: 50,
+  },
+  cameraBadge: {
+    position: 'absolute', bottom: 0, right: 0,
+    backgroundColor: driverColors.accent,
+    width: 30, height: 30, borderRadius: 15,
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 3, borderColor: driverColors.bg,
+  },
+  nameRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 14,
+  },
+  userName: {
+    color: driverColors.text, fontSize: 20, fontWeight: '900',
+  },
+  verifiedBadge: {
+    width: 22, height: 22, borderRadius: 11,
+    backgroundColor: driverColors.accentBg,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: driverColors.accentBorder,
+  },
+  userSubtitle: {
+    color: driverColors.textMuted, fontSize: 12, fontWeight: '600', marginTop: 4,
+  },
+  sectionHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+  },
+  sectionTitle: {
+    flex: 1, color: driverColors.text, fontSize: 14, fontWeight: '800',
+  },
+});

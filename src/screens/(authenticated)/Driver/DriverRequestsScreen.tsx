@@ -438,7 +438,28 @@ export default function DriverRequestsScreen() {
   }, [requests.length]);
 
   const handleOpenDetail = (item: any) => {
-    (navigation as any).navigate("DeliveryOfferDetail", {
+    const offerParam = {
+      _id: item.rideId,
+      offeredValue: item.negotiation?.clientOffer || item.pricing?.total || 0,
+      pickup: item.pickup,
+      destination: item.dropoff,
+      dropoff: item.dropoff,
+      distance: item.distance,
+      duration: item.duration,
+      pricing: item.pricing,
+      client: {
+        name: "Cliente Leva Mais",
+        rating: "5.0"
+      },
+      cargoType: "Encomenda"
+    };
+
+    (navigation as any).navigate("DriverNegotiation", {
+      offer: offerParam
+    });
+    return;
+    // @ts-ignore
+    const dummy = {
       offer: {
         rideId: item.rideId,
         pickup: item.pickup,
@@ -454,7 +475,7 @@ export default function DriverRequestsScreen() {
       },
       onAccept: () => accept(item.rideId),
       onReject: () => reject(item.rideId),
-    });
+    };
   };
 
   const accept = async (rideId: string) => {

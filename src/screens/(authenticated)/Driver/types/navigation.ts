@@ -12,7 +12,7 @@ export type DriverStackParamList = {
 
   // Telas de entrega
   DeliveryOfferScreen: { rideId: string };
-  DeliveryOfferDetail: { rideId: string };
+
   DeliveryPickupConfirm: { rideId: string };
   DeliveryDropoffConfirm: { rideId: string };
 

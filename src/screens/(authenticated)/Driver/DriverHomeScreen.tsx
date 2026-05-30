@@ -1788,12 +1788,21 @@ export default function DriverHomeScreen() {
               countdown={countdown}
               onAccept={acceptIncoming}
               onReject={rejectIncoming}
+              onCounter={counterOfferIncoming}
               onViewDetail={() => {
                 if (!incomingRequest) return;
-                (navigation as any).navigate("DeliveryOfferDetail", {
-                  offer: incomingRequest,
-                  onAccept: acceptIncoming,
-                  onReject: rejectIncoming,
+                (navigation as any).navigate("DriverNegotiation", {
+                  offer: {
+                    _id: incomingRequest.rideId,
+                    offeredValue: incomingRequest.negotiation?.clientOffer || incomingRequest.pricing?.total || 0,
+                    pickup: incomingRequest.pickup,
+                    destination: incomingRequest.dropoff,
+                    dropoff: incomingRequest.dropoff,
+                    distance: incomingRequest.distance,
+                    duration: incomingRequest.duration,
+                    pricing: incomingRequest.pricing,
+                    client: incomingRequest.client || { name: "Cliente", rating: "5.0" }
+                  }
                 });
               }}
             />

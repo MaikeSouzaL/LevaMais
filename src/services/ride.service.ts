@@ -634,6 +634,16 @@ class RideService {
     const response = await api.post(`/rides/${rideId}/offers/increase`, { incrementAmount });
     return response.data;
   }
+
+  async triggerSOS(rideId: string, data?: { location?: any; message?: string }): Promise<any> {
+    const response = await api.post(`/rides/${rideId}/sos`, data || {});
+    return response.data;
+  }
+
+  async generateShareToken(rideId: string): Promise<{ token: string; shareUrl: string }> {
+    const response = await api.get(`/rides/${rideId}/share-token`);
+    return response.data;
+  }
 }
 
 export default new RideService();

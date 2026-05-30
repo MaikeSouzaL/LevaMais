@@ -2,15 +2,20 @@ const express = require("express");
 const router = express.Router();
 const rideController = require("../controllers/ride.controller");
 const chatController = require("../controllers/chat.controller");
+const { triggerSOS, generateShareToken, publicTrack } = require("../controllers/ride.safety.mixin");
 const { authenticateToken } = require("../middlewares/auth.middleware");
 
-// Todas as rotas exigem autenticaÃ§Ã£o
+// ── Public routes (no auth) ──
+// Rastreamento público via link compartilhável
+router.get("/track/:rideId", publicTrack);
+
+// Todas as rotas exigem autenticação
 router.use(authenticateToken);
 
 // Calcular preço (antes de criar corrida)
 router.post("/calculate-price", rideController.calculatePrice);
 
-// Calcular estimativa de corrida (estilo inDriver - pré-cálculo para lance do cliente)
+// Calcular estimativa de corrida (estilo inDriver)
 router.post("/calculate-ride-estimate", rideController.calculateRideEstimate);
 
 // Criar nova corrida
@@ -38,7 +43,7 @@ router.post("/:rideId/cancel", rideController.cancel);
 // Promover corrida para agendada
 router.post("/:rideId/promote-to-scheduled", rideController.promoteToScheduled);
 
-// Reiniciar busca da corrida ðŸš€
+// Reiniciar busca da corrida
 router.post("/:rideId/retry", rideController.retryRide);
 
 // Atualizar status da corrida
@@ -55,8 +60,6 @@ router.post("/:rideId/proof/delivery", rideController.uploadDeliveryProof);
 // Validação de PIN (coleta e entrega)
 router.post("/:rideId/validate-pin", rideController.validatePin);
 
-// Buscar corrida ativa do usuÃ¡rio (principalmente motorista)
-
 // Tracking de rota (GPS)
 router.post("/:rideId/track-points", rideController.saveTrackPoint);
 router.get("/:rideId/route-audit", rideController.getRouteAudit);
@@ -68,13 +71,13 @@ router.get("/negotiations/pending", rideController.getPendingNegotiations);
 router.get("/scheduled/available", rideController.getAvailableScheduledRides);
 router.post("/:rideId/accept-scheduled", rideController.acceptScheduled);
 
-// EstatÃ­sticas do motorista (dashboard)
+// Estatísticas do motorista (dashboard)
 router.get("/stats", rideController.getDriverStats);
 
-// HistÃ³rico de ganhos (grÃ¡fico 7 dias)
+// Histórico de ganhos (gráfico 7 dias)
 router.get("/earnings-history", rideController.getEarningsHistory);
 
-// Buscar motoristas prÃ³ximos
+// Buscar motoristas próximos
 router.get("/nearby-drivers", rideController.getNearbyDrivers);
 
 // Buscar corrida por ID
@@ -86,7 +89,13 @@ router.post("/:rideId/queue", rideController.enterWaitingQueue);
 // Chat history
 router.get("/:rideId/chat", chatController.getChatHistory);
 
-// HistÃ³rico de corridas
+// SOS / Emergência
+router.post("/:rideId/sos", triggerSOS);
+
+// Compartilhamento (share token)
+router.get("/:rideId/share-token", generateShareToken);
+
+// Histórico de corridas (DEVE ficar por último para não capturar :rideId)
 router.get("/", rideController.getHistory);
 
 module.exports = router;
