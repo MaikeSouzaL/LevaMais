@@ -300,13 +300,12 @@ export default function HomeScreen() {
               <View className="flex-row items-center gap-3">
                 <TouchableOpacity onPress={handleMenuPress} className="relative" accessibilityLabel="Abrir menu" accessibilityRole="button">
                   {user?.fotoPerfil || user?.profilePhoto ? (
-                    <Image source={{ uri: user.fotoPerfil || user.profilePhoto }} className="w-11 h-11 rounded-full border-[2px] border-white" />
+                    <Image source={{ uri: user.fotoPerfil || user.profilePhoto }} className="w-14 h-14 rounded-full border-[2px] border-white" />
                   ) : (
-                    <View className="w-11 h-11 rounded-full bg-[#091A2F]/10 items-center justify-center border-[1.5px] border-[#091A2F]/20">
-                      <User size={20} color="#091A2F" />
+                    <View className="w-14 h-14 rounded-full bg-[#091A2F]/10 items-center justify-center border-[1.5px] border-[#091A2F]/20">
+                      <User size={24} color="#091A2F" />
                     </View>
                   )}
-                  <View className="absolute top-0 right-0 w-2.5 h-2.5 rounded-full bg-[#ef4444] border-[1.5px] border-[#02de95]" />
                 </TouchableOpacity>
                 <View className="justify-center">
                   <Text className="text-white text-[22px] font-bold leading-6">Olá,</Text>
@@ -314,11 +313,16 @@ export default function HomeScreen() {
                 </View>
               </View>
               <View className="flex-row items-center gap-3">
-                <TouchableOpacity className="bg-[#091A2F]/10 px-3 py-1 rounded-xl border border-[#091A2F]/20">
-                  <Text className="text-[#091A2F] text-xs font-bold">Pix</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={handleSOS} className="w-10 h-10 rounded-full bg-[#091A2F]/10 items-center justify-center border border-[#091A2F]/20" accessibilityLabel="Central de segurança" accessibilityRole="button">
-                  <QrCode size={20} color="#091A2F" />
+                <TouchableOpacity
+                  onPress={handleActiveOrders}
+                  className="w-11 h-11 rounded-full bg-[#091A2F]/10 items-center justify-center border border-[#091A2F]/20 relative"
+                  accessibilityLabel="Ver pedidos ativos"
+                  accessibilityRole="button"
+                >
+                  <Bell size={20} color="#091A2F" />
+                  {(activeRequestingRideId !== null || negotiationRideId !== null) && (
+                    <View className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-red-500 border border-white" />
+                  )}
                 </TouchableOpacity>
               </View>
             </View>
@@ -666,13 +670,12 @@ export default function HomeScreen() {
                 <View className="flex-row items-center gap-3">
                   <TouchableOpacity onPress={handleMenuPress} className="relative" accessibilityLabel="Abrir menu" accessibilityRole="button">
                     {user?.fotoPerfil || user?.profilePhoto ? (
-                      <Image source={{ uri: user.fotoPerfil || user.profilePhoto }} className="w-11 h-11 rounded-full border-[1.5px] border-[#091A2F]" />
+                      <Image source={{ uri: user.fotoPerfil || user.profilePhoto }} className="w-14 h-14 rounded-full border-[1.5px] border-[#091A2F]" />
                     ) : (
-                      <View className="w-11 h-11 rounded-full bg-[#11253E] items-center justify-center border-[1.5px] border-white/10">
-                        <User size={20} color="#fff" />
+                      <View className="w-14 h-14 rounded-full bg-[#11253E] items-center justify-center border-[1.5px] border-white/10">
+                        <User size={24} color="#fff" />
                       </View>
                     )}
-                    <View className="absolute top-0 right-0 w-2.5 h-2.5 rounded-full bg-[#ef4444] border-[1.5px] border-[#02de95]" />
                   </TouchableOpacity>
                   <View className="justify-center">
                     <Text className="text-white text-[22px] font-bold leading-6">Olá,</Text>
@@ -680,11 +683,16 @@ export default function HomeScreen() {
                   </View>
                 </View>
                 <View className="flex-row items-center gap-3">
-                  <TouchableOpacity className="bg-[#091A2F]/10 px-3 py-1 rounded-xl border border-[#091A2F]/15">
-                    <Text className="text-[#091A2F] text-xs font-bold">Pix</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={handleSOS} className="w-10 h-10 rounded-full bg-[#091A2F]/10 items-center justify-center border border-[#091A2F]/15" accessibilityLabel="Central de segurança" accessibilityRole="button">
-                    <QrCode size={20} color="#091A2F" />
+                  <TouchableOpacity
+                    onPress={handleActiveOrders}
+                    className="w-11 h-11 rounded-full bg-[#091A2F]/10 items-center justify-center border border-[#091A2F]/15 relative"
+                    accessibilityLabel="Ver pedidos ativos"
+                    accessibilityRole="button"
+                  >
+                    <Bell size={20} color="#091A2F" />
+                    {(activeRequestingRideId !== null || negotiationRideId !== null) && (
+                      <View className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-red-500 border border-[#02de95]" />
+                    )}
                   </TouchableOpacity>
                 </View>
               </View>
@@ -917,13 +925,12 @@ export default function HomeScreen() {
               <View className="flex-row items-center gap-3">
                 <TouchableOpacity onPress={handleMenuPress} className="relative" accessibilityLabel="Abrir menu" accessibilityRole="button">
                   {user?.fotoPerfil || user?.profilePhoto ? (
-                    <Image source={{ uri: user.fotoPerfil || user.profilePhoto }} className="w-11 h-11 rounded-full border-[1.5px] border-[#02de95]" />
+                    <Image source={{ uri: user.fotoPerfil || user.profilePhoto }} className="w-14 h-14 rounded-full border-[1.5px] border-[#02de95]" />
                   ) : (
-                    <View className="w-11 h-11 rounded-full bg-[#11253E] items-center justify-center border-[1.5px] border-white/10">
-                      <User size={20} color="#fff" />
+                    <View className="w-14 h-14 rounded-full bg-[#11253E] items-center justify-center border-[1.5px] border-white/10">
+                      <User size={24} color="#fff" />
                     </View>
                   )}
-                  <View className="absolute top-0 right-0 w-2.5 h-2.5 rounded-full bg-[#ef4444] border-[1.5px] border-[#091A2F]" />
                 </TouchableOpacity>
                 <View className="justify-center">
                   <Text className="text-white text-[22px] font-bold leading-6">Olá,</Text>
@@ -931,8 +938,16 @@ export default function HomeScreen() {
                 </View>
               </View>
               <View className="flex-row items-center gap-3">
-                <TouchableOpacity onPress={handleSOS} className="w-10 h-10 rounded-full bg-[#11253E] items-center justify-center border border-white/5" accessibilityLabel="Central de segurança" accessibilityRole="button">
-                  <QrCode size={20} color="#fff" />
+                <TouchableOpacity
+                  onPress={handleActiveOrders}
+                  className="w-11 h-11 rounded-full bg-[#11253E] items-center justify-center border border-white/5 relative"
+                  accessibilityLabel="Ver pedidos ativos"
+                  accessibilityRole="button"
+                >
+                  <Bell size={20} color="#fff" />
+                  {(activeRequestingRideId !== null || negotiationRideId !== null) && (
+                    <View className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-red-500 border border-[#11253E]" />
+                  )}
                 </TouchableOpacity>
               </View>
             </View>

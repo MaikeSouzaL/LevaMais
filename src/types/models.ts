@@ -38,6 +38,9 @@ export interface User {
     selectedVehicles?: Array<'motorcycle' | 'car' | 'van' | 'truck'>;
     searchRadiusKm?: number;
     autoAccept?: boolean;
+    acceptsCardMachine?: boolean;
+    acceptsCash?: boolean;
+    acceptsPix?: boolean;
   };
 
   // CPF/CNPJ & Company details

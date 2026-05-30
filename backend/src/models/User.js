@@ -343,6 +343,18 @@ const userSchema = new mongoose.Schema(
         type: Boolean,
         default: false,
       },
+      acceptsCardMachine: {
+        type: Boolean,
+        default: false,
+      },
+      acceptsCash: {
+        type: Boolean,
+        default: true,
+      },
+      acceptsPix: {
+        type: Boolean,
+        default: true,
+      },
     },
     preferredPayment: {
       type: String,
@@ -524,6 +536,12 @@ const userSchema = new mongoose.Schema(
     toObject: { getters: true }
   }
 );
+
+userSchema.virtual("rating").get(function () {
+  return this.ratingStats && this.ratingStats.totalRatings > 0
+    ? this.ratingStats.averageStars
+    : 5.0;
+});
 
 userSchema.pre("save", async function (next) {
   if (this.isModified("password") && this.password) {

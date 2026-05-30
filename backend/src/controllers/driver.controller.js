@@ -447,7 +447,7 @@ const driverController = {
         return res.status(401).json({ error: "Usuário não autenticado" });
       }
 
-      const { serviceTypes, selectedVehicles, searchRadiusKm, autoAccept } = req.body || {};
+      const { serviceTypes, selectedVehicles, searchRadiusKm, autoAccept, acceptsCardMachine, acceptsCash, acceptsPix } = req.body || {};
 
       const user = await User.findById(userId);
       if (!user || user.userType !== "driver") {
@@ -460,6 +460,9 @@ const driverController = {
           selectedVehicles: user.vehicleType ? [user.vehicleType] : [],
           searchRadiusKm: 15,
           autoAccept: false,
+          acceptsCardMachine: false,
+          acceptsCash: true,
+          acceptsPix: true,
         };
       }
 
@@ -497,6 +500,18 @@ const driverController = {
 
       if (autoAccept !== undefined) {
         user.driverPreferences.autoAccept = Boolean(autoAccept);
+      }
+
+      if (acceptsCardMachine !== undefined) {
+        user.driverPreferences.acceptsCardMachine = Boolean(acceptsCardMachine);
+      }
+
+      if (acceptsCash !== undefined) {
+        user.driverPreferences.acceptsCash = Boolean(acceptsCash);
+      }
+
+      if (acceptsPix !== undefined) {
+        user.driverPreferences.acceptsPix = Boolean(acceptsPix);
       }
 
       await user.save();

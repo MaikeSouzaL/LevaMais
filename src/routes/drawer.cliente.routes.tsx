@@ -177,6 +177,7 @@ export default function DrawerClienteRoutes({
         headerShown: false,
         drawerType: "slide",
         overlayColor: "rgba(0,0,0,0.45)",
+        swipeEnabled: false,
         drawerStyle: {
           backgroundColor: colors.background.primary,
           width: 300,

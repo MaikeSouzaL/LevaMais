@@ -61,7 +61,7 @@ class WebSocketService {
         this.socket = null;
       }
 
-      console.log("ðŸ”Œ Conectando ao WebSocket...", SOCKET_URL);
+      console.log("Conectando ao WebSocket...", SOCKET_URL);
 
       this.socket = io(SOCKET_URL, {
         auth: { token },
@@ -127,9 +127,9 @@ class WebSocketService {
     this.socket.on("connect", () => {
       const id = this.socket?.id;
       if (id) {
-        console.log("âœ… WebSocket conectado:", id);
+        console.log("WebSocket conectado:", id);
       } else {
-        console.log("âœ… WebSocket conectado");
+        console.log("WebSocket conectado");
       }
       this.reconnectAttempts = 0;
     });
@@ -143,11 +143,11 @@ class WebSocketService {
     });
 
     this.socket.io.on("reconnect", (attempt) => {
-      console.log("âœ… WebSocket reconectado", attempt);
+      console.log("WebSocket reconectado", attempt);
     });
 
     this.socket.io.on("reconnect_failed", () => {
-      console.log("âŒ WebSocket falhou ao reconectar");
+      console.log("WebSocket falhou ao reconectar");
     });
 
     this.socket.on("connect_error", (error) => {
@@ -178,7 +178,7 @@ class WebSocketService {
    */
   disconnect(): void {
     if (this.socket) {
-      console.log("ðŸ‘‹ Desconectando WebSocket...");
+      console.log("Desconectando WebSocket...");
       this.socket.disconnect();
       this.socket = null;
     }

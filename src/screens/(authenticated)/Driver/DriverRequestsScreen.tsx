@@ -771,28 +771,6 @@ export default function DriverRequestsScreen() {
               </Text>
             </View>
           </View>
-
-          {/* Ã°Å¸Å¸Â¢ Live Operations Active Capsule Pod */}
-          <MotiView
-            from={{ scale: 0.95, opacity: 0.9 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ loop: true, duration: 3000, type: "timing" }}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              backgroundColor: "rgba(2, 222, 149, 0.08)",
-              borderWidth: 1,
-              borderColor: "rgba(2, 222, 149, 0.2)",
-              paddingHorizontal: 12,
-              paddingVertical: 6,
-              borderRadius: 12,
-            }}
-          >
-            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: "#02de95", marginRight: 6 }} />
-            <Text style={{ color: "#02de95", fontSize: 11, fontWeight: "900", letterSpacing: 0.5 }}>
-              {currentTabCount} ATIVAS
-            </Text>
-          </MotiView>
         </View>
       </View>
 

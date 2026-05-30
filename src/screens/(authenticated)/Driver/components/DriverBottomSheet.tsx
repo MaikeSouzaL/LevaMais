@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
-import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, ActivityIndicator, Switch, StyleSheet } from "react-native";
 import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
-import { Car, Package, Star, TrendingUp, Clock, AlertTriangle, Settings, ClipboardList, Power } from "lucide-react-native";
+import { Car, Package, Star, TrendingUp, Clock, AlertTriangle, Settings, ClipboardList, Power, CreditCard, Banknote } from "lucide-react-native";
 import { MotiText, MotiView } from "moti";
 import { driverColors } from "@/theme/driverTheme";
 
@@ -23,6 +23,12 @@ interface DriverBottomSheetProps {
   isTogglingOnline?: boolean;
   onToggleOnline: () => void;
   onToggleService: (key: keyof DriverServicePrefs) => void;
+  acceptsCardMachine?: boolean;
+  onToggleCardMachine?: () => void;
+  acceptsCash?: boolean;
+  onToggleCash?: () => void;
+  acceptsPix?: boolean;
+  onTogglePix?: () => void;
   snapPoints?: string[];
   vehicleType?: string;
   stats?: DriverStats;
@@ -44,6 +50,7 @@ interface DriverBottomSheetProps {
  * - Heartbeat scaling power icon.
  * - Sequential animated radar dots (...) next to "Buscando" to indicate active operations.
  * - High-contrast glassmorphic stat pod containers.
+ * - Card Machine selection toggle added.
  */
 export function DriverBottomSheet({
   online,
@@ -51,6 +58,12 @@ export function DriverBottomSheet({
   isTogglingOnline,
   onToggleOnline,
   onToggleService,
+  acceptsCardMachine = false,
+  onToggleCardMachine,
+  acceptsCash = true,
+  onToggleCash,
+  acceptsPix = true,
+  onTogglePix,
   snapPoints: userSnapPoints,
   vehicleType,
   stats,
@@ -69,8 +82,8 @@ export function DriverBottomSheet({
     if (userSnapPoints) return userSnapPoints;
     const hasNoBalance = driverBalance !== undefined && driverBalance !== null && driverBalance <= 0 && !online;
 
-    if (hasNoBalance) return ["48%", "64%"];
-    return showSettings ? ["44%", "58%"] : ["25%", "35%"];
+    if (hasNoBalance) return ["58%", "76%"];
+    return showSettings ? ["64%", "84%"] : ["25%", "35%"];
   }, [userSnapPoints, driverBalance, online, showSettings]);
 
   const canDoRides = vehicleType === "car" || vehicleType === "motorcycle";
@@ -393,50 +406,138 @@ export function DriverBottomSheet({
               Preferências de Serviço
             </Text>
 
-            <View style={{ flexDirection: "row", gap: 12 }}>
-              <TouchableOpacity
-                onPress={() => canDoRides && onToggleService("ride")}
-                activeOpacity={0.8}
-                disabled={!canDoRides}
-                style={{
-                  flex: 1,
-                  height: 52,
-                  borderRadius: 16,
-                  borderWidth: 2,
-                  borderColor: services.ride ? "#02de95" : "rgba(255,255,255,0.08)",
-                  backgroundColor: services.ride ? "rgba(2, 222, 149, 0.08)" : "rgba(255,255,255,0.03)",
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  opacity: !canDoRides ? 0.4 : 1,
-                }}
-              >
-                <Car size={18} color={services.ride ? "#02de95" : "rgba(255,255,255,0.5)"} style={{ marginRight: 8 }} />
-                <Text style={{ color: services.ride ? "#fff" : "rgba(255,255,255,0.5)", fontWeight: "900", fontSize: 13 }}>
-                  Corridas
-                </Text>
-              </TouchableOpacity>
+            <View style={{
+              paddingVertical: 4,
+              gap: 16
+            }}>
+              {/* Option 1: Corridas */}
+              <View style={styles.menuRow}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1 }}>
+                  <View style={styles.iconCircle}>
+                    <Car size={18} color="#02de95" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.menuTitle}>Corridas de Passageiro</Text>
+                    <Text style={styles.menuSubtitle}>Receber viagens de pessoas</Text>
+                  </View>
+                </View>
+                <Switch
+                  value={services.ride}
+                  onValueChange={() => {
+                    if (canDoRides) {
+                      onToggleService("ride");
+                    }
+                  }}
+                  disabled={!canDoRides}
+                  trackColor={{ false: "#071322", true: "rgba(2,222,149,0.35)" }}
+                  thumbColor={services.ride ? "#02de95" : "#9ca5a3"}
+                />
+              </View>
 
-              <TouchableOpacity
-                onPress={() => onToggleService("delivery")}
-                activeOpacity={0.8}
-                style={{
-                  flex: 1,
-                  height: 52,
-                  borderRadius: 16,
-                  borderWidth: 2,
-                  borderColor: services.delivery ? "#02de95" : "rgba(255,255,255,0.08)",
-                  backgroundColor: services.delivery ? "rgba(2, 222, 149, 0.08)" : "rgba(255,255,255,0.03)",
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Package size={18} color={services.delivery ? "#02de95" : "rgba(255,255,255,0.5)"} style={{ marginRight: 8 }} />
-                <Text style={{ color: services.delivery ? "#fff" : "rgba(255,255,255,0.5)", fontWeight: "900", fontSize: 13 }}>
-                  Entregas
-                </Text>
-              </TouchableOpacity>
+              <View style={styles.menuDivider} />
+
+              {/* Option 2: Entregas */}
+              <View style={styles.menuRow}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1 }}>
+                  <View style={styles.iconCircle}>
+                    <Package size={18} color="#02de95" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.menuTitle}>Entrega de Encomendas</Text>
+                    <Text style={styles.menuSubtitle}>Receber pedidos de comércios</Text>
+                  </View>
+                </View>
+                <Switch
+                  value={services.delivery}
+                  onValueChange={() => onToggleService("delivery")}
+                  trackColor={{ false: "#071322", true: "rgba(2,222,149,0.35)" }}
+                  thumbColor={services.delivery ? "#02de95" : "#9ca5a3"}
+                />
+              </View>
+
+              <View style={styles.menuDivider} />
+
+              {/* Option 3: Dinheiro */}
+              <View style={styles.menuRow}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1 }}>
+                  <View style={styles.iconCircle}>
+                    <Banknote size={18} color="#02de95" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.menuTitle}>Aceitar Dinheiro Físico</Text>
+                    <Text style={styles.menuSubtitle}>Receber dinheiro diretamente</Text>
+                  </View>
+                </View>
+                <Switch
+                  value={acceptsCash}
+                  onValueChange={onToggleCash}
+                  trackColor={{ false: "#071322", true: "rgba(2,222,149,0.35)" }}
+                  thumbColor={acceptsCash ? "#02de95" : "#9ca5a3"}
+                />
+              </View>
+
+              <View style={styles.menuDivider} />
+
+              {/* Option 4: Pix */}
+              <View style={styles.menuRow}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1 }}>
+                  <View style={styles.iconCircle}>
+                    <TrendingUp size={18} color="#02de95" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.menuTitle}>Aceitar Recebimento via Pix</Text>
+                    <Text style={styles.menuSubtitle}>Transferências diretas Pix</Text>
+                  </View>
+                </View>
+                <Switch
+                  value={acceptsPix}
+                  onValueChange={onTogglePix}
+                  trackColor={{ false: "#071322", true: "rgba(2,222,149,0.35)" }}
+                  thumbColor={acceptsPix ? "#02de95" : "#9ca5a3"}
+                />
+              </View>
+
+              <View style={styles.menuDivider} />
+
+              {/* Option 5: Máquina de Cartão */}
+              <View style={styles.menuRow}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1 }}>
+                  <View style={styles.iconCircle}>
+                    <CreditCard size={18} color="#02de95" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.menuTitle}>Aceitar Cartão na Maquininha</Text>
+                    <Text style={styles.menuSubtitle}>Preciso ter a maquininha física</Text>
+                  </View>
+                </View>
+                <Switch
+                  value={acceptsCardMachine}
+                  onValueChange={onToggleCardMachine}
+                  trackColor={{ false: "#071322", true: "rgba(2,222,149,0.35)" }}
+                  thumbColor={acceptsCardMachine ? "#02de95" : "#9ca5a3"}
+                />
+              </View>
+
+              <View style={styles.menuDivider} />
+
+              {/* Option 6: Saldo do App / Cash (Obrigatório) */}
+              <View style={styles.menuRow}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1, opacity: 0.7 }}>
+                  <View style={styles.iconCircle}>
+                    <Car size={18} color="#4a5568" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.menuTitle, { color: "rgba(255,255,255,0.7)" }]}>Aceitar Saldo do App (Cash)</Text>
+                    <Text style={styles.menuSubtitle}>Pago com saldo da carteira (Obrigatório)</Text>
+                  </View>
+                </View>
+                <Switch
+                  value={true}
+                  disabled={true}
+                  trackColor={{ false: "#071322", true: "rgba(255, 255, 255, 0.08)" }}
+                  thumbColor="#4a5568"
+                />
+              </View>
             </View>
 
             {!canDoRides && (
@@ -484,6 +585,36 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     textTransform: "uppercase",
     letterSpacing: 0.5,
+  },
+  menuRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  iconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(2, 222, 149, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(2, 222, 149, 0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  menuTitle: {
+    color: "#fff",
+    fontWeight: "800",
+    fontSize: 13,
+  },
+  menuSubtitle: {
+    color: "rgba(255, 255, 255, 0.45)",
+    fontSize: 10,
+    marginTop: 2,
+    fontWeight: "600",
+  },
+  menuDivider: {
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.06)",
   },
 });
 

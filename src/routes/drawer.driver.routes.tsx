@@ -4,7 +4,7 @@ import {
   DrawerContentComponentProps,
   DrawerContentScrollView,
 } from "@react-navigation/drawer";
-import { View, Text, TouchableOpacity } from "react-native";
+import { View, Text, TouchableOpacity, Image } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
@@ -94,6 +94,10 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
     return allowed.includes(item.name);
   });
 
+  const profileImageUrl = userData?.fotoPerfil || userData?.profilePhoto;
+  const displayName = userData?.name || userData?.nome || "Motorista";
+  const initials = displayName.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase();
+
   return (
     <DrawerContentScrollView
       {...props}
@@ -102,16 +106,56 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
       <View
         style={{
           padding: 24,
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
           borderBottomWidth: 1,
           borderBottomColor: "rgba(255,255,255,0.08)",
         }}
       >
-        <Text style={{ color: "white", fontWeight: "900", fontSize: 18 }}>
-          {userData?.name || "Motorista"}
-        </Text>
-        <Text style={{ color: "rgba(255,255,255,0.65)", marginTop: 6 }}>
-          {userData?.email || ""}
-        </Text>
+        <View style={{ flex: 1, paddingRight: 12 }}>
+          <Text style={{ color: "white", fontWeight: "900", fontSize: 18 }} numberOfLines={1}>
+            {displayName}
+          </Text>
+          <Text style={{ color: "rgba(255,255,255,0.65)", marginTop: 4, fontSize: 13 }} numberOfLines={1}>
+            {userData?.email || ""}
+          </Text>
+        </View>
+
+        <TouchableOpacity
+          onPress={() => props.navigation.navigate("DriverProfile" as never)}
+          activeOpacity={0.8}
+        >
+          {profileImageUrl ? (
+            <Image
+              source={{ uri: profileImageUrl }}
+              style={{
+                width: 50,
+                height: 50,
+                borderRadius: 25,
+                borderWidth: 2,
+                borderColor: "#02de95",
+              }}
+            />
+          ) : (
+            <View
+              style={{
+                width: 50,
+                height: 50,
+                borderRadius: 25,
+                backgroundColor: "rgba(2,222,149,0.12)",
+                alignItems: "center",
+                justifyContent: "center",
+                borderWidth: 2,
+                borderColor: "rgba(2,222,149,0.35)",
+              }}
+            >
+              <Text style={{ color: "#02de95", fontSize: 18, fontWeight: "900" }}>
+                {initials}
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
       </View>
 
       <View style={{ flex: 1, paddingTop: 12 }}>

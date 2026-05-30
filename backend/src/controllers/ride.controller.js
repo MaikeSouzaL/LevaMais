@@ -54,6 +54,9 @@ function normalizePaymentMethod(rawMethod) {
   if (["card", "credit_card", "debit_card", "credit", "debit"].includes(value)) {
     return "card";
   }
+  if (["card_machine", "maquininha"].includes(value)) {
+    return "card_machine";
+  }
 
   return null;
 }
@@ -401,6 +404,33 @@ class RideController {
 
       const clientRidesCount = await Ride.countDocuments({ clientId: ride.clientId?._id, status: "completed" }).catch(() => 0);
 
+      // Filtrar motoristas que aceitam maquininha física caso o pagamento seja via card_machine
+      const paymentMethod = normalizePaymentMethod(
+        ride?.payment?.method?.type || ride?.payment?.method || ride?.payment
+      );
+      
+      try {
+        const driverIds = nearbyDrivers.map(d => d.driverId).filter(Boolean);
+        if (driverIds.length > 0) {
+          let query = { _id: { $in: driverIds } };
+          
+          if (paymentMethod === "card_machine") {
+            query["driverPreferences.acceptsCardMachine"] = true;
+          } else if (paymentMethod === "pix") {
+            query["driverPreferences.acceptsPix"] = { $ne: false }; // default: true
+          } else if (paymentMethod === "cash") {
+            query["driverPreferences.acceptsCash"] = { $ne: false }; // default: true
+          }
+          // Note: wallet and in-app credit cards do not filter drivers (mandatory as requested)
+
+          const users = await User.find(query).select("_id");
+          const allowedDriverIds = new Set(users.map(u => String(u._id)));
+          nearbyDrivers = nearbyDrivers.filter(d => allowedDriverIds.has(String(d.driverId)));
+        }
+      } catch (filterErr) {
+        console.error("Erro ao filtrar motoristas por preferências de pagamento:", filterErr);
+      }
+
       nearbyDrivers.forEach((driver) => {
         try {
           if (!driver || !driver.driverId) return;
@@ -431,10 +461,10 @@ class RideController {
           }
 
           if (ride.isWaitingInQueue) {
-            // Ã°Å¸â€â€ Light notification only (amber banner & bell)
+            // Light notification only (amber banner & bell)
             io.to(`driver-${driver.driverId}`).emit("waiting-queue-updated");
           } else {
-            // Ã°Å¸Å¡â‚¬ Standard pop-up card flow for active search
+            //Standard pop-up card flow for active search
             const payload = buildRideRequestPayload(ride, {
               distanceToPickup,
               clientRidesCount,
@@ -451,8 +481,8 @@ class RideController {
         }
       });
 
-      // Enviar NotificaÃƒÂ§ÃƒÂ£o Push para motoristas em segundo plano ou fechados
-      // Ã°Å¸â€â€¡ Silenciar Push para a Fila de Espera (apenas alerta leve interno na Tarja)
+      // Enviar  Push para motoristas em segundo plano ou fechados
+      //  Silenciar Push para a Fila de Espera (apenas alerta leve interno na Tarja)
       if (!ride.isWaitingInQueue) {
         try {
           const driverIds = nearbyDrivers.map(d => d.driverId).filter(Boolean);
@@ -1381,6 +1411,20 @@ class RideController {
       const { rideId } = req.params;
       const driverId = req.user.id;
 
+      // Impedir aceitar se o motorista estiver zerado ou com saldo negativo
+      const driver = await User.findById(driverId);
+      if (!driver) {
+        return sendError(res, 404, "Motorista nao encontrado");
+      }
+      const balance = driver.driverBalance?.balance || 0;
+      if (balance <= 0) {
+        return sendError(
+          res,
+          400,
+          "Saldo insuficiente. Recarregue sua carteira para aceitar novas corridas/entregas."
+        );
+      }
+
       const now = new Date();
       const activeShift = await ShiftOffer.findOne({
         acceptedBy: driverId,
@@ -1745,6 +1789,20 @@ class RideController {
       const { rideId } = req.params;
       const driverId = String(req.user.id);
       const now = new Date();
+
+      // Impedir responder oferta se o motorista estiver zerado ou com saldo negativo
+      const driver = await User.findById(driverId);
+      if (!driver) {
+        return sendError(res, 404, "Motorista nao encontrado");
+      }
+      const balance = driver.driverBalance?.balance || 0;
+      if (balance <= 0) {
+        return sendError(
+          res,
+          400,
+          "Saldo insuficiente. Recarregue sua carteira para propor novos valores ou aceitar ofertas."
+        );
+      }
 
       if (req.user.userType !== "driver") {
         return sendError(res, 403, "Apenas motoristas podem responder ofertas");
@@ -2801,7 +2859,7 @@ class RideController {
 
             let creditedAmount = 0;
             let deductedAmount = 0;
-            const isInAppPayment = paymentMethod && paymentMethod !== "cash";
+            const isInAppPayment = paymentMethod && paymentMethod !== "cash" && paymentMethod !== "card_machine";
 
             if (isInAppPayment && driverValue > 0 && !alreadyCredited) {
               creditedAmount = driverValue;
@@ -2822,14 +2880,10 @@ class RideController {
             }
 
             if (platformFee > 0 && !alreadyDebited) {
-              deductedAmount = toMoney(
-                Math.min(driver.driverBalance.balance || 0, platformFee)
+              deductedAmount = toMoney(platformFee);
+              driver.driverBalance.balance = toMoney(
+                (driver.driverBalance.balance || 0) - deductedAmount
               );
-              if (deductedAmount > 0) {
-                driver.driverBalance.balance = toMoney(
-                  Math.max(0, (driver.driverBalance.balance || 0) - deductedAmount)
-                );
-              }
               driver.driverBalance.totalDeductions = toMoney(
                 (driver.driverBalance.totalDeductions || 0) + deductedAmount
               );
@@ -3092,6 +3146,12 @@ class RideController {
               status: "completed",
               "rating.clientRating.stars": { $exists: true, $ne: null },
             },
+          },
+          {
+            $sort: { "rating.clientRating.createdAt": -1 }
+          },
+          {
+            $limit: 50
           },
           {
             $group: {
@@ -3806,6 +3866,20 @@ class RideController {
       const { rideId } = req.params;
       const driverId = req.user.id;
       const now = new Date();
+
+      // Impedir aceitar agendamento se o motorista estiver zerado ou com saldo negativo
+      const driver = await User.findById(driverId);
+      if (!driver) {
+        return sendError(res, 404, "Motorista nao encontrado");
+      }
+      const balance = driver.driverBalance?.balance || 0;
+      if (balance <= 0) {
+        return sendError(
+          res,
+          400,
+          "Saldo insuficiente. Recarregue sua carteira para aceitar corridas agendadas."
+        );
+      }
 
       const activeShift = await ShiftOffer.findOne({
         acceptedBy: driverId,

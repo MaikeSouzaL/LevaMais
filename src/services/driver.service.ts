@@ -35,6 +35,9 @@ export interface DriverPreferences {
   selectedVehicles: Array<'motorcycle' | 'car' | 'van' | 'truck'>;
   searchRadiusKm: number;
   autoAccept: boolean;
+  acceptsCardMachine?: boolean;
+  acceptsCash?: boolean;
+  acceptsPix?: boolean;
 }
 
 export interface DriverVehicle {

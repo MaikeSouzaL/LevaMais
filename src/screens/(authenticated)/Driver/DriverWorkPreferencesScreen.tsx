@@ -16,6 +16,7 @@ type DriverWorkPreferences = {
   autoAccept: boolean;
   searchRadiusKm: number;
   vehicleType?: string;
+  acceptsCardMachine: boolean;
 };
 
 const DYNAMIC_RADIUS_LIMITS: Record<string, { label: string; max: number; step: number; defaultVal: number; desc: string }> = {
@@ -31,6 +32,7 @@ const INITIAL_STATE: DriverWorkPreferences = {
   autoAccept: false,
   searchRadiusKm: 15,
   vehicleType: "motorcycle",
+  acceptsCardMachine: false,
 };
 
 export default function DriverWorkPreferencesScreen() {
@@ -72,6 +74,7 @@ export default function DriverWorkPreferencesScreen() {
             autoAccept: Boolean(profile?.driverPreferences?.autoAccept),
             searchRadiusKm: Math.min(persistedRadius, limitConfig.max),
             vehicleType,
+            acceptsCardMachine: Boolean(profile?.driverPreferences?.acceptsCardMachine),
           });
         } catch {
           if (!mounted) return;
@@ -109,6 +112,7 @@ export default function DriverWorkPreferencesScreen() {
           selectedVehicles,
           searchRadiusKm: prefs.searchRadiusKm,
           autoAccept: prefs.autoAccept,
+          acceptsCardMachine: prefs.acceptsCardMachine,
         }),
         driverLocationService.setStatus({
           status: "offline",
@@ -150,6 +154,13 @@ export default function DriverWorkPreferencesScreen() {
           subtitle="Pedidos de comércios e clientes"
           value={prefs.delivery}
           onChange={(value) => setPrefs((prev) => ({ ...prev, delivery: value }))}
+        />
+        <View style={{ height: 10 }} />
+        <SettingRow
+          title="Aceitar máquina de cartão"
+          subtitle="Preciso ter maquininha física para aceitar"
+          value={prefs.acceptsCardMachine}
+          onChange={(value) => setPrefs((prev) => ({ ...prev, acceptsCardMachine: value }))}
         />
         <View style={{ height: 10 }} />
         <SettingRow

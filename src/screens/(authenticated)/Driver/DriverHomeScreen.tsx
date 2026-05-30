@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { AppState, View, Text, TouchableOpacity, useColorScheme, Alert, StyleSheet, Image } from "react-native";
+import { AppState, View, Text, TouchableOpacity, useColorScheme, Alert, StyleSheet, Image, ActivityIndicator } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import * as Location from "expo-location";
@@ -41,7 +41,7 @@ import { Modal } from "../../../components/Modal";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
 import { MotiView, AnimatePresence } from "moti";
-import { MapPin, Menu, Target, Layers, ShieldAlert, Info , AlertTriangle, X, User } from "lucide-react-native";
+import { MapPin, Menu, Target, Layers, ShieldAlert, Info , AlertTriangle, X, User, Wifi, WifiOff, QrCode } from "lucide-react-native";
 import { NewIncomingOfferSheet } from "@/components/driver/home/NewIncomingOfferSheet";
 import { PremiumMapMarker } from "@/components/maps/PremiumMapMarker";
 import { PremiumDottedRoute } from "@/components/routes/PremiumDottedRoute";
@@ -79,6 +79,7 @@ export default function DriverHomeScreen() {
   const isApproved = userData?.driverStatus === "approved";
 
   const [online, setOnline] = useState(false);
+  const [isSavingPrefs, setIsSavingPrefs] = useState(false);
   const [onlineBanner, setOnlineBanner] = useState<{ visible: boolean; type: "online" | "offline" }>({ visible: false, type: "online" });
   const isFirstOnlineChangeRef = useRef(true);
   const [services, setServices] = useState<{ ride: boolean; delivery: boolean }>(() => {
@@ -113,7 +114,7 @@ export default function DriverHomeScreen() {
     }
   }, [userData?.driverPreferences?.serviceTypes, userData?.vehicleType]);
 
-  // Trigger online/offline banner on state change (disappears after 3 seconds)
+  // Trigger online/offline banner on state change (disappears after 5 seconds)
   useEffect(() => {
     if (isFirstOnlineChangeRef.current) {
       isFirstOnlineChangeRef.current = false;
@@ -124,7 +125,7 @@ export default function DriverHomeScreen() {
     
     const timer = setTimeout(() => {
       setOnlineBanner((prev) => ({ ...prev, visible: false }));
-    }, 3000);
+    }, 5000);
 
     return () => clearTimeout(timer);
   }, [online]);
@@ -137,7 +138,7 @@ export default function DriverHomeScreen() {
   const [error, setError] = useState<string | null>(null);
   const [region, setRegion] = useState<any>(null);
   const [isCentering, setIsCentering] = useState(false);
-  const [useDarkMap, setUseDarkMap] = useState(true);
+  const [mapStyleMode, setMapStyleMode] = useState<"dark" | "light" | "satellite">("dark");
   const [isSwitchingMapStyle, setIsSwitchingMapStyle] = useState(false);
   const [showMapStyleHint, setShowMapStyleHint] = useState(false);
   const [isTogglingOnline, setIsTogglingOnline] = useState(false);
@@ -1250,12 +1251,13 @@ export default function DriverHomeScreen() {
       return;
     }
 
-    const nextServices = { ...services, [key]: !services[key] };
-    setServices(nextServices);
-    setError(null); // Limpa erro se a operação foi bem sucedida
-
-    // Sincronizar persistentemente as preferências no perfil do motorista no backend e atualizar o cache local
+    setIsSavingPrefs(true);
     try {
+      const nextServices = { ...services, [key]: !services[key] };
+      setServices(nextServices);
+      setError(null); // Limpa erro se a operação foi bem sucedida
+
+      // Sincronizar persistentemente as preferências no perfil do motorista no backend e atualizar o cache local
       const selectedServices = currentServiceTypesFrom(nextServices);
       const defaultVehicle = (userData?.vehicleType === "car" || userData?.vehicleType === "motorcycle" || userData?.vehicleType === "van" || userData?.vehicleType === "truck")
         ? userData.vehicleType
@@ -1277,20 +1279,188 @@ export default function DriverHomeScreen() {
       useAuthStore.getState().updateUserData({
         driverPreferences: updatedPrefs,
       });
-    } catch (profileErr) {
-      console.error("Erro ao salvar preferências no perfil persistentemente:", profileErr);
-    }
 
-    // se já estiver online, atualizar preferências no backend
-    if (online) {
-      try {
+      // se já estiver online, atualizar preferências no backend
+      if (online) {
         await driverLocationService.setStatus({
           status: "available",
           serviceTypes: currentServiceTypesFrom(nextServices),
-        });
+        }).catch(() => null);
         // ⚡ Sincronizar chamadas disponíveis imediatamente para capturar pedidos compatíveis da fila!
-        await syncAvailableRequests();
-      } catch {}
+        await syncAvailableRequests().catch(() => null);
+      }
+
+      Toast.show({
+        type: "success",
+        text1: key === "ride"
+          ? (nextServices.ride ? "Corridas de Passageiro Ativadas" : "Corridas de Passageiro Desativadas")
+          : (nextServices.delivery ? "Entrega de Encomendas Ativada" : "Entrega de Encomendas Desativada"),
+        text2: key === "ride"
+          ? (nextServices.ride ? "Você receberá chamados para transportar passageiros." : "Você não receberá mais chamados de passageiros.")
+          : (nextServices.delivery ? "Você receberá chamados para entregas comerciais." : "Você não receberá mais entregas de comércios."),
+        position: "top",
+        visibilityTime: 4000,
+      });
+    } catch (profileErr) {
+      console.error("Erro ao salvar preferências no perfil persistentemente:", profileErr);
+    } finally {
+      setIsSavingPrefs(false);
+    }
+  };
+
+  const toggleCardMachine = async () => {
+    setIsSavingPrefs(true);
+    try {
+      const currentAccepts = Boolean(userData?.driverPreferences?.acceptsCardMachine);
+      const nextAccepts = !currentAccepts;
+
+      const defaultVehicle = (userData?.vehicleType === "car" || userData?.vehicleType === "motorcycle" || userData?.vehicleType === "van" || userData?.vehicleType === "truck")
+        ? userData.vehicleType
+        : "motorcycle";
+      const selectedVehicles: Array<"motorcycle" | "car" | "van" | "truck"> = 
+        (userData?.driverPreferences?.selectedVehicles as any) || [defaultVehicle];
+
+      const updatedPrefs = {
+        serviceTypes: userData?.driverPreferences?.serviceTypes || ["delivery"],
+        selectedVehicles,
+        searchRadiusKm: userData?.driverPreferences?.searchRadiusKm || 8,
+        autoAccept: userData?.driverPreferences?.autoAccept || false,
+        acceptsCardMachine: nextAccepts,
+        acceptsCash: userData?.driverPreferences?.acceptsCash !== false,
+        acceptsPix: userData?.driverPreferences?.acceptsPix !== false,
+      };
+
+      await userService.updateProfile({
+        driverPreferences: updatedPrefs,
+      });
+
+      useAuthStore.getState().updateUserData({
+        driverPreferences: updatedPrefs,
+      });
+
+      Toast.show({
+        type: "success",
+        text1: nextAccepts ? "Maquininha de Cartão Ativada" : "Maquininha de Cartão Desativada",
+        text2: nextAccepts 
+          ? "Você agora receberá chamados pagos na maquininha física."
+          : "Você não receberá mais chamados pagos na maquininha física.",
+        position: "top",
+        visibilityTime: 4000,
+      });
+      
+      if (online) {
+        await driverLocationService.setStatus({
+          status: "available",
+          serviceTypes: userData?.driverPreferences?.serviceTypes || ["delivery"],
+        }).catch(() => null);
+        await syncAvailableRequests().catch(() => null);
+      }
+    } catch {} finally {
+      setIsSavingPrefs(false);
+    }
+  };
+
+  const toggleCash = async () => {
+    setIsSavingPrefs(true);
+    try {
+      const currentAccepts = userData?.driverPreferences?.acceptsCash !== false;
+      const nextAccepts = !currentAccepts;
+
+      const defaultVehicle = (userData?.vehicleType === "car" || userData?.vehicleType === "motorcycle" || userData?.vehicleType === "van" || userData?.vehicleType === "truck")
+        ? userData.vehicleType
+        : "motorcycle";
+      const selectedVehicles: Array<"motorcycle" | "car" | "van" | "truck"> = 
+        (userData?.driverPreferences?.selectedVehicles as any) || [defaultVehicle];
+
+      const updatedPrefs = {
+        serviceTypes: userData?.driverPreferences?.serviceTypes || ["delivery"],
+        selectedVehicles,
+        searchRadiusKm: userData?.driverPreferences?.searchRadiusKm || 8,
+        autoAccept: userData?.driverPreferences?.autoAccept || false,
+        acceptsCardMachine: Boolean(userData?.driverPreferences?.acceptsCardMachine),
+        acceptsCash: nextAccepts,
+        acceptsPix: userData?.driverPreferences?.acceptsPix !== false,
+      };
+
+      await userService.updateProfile({
+        driverPreferences: updatedPrefs,
+      });
+
+      useAuthStore.getState().updateUserData({
+        driverPreferences: updatedPrefs,
+      });
+
+      Toast.show({
+        type: "success",
+        text1: nextAccepts ? "Dinheiro Físico Ativado" : "Dinheiro Físico Desativado",
+        text2: nextAccepts 
+          ? "Você receberá chamados pagos com dinheiro em mãos diretamente."
+          : "Você não receberá chamados pagos em dinheiro físico.",
+        position: "top",
+        visibilityTime: 4000,
+      });
+      
+      if (online) {
+        await driverLocationService.setStatus({
+          status: "available",
+          serviceTypes: userData?.driverPreferences?.serviceTypes || ["delivery"],
+        }).catch(() => null);
+        await syncAvailableRequests().catch(() => null);
+      }
+    } catch {} finally {
+      setIsSavingPrefs(false);
+    }
+  };
+
+  const togglePix = async () => {
+    setIsSavingPrefs(true);
+    try {
+      const currentAccepts = userData?.driverPreferences?.acceptsPix !== false;
+      const nextAccepts = !currentAccepts;
+
+      const defaultVehicle = (userData?.vehicleType === "car" || userData?.vehicleType === "motorcycle" || userData?.vehicleType === "van" || userData?.vehicleType === "truck")
+        ? userData.vehicleType
+        : "motorcycle";
+      const selectedVehicles: Array<"motorcycle" | "car" | "van" | "truck"> = 
+        (userData?.driverPreferences?.selectedVehicles as any) || [defaultVehicle];
+
+      const updatedPrefs = {
+        serviceTypes: userData?.driverPreferences?.serviceTypes || ["delivery"],
+        selectedVehicles,
+        searchRadiusKm: userData?.driverPreferences?.searchRadiusKm || 8,
+        autoAccept: userData?.driverPreferences?.autoAccept || false,
+        acceptsCardMachine: Boolean(userData?.driverPreferences?.acceptsCardMachine),
+        acceptsCash: userData?.driverPreferences?.acceptsCash !== false,
+        acceptsPix: nextAccepts,
+      };
+
+      await userService.updateProfile({
+        driverPreferences: updatedPrefs,
+      });
+
+      useAuthStore.getState().updateUserData({
+        driverPreferences: updatedPrefs,
+      });
+
+      Toast.show({
+        type: "success",
+        text1: nextAccepts ? "Recebimento via Pix Ativado" : "Recebimento via Pix Desativado",
+        text2: nextAccepts 
+          ? "Você receberá chamados pagos por transferência Pix direta."
+          : "Você não receberá chamados pagos via transferência Pix.",
+        position: "top",
+        visibilityTime: 4000,
+      });
+      
+      if (online) {
+        await driverLocationService.setStatus({
+          status: "available",
+          serviceTypes: userData?.driverPreferences?.serviceTypes || ["delivery"],
+        }).catch(() => null);
+        await syncAvailableRequests().catch(() => null);
+      }
+    } catch {} finally {
+      setIsSavingPrefs(false);
     }
   };
 
@@ -1332,12 +1502,14 @@ export default function DriverHomeScreen() {
   const handleToggleMapStyle = () => {
     if (isSwitchingMapStyle) return;
     setIsSwitchingMapStyle(true);
-    setUseDarkMap((prev) => {
-      const next = !prev;
+    setMapStyleMode((prev) => {
+      let next: "dark" | "light" | "satellite" = "dark";
+      if (prev === "dark") next = "light";
+      else if (prev === "light") next = "satellite";
+      else next = "dark";
+      
       // persistir preferência
-      AsyncStorage.setItem("mapStylePref", next ? "dark" : "light").catch(
-        () => {},
-      );
+      AsyncStorage.setItem("mapStylePref", next).catch(() => {});
       return next;
     });
     setShowMapStyleHint(true);
@@ -1350,9 +1522,11 @@ export default function DriverHomeScreen() {
     (async () => {
       try {
         const pref = await AsyncStorage.getItem("mapStylePref");
-        if (pref === "dark") setUseDarkMap(true);
-        else if (pref === "light") setUseDarkMap(false);
-        else setUseDarkMap(colorScheme === "dark");
+        if (pref === "dark" || pref === "light" || pref === "satellite") {
+          setMapStyleMode(pref as any);
+        } else {
+          setMapStyleMode(colorScheme === "dark" ? "dark" : "light");
+        }
       } catch {}
     })();
   }, []);
@@ -1649,49 +1823,90 @@ export default function DriverHomeScreen() {
           <AnimatePresence>
             {onlineBanner.visible && (
               <MotiView
-                from={{ translateY: -100, opacity: 0 }}
-                animate={{ translateY: insets.top + 68, opacity: 1 }}
-                exit={{ translateY: -100, opacity: 0 }}
-                transition={{ type: "spring", damping: 15 }}
+                from={{ translateX: -400, opacity: 0 }}
+                animate={{ translateX: 0, opacity: 1 }}
+                exit={{ translateX: -400, opacity: 0 }}
+                transition={{ type: "timing", duration: 400 }}
                 style={{
                   position: "absolute",
+                  top: insets.top + 96,
                   left: 16,
                   right: 16,
                   zIndex: 49,
-                  backgroundColor: onlineBanner.type === "online" ? "#02de95" : "#EF4444",
-                  borderRadius: 14,
+                  backgroundColor: "rgba(9, 26, 47, 0.95)",
+                  borderRadius: 20,
+                  borderWidth: 1.5,
+                  borderColor: onlineBanner.type === "online" ? "#02de95" : "#EF4444",
                   paddingVertical: 14,
-                  paddingHorizontal: 18,
+                  paddingHorizontal: 16,
                   flexDirection: "row",
                   alignItems: "center",
-                  justifyContent: "center",
                   shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 6 },
-                  shadowOpacity: 0.22,
-                  shadowRadius: 10,
-                  elevation: 6,
-                  gap: 8,
+                  shadowOffset: { width: 0, height: 8 },
+                  shadowOpacity: 0.35,
+                  shadowRadius: 16,
+                  elevation: 10,
                 }}
               >
+                {/* Indicador de Ícone com Pulso */}
                 <View
                   style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: 4,
-                    backgroundColor: "#091A2F",
-                  }}
-                />
-                <Text
-                  style={{
-                    color: "#091A2F",
-                    fontWeight: "900",
-                    fontSize: 12,
-                    letterSpacing: 0.6,
-                    textTransform: "uppercase",
+                    width: 42,
+                    height: 42,
+                    borderRadius: 21,
+                    backgroundColor: onlineBanner.type === "online" ? "rgba(2, 222, 149, 0.12)" : "rgba(239, 68, 68, 0.12)",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginRight: 12,
                   }}
                 >
-                  {onlineBanner.type === "online" ? "Você está online! Recebendo ofertas." : "Você está offline!"}
-                </Text>
+                  {onlineBanner.type === "online" ? (
+                    <Wifi size={20} color="#02de95" />
+                  ) : (
+                    <WifiOff size={20} color="#EF4444" />
+                  )}
+                </View>
+
+                {/* Conteúdo de Texto */}
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      color: "#FFFFFF",
+                      fontWeight: "900",
+                      fontSize: 13,
+                      letterSpacing: 0.8,
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    {onlineBanner.type === "online" ? "Você está Online!" : "Você está Offline!"}
+                  </Text>
+                  <Text
+                    style={{
+                      color: "rgba(255, 255, 255, 0.65)",
+                      fontWeight: "600",
+                      fontSize: 11,
+                      marginTop: 2,
+                    }}
+                  >
+                    {onlineBanner.type === "online"
+                      ? "Buscando e recebendo ofertas na sua região."
+                      : "Fique online para começar a faturar."}
+                  </Text>
+                </View>
+
+                {/* Botão de Fechar Rápido */}
+                <TouchableOpacity
+                  onPress={() => setOnlineBanner((prev) => ({ ...prev, visible: false }))}
+                  activeOpacity={0.7}
+                  style={{
+                    padding: 6,
+                    marginLeft: 8,
+                    borderRadius: 10,
+                    backgroundColor: "rgba(255, 255, 255, 0.05)",
+                  }}
+                >
+                  <X size={14} color="rgba(255, 255, 255, 0.4)" />
+                </TouchableOpacity>
               </MotiView>
             )}
           </AnimatePresence>
@@ -1704,7 +1919,7 @@ export default function DriverHomeScreen() {
                 onRegionChangeComplete={(r) => {
                   if (!isCentering) setRegion(r);
                 }}
-                useDarkStyle={useDarkMap}
+                mapStyleMode={mapStyleMode}
                 showsUserLocation={false}
               >
                 {/* 🎯 Real-Time User Puck Marker (HD) */}
@@ -1748,7 +1963,7 @@ export default function DriverHomeScreen() {
                 )}
               </GlobalMap>
 
-              {/* 🎛️ TOP SOLID DOCKING HEADER HUD */}
+              {/* 🎛️ TOP PREMIUM CARVED HEADER (CLIENT STYLE BUT BLUE) */}
               <View
                 style={{
                   position: "absolute",
@@ -1756,97 +1971,102 @@ export default function DriverHomeScreen() {
                   left: 0,
                   right: 0,
                   zIndex: 50,
-                  backgroundColor: "#091A2F",
-                  paddingTop: insets.top,
-                  borderBottomWidth: 1.5,
-                  borderColor: "rgba(255,255,255,0.06)",
+                  backgroundColor: "#0B1D33", // Curved Deep Blue Header
+                  borderBottomLeftRadius: 32,
+                  borderBottomRightRadius: 32,
+                  paddingTop: insets.top + 16,
+                  paddingBottom: 20,
+                  paddingHorizontal: 20,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 10 },
+                  shadowOpacity: 0.3,
+                  shadowRadius: 12,
+                  elevation: 10,
                 }}
               >
-                <View
-                  style={{
-                    height: 76,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    paddingHorizontal: 16,
-                  }}
-                >
-                  <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 12 }}>
-                    <TouchableOpacity
-                      onPress={() => (navigation as any).openDrawer?.()}
-                      style={{ position: "relative" }}
-                    >
-                      {userData?.fotoPerfil || userData?.profilePhoto ? (
-                        <Image
-                          source={{ uri: userData.fotoPerfil || userData.profilePhoto }}
-                          style={{
-                            width: 40,
-                            height: 40,
-                            borderRadius: 20,
-                            borderWidth: 2,
-                            borderColor: "rgba(255, 255, 255, 0.8)",
-                          }}
-                        />
-                      ) : (
-                        <View
-                          style={{
-                            width: 40,
-                            height: 40,
-                            borderRadius: 20,
-                            backgroundColor: "rgba(255, 255, 255, 0.1)",
-                            borderWidth: 1.5,
-                            borderColor: "rgba(255, 255, 255, 0.2)",
-                            alignItems: "center",
-                            justifyContent: "center",
-                          }}
-                        >
-                          <User size={18} color="#FFF" />
-                        </View>
-                      )}
-                      <View
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                  <TouchableOpacity
+                    onPress={() => (navigation as any).openDrawer?.()}
+                    activeOpacity={0.8}
+                  >
+                    {userData?.fotoPerfil || userData?.profilePhoto ? (
+                      <Image
+                        source={{ uri: userData.fotoPerfil || userData.profilePhoto }}
                         style={{
-                          position: "absolute",
-                          top: 0,
-                          right: 0,
-                          width: 10,
-                          height: 10,
-                          borderRadius: 5,
-                          backgroundColor: online ? "#02de95" : "#EF4444",
-                          borderWidth: 1.5,
-                          borderColor: "#091A2F",
+                          width: 56,
+                          height: 56,
+                          borderRadius: 28,
+                          borderWidth: 2,
+                          borderColor: "#FFF",
                         }}
                       />
-                    </TouchableOpacity>
-                    
-                    <View style={{ justifyContent: "center" }}>
-                      <Text style={{ color: "#FFF", fontSize: 22, fontWeight: "bold", lineHeight: 25 }}>
-                        Olá,
-                      </Text>
-                      <Text style={{ color: "#02de95", fontSize: 22, fontWeight: "900", lineHeight: 25 }} numberOfLines={1} ellipsizeMode="tail">
-                        {userData?.name ? userData.name.split(" ")[0] : "Motorista"}!
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                    {hasActiveIncomingRequest && (
-                      <TouchableOpacity
-                        onPress={dismissIncomingSheet}
+                    ) : (
+                      <View
                         style={{
-                          height: 38,
-                          width: 38,
-                          borderRadius: 19,
-                          backgroundColor: "rgba(255,255,255,0.06)",
-                          borderWidth: 1,
-                          borderColor: "rgba(255,255,255,0.1)",
+                          width: 56,
+                          height: 56,
+                          borderRadius: 28,
+                          backgroundColor: "rgba(255, 255, 255, 0.08)",
+                          borderWidth: 1.5,
+                          borderColor: "rgba(255, 255, 255, 0.2)",
                           alignItems: "center",
                           justifyContent: "center",
                         }}
-                        activeOpacity={0.8}
                       >
-                        <X size={16} color="#FFFFFF" />
-                      </TouchableOpacity>
+                        <User size={24} color="#FFF" />
+                      </View>
                     )}
+                  </TouchableOpacity>
+                  
+                  <View style={{ justifyContent: "center" }}>
+                    <Text style={{ color: "#FFF", fontSize: 22, fontWeight: "bold", lineHeight: 26 }}>Olá,</Text>
+                    <Text style={{ color: "#02de95", fontSize: 22, fontWeight: "900", lineHeight: 26 }} numberOfLines={1} ellipsizeMode="tail">
+                      {userData?.name ? userData.name.split(" ")[0] : "Motorista"}!
+                    </Text>
                   </View>
+                </View>
+
+                {/* Right side QrCode button & Optional Incoming request close button */}
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                  <TouchableOpacity
+                    onPress={() => Alert.alert("QR Code", "Seu código de motorista está ativo para leitura.")}
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 22,
+                      backgroundColor: "rgba(255, 255, 255, 0.08)",
+                      borderWidth: 1.5,
+                      borderColor: "rgba(255, 255, 255, 0.15)",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                    accessibilityLabel="Mostrar QR Code"
+                    accessibilityRole="button"
+                  >
+                    <QrCode size={20} color="#02de95" />
+                  </TouchableOpacity>
+
+                  {hasActiveIncomingRequest && (
+                    <TouchableOpacity
+                      onPress={dismissIncomingSheet}
+                      style={{
+                        height: 44,
+                        width: 44,
+                        borderRadius: 22,
+                        backgroundColor: "rgba(239, 68, 68, 0.15)",
+                        borderWidth: 1.5,
+                        borderColor: "rgba(239, 68, 68, 0.3)",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <X size={20} color="#EF4444" />
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
 
@@ -1856,9 +2076,10 @@ export default function DriverHomeScreen() {
                   onSosPress={handleSOS}
                   onLocationPress={handleCenterMyLocation}
                   onMapStylePress={handleToggleMapStyle}
-                  useDarkMap={useDarkMap}
+                  mapStyleMode={mapStyleMode}
                   isCentering={isCentering}
                   isSwitchingStyle={isSwitchingMapStyle}
+                  topOffset={280}
                 />
               )}
 
@@ -2014,20 +2235,28 @@ export default function DriverHomeScreen() {
 
           {/* 📊 INTELLIGENT OPERATIONAL BASE CAMP */}
           {(!incomingRequest?.rideId || isIncomingRequestDismissed) && (
-            <DriverBottomSheet
-              online={online}
-              services={services}
-              isTogglingOnline={isTogglingOnline}
-              onToggleOnline={toggleOnline}
-              onToggleService={toggleService}
-              vehicleType={vehicleType}
-              stats={driverStats}
-              driverBalance={driverBalance}
-              onAddBalance={() => setShowDepositModal(true)}
-              onPressOffers={() => (navigation as any).navigate("DriverRequests", { initialTab: "realtime" })}
-              hasPendingOffer={showPendingOfferHighlight}
-              offersPulseToken={offersPulseToken}
-            />
+            <View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, zIndex: 90 }} pointerEvents="box-none">
+              <DriverBottomSheet
+                online={online}
+                services={services}
+                isTogglingOnline={isTogglingOnline}
+                onToggleOnline={toggleOnline}
+                onToggleService={toggleService}
+                acceptsCardMachine={userData?.driverPreferences?.acceptsCardMachine || false}
+                onToggleCardMachine={toggleCardMachine}
+                acceptsCash={userData?.driverPreferences?.acceptsCash !== false}
+                onToggleCash={toggleCash}
+                acceptsPix={userData?.driverPreferences?.acceptsPix !== false}
+                onTogglePix={togglePix}
+                vehicleType={vehicleType}
+                stats={driverStats}
+                driverBalance={driverBalance}
+                onAddBalance={() => setShowDepositModal(true)}
+                onPressOffers={() => (navigation as any).navigate("DriverRequests", { initialTab: "realtime" })}
+                hasPendingOffer={showPendingOfferHighlight}
+                offersPulseToken={offersPulseToken}
+              />
+            </View>
           )}
 
           <Modal
@@ -2155,6 +2384,42 @@ export default function DriverHomeScreen() {
                   </TouchableOpacity>
                 </View>
               </MotiView>
+            </View>
+          )}
+
+          {/* ⏳ PREFERENCES LOADING OVERLAY */}
+          {isSavingPrefs && (
+            <View style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(7, 19, 34, 0.75)",
+              justifyContent: "center",
+              alignItems: "center",
+              zIndex: 99999,
+            }}>
+              <View style={{
+                backgroundColor: "rgba(11, 26, 42, 0.92)",
+                paddingHorizontal: 28,
+                paddingVertical: 24,
+                borderRadius: 20,
+                borderWidth: 1.2,
+                borderColor: "rgba(255,255,255,0.08)",
+                alignItems: "center",
+                gap: 14,
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 10 },
+                shadowOpacity: 0.5,
+                shadowRadius: 15,
+                elevation: 10,
+              }}>
+                <ActivityIndicator size="large" color="#02de95" />
+                <Text style={{ color: "#ffffff", fontSize: 13.5, fontWeight: "700", letterSpacing: 0.2 }}>
+                  Salvando preferências...
+                </Text>
+              </View>
             </View>
           )}
         </View>

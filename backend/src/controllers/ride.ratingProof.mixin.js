@@ -61,18 +61,47 @@ module.exports.attach = function attach(RideController, deps) {
             const stats = driver.ratingStats;
             const starKey = String(n);
 
-            // Atualizar distribuição de estrelas
-            stats.starDistribution[starKey] = (stats.starDistribution[starKey] || 0) + 1;
-            stats.totalRatings += 1;
-
-            // Recalcular média
+            // Recalcular média com base nas últimas 50 corridas/entregas avaliadas
+            const RideHistory = require("../models/RideHistory");
+            
+            const ratedRides = await Promise.all([
+              Ride.find({
+                driverId: ride.driverId,
+                status: "completed",
+                "rating.clientRating.stars": { $exists: true, $ne: null }
+              }).select("rating.clientRating.stars rating.clientRating.createdAt").lean(),
+              RideHistory.find({
+                driverId: ride.driverId,
+                status: "completed",
+                "rating.clientRating.stars": { $exists: true, $ne: null }
+              }).select("rating.clientRating.stars rating.clientRating.createdAt").lean()
+            ]);
+            
+            const allRated = [...ratedRides[0], ...ratedRides[1]]
+              .sort((a, b) => {
+                const dateA = a.rating?.clientRating?.createdAt || a.createdAt || 0;
+                const dateB = b.rating?.clientRating?.createdAt || b.createdAt || 0;
+                return new Date(dateB) - new Date(dateA); // Mais novas primeiro
+              })
+              .slice(0, 50);
+              
+            const totalRatings = allRated.length;
             let sum = 0;
-            for (let i = 1; i <= 5; i++) {
-              sum += i * (stats.starDistribution[String(i)] || 0);
-            }
-            stats.averageStars = stats.totalRatings > 0
-              ? Math.round((sum / stats.totalRatings) * 10) / 10
-              : 0;
+            const starDistribution = { "1": 0, "2": 0, "3": 0, "4": 0, "5": 0 };
+            
+            allRated.forEach(r => {
+              const s = r.rating?.clientRating?.stars;
+              if (s >= 1 && s <= 5) {
+                sum += s;
+                starDistribution[String(s)] = (starDistribution[String(s)] || 0) + 1;
+              }
+            });
+            
+            stats.averageStars = totalRatings > 0
+              ? Math.round((sum / totalRatings) * 10) / 10
+              : 5.0;
+            stats.totalRatings = totalRatings;
+            stats.starDistribution = starDistribution;
 
             await driver.save();
           }
