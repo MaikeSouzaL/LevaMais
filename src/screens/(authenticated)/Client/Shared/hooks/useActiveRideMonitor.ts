@@ -84,7 +84,7 @@ export function useActiveRideMonitor() {
           activeServiceType: requestingRide ? ((requestingRide.serviceType as "ride" | "delivery") || "ride") : null,
           activeRideCreatedAt: requestingRide ? (requestingRide.createdAt || null) : null,
           activeRideSearchTimeout: requestingRide ? (requestingRide.searchTimeoutSeconds || 300) : null,
-          allRejected: requestingRide ? Boolean(requestingRide.allRejected) : false,
+          allRejected: requestingRide ? Boolean((requestingRide as any).allRejected) : false,
         }));
       }
 

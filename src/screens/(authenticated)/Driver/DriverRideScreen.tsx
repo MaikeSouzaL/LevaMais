@@ -582,11 +582,22 @@ export default function DriverRideScreen() {
     let inputPickupPin: string | undefined = undefined;
     let inputDeliveryPin: string | undefined = undefined;
 
+    // PIN de Coleta: motorista já visualiza o PIN, validar automaticamente via backend
     if (nextStatus === "in_progress" && ride?.details?.pickupPin) {
+      inputPickupPin = ride.details.pickupPin;
       try {
-        inputPickupPin = await promptForPin("pickup");
-      } catch {
-        return;
+        const pinResult = await rideService.validatePin(rideId, "pickup", inputPickupPin);
+        if (!pinResult?.valid) {
+          Toast.show({ type: "error", text1: "Erro ao validar PIN de coleta" });
+          return;
+        }
+      } catch (pinErr: any) {
+        // Se já foi validado anteriormente, ignorar o erro e prosseguir
+        const msg = String(pinErr?.message || "");
+        if (!msg.includes("já validado") && !msg.includes("already validated")) {
+          Toast.show({ type: "error", text1: "Erro ao validar PIN", text2: pinErr?.message });
+          return;
+        }
       }
     }
     if (nextStatus === "completed" && ride?.details?.deliveryPin) {
@@ -969,7 +980,7 @@ export default function DriverRideScreen() {
               marginBottom: 20,
             }}>
               {pinType === "pickup" 
-                ? "Solicite o PIN de Coleta com o remetente da encomenda para poder iniciar o trajeto." 
+                ? "Use o código exibido para identificar o pedido no estabelecimento." 
                 : "Solicite o PIN de Entrega com o recebedor para poder finalizar a corrida."}
             </Text>
 

@@ -237,6 +237,7 @@ export default function DriverRequestsScreen() {
 
       return () => {
         active = false;
+        driverAlertService.stop().catch(() => {});
       };
     }, [navigation]),
   );
@@ -743,7 +744,10 @@ export default function DriverRequestsScreen() {
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
             <TouchableOpacity 
-              onPress={() => navigation.goBack()}
+              onPress={() => {
+                driverAlertService.stop().catch(() => {});
+                navigation.goBack();
+              }}
               style={{
                 width: 44,
                 height: 44,

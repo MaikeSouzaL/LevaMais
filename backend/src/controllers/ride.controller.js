@@ -3933,6 +3933,10 @@ class RideController {
       ride.pricing.total = newOffer;
       ride.rejectedBy = [];
 
+      // 🚀 Ao aumentar oferta, sair da fila de espera para disparar o bottom sheet
+      // do motorista (new-ride-request) em vez do alerta silencioso (waiting-queue-updated)
+      ride.isWaitingInQueue = false;
+
       if (["cancelled_no_driver", "no_drivers_available", "cancelled"].includes(ride.status)) {
         ride.status = "requesting";
       }

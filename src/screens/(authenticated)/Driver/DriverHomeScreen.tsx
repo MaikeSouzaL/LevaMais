@@ -991,6 +991,14 @@ export default function DriverHomeScreen() {
       onRideStatusChanged(payload);
     });
 
+    // 🚀 Quando o cliente aumenta a oferta, re-sincronizar para capturar o pedido atualizado
+    const onQueueOfferIncreased = () => {
+      if (mounted && isFocused) {
+        syncAvailableRequests().catch(() => {});
+      }
+    };
+    webSocketService.on("queue-ride-offer-increased", onQueueOfferIncreased);
+
     webSocketService.connect().catch(() => {});
     syncAvailableRequests().catch(() => {});
 
@@ -1016,6 +1024,7 @@ export default function DriverHomeScreen() {
       webSocketService.off("ride-open", onNewRideRequest);
       webSocketService.off("ride-cancelled", onRideCancelled);
       webSocketService.off("ride-negotiated");
+      webSocketService.off("queue-ride-offer-increased", onQueueOfferIncreased);
     };
   }, [online, incomingRequest?.rideId, isFocused]);
 

@@ -156,7 +156,7 @@ export function ActiveDeliveryBottomSheet({
 
       {isAtPickup && (
         <ArrivedButton
-          label={isDelivery ? "INICIAR ENTREGA" : "INICIAR CORRIDA"}
+          label={isDelivery ? "COLETAR ENCOMENDA" : "INICIAR CORRIDA"}
           loading={actionLoading}
           onPress={onPrimaryActionPress}
         />
