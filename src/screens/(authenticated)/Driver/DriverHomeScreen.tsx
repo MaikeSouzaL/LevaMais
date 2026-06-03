@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { AppState, View, Text, TouchableOpacity, useColorScheme, Alert, StyleSheet, Image, ActivityIndicator } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 import * as Location from "expo-location";
 import Constants from "expo-constants";
 import {

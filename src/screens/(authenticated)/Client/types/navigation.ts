@@ -135,6 +135,7 @@ export type ClientStackParamList = {
           latitude: number;
           longitude: number;
         };
+        clearRoute?: boolean;
       }
     | undefined;
   EditFavorite:

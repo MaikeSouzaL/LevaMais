@@ -1,6 +1,6 @@
 import React, { ReactNode } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import { Icon } from "@/components/ui/Icon";
 import { logger } from '@/utils/logger';
 
 interface Props {
@@ -54,7 +54,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
         <View style={styles.container}>
           <ScrollView contentContainerStyle={styles.content}>
             <View style={styles.errorBox}>
-              <MaterialIcons name="error-outline" size={48} color="#ef4444" />
+              <Icon name="error-outline" size={48} color="#ef4444" />
               <Text style={styles.title}>Algo deu errado</Text>
               <Text style={styles.message}>
                 {this.state.errorInfo || 'Um erro inesperado ocorreu'}
@@ -73,7 +73,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
           </ScrollView>
 
           <TouchableOpacity style={styles.button} onPress={this.handleReset}>
-            <MaterialIcons name="refresh" size={20} color="white" />
+            <Icon name="refresh" size={20} color="white" />
             <Text style={styles.buttonText}>Tentar Novamente</Text>
           </TouchableOpacity>
         </View>

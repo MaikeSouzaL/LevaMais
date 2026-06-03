@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Linking, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
@@ -10,7 +10,7 @@ import { ClientScreenHeader } from "../Shared/components";
 import configService, { SupportChannels } from "@/services/config.service";
 import { ClientStackParamList } from "../types/navigation";
 
-type MaterialIconName = React.ComponentProps<typeof MaterialIcons>["name"];
+type MaterialIconName = string;
 type SupportRoute = "History" | "PaymentsCenter" | "SafetyCenter";
 
 const ITEMS = [
@@ -38,22 +38,22 @@ export default function SupportCenterScreen() {
       <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, gap: 8 }}>
         {ITEMS.map((item) => (
           <TouchableOpacity key={item.title} className="flex-row items-center gap-3 bg-[#0d2838] border border-gray-700 rounded-lg p-4" onPress={() => navigation.navigate(item.target as SupportRoute)}>
-            <MaterialIcons name={item.icon as MaterialIconName} size={22} color={colors.primary[500]} />
+            <Icon name={item.icon as MaterialIconName} size={22} color={colors.primary[500]} />
             <View className="flex-1">
               <Text className="text-white font-semibold text-base">{item.title}</Text>
               <Text className="text-gray-400 text-sm mt-0.5">{item.subtitle}</Text>
             </View>
-            <MaterialIcons name="chevron-right" size={22} color={colors.text.tertiary} />
+            <Icon name="chevron-right" size={22} color={colors.text.tertiary} />
           </TouchableOpacity>
         ))}
 
         <TouchableOpacity className="flex-row items-center gap-3 bg-[#0d2838] border border-gray-700 rounded-lg p-4" onPress={() => Linking.openURL(`mailto:${supportEmail}`)}>
-          <MaterialIcons name="mail-outline" size={22} color={colors.primary[500]} />
+          <Icon name="mail-outline" size={22} color={colors.primary[500]} />
           <View className="flex-1">
             <Text className="text-white font-semibold text-base">Enviar e-mail</Text>
             <Text className="text-gray-400 text-sm mt-0.5">{supportEmail}</Text>
           </View>
-          <MaterialIcons name="open-in-new" size={20} color={colors.text.tertiary} />
+          <Icon name="open-in-new" size={20} color={colors.text.tertiary} />
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>

@@ -1,6 +1,6 @@
 import React from "react";
 import { Text, TouchableOpacity, View } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 import { useNavigation } from "@react-navigation/native";
 
 import SectionCard from "../../../components/ui/SectionCard";
@@ -30,7 +30,7 @@ export default function DriverHelpScreen() {
           activeOpacity={0.85}
         >
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-            <MaterialIcons name="support-agent" size={22} color="#02de95" />
+            <Icon name="support-agent" size={22} color="#02de95" />
             <View style={{ flex: 1 }}>
               <Text style={{ color: "#fff", fontWeight: "900" }}>
                 Abrir central de suporte
@@ -39,7 +39,7 @@ export default function DriverHelpScreen() {
                 Atalhos para atendimento, seguranca e financeiro.
               </Text>
             </View>
-            <MaterialIcons name="chevron-right" size={22} color="rgba(255,255,255,0.45)" />
+            <Icon name="chevron-right" size={22} color="rgba(255,255,255,0.45)" />
           </View>
         </TouchableOpacity>
       </SectionCard>

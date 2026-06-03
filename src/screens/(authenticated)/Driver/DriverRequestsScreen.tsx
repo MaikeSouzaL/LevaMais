@@ -33,7 +33,7 @@ import { DriverEmptyState } from "./components/DriverEmptyState";
 import { DriverRequestCard } from "./components/DriverRequestCard";
 import { Modal } from "../../../components/Modal";
 import { formatBRL } from "@/utils/mappers";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 
 import { GlobalMap } from "@/components/GlobalMap";
 const { width, height } = Dimensions.get("window");
@@ -1012,7 +1012,7 @@ export default function DriverRequestsScreen() {
                       }}
                       activeOpacity={0.8}
                     >
-                      <MaterialCommunityIcons name="map-marker-distance" size={18} color="rgba(255,255,255,0.6)" />
+                      <Icon name="map-marker-distance" size={18} color="rgba(255,255,255,0.6)" />
                       <Text style={{ color: "rgba(255,255,255,0.7)", fontWeight: "800", fontSize: 12, textTransform: "uppercase" }}>Ver rota</Text>
                     </TouchableOpacity>
 

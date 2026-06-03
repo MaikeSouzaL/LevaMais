@@ -3,7 +3,7 @@ import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 
 import { colors } from "@/theme";
 import { ClientScreenHeader } from "../Shared/components";
@@ -35,7 +35,7 @@ export default function ReceiptsScreen() {
       <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, gap: 8 }}>
         {rides.length === 0 ? (
           <View className="items-center p-6 border border-gray-700 rounded-lg bg-[#0d2838]">
-            <MaterialIcons name="receipt-long" size={42} color={colors.text.tertiary} />
+            <Icon name="receipt-long" size={42} color={colors.text.tertiary} />
             <Text className="text-gray-500 mt-3">Nenhum comprovante encontrado</Text>
           </View>
         ) : (

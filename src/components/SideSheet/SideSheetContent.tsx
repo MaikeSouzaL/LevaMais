@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, TouchableOpacity, ScrollView } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 
 interface SideSheetContentProps {
   onClose?: () => void;
@@ -25,7 +25,7 @@ export function SideSheetContent({
             onPress={onClose}
             className="w-10 h-10 items-center justify-center rounded-full bg-white/5"
           >
-            <MaterialIcons name="close" size={24} color="white" />
+            <Icon name="close" size={24} color="white" />
           </TouchableOpacity>
         </View>
       </View>
@@ -38,7 +38,7 @@ export function SideSheetContent({
           className="flex-row items-center gap-3 bg-primary rounded-full px-5 py-4 mb-6 active:opacity-80"
           activeOpacity={0.9}
         >
-          <MaterialIcons name="search" size={24} color="#091A2F" />
+          <Icon name="search" size={24} color="#091A2F" />
           <Text className="flex-1 text-base font-semibold text-[#091A2F]">
             Para onde vamos?
           </Text>
@@ -53,7 +53,7 @@ export function SideSheetContent({
             activeOpacity={0.9}
           >
             <View className="w-14 h-14 rounded-2xl bg-primary/10 items-center justify-center mb-3">
-              <MaterialIcons name="local-taxi" size={28} color="#02de95" />
+              <Icon name="local-taxi" size={28} color="#02de95" />
             </View>
             <Text className="text-white font-bold text-lg mb-1">Corrida</Text>
             <Text className="text-gray-400 text-sm">Carro ou Moto</Text>
@@ -66,7 +66,7 @@ export function SideSheetContent({
             activeOpacity={0.9}
           >
             <View className="w-14 h-14 rounded-2xl bg-primary/10 items-center justify-center mb-3">
-              <MaterialIcons name="local-shipping" size={28} color="#02de95" />
+              <Icon name="local-shipping" size={28} color="#02de95" />
             </View>
             <Text className="text-white font-bold text-lg mb-1">Entrega</Text>
             <Text className="text-gray-400 text-sm">Enviar itens</Text>
@@ -121,7 +121,7 @@ export function SideSheetContent({
 }
 
 interface OptionItemProps {
-  icon: keyof typeof MaterialIcons.glyphMap;
+  icon: string;
   title: string;
   subtitle: string;
   onPress?: () => void;
@@ -134,13 +134,13 @@ function OptionItem({ icon, title, subtitle, onPress }: OptionItemProps) {
       className="flex-row items-center gap-4 bg-surface-dark/30 border border-white/5 rounded-2xl p-4 active:bg-surface-dark"
     >
       <View className="w-12 h-12 rounded-full bg-primary/10 items-center justify-center">
-        <MaterialIcons name={icon} size={24} color="#02de95" />
+        <Icon name={icon} size={24} color="#02de95" />
       </View>
       <View className="flex-1">
         <Text className="text-white font-semibold text-base">{title}</Text>
         <Text className="text-gray-400 text-sm mt-1">{subtitle}</Text>
       </View>
-      <MaterialIcons name="chevron-right" size={24} color="#666" />
+      <Icon name="chevron-right" size={24} color="#666" />
     </TouchableOpacity>
   );
 }

@@ -5,12 +5,12 @@
 
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import { Icon } from "@/components/ui/Icon";
 import { colors, spacing, fontSize, fontWeight } from '@/theme';
 import LoadingButton from './LoadingButton';
 
 interface EmptyStateProps {
-  icon?: keyof typeof MaterialIcons.glyphMap;
+  icon?: string;
   title: string;
   description?: string;
   actionLabel?: string;
@@ -26,7 +26,7 @@ export default function EmptyState({
 }: EmptyStateProps) {
   return (
     <View style={styles.container}>
-      <MaterialIcons
+      <Icon
         name={icon}
         size={64}
         color={colors.text.disabled}

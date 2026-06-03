@@ -71,6 +71,20 @@ function sendError(res, status, message, extras = {}) {
   });
 }
 
+function calculateHaversineDistance(lat1, lon1, lat2, lon2) {
+  const toRad = (value) => (value * Math.PI) / 180;
+  const R = 6371; // km
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+const haversineDistance = calculateHaversineDistance;
 
 function calculateDynamicSearchRadius(ride) {
   const vehicleType = ride.vehicleType || "motorcycle";
@@ -3861,22 +3875,29 @@ class RideController {
       }
 
       const pricing = ridePricing[vehicleType];
+      const minimumKm = pricing.minimumDistance !== undefined ? pricing.minimumDistance : (pricing.minimumKm !== undefined ? pricing.minimumKm : 3);
+      const minimumFee = pricing.minimumFare !== undefined ? pricing.minimumFare : (pricing.minimumFee !== undefined ? pricing.minimumFee : 8);
+      const pricePerKm = pricing.perKm !== undefined ? pricing.perKm : (pricing.pricePerKm !== undefined ? pricing.pricePerKm : 2.5);
 
-      const distanceKm = calculateHaversineDistance(
-        pickup.latitude, pickup.longitude,
-        dropoff.latitude, dropoff.longitude
-      );
+      const metrics = await fetchRouteMetricsWithGoogleMaps(pickup, dropoff);
+      if (!metrics) {
+        return sendError(res, 500, "Erro ao obter rota da API do Google Maps.");
+      }
+      
+      const distanceKm = metrics.distanceInMeters / 1000;
+      const durationMin = metrics.durationInSeconds 
+        ? Math.round(metrics.durationInSeconds / 60) 
+        : Math.round(distanceKm * 2.5);
 
       let suggestedPrice;
-      if (distanceKm <= pricing.minimumKm) {
-        suggestedPrice = pricing.minimumFee;
+      if (distanceKm <= minimumKm) {
+        suggestedPrice = minimumFee;
       } else {
-        suggestedPrice = pricing.minimumFee + ((distanceKm - pricing.minimumKm) * pricing.pricePerKm);
+        suggestedPrice = minimumFee + ((distanceKm - minimumKm) * pricePerKm);
       }
 
       const minPrice = suggestedPrice * 0.8;
       const maxPrice = suggestedPrice * 1.3;
-      const durationMin = Math.round(distanceKm * 2.5);
 
       return res.json({
         success: true,
@@ -3886,8 +3907,8 @@ class RideController {
         distanceKm: Math.round(distanceKm * 100) / 100,
         durationMin,
         pricingBreakdown: {
-          baseFare: pricing.minimumFee,
-          distancePrice: Math.max(0, suggestedPrice - pricing.minimumFee),
+          baseFare: minimumFee,
+          distancePrice: Math.max(0, suggestedPrice - minimumFee),
           total: suggestedPrice
         }
       });
@@ -4149,7 +4170,7 @@ class RideController {
       
       await ride.save();
 
-      // Disparos em tempo real via sockets e push! ðŸ›¡ï¸âš¡
+      // Disparos em tempo real via sockets e push
       if (io) {
         io.to(`ride:${rideId}`).emit("ride-status-updated", ride);
         

@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
 import HomeScreen from "@/screens/(authenticated)/Client/Home";
@@ -42,6 +42,7 @@ import ActiveOrdersScreen from "../screens/(authenticated)/Client/Orders/ActiveO
 import RideOffersMarketplaceScreen from "../screens/(authenticated)/Client/Orders/RideOffersMarketplaceScreen";
 import OrderSentScreen from "../screens/(authenticated)/Client/Ride/OrderSentScreen";
 import ShiftOffersClientScreen from "../screens/(authenticated)/Client/Orders/ShiftOffersClientScreen";
+import DepositScreen from "../screens/(authenticated)/Client/Wallet/DepositScreen";
 import PaymentsCenterScreen from "../screens/(authenticated)/Client/Profile/PaymentsCenter";
 import CouponsScreen from "../screens/(authenticated)/Client/Profile/CouponsScreen";
 import ReceiptsScreen from "../screens/(authenticated)/Client/Profile/ReceiptsScreen";
@@ -122,6 +123,7 @@ export default function ClientStackRoutes({
         name="NotificationsCenter"
         component={NotificationsCenterScreen}
       />
+      <Stack.Screen name="Deposit" component={DepositScreen} />
       <Stack.Screen name="PaymentsCenter" component={PaymentsCenterScreen} />
       <Stack.Screen name="Coupons" component={CouponsScreen} />
       <Stack.Screen name="Receipts" component={ReceiptsScreen} />
@@ -131,3 +133,4 @@ export default function ClientStackRoutes({
     </Stack.Navigator>
   );
 }
+

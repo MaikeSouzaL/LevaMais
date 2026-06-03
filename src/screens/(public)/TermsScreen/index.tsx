@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { NavigationContext, NavigationRouteContext } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 import theme from "../../../theme";
 import configService, { PolicyVersions } from "@/services/config.service";
 import { useAuthStore } from "@/context/authStore";
@@ -87,7 +87,7 @@ export default function TermsScreen({ onAccept: propsOnAccept }: { onAccept?: ()
             className="w-10 h-10 items-center justify-center"
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Feather name="arrow-left" size={24} color={theme.COLORS.WHITE} />
+            <Icon name="arrow-left" size={24} color={theme.COLORS.WHITE} />
           </TouchableOpacity>
         ) : (
           <View style={{ width: 40 }} />
@@ -220,7 +220,7 @@ export default function TermsScreen({ onAccept: propsOnAccept }: { onAccept?: ()
                 }`}
               >
                 {acceptedTerms && (
-                  <Feather name="check" size={18} color={theme.COLORS.BRAND_DARK} />
+                  <Icon name="check" size={18} color={theme.COLORS.BRAND_DARK} />
                 )}
               </View>
               <Text className="text-gray-300 text-sm flex-1 leading-5">

@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text } from "react-native";
-import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 
 type MarkerType =
   | "pickup"
@@ -121,10 +121,8 @@ export default function MapMarker({ type, size = 24 }: MapMarkerProps) {
           >
             {letter}
           </Text>
-        ) : config.lib === "MaterialCommunityIcons" ? (
-          <MaterialCommunityIcons name={config.icon as any} size={iconSize} color="#fff" />
         ) : (
-          <MaterialIcons name={config.icon as any} size={iconSize} color="#fff" />
+          <Icon name={config.icon} size={iconSize} color="#fff" />
         )}
       </View>
 

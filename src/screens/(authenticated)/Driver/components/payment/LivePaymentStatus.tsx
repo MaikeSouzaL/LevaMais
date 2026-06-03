@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { Animated, Easing, Text, View } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 import { LinearGradient } from "expo-linear-gradient";
 import type { PaymentUiMeta } from "./PaymentStateManager";
 
@@ -104,7 +104,7 @@ export function LivePaymentStatus({ meta }: { meta: PaymentUiMeta }) {
                   opacity: glowAnim,
                 }}
               />
-              <MaterialIcons name={iconName(meta.icon) as any} size={19} color={meta.accent} />
+              <Icon name={iconName(meta.icon) as any} size={19} color={meta.accent} />
             </View>
           </Animated.View>
 

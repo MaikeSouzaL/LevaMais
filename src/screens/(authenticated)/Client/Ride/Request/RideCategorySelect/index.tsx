@@ -8,12 +8,14 @@ import {
   StyleSheet,
   Modal,
   StatusBar,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import MapView, { Marker, Polyline } from "react-native-maps";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 import { ChevronLeft, Users, Check, Plus, X, ArrowUp, ArrowDown } from "lucide-react-native";
 import Toast from "react-native-toast-message";
 
@@ -31,6 +33,38 @@ const formatBRL = (v: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(v || 0));
 
 type Coord = { address?: string; latitude: number; longitude: number };
+
+const AddressPin = ({ color, label }: { color: string; label?: string | number }) => (
+  <View style={{ alignItems: "center", width: 18, height: 22, justifyContent: "flex-start", marginRight: 6 }}>
+    <View style={{
+      width: 16,
+      height: 16,
+      borderRadius: 8,
+      backgroundColor: color,
+      borderWidth: 1.5,
+      borderColor: "#fff",
+      alignItems: "center",
+      justifyContent: "center",
+    }}>
+      {label !== undefined && (
+        <Text style={{ color: "#fff", fontSize: 9, fontWeight: "900", lineHeight: 11, textAlign: "center" }}>
+          {label}
+        </Text>
+      )}
+    </View>
+    <View style={{
+      width: 0,
+      height: 0,
+      borderLeftWidth: 4,
+      borderRightWidth: 4,
+      borderTopWidth: 6,
+      borderLeftColor: "transparent",
+      borderRightColor: "transparent",
+      borderTopColor: color,
+      marginTop: -1,
+    }} />
+  </View>
+);
 
 export default function RideCategorySelectScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<ClientStackParamList>>();
@@ -51,6 +85,7 @@ export default function RideCategorySelectScreen() {
   const [categories, setCategories] = useState<RideCategoryOption[]>([]);
   const [distanceText, setDistanceText] = useState("");
   const [durationText, setDurationText] = useState("");
+  const [routeMeta, setRouteMeta] = useState<{ distanceKm: number; durationMin: number }>({ distanceKm: 0, durationMin: 0 });
   const [selected, setSelected] = useState<RideCategoryOption | null>(null);
   const [stopModalOpen, setStopModalOpen] = useState(false);
   const [stopQuery, setStopQuery] = useState("");
@@ -127,6 +162,10 @@ export default function RideCategorySelectScreen() {
         setCategories(resp.categories || []);
         setDistanceText(resp.distance?.text || "");
         setDurationText(resp.duration?.text || "");
+        setRouteMeta({
+          distanceKm: Number(resp.distance?.value || 0) / 1000,
+          durationMin: Math.max(1, Math.ceil(Number(resp.duration?.value || 0) / 60)),
+        });
         // Mantém a categoria selecionada se ainda existir; senão escolhe disponível/economy.
         setSelected((prev) => {
           if (prev) {
@@ -199,24 +238,46 @@ export default function RideCategorySelectScreen() {
       pickup,
       dropoff,
       stops,
-      routeCoordinates,
+      // Com paradas, a rota reta A→B fica obsoleta; deixa o destino reconstruir via paradas.
+      routeCoordinates: stops.length > 0 ? undefined : routeCoordinates,
       vehicleType: selected.vehicleType,
       rideCategory: selected.category,
       presetOffer: selected.pricing.total,
-      initialDistanceKm: params.initialDistanceKm,
-      initialDurationMin: params.initialDurationMin,
+      // Preço JÁ calculado da categoria — usado como "preço sugerido" no RideBidSetup
+      // (evita divergência com o motor antigo de estimativa).
+      category: {
+        key: selected.category,
+        label: selected.label,
+        total: selected.pricing.total,
+        basePrice: selected.pricing.basePrice,
+        distancePrice: selected.pricing.distancePrice,
+        distanceKm: routeMeta.distanceKm,
+        durationMin: routeMeta.durationMin,
+      },
+      initialDistanceKm: routeMeta.distanceKm || params.initialDistanceKm,
+      initialDurationMin: routeMeta.durationMin || params.initialDurationMin,
     } as any);
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
-      <StatusBar barStyle="light-content" backgroundColor="#091A2F" />
+    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+
+      {/* Header com seta de voltar */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.navigate("DestinationSearch", { clearRoute: true })} style={styles.headerBackBtn} activeOpacity={0.7}>
+          <ChevronLeft size={24} color="#0F172A" strokeWidth={2.5} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Confirmar Viagem</Text>
+        <View style={{ width: 40 }} />
+      </View>
+
       {/* Mapa no topo */}
       <View style={styles.mapWrap}>
         <GlobalMap
           ref={mapRef}
           style={StyleSheet.absoluteFillObject}
-          useDarkStyle
+          useDarkStyle={false}
           showsUserLocation={false}
           initialRegion={{
             latitude: pickup?.latitude || -23.5505,
@@ -227,7 +288,7 @@ export default function RideCategorySelectScreen() {
           onMapReady={handleMapReady}
         >
           {routeCoordinates.length >= 2 && (
-            <Polyline coordinates={routeCoordinates} strokeColor="#000" strokeWidth={4} lineCap="round" lineJoin="round" />
+            <Polyline coordinates={routeCoordinates} strokeColor="#0F172A" strokeWidth={5} lineCap="round" lineJoin="round" />
           )}
           {!!pickup && (
             <Marker coordinate={{ latitude: pickup.latitude, longitude: pickup.longitude }} anchor={{ x: 0.35, y: 0.75 }}>
@@ -246,22 +307,14 @@ export default function RideCategorySelectScreen() {
           )}
         </GlobalMap>
 
-        <TouchableOpacity
-          style={[styles.backBtn, { top: insets.top + 8 }]}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.85}
-        >
-          <ChevronLeft size={24} color="#fff" />
-        </TouchableOpacity>
-
         {loading ? (
-          <View style={[styles.routePill, { top: insets.top + 10 }]}>
-            <ActivityIndicator size="small" color="#02de95" style={{ marginRight: 4 }} />
+          <View style={[styles.routePill, { top: 12 }]}>
+            <ActivityIndicator size="small" color="#059669" style={{ marginRight: 4 }} />
             <Text style={styles.routePillText}>Calculando...</Text>
           </View>
         ) : !!distanceText ? (
-          <View style={[styles.routePill, { top: insets.top + 10 }]}>
-            <MaterialIcons name="near-me" size={13} color="#02de95" />
+          <View style={[styles.routePill, { top: 12 }]}>
+            <Icon name="near-me" size={13} color="#059669" />
             <Text style={styles.routePillText}>
               {distanceText}
               {durationText ? ` • ${durationText}` : ""}
@@ -273,7 +326,7 @@ export default function RideCategorySelectScreen() {
       {/* Detalhes do endereço (em cima) */}
       <View style={styles.addressCard}>
         <View style={styles.addressRow}>
-          <View style={[styles.addressDot, { backgroundColor: "#60a5fa" }]} />
+          <AddressPin color="#02de95" />
           <Text style={styles.addressText} numberOfLines={1}>
             {pickup?.address || "Embarque"}
           </Text>
@@ -282,33 +335,66 @@ export default function RideCategorySelectScreen() {
         {stops.map((s, i) => (
           <View key={`stoprow-${i}`}>
             <View style={styles.addressRow}>
-              <View style={[styles.addressDot, { backgroundColor: "#02de95" }]} />
+              <AddressPin color="#F59E0B" label={i + 1} />
               <Text style={styles.addressStopText} numberOfLines={1}>
                 Parada {i + 1}: {s.address || "—"}
               </Text>
 
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginRight: 8 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginRight: 8 }}>
                 {i > 0 && (
-                  <TouchableOpacity onPress={() => handleMoveStopUp(i)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-                    <ArrowUp size={16} color="#02de95" strokeWidth={2.5} />
+                  <TouchableOpacity
+                    onPress={() => handleMoveStopUp(i)}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: 14,
+                      backgroundColor: "rgba(5, 150, 105, 0.08)",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <ArrowUp size={15} color="#059669" strokeWidth={3} />
                   </TouchableOpacity>
                 )}
                 {i < stops.length - 1 && (
-                  <TouchableOpacity onPress={() => handleMoveStopDown(i)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-                    <ArrowDown size={16} color="#02de95" strokeWidth={2.5} />
+                  <TouchableOpacity
+                    onPress={() => handleMoveStopDown(i)}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: 14,
+                      backgroundColor: "rgba(5, 150, 105, 0.08)",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <ArrowDown size={15} color="#059669" strokeWidth={3} />
                   </TouchableOpacity>
                 )}
               </View>
 
-              <TouchableOpacity onPress={() => handleRemoveStop(i)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <X size={16} color="#ef4444" strokeWidth={2.5} />
+              <TouchableOpacity
+                onPress={() => handleRemoveStop(i)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 14,
+                  backgroundColor: "rgba(239, 68, 68, 0.08)",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <X size={14} color="#ef4444" strokeWidth={3} />
               </TouchableOpacity>
             </View>
             <View style={styles.addressDivider} />
           </View>
         ))}
         <View style={styles.addressRow}>
-          <MaterialIcons name="location-on" size={15} color="#ef4444" />
+          <AddressPin color="#ef4444" />
           <Text style={styles.addressText} numberOfLines={1}>
             {dropoff?.address || "Destino"}
           </Text>
@@ -316,7 +402,7 @@ export default function RideCategorySelectScreen() {
 
         {stops.length < 3 && (
           <TouchableOpacity style={styles.addStopBtn} onPress={() => setStopModalOpen(true)} activeOpacity={0.8}>
-            <Plus size={15} color="#02de95" strokeWidth={3} />
+            <Plus size={15} color="#059669" strokeWidth={3} />
             <Text style={styles.addStopText}>Adicionar parada</Text>
           </TouchableOpacity>
         )}
@@ -326,7 +412,7 @@ export default function RideCategorySelectScreen() {
       <Text style={styles.sectionTitle}>Escolha sua categoria</Text>
       {loading ? (
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-          <ActivityIndicator color="#02de95" size="large" />
+          <ActivityIndicator color="#059669" size="large" />
           <Text style={styles.loadingText}>Calculando preços...</Text>
         </View>
       ) : (
@@ -341,10 +427,10 @@ export default function RideCategorySelectScreen() {
                 style={[styles.catCard, active && styles.catCardActive]}
               >
                 <View style={[styles.catIcon, active && styles.catIconActive]}>
-                  <MaterialIcons
+                  <Icon
                     name={cat.vehicleType === "motorcycle" ? "two-wheeler" : "directions-car"}
                     size={26}
-                    color={active ? "#091A2F" : "#02de95"}
+                    color={active ? "#FFFFFF" : "#64748B"}
                   />
                 </View>
                 <View style={{ flex: 1 }}>
@@ -353,7 +439,7 @@ export default function RideCategorySelectScreen() {
                     {cat.description}
                   </Text>
                   <View style={styles.catMetaRow}>
-                    <Users size={11} color="rgba(255,255,255,0.45)" />
+                    <Users size={11} color="#64748B" />
                     <Text style={styles.catMeta}>{cat.maxPassengers}</Text>
                     {cat.available === false ? (
                       <Text style={styles.catUnavailable}>• Sem motoristas perto</Text>
@@ -368,7 +454,7 @@ export default function RideCategorySelectScreen() {
                   <Text style={styles.catPrice}>{formatBRL(cat.pricing.total)}</Text>
                   {active && (
                     <View style={styles.catCheck}>
-                      <Check size={13} color="#091A2F" strokeWidth={3.5} />
+                      <Check size={13} color="#FFFFFF" strokeWidth={3.5} />
                     </View>
                   )}
                 </View>
@@ -389,36 +475,64 @@ export default function RideCategorySelectScreen() {
           <Text style={styles.confirmText}>
             {selected ? `Continuar • ${formatBRL(selected.pricing.total)}` : "Selecione uma categoria"}
           </Text>
-          <MaterialIcons name="arrow-forward" size={20} color="#091A2F" />
+          <Icon name="arrow-forward" size={20} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
 
       {/* Modal: adicionar parada */}
       <Modal visible={stopModalOpen} transparent animationType="slide" onRequestClose={() => setStopModalOpen(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalSheet, { paddingBottom: Math.max(insets.bottom, 16) + 8 }]}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Adicionar parada</Text>
-              <TouchableOpacity onPress={() => setStopModalOpen(false)} style={styles.modalClose}>
-                <X size={20} color="rgba(255,255,255,0.7)" />
-              </TouchableOpacity>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalSheet, { paddingBottom: Math.max(insets.bottom, 16) + 8 }]}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Adicionar parada</Text>
+                <TouchableOpacity onPress={() => setStopModalOpen(false)} style={styles.modalClose}>
+                  <X size={20} color="#475569" />
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.modalHint}>A parada entra no trajeto e recalcula o preço.</Text>
+              <AddressAutocomplete
+                query={stopQuery}
+                setQuery={setStopQuery}
+                placeholder="Buscar endereço da parada..."
+                onSelect={(details) => handleAddStop(details)}
+                theme="light"
+              />
             </View>
-            <Text style={styles.modalHint}>A parada entra no trajeto e recalcula o preço.</Text>
-            <AddressAutocomplete
-              query={stopQuery}
-              setQuery={setStopQuery}
-              placeholder="Buscar endereço da parada..."
-              onSelect={(details) => handleAddStop(details)}
-            />
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#091A2F" },
+  container: { flex: 1, backgroundColor: "#FFFFFF" },
+  header: {
+    height: 56,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#FFFFFF",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2E8F0",
+    paddingHorizontal: 16,
+  },
+  headerBackBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: {
+    color: "#0F172A",
+    fontSize: 16,
+    fontWeight: "800",
+  },
   mapWrap: { height: 240, width: "100%", position: "relative" },
   backBtn: {
     position: "absolute",
@@ -426,16 +540,16 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "rgba(9,26,47,0.85)",
+    backgroundColor: "rgba(255,255,255,0.9)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderColor: "#E2E8F0",
     alignItems: "center",
     justifyContent: "center",
   },
   routePill: {
     position: "absolute",
     right: 16,
-    backgroundColor: "rgba(9,26,47,0.9)",
+    backgroundColor: "rgba(255,255,255,0.95)",
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 100,
@@ -443,28 +557,33 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     borderWidth: 1,
-    borderColor: "rgba(2,222,149,0.25)",
+    borderColor: "#E2E8F0",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 3,
   },
-  routePillText: { color: "#fff", fontSize: 12, fontWeight: "800" },
+  routePillText: { color: "#0F172A", fontSize: 12, fontWeight: "800" },
   addressCard: {
-    backgroundColor: "#11253E",
+    backgroundColor: "#FFFFFF",
     marginHorizontal: 16,
     marginTop: -28,
     borderRadius: 18,
     padding: 14,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderColor: "#E2E8F0",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 8,
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 6,
   },
   addressRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   addressDot: { width: 10, height: 10, borderRadius: 5 },
-  addressText: { flex: 1, color: "#fff", fontSize: 13, fontWeight: "700" },
-  addressStopText: { flex: 1, color: "rgba(255,255,255,0.7)", fontSize: 12, fontWeight: "600" },
-  addressDivider: { height: 1, backgroundColor: "rgba(255,255,255,0.06)", marginVertical: 8, marginLeft: 20 },
+  addressText: { flex: 1, color: "#0F172A", fontSize: 13, fontWeight: "700" },
+  addressStopText: { flex: 1, color: "#334155", fontSize: 12, fontWeight: "600" },
+  addressDivider: { height: 1, backgroundColor: "#F1F5F9", marginVertical: 8, marginLeft: 20 },
   addStopBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -475,26 +594,27 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderStyle: "dashed",
-    borderColor: "rgba(2,222,149,0.6)",
+    borderColor: "#059669",
+    backgroundColor: "#ECFDF5",
   },
-  addStopText: { color: "#02de95", fontSize: 13, fontWeight: "800" },
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  addStopText: { color: "#059669", fontSize: 13, fontWeight: "800" },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(15,23,42,0.3)", justifyContent: "flex-end" },
   modalSheet: {
-    backgroundColor: "#0c1c2f",
+    backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 16,
     paddingTop: 16,
     minHeight: 340,
     borderTopWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: "#E2E8F0",
   },
   modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
-  modalTitle: { color: "#fff", fontSize: 18, fontWeight: "900" },
-  modalClose: { width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(255,255,255,0.06)", alignItems: "center", justifyContent: "center" },
-  modalHint: { color: "rgba(255,255,255,0.5)", fontSize: 12, marginBottom: 14 },
+  modalTitle: { color: "#0F172A", fontSize: 18, fontWeight: "900" },
+  modalClose: { width: 32, height: 32, borderRadius: 16, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center" },
+  modalHint: { color: "#475569", fontSize: 12, marginBottom: 14 },
   sectionTitle: {
-    color: "rgba(255,255,255,0.5)",
+    color: "#475569",
     fontSize: 11,
     fontWeight: "800",
     letterSpacing: 0.8,
@@ -503,35 +623,37 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     marginHorizontal: 16,
   },
-  loadingText: { color: "rgba(255,255,255,0.6)", marginTop: 10, fontSize: 13 },
+  loadingText: { color: "#64748B", marginTop: 10, fontSize: 13 },
   catCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    backgroundColor: "#11253E",
+    backgroundColor: "#FFFFFF",
     borderRadius: 18,
     padding: 14,
     marginBottom: 10,
-    borderWidth: 2,
-    borderColor: "transparent",
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
   },
-  catCardActive: { borderColor: "#02de95", backgroundColor: "rgba(2,222,149,0.08)" },
+  catCardActive: { borderColor: "#02de95", backgroundColor: "rgba(2,222,149,0.06)" },
   catIcon: {
     width: 48,
     height: 48,
     borderRadius: 14,
-    backgroundColor: "rgba(2,222,149,0.12)",
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
     alignItems: "center",
     justifyContent: "center",
   },
-  catIconActive: { backgroundColor: "#02de95" },
-  catLabel: { color: "#fff", fontSize: 15, fontWeight: "900" },
-  catDesc: { color: "rgba(255,255,255,0.5)", fontSize: 12, marginTop: 1 },
+  catIconActive: { backgroundColor: "#02de95", borderColor: "#02de95" },
+  catLabel: { color: "#0F172A", fontSize: 15, fontWeight: "900" },
+  catDesc: { color: "#475569", fontSize: 12, marginTop: 1 },
   catMetaRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 3 },
-  catMeta: { color: "rgba(255,255,255,0.45)", fontSize: 11, fontWeight: "700" },
-  catAvailable: { color: "#02de95", fontSize: 11, fontWeight: "800" },
-  catUnavailable: { color: "#f59e0b", fontSize: 11, fontWeight: "800" },
-  catPrice: { color: "#02de95", fontSize: 16, fontWeight: "900" },
+  catMeta: { color: "#64748B", fontSize: 11, fontWeight: "700" },
+  catAvailable: { color: "#059669", fontSize: 11, fontWeight: "800" },
+  catUnavailable: { color: "#d97706", fontSize: 11, fontWeight: "800" },
+  catPrice: { color: "#059669", fontSize: 16, fontWeight: "900" },
   catCheck: {
     marginTop: 6,
     width: 20,
@@ -544,9 +666,9 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: 16,
     paddingTop: 12,
-    backgroundColor: "#091A2F",
+    backgroundColor: "#FFFFFF",
     borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.06)",
+    borderTopColor: "#E2E8F0",
   },
   confirmBtn: {
     height: 54,
@@ -558,5 +680,5 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   confirmBtnDisabled: { backgroundColor: "rgba(2,222,149,0.3)" },
-  confirmText: { color: "#091A2F", fontSize: 15, fontWeight: "900" },
+  confirmText: { color: "#0F172A", fontSize: 15, fontWeight: "900" },
 });

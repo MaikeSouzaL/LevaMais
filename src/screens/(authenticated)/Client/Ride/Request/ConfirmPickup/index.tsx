@@ -7,7 +7,7 @@ import {
 } from "react-native";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 import Toast from "react-native-toast-message";
 import { GlobalMap } from "@/components/GlobalMap";
 import MapView, { Marker } from "react-native-maps";
@@ -141,7 +141,7 @@ export default function ConfirmPickupScreen() {
         style={styles.backButton}
         onPress={() => navigation.goBack()}
       >
-        <MaterialIcons name="arrow-back" size={24} color="#fff" />
+        <Icon name="arrow-back" size={24} color="#fff" />
       </TouchableOpacity>
 
       <View style={styles.pinHint}>
@@ -169,7 +169,7 @@ export default function ConfirmPickupScreen() {
             onPress={() => navigation.goBack()}
             style={styles.editButton}
           >
-            <MaterialIcons name="edit" size={20} color={colors.primary[500]} />
+            <Icon name="edit" size={20} color={colors.primary[500]} />
           </TouchableOpacity>
         </View>
         <LoadingButton title="Confirmar local de coleta" onPress={handleConfirm} variant="primary" />

@@ -24,7 +24,7 @@ import {
   type PurposeItem,
   type VehicleType,
 } from "@/services/purposes";
-import { mapIconName } from "@/utils/iconMapper";
+import { getLucideIcon } from "@/utils/iconMapper";
 import rideService from "@/services/ride.service";
 import { useClientCityStore } from "@/context/clientCityStore";
 import {
@@ -296,7 +296,7 @@ export default function ServicePurposeScreen() {
                   id={item.id}
                   title={item.title}
                   subtitle={item.subtitle}
-                  icon={mapIconName(item.icon)}
+                  icon={getLucideIcon(item.icon)}
                   onPress={() => setSelectedPurposeId(item.id)}
                 />
               </TouchableOpacity>

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, ScrollView, ActivityIndicator, TouchableOpacity, Alert, Image, Platform } from "react-native";
 import Toast from "react-native-toast-message";
 import { LinearGradient } from "expo-linear-gradient";
-import { MaterialIcons, FontAwesome5, Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 import { FileText, Truck, AlertCircle, Plus, ArrowLeft, CheckCircle2, Bike, Car, Bus } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useNavigation } from "@react-navigation/native";
@@ -385,14 +385,14 @@ export default function DriverVehicleScreen() {
                       {activeVehicle.documents?.crlvFront ? (
                         <Image source={{ uri: activeVehicle.documents.crlvFront }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
                       ) : (
-                        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}><MaterialIcons name="image-not-supported" size={20} color="rgba(255,255,255,0.2)" /></View>
+                        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}><Icon name="image-not-supported" size={20} color="rgba(255,255,255,0.2)" /></View>
                       )}
                     </View>
                     <View style={{ flex: 1, height: 80, backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 12, overflow: "hidden", borderWidth: 1, borderColor: activeVehicle.documents?.crlvBack ? "rgba(2, 222, 149, 0.3)" : "rgba(255,255,255,0.1)" }}>
                       {activeVehicle.documents?.crlvBack ? (
                         <Image source={{ uri: activeVehicle.documents.crlvBack }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
                       ) : (
-                        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}><MaterialIcons name="image-not-supported" size={20} color="rgba(255,255,255,0.2)" /></View>
+                        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}><Icon name="image-not-supported" size={20} color="rgba(255,255,255,0.2)" /></View>
                       )}
                     </View>
                   </View>
@@ -403,7 +403,7 @@ export default function DriverVehicleScreen() {
                     {activeVehicle.documents?.vehiclePhoto ? (
                       <Image source={{ uri: activeVehicle.documents.vehiclePhoto }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
                     ) : (
-                      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}><MaterialIcons name="image-not-supported" size={20} color="rgba(255,255,255,0.2)" /></View>
+                      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}><Icon name="image-not-supported" size={20} color="rgba(255,255,255,0.2)" /></View>
                     )}
                   </View>
                 </View>
@@ -707,7 +707,7 @@ export default function DriverVehicleScreen() {
                       shadowOpacity: 0.3,
                       shadowRadius: 4,
                     }}>
-                      <Ionicons name="checkmark" size={12} color="#081322" />
+                      <Icon name="checkmark" size={12} color="#081322" />
                     </View>
                   )}
                 </LinearGradient>
@@ -763,7 +763,7 @@ export default function DriverVehicleScreen() {
         <SectionCard style={{ padding: 18, gap: 16 }}>
           <View style={{ gap: 4 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 }}>
-              <Ionicons name="build-outline" size={16} color="#02de95" style={{ opacity: 0.8 }} />
+              <Icon name="build-outline" size={16} color="#02de95" style={{ opacity: 0.8 }} />
               <Text style={{ color: "rgba(255,255,255,0.75)", fontSize: 12, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5 }}>Modelo do Veículo</Text>
             </View>
             <TextField
@@ -776,7 +776,7 @@ export default function DriverVehicleScreen() {
           <View style={{ flexDirection: "row", gap: 14 }}>
             <View style={{ flex: 1.2, gap: 4 }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 }}>
-                <Ionicons name="card-outline" size={16} color="#02de95" style={{ opacity: 0.8 }} />
+                <Icon name="card-outline" size={16} color="#02de95" style={{ opacity: 0.8 }} />
                 <Text style={{ color: "rgba(255,255,255,0.75)", fontSize: 12, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5 }}>Placa</Text>
               </View>
               <TextField
@@ -789,7 +789,7 @@ export default function DriverVehicleScreen() {
 
             <View style={{ flex: 0.8, gap: 4 }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 }}>
-                <Ionicons name="calendar-outline" size={16} color="#02de95" style={{ opacity: 0.8 }} />
+                <Icon name="calendar-outline" size={16} color="#02de95" style={{ opacity: 0.8 }} />
                 <Text style={{ color: "rgba(255,255,255,0.75)", fontSize: 12, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5 }}>Ano</Text>
               </View>
               <TextField
@@ -804,7 +804,7 @@ export default function DriverVehicleScreen() {
 
           <View style={{ gap: 4 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 }}>
-              <Ionicons name="color-palette-outline" size={16} color="#02de95" style={{ opacity: 0.8 }} />
+              <Icon name="color-palette-outline" size={16} color="#02de95" style={{ opacity: 0.8 }} />
               <Text style={{ color: "rgba(255,255,255,0.75)", fontSize: 12, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5 }}>Cor Predominante</Text>
             </View>
             <TextField
@@ -816,7 +816,7 @@ export default function DriverVehicleScreen() {
 
           <View style={{ gap: 4 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 }}>
-              <Ionicons name="document-text-outline" size={16} color="#02de95" style={{ opacity: 0.8 }} />
+              <Icon name="document-text-outline" size={16} color="#02de95" style={{ opacity: 0.8 }} />
               <Text style={{ color: "rgba(255,255,255,0.75)", fontSize: 12, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5 }}>Renavam *</Text>
             </View>
             <TextField

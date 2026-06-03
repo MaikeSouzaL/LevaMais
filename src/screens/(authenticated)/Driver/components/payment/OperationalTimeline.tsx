@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { Animated, Easing, Text, View } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Check } from "lucide-react-native";
 
 const STEPS = [
   { label: "Cliente confirmou proposta", activeDesc: "Oferta aceita e confirmada" },
@@ -102,7 +102,7 @@ export function OperationalTimeline({ activeIndex }: { activeIndex: number }) {
                       borderColor: "rgba(9, 26, 47, 1)",
                     }}
                   >
-                    <MaterialIcons name="check" size={9} color="#091A2F" />
+                    <Check size={9} color="#091A2F" />
                   </View>
                 ) : isActive ? (
                   <View style={{ alignItems: "center", justifyContent: "center" }}>

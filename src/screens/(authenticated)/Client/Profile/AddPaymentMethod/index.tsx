@@ -12,7 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 import Toast from "react-native-toast-message";
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
 import { ClientScreenHeader, LoadingButton } from "../../Shared/components";
@@ -20,7 +20,7 @@ import { addPaymentMethod } from "@/services/auth.service";
 import { ClientStackParamList } from "../../types/navigation";
 
 type CardBrand = "visa" | "mastercard" | "amex";
-type FontAwesomeIconName = React.ComponentProps<typeof FontAwesome5>["name"];
+type FontAwesomeIconName = string;
 const BRAND_ICON_MAP: Record<CardBrand, FontAwesomeIconName> = {
   visa: "cc-visa",
   mastercard: "cc-mastercard",
@@ -109,7 +109,7 @@ export default function AddPaymentMethodScreen() {
           <View style={styles.cardPreview}>
           <View style={styles.cardPreviewHeader}>
             <Text style={styles.cardPreviewLabel}>Cartao</Text>
-            {brand && <FontAwesome5 name={BRAND_ICON_MAP[brand]} size={28} color="#fff" />}
+            {brand && <Icon name={BRAND_ICON_MAP[brand]} size={28} color="#fff" />}
           </View>
             <Text style={styles.cardPreviewNumber}>
               {cardNumber || "•••• •••• •••• ••••"}
@@ -182,7 +182,7 @@ export default function AddPaymentMethodScreen() {
           </View>
 
           <View style={styles.securityNote}>
-            <MaterialIcons name="lock" size={16} color={colors.text.tertiary} />
+            <Icon name="lock" size={16} color={colors.text.tertiary} />
             <Text style={styles.securityNoteText}>
               O cartão fica salvo para uso interno da plataforma. A tokenização final no gateway de pagamento ainda será concluída na integração financeira.
             </Text>

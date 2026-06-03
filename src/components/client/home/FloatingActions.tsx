@@ -2,7 +2,7 @@ import React from "react";
 import { StyleSheet, View, TouchableOpacity, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ShieldAlert, Layers } from "lucide-react-native";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 import { spacing } from "@/theme";
 
 interface FloatingActionsProps {
@@ -53,7 +53,7 @@ export const FloatingActions = ({
         {isCentering ? (
           <ActivityIndicator size="small" color="#02de95" />
         ) : (
-          <MaterialIcons name="my-location" size={24} color="#02de95" />
+          <Icon name="my-location" size={24} color="#02de95" />
         )}
       </TouchableOpacity>
 

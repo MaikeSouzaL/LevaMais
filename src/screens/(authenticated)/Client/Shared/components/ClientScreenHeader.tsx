@@ -1,6 +1,6 @@
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 import { NavigationProp, useNavigation } from "@react-navigation/native";
 import { colors, spacing, fontSize, fontWeight } from "@/theme";
 import { ClientStackParamList } from "../../types/navigation";
@@ -23,7 +23,7 @@ export default function ClientScreenHeader({
       <View style={styles.topRow}>
         {showBack ? (
           <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-            <MaterialIcons name="arrow-back" size={22} color={colors.text.primary} />
+            <Icon name="arrow-back" size={22} color={colors.text.primary} />
           </TouchableOpacity>
         ) : (
           <TouchableOpacity style={styles.backButton} onPress={() => {
@@ -37,7 +37,7 @@ export default function ClientScreenHeader({
               navigation.navigate("Home");
             }
           }}>
-            <MaterialIcons name="menu" size={22} color={colors.text.primary} />
+            <Icon name="menu" size={22} color={colors.text.primary} />
           </TouchableOpacity>
         )}
       </View>

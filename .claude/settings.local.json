@@ -34,7 +34,10 @@
       "Bash(find src/assets -name \"seta*\")",
       "Bash(tee /tmp/tsc_output.txt)",
       "Bash(npm uninstall *)",
-      "Bash(node -e \"require\\('./src/models/RideCategory'\\); require\\('./src/services/ride-pricing.service'\\); require\\('./src/models/Ride'\\); require\\('./src/models/User'\\); require\\('./src/controllers/ride.controller'\\); require\\('./src/routes/ride.routes'\\); console.log\\('OK: todos os módulos carregaram'\\);\")"
+      "Bash(node -e \"require\\('./src/models/RideCategory'\\); require\\('./src/services/ride-pricing.service'\\); require\\('./src/models/Ride'\\); require\\('./src/models/User'\\); require\\('./src/controllers/ride.controller'\\); require\\('./src/routes/ride.routes'\\); console.log\\('OK: todos os módulos carregaram'\\);\")",
+      "Bash(grep -v ':0$')",
+      "Bash(sort -t: -k2 -rn)",
+      "Bash(awk 'END{print NR}' \"src/screens/\\(authenticated\\)/Client/Ride/Request/RideBidSetupScreen/index.tsx\")"
     ]
   },
   "disabledMcpjsonServers": [

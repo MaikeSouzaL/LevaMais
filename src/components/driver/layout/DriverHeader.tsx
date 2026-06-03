@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { MaterialIcons } from '@expo/vector-icons';
+import { Icon } from "@/components/ui/Icon";
 import { driverColors, driverTypography, driverRadius } from '@/theme/driverTheme';
 
 interface DriverHeaderProps {
@@ -43,7 +43,7 @@ export function DriverHeader({
           accessibilityLabel={showBack ? 'Voltar' : 'Abrir menu'}
           accessibilityRole="button"
         >
-          <MaterialIcons
+          <Icon
             name={showBack ? 'arrow-back' : 'menu'}
             size={22}
             color={showBack ? driverColors.text : driverColors.accent}

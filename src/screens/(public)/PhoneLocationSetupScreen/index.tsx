@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, StatusBar } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -115,7 +115,7 @@ export default function PhoneLocationSetupScreen() {
             <Animated.View style={[styles.radarRing, styles.ringMid, animatedStyle2]} />
             <Animated.View style={[styles.radarRing, styles.ringInner, animatedStyle3]} />
             <View style={styles.pinCircle}>
-              <MaterialCommunityIcons name="map-marker" size={80} color={theme.COLORS.BRAND_LIGHT} />
+              <Icon name="map-marker" size={80} color={theme.COLORS.BRAND_LIGHT} />
             </View>
           </View>
         </View>

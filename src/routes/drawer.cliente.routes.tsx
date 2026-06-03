@@ -5,7 +5,7 @@ import {
   DrawerContentScrollView,
   DrawerContentComponentProps,
 } from "@react-navigation/drawer";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 
 import { useAuthStore } from "../context/authStore";
 import ClientStackRoutes from "./client.stack.routes";
@@ -76,7 +76,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
             <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, fontWeight: "600" }}>
               Editar minhas informações
             </Text>
-            <MaterialCommunityIcons name="chevron-right" size={14} color="rgba(255,255,255,0.5)" style={{ marginLeft: 2 }} />
+            <Icon name="chevron-right" size={14} color="rgba(255,255,255,0.5)" style={{ marginLeft: 2 }} />
           </TouchableOpacity>
         </View>
 
@@ -123,7 +123,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
                 }}
                 activeOpacity={0.8}
               >
-                <MaterialCommunityIcons
+                <Icon
                   name={item.icon as any}
                   size={22}
                   color={active ? colors.primary[500] : colors.text.secondary}
@@ -155,7 +155,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
             }}
             activeOpacity={0.8}
           >
-            <MaterialCommunityIcons name="logout" size={22} color={colors.error} />
+            <Icon name="logout" size={22} color={colors.error} />
             <Text style={{ marginLeft: 12, color: colors.error, fontWeight: "700" }}>
               Sair
             </Text>

@@ -11,12 +11,12 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 import { colors } from "@/theme";
 import { ClientScreenHeader } from "../Shared/components";
 import { ClientStackParamList } from "../types/navigation";
 
-type MaterialIconName = React.ComponentProps<typeof MaterialIcons>["name"];
+type MaterialIconName = string;
 
 const EMERGENCY_CONTACTS = [
   { id: "police", label: "Policia", number: "190", icon: "local-police", color: "#3b82f6" },
@@ -80,7 +80,7 @@ export default function SafetyCenterScreen() {
                 activeOpacity={0.7}
               >
                 <View className="w-13 h-13 rounded-full items-center justify-center mb-2" style={{ backgroundColor: item.color + "20" }}>
-                  <MaterialIcons name={item.icon as MaterialIconName} size={28} color={item.color} />
+                  <Icon name={item.icon as MaterialIconName} size={28} color={item.color} />
                 </View>
                 <Text className="text-white text-sm font-bold">{item.label}</Text>
                 <Text className="text-gray-500 text-xs mt-0.5">{item.number}</Text>
@@ -98,18 +98,18 @@ export default function SafetyCenterScreen() {
             activeOpacity={0.7}
           >
             <View className="w-12 h-12 rounded-lg bg-[rgba(2,222,149,0.08)] items-center justify-center mr-3">
-              <MaterialIcons name={feature.icon as MaterialIconName} size={24} color={colors.primary[500]} />
+              <Icon name={feature.icon as MaterialIconName} size={24} color={colors.primary[500]} />
             </View>
             <View className="flex-1">
               <Text className="text-white text-base font-semibold">{feature.label}</Text>
               <Text className="text-gray-500 text-xs mt-0.5">{feature.description}</Text>
             </View>
-            <MaterialIcons name="chevron-right" size={24} color="#555" />
+            <Icon name="chevron-right" size={24} color="#555" />
           </TouchableOpacity>
         ))}
 
         <View className="flex-row bg-[rgba(251,191,36,0.08)] border border-[rgba(251,191,36,0.2)] rounded-lg p-4 mt-6">
-          <MaterialIcons name="lightbulb" size={20} color="#fbbf24" className="mr-3" />
+          <Icon name="lightbulb" size={20} color="#fbbf24" className="mr-3" />
           <Text className="text-[#fbbf24] text-sm flex-1 leading-5">
             Confira sempre a placa e o modelo do veiculo antes de entrar. Nao compartilhe seus dados pessoais com o motorista.
           </Text>

@@ -1,13 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
 import { ClientScreenHeader } from "../../Shared/components";
 import configService, { SupportChannels } from "@/services/config.service";
 
-type MaterialIconName = React.ComponentProps<typeof MaterialIcons>["name"];
+type MaterialIconName = string;
 
 const FAQ = [
   {
@@ -68,7 +68,7 @@ export default function HelpScreen() {
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         <View style={styles.headerCard}>
-          <MaterialIcons name="support-agent" size={48} color={colors.primary[500]} />
+          <Icon name="support-agent" size={48} color={colors.primary[500]} />
           <Text style={styles.title}>Como podemos ajudar?</Text>
           <Text style={styles.subtitle}>Escolha um canal configurado pela plataforma ou consulte o FAQ.</Text>
         </View>
@@ -76,12 +76,12 @@ export default function HelpScreen() {
         <View style={styles.menu}>
           {helpItems.map((item) => (
             <TouchableOpacity key={item.label} style={styles.menuItem} onPress={item.action}>
-              <MaterialIcons name={item.icon as MaterialIconName} size={22} color={colors.text.primary} />
+              <Icon name={item.icon as MaterialIconName} size={22} color={colors.text.primary} />
               <View style={styles.menuText}>
                 <Text style={styles.menuLabel}>{item.label}</Text>
                 <Text style={styles.menuMeta}>{item.subtitle}</Text>
               </View>
-              <MaterialIcons name="chevron-right" size={22} color={colors.text.tertiary} />
+              <Icon name="chevron-right" size={22} color={colors.text.tertiary} />
             </TouchableOpacity>
           ))}
         </View>
@@ -93,7 +93,7 @@ export default function HelpScreen() {
             <View key={item.q} style={styles.faqItem}>
               <TouchableOpacity style={styles.faqHeader} onPress={() => setOpenFaq(opened ? null : index)}>
                 <Text style={styles.faqQuestion}>{item.q}</Text>
-                <MaterialIcons name={opened ? "expand-less" : "expand-more"} size={22} color={colors.text.secondary} />
+                <Icon name={opened ? "expand-less" : "expand-more"} size={22} color={colors.text.secondary} />
               </TouchableOpacity>
               {opened && <Text style={styles.faqAnswer}>{item.a}</Text>}
             </View>

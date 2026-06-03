@@ -11,7 +11,7 @@ import {
   Gesture,
   PanGestureHandlerEventPayload,
 } from "react-native-gesture-handler";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -261,7 +261,7 @@ export const SideSheet = forwardRef<SideSheetMethods, SideSheetProps>(
               ]}
             >
               <View style={styles.handle} />
-              <MaterialIcons
+              <Icon
                 name={side === "left" ? "chevron-right" : "chevron-left"}
                 size={24}
                 color="#02de95"

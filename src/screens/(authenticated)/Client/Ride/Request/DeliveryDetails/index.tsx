@@ -44,11 +44,15 @@ import {
   User,
   Wallet,
   X,
+  Sparkles,
+  CreditCard,
+  QrCode,
 } from "lucide-react-native";
 
 import { ClientStackParamList, DeliveryAddressProfile, DeliveryVehicleType } from "../../../types/navigation";
 import rideService, { CalculatePriceResponse, CreateRideRequest } from "@/services/ride.service";
 import paymentService from "@/services/payment.service";
+import { PaymentMethodsSheet, type PaymentMethod } from "@/components/payment/PaymentMethodsSheet";
 
 /**
  * Converte string de data em português para ISO 8601
@@ -232,7 +236,7 @@ export default function DeliveryDetailsScreen() {
   const [showDepositPix, setShowDepositPix] = useState(false);
   const [showVerificationBenefits, setShowVerificationBenefits] = useState(false);
   const [showExitReason, setShowExitReason] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "card_machine">("cash");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [exitReason, setExitReason] = useState<string | null>(null);
   const [priceData, setPriceData] = useState<CalculatePriceResponse | null>(null);
   const [loadingPricing, setLoadingPricing] = useState(false);
@@ -548,7 +552,8 @@ export default function DeliveryDetailsScreen() {
     const itemType = selectedItemType === "other"
       ? customItemType.trim() || "other"
       : selectedItemType || "standard";
-    const paymentType = paymentMethod === "card_machine" ? "credit_card" : "cash";
+    const paymentType =
+      paymentMethod === "card_machine" ? "credit_card" : paymentMethod === "pix" ? "pix" : "cash";
 
     const payload: CreateRideRequest = {
       serviceType: "delivery",
@@ -1073,10 +1078,18 @@ export default function DeliveryDetailsScreen() {
         </View>
 
         <TouchableOpacity style={styles.paymentRow} activeOpacity={0.8} onPress={() => setShowPaymentMethods(true)}>
-          <View style={styles.cashBadge}>
-            <Wallet size={15} color="#fff" />
+          <View style={[styles.cashBadge, paymentMethod === "pix" ? { backgroundColor: "#02de95" } : paymentMethod === "card_machine" ? { backgroundColor: "#f97316" } : null]}>
+            {paymentMethod === "pix" ? (
+              <QrCode size={15} color="#fff" />
+            ) : paymentMethod === "card_machine" ? (
+              <CreditCard size={15} color="#fff" />
+            ) : (
+              <Wallet size={15} color="#fff" />
+            )}
           </View>
-          <Text style={styles.paymentLabel}>Dinheiro</Text>
+          <Text style={styles.paymentLabel}>
+            {paymentMethod === "pix" ? "Pix" : paymentMethod === "card_machine" ? "Maquininha de cartão" : "Dinheiro"}
+          </Text>
           <View style={styles.paymentSpacer} />
           <Text style={styles.discountText}>Use saldo e poupe R$4,00</Text>
           <ChevronRight size={18} color="#9ca3af" />
@@ -1235,73 +1248,21 @@ export default function DeliveryDetailsScreen() {
         </View>
       )}
 
-      {showPaymentMethods && (
-        <View className="absolute inset-0 z-50 bg-[#f4f4f4]">
-          <View className="flex-row items-center justify-between px-6 pb-4" style={{ paddingTop: topInset }}>
-            <TouchableOpacity className="h-10 w-10 justify-center" onPress={() => setShowPaymentMethods(false)} activeOpacity={0.8}>
-              <ChevronLeft size={28} color="#111827" strokeWidth={2.7} />
-            </TouchableOpacity>
-            <Text className="flex-1 text-[20px] font-black text-[#111827]">Métodos de pagamento</Text>
-            <View className="h-10 w-10" />
-          </View>
-
-          <ScrollView contentContainerStyle={{ paddingHorizontal: 26, paddingBottom: 34 }}>
-            <View className="mb-5 overflow-hidden rounded-[22px] border-2 border-[#02de95] bg-white">
-              <View className="bg-[#02de95] px-4 py-2">
-                <Text className="text-sm font-black text-[#111827]">LevaPay</Text>
-              </View>
-              <View className="flex-row items-center px-4 py-5">
-                <View className="mr-3 h-6 w-[54px] items-center justify-center rounded bg-[#02de95]">
-                  <Text className="text-[9px] font-black text-[#111827]">LevaPay</Text>
-                </View>
-                <View className="flex-1">
-                  <Text className="text-[17px] font-black text-[#111827]">Saldo na LevaPay</Text>
-                  <Text className="mt-2 text-base text-[#9ca3af]">R$0,00</Text>
-                  <Text className="mt-1 text-sm text-[#9ca3af]">Saldo insuficiente</Text>
-                  <View className="mt-1 self-start rounded-md bg-[#2ec66d] px-2 py-1">
-                    <Text className="text-sm font-bold text-white">-R$4,00</Text>
-                  </View>
-                </View>
-                <TouchableOpacity className="rounded-[14px] bg-[#111827] px-4 py-3" onPress={() => { setShowPaymentMethods(false); setShowDepositPix(true); }} activeOpacity={0.9}>
-                  <Text className="text-base font-black text-[#02de95]">Depositar via Pix</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <TouchableOpacity
-              className="mb-5 flex-row items-center rounded-[22px] bg-white px-5 py-5"
-              activeOpacity={0.85}
-              onPress={() => setShowAddCard(true)}
-            >
-              <View className="mr-4 h-7 w-7 items-center justify-center rounded-lg bg-[#f1f2f4]">
-                <Plus size={18} color="#111827" strokeWidth={3} />
-              </View>
-              <Text className="flex-1 text-[17px] font-bold text-[#111827]">Ad. cartão crédito/débito</Text>
-              <ChevronRight size={25} color="#111827" />
-            </TouchableOpacity>
-
-            <View className="rounded-[22px] bg-white px-5 py-4">
-              <TouchableOpacity className="flex-row items-center py-4" onPress={() => setPaymentMethod("cash")} activeOpacity={0.85}>
-                <View className="mr-4 h-6 w-8 items-center justify-center rounded-md bg-[#ffae00]">
-                  <Wallet size={16} color="#fff" />
-                </View>
-                <Text className="flex-1 text-[17px] font-semibold text-[#111827]">Dinheiro</Text>
-                <View className={paymentMethod === "cash" ? "h-6 w-6 rounded-full border-[7px] border-[#111827]" : "h-6 w-6 rounded-full border-2 border-[#d1d5db]"} />
-              </TouchableOpacity>
-              <TouchableOpacity className="flex-row items-center py-4" onPress={() => setPaymentMethod("card_machine")} activeOpacity={0.85}>
-                <View className="mr-4 h-6 w-8 items-center justify-center rounded-md bg-[#ff6b35]">
-                  <Wallet size={16} color="#fff" />
-                </View>
-                <Text className="flex-1 text-[17px] font-semibold text-[#111827]">Maquininha de cartão</Text>
-                <View className={paymentMethod === "card_machine" ? "h-6 w-6 rounded-full border-[7px] border-[#111827]" : "h-6 w-6 rounded-full border-2 border-[#d1d5db]"} />
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
-        </View>
-      )}
+      <PaymentMethodsSheet
+        visible={showPaymentMethods}
+        value={paymentMethod}
+        onChange={setPaymentMethod}
+        onClose={() => setShowPaymentMethods(false)}
+        subtitle="Escolha como pagar sua entrega"
+        onDeposit={() => {
+          setShowPaymentMethods(false);
+          (navigation as any).navigate("Deposit", { onSuccess: () => { /* refresh on return */ } });
+        }}
+        onAddCard={() => setShowAddCard(true)}
+      />
 
       {showDepositPix && (
-        <View className="absolute inset-0 z-50 bg-[#f8f8fa]">
+        <View className="absolute inset-0 z-50 bg-[#f8f8fa]" style={{ elevation: 60, backgroundColor: "#f8f8fa" }}>
           <View className="flex-row items-center justify-between px-6 pb-4" style={{ paddingTop: topInset }}>
             <TouchableOpacity className="h-10 w-10 justify-center" onPress={() => setShowDepositPix(false)} activeOpacity={0.8}>
               <ChevronLeft size={28} color="#111827" strokeWidth={2.7} />
@@ -1355,7 +1316,7 @@ export default function DeliveryDetailsScreen() {
       )}
 
       {showVerificationBenefits && (
-        <View className="absolute inset-0 z-[60] bg-white">
+        <View className="absolute inset-0 z-[60] bg-white" style={{ elevation: 65, backgroundColor: "#ffffff" }}>
           <View className="px-6 pb-4" style={{ paddingTop: topInset }}>
             <TouchableOpacity className="h-10 w-10 justify-center" onPress={() => setShowExitReason(true)} activeOpacity={0.8}>
               <ChevronLeft size={28} color="#111827" strokeWidth={2.7} />

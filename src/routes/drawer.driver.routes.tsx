@@ -5,7 +5,7 @@ import {
   DrawerContentScrollView,
 } from "@react-navigation/drawer";
 import { View, Text, TouchableOpacity, Image } from "react-native";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
 import DriverHomeScreen from "../screens/(authenticated)/Driver/DriverHomeScreen";
@@ -176,7 +176,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
                 borderLeftColor: "#02de95",
               }}
             >
-              <MaterialCommunityIcons
+              <Icon
                 name={item.icon as any}
                 size={22}
                 color={isFocused ? "#02de95" : "rgba(255,255,255,0.75)"}
@@ -214,7 +214,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
             paddingVertical: 12,
           }}
         >
-          <MaterialCommunityIcons name="logout" size={22} color="#ef4444" />
+          <Icon name="logout" size={22} color="#ef4444" />
           <Text style={{ color: "#ef4444", marginLeft: 12, fontWeight: "800" }}>
             Sair
           </Text>

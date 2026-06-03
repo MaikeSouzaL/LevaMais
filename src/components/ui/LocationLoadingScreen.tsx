@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, Image, StyleSheet } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 import { MotiView } from "moti";
 const LogoImg = require("../../assets/Logo/logo.png");
 
@@ -102,7 +102,7 @@ export function LocationLoadingScreen({
             justifyContent: "center",
           }}
         >
-          <MaterialIcons name="my-location" size={32} color={accentColor} />
+          <Icon name="my-location" size={32} color={accentColor} />
         </View>
 
         <View style={{ alignItems: "center", gap: 8 }}>

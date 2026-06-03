@@ -8,7 +8,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
-import { MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 import Toast from "react-native-toast-message";
 
 import citiesService, { City } from "../../../services/cities.service";
@@ -86,7 +86,7 @@ export default function ClientCityScreen() {
         </View>
       ) : cities.length === 0 ? (
         <View className="flex-1 items-center justify-center px-6 gap-2">
-          <MaterialIcons name="location-off" size={64} color="#555" />
+          <Icon name="location-off" size={64} color="#555" />
           <Text className="text-white text-lg font-bold mt-3">Nenhuma cidade disponivel</Text>
           <Text className="text-gray-400 text-sm text-center">
             Cadastre cidades via painel administrativo Leva Web
@@ -113,7 +113,7 @@ export default function ClientCityScreen() {
                 activeOpacity={0.7}
               >
                 <View className="w-12 h-12 rounded-xl bg-[rgba(2,222,149,0.08)] items-center justify-center mr-4">
-                  <MaterialCommunityIcons
+                  <Icon
                     name="city"
                     size={24}
                     color={isSelected ? colors.primary[500] : "#8ea6a3"}
@@ -130,7 +130,7 @@ export default function ClientCityScreen() {
                   <Text className="text-gray-400 text-sm mt-0.5">{item.state}</Text>
                 </View>
                 {isSelected && (
-                  <MaterialIcons
+                  <Icon
                     name="check-circle"
                     size={28}
                     color={colors.primary[500]}

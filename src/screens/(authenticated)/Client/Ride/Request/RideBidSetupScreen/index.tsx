@@ -7,15 +7,24 @@ import {
   ActivityIndicator,
   StatusBar,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import MapView, { Marker, Polyline } from "react-native-maps";
-import { Ionicons } from "@expo/vector-icons";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ShieldCheck,
+  QrCode,
+  Banknote,
+  CreditCard,
+} from "lucide-react-native";
 import Toast from "react-native-toast-message";
 
 import rideService from "@/services/ride.service";
+import { PaymentMethodsSheet, type PaymentMethod } from "@/components/payment/PaymentMethodsSheet";
 
 export default function RideBidSetupScreen({ route, navigation }: any) {
-  const { pickup, dropoff, stops, routeCoordinates, initialDistanceKm, initialDurationMin, rideCategory, presetOffer } = route.params || {};
+  const insets = useSafeAreaInsets();
+  const { pickup, dropoff, stops, routeCoordinates, initialDistanceKm, initialDurationMin, rideCategory, presetOffer, category } = route.params || {};
 
   const initialVehicle: "motorcycle" | "car" =
     route.params?.vehicleType === "motorcycle" ? "motorcycle" : "car";
@@ -23,6 +32,8 @@ export default function RideBidSetupScreen({ route, navigation }: any) {
   const [estimate, setEstimate] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [clientOffer, setClientOffer] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
+  const [showPaymentMethods, setShowPaymentMethods] = useState(false);
   const presetAppliedRef = React.useRef(false);
 
   useEffect(() => {
@@ -32,6 +43,32 @@ export default function RideBidSetupScreen({ route, navigation }: any) {
   const loadEstimate = async () => {
     try {
       setLoading(true);
+
+      // Preço da CATEGORIA já calculado no passo anterior = fonte da verdade.
+      // Evita divergência (ex.: "preço sugerido" diferente do valor da categoria).
+      if (category && typeof category.total === "number" && category.total > 0) {
+        const total = category.total;
+        const est = {
+          suggestedPrice: total,
+          minPrice: Math.max(1, Math.round(total * 0.8 * 100) / 100),
+          maxPrice: Math.round(total * 1.5 * 100) / 100,
+          distanceKm: Number(category.distanceKm ?? initialDistanceKm ?? 0),
+          durationMin: Number(category.durationMin ?? initialDurationMin ?? 0),
+          pricingBreakdown: {
+            baseFare: Number(category.basePrice ?? 0),
+            distancePrice: Number(category.distancePrice ?? 0),
+            total,
+          },
+        };
+        setEstimate(est);
+        if (!presetAppliedRef.current) {
+          presetAppliedRef.current = true;
+          setClientOffer(total.toFixed(2));
+        }
+        return;
+      }
+
+      // Fallback (entrada legada sem categoria): motor antigo de estimativa.
       const result = await rideService.calculateRideEstimate({
         pickup: { latitude: pickup.latitude, longitude: pickup.longitude },
         dropoff: { latitude: dropoff.latitude, longitude: dropoff.longitude },
@@ -40,7 +77,6 @@ export default function RideBidSetupScreen({ route, navigation }: any) {
         duration: initialDurationMin,
       });
       setEstimate(result);
-      // Usa o valor da categoria escolhida na 1ª carga; depois segue o sugerido.
       if (!presetAppliedRef.current && typeof presetOffer === "number" && presetOffer > 0) {
         presetAppliedRef.current = true;
         setClientOffer(presetOffer.toFixed(2));
@@ -78,6 +114,7 @@ export default function RideBidSetupScreen({ route, navigation }: any) {
       rideCategory,
       clientOffer: offer,
       estimate,
+      paymentMethod,
     });
   };
 
@@ -92,78 +129,45 @@ export default function RideBidSetupScreen({ route, navigation }: any) {
 
   if (loading || !estimate) {
     return (
-      <SafeAreaView className="flex-1 bg-[#091A2F] items-center justify-center">
-        <StatusBar barStyle="light-content" backgroundColor="#091A2F" />
+      <SafeAreaView className="flex-1 bg-white items-center justify-center">
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
         <ActivityIndicator size="large" color="#02de95" />
-        <Text className="text-white mt-4 text-base">Calculando estimativa...</Text>
+        <Text className="text-slate-800 mt-4 text-base font-medium">Calculando estimativa...</Text>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-[#091A2F]">
-      <StatusBar barStyle="light-content" backgroundColor="#091A2F" />
+    <SafeAreaView className="flex-1 bg-white">
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       {/* Header */}
-      <View className="flex-row items-center px-5 py-4 border-b border-white/10">
-        <TouchableOpacity onPress={() => navigation.goBack()} className="mr-4">
-          <Ionicons name="arrow-back" size={24} color="#fff" />
+      <View className="flex-row items-center px-5 py-4 border-b border-slate-100 bg-white">
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          className="mr-3 w-10 h-10 rounded-full bg-slate-100 items-center justify-center"
+        >
+          <ChevronLeft size={24} color="#334155" />
         </TouchableOpacity>
-        <Text className="text-white text-xl font-bold flex-1">
+        <Text className="text-slate-800 text-xl font-bold flex-1">
           Configure sua corrida
         </Text>
       </View>
 
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-        {/* Mapa */}
-        <View className="h-64 mx-5 mt-5 rounded-3xl overflow-hidden border border-white/10">
-          <MapView
-            className="flex-1"
-            initialRegion={{
-              latitude: pickup.latitude,
-              longitude: pickup.longitude,
-              latitudeDelta: 0.02,
-              longitudeDelta: 0.02,
-            }}
-          >
-            <Marker
-              coordinate={{
-                latitude: pickup.latitude,
-                longitude: pickup.longitude,
-              }}
-              title="Embarque"
-              description={pickup.address}
-              pinColor="#02de95"
-            />
-            <Marker
-              coordinate={{
-                latitude: dropoff.latitude,
-                longitude: dropoff.longitude,
-              }}
-              title="Desembarque"
-              description={dropoff.address}
-              pinColor="#ef4444"
-            />
-            {routeCoordinates && routeCoordinates.length > 1 && (
-              <Polyline
-                coordinates={routeCoordinates}
-                strokeColor="#02de95"
-                strokeWidth={4}
-              />
-            )}
-          </MapView>
-        </View>
+
 
         {/* Resumo da Rota */}
-        <View className="mx-5 mt-5 bg-[#11253E] rounded-3xl p-5 border border-white/10">
-          <Text className="text-white/60 text-xs font-bold uppercase mb-3">
+        <View className="mx-5 mt-5 bg-white rounded-3xl p-5 border border-slate-100 shadow-sm shadow-slate-200">
+          <Text className="text-slate-400 text-xs font-bold uppercase mb-3">
             Resumo da rota
           </Text>
 
           <View className="flex-row items-start mb-3">
             <View className="w-3 h-3 rounded-full bg-[#02de95] mt-1 mr-3" />
             <View className="flex-1">
-              <Text className="text-white/60 text-xs">Embarque</Text>
-              <Text className="text-white text-sm font-bold" numberOfLines={2}>
+              <Text className="text-slate-500 text-xs">Embarque</Text>
+              <Text className="text-slate-800 text-sm font-bold" numberOfLines={2}>
                 {pickup.address}
               </Text>
             </View>
@@ -172,103 +176,55 @@ export default function RideBidSetupScreen({ route, navigation }: any) {
           <View className="flex-row items-start">
             <View className="w-3 h-3 rounded-full bg-red-500 mt-1 mr-3" />
             <View className="flex-1">
-              <Text className="text-white/60 text-xs">Desembarque</Text>
-              <Text className="text-white text-sm font-bold" numberOfLines={2}>
+              <Text className="text-slate-500 text-xs">Desembarque</Text>
+              <Text className="text-slate-800 text-sm font-bold" numberOfLines={2}>
                 {dropoff.address}
               </Text>
             </View>
           </View>
 
-          <View className="flex-row mt-4 pt-4 border-t border-white/10">
+          <View className="flex-row mt-4 pt-4 border-t border-slate-100">
             <View className="flex-1 items-center">
-              <Text className="text-white/60 text-xs">Distância</Text>
-              <Text className="text-white text-lg font-bold">
+              <Text className="text-slate-500 text-xs">Distância</Text>
+              <Text className="text-slate-800 text-lg font-bold">
                 {estimate.distanceKm.toFixed(1)} km
               </Text>
             </View>
             <View className="flex-1 items-center">
-              <Text className="text-white/60 text-xs">Tempo estimado</Text>
-              <Text className="text-white text-lg font-bold">
+              <Text className="text-slate-500 text-xs">Tempo estimado</Text>
+              <Text className="text-slate-800 text-lg font-bold">
                 {estimate.durationMin} min
               </Text>
             </View>
           </View>
         </View>
 
-        {/* Seleção de Veículo */}
-        <View className="mx-5 mt-5">
-          <Text className="text-white/60 text-xs font-bold uppercase mb-3">
-            Tipo de veículo
-          </Text>
-          <View className="flex-row gap-3">
-            <TouchableOpacity
-              className={`flex-1 bg-[#11253E] rounded-2xl p-4 border-2 ${
-                vehicleType === "motorcycle"
-                  ? "border-[#02de95]"
-                  : "border-transparent"
-              }`}
-              onPress={() => setVehicleType("motorcycle")}
-            >
-              <View className="items-center">
-                <Ionicons
-                  name="bicycle"
-                  size={40}
-                  color={vehicleType === "motorcycle" ? "#02de95" : "#fff"}
-                />
-                <Text className="text-white text-base font-bold mt-2">Moto</Text>
-                <Text className="text-white/60 text-xs text-center mt-1">
-                  Rápido e econômico
-                </Text>
-              </View>
-            </TouchableOpacity>
 
-            <TouchableOpacity
-              className={`flex-1 bg-[#11253E] rounded-2xl p-4 border-2 ${
-                vehicleType === "car"
-                  ? "border-[#02de95]"
-                  : "border-transparent"
-              }`}
-              onPress={() => setVehicleType("car")}
-            >
-              <View className="items-center">
-                <Ionicons
-                  name="car"
-                  size={40}
-                  color={vehicleType === "car" ? "#02de95" : "#fff"}
-                />
-                <Text className="text-white text-base font-bold mt-2">Carro</Text>
-                <Text className="text-white/60 text-xs text-center mt-1">
-                  Conforto e segurança
-                </Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-        </View>
 
         {/* Estimativa de Preço */}
-        <View className="mx-5 mt-5 bg-[#11253E] rounded-3xl p-5 border border-white/10">
-          <Text className="text-white/60 text-xs font-bold uppercase mb-3">
+        <View className="mx-5 mt-5 bg-white rounded-3xl p-5 border border-slate-100 shadow-sm shadow-slate-200">
+          <Text className="text-slate-400 text-xs font-bold uppercase mb-3">
             Preço sugerido
           </Text>
           <View className="items-center">
             <Text className="text-[#02de95] text-4xl font-black">
               R$ {estimate.suggestedPrice.toFixed(2)}
             </Text>
-            <Text className="text-white/60 text-sm mt-2">
+            <Text className="text-slate-500 text-sm mt-2">
               Faixa: R$ {estimate.minPrice.toFixed(2)} - R$ {estimate.maxPrice.toFixed(2)}
             </Text>
           </View>
 
-          <View className="mt-4 pt-4 border-t border-white/10">
+          <View className="mt-4 pt-4 border-t border-slate-100">
             <View className="flex-row justify-between mb-2">
-              <Text className="text-white/60 text-sm">Tarifa base</Text>
-              <Text className="text-white text-sm font-bold">
+              <Text className="text-slate-500 text-sm">Tarifa base</Text>
+              <Text className="text-slate-800 text-sm font-bold">
                 R$ {estimate.pricingBreakdown.baseFare.toFixed(2)}
               </Text>
             </View>
             <View className="flex-row justify-between">
-              <Text className="text-white/60 text-sm">Distância</Text>
-              <Text className="text-white text-sm font-bold">
+              <Text className="text-slate-500 text-sm">Distância</Text>
+              <Text className="text-slate-800 text-sm font-bold">
                 R$ {estimate.pricingBreakdown.distancePrice.toFixed(2)}
               </Text>
             </View>
@@ -276,17 +232,17 @@ export default function RideBidSetupScreen({ route, navigation }: any) {
         </View>
 
         {/* Lance do Cliente */}
-        <View className="mx-5 mt-5 mb-5 bg-[#11253E] rounded-3xl p-5 border-2 border-[#02de95]">
-          <Text className="text-white/60 text-xs font-bold uppercase mb-3">
+        <View className="mx-5 mt-5 mb-5 bg-white rounded-3xl p-5 border-2 border-[#02de95] shadow-sm shadow-[#02de95]/20">
+          <Text className="text-slate-400 text-xs font-bold uppercase mb-3">
             Seu lance
           </Text>
-          <Text className="text-white/40 text-xs mb-3">
+          <Text className="text-slate-500 text-xs mb-3 text-center">
             💡 Lances próximos ao preço sugerido têm mais chances de aceitação
           </Text>
 
           <View className="items-center mb-4">
-            <Text className="text-white/60 text-sm mb-2">R$</Text>
-            <Text className="text-[#02de95] text-5xl font-black">
+            <Text className="text-slate-400 text-sm mb-1">R$</Text>
+            <Text className="text-slate-800 text-5xl font-black">
               {clientOffer}
             </Text>
           </View>
@@ -294,51 +250,91 @@ export default function RideBidSetupScreen({ route, navigation }: any) {
           {/* Botões de ajuste */}
           <View className="flex-row gap-2 mb-3">
             <TouchableOpacity
-              className="flex-1 bg-red-500/20 rounded-xl py-3 items-center border border-red-500/50"
+              className="flex-1 bg-red-50 rounded-xl py-3 items-center border border-red-200"
               onPress={() => adjustOffer(-2)}
             >
-              <Text className="text-red-400 text-sm font-bold">- R$ 2</Text>
+              <Text className="text-red-600 text-sm font-bold">- R$ 2</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              className="flex-1 bg-red-500/20 rounded-xl py-3 items-center border border-red-500/50"
+              className="flex-1 bg-red-50 rounded-xl py-3 items-center border border-red-200"
               onPress={() => adjustOffer(-1)}
             >
-              <Text className="text-red-400 text-sm font-bold">- R$ 1</Text>
+              <Text className="text-red-600 text-sm font-bold">- R$ 1</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              className="flex-1 bg-[#02de95]/20 rounded-xl py-3 items-center border border-[#02de95]/50"
+              className="flex-1 bg-emerald-50 rounded-xl py-3 items-center border border-emerald-200"
               onPress={() => setClientOffer(estimate.suggestedPrice.toFixed(2))}
             >
               <Text className="text-[#02de95] text-sm font-bold">Sugerido</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              className="flex-1 bg-blue-500/20 rounded-xl py-3 items-center border border-blue-500/50"
+              className="flex-1 bg-blue-50 rounded-xl py-3 items-center border border-blue-200"
               onPress={() => adjustOffer(1)}
             >
-              <Text className="text-blue-400 text-sm font-bold">+ R$ 1</Text>
+              <Text className="text-blue-600 text-sm font-bold">+ R$ 1</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              className="flex-1 bg-blue-500/20 rounded-xl py-3 items-center border border-blue-500/50"
+              className="flex-1 bg-blue-50 rounded-xl py-3 items-center border border-blue-200"
               onPress={() => adjustOffer(2)}
             >
-              <Text className="text-blue-400 text-sm font-bold">+ R$ 2</Text>
+              <Text className="text-blue-600 text-sm font-bold">+ R$ 2</Text>
             </TouchableOpacity>
           </View>
         </View>
+
       </ScrollView>
 
-      {/* Botão Continuar */}
-      <View className="px-5 py-5 bg-[#091A2F] border-t border-white/10">
+      {/* Rodapé: igual ao card da tela de detalhes (entrega) */}
+      <View style={{ borderTopWidth: 1, borderTopColor: "#eceff3", backgroundColor: "#fff", paddingHorizontal: 20, paddingTop: 14, paddingBottom: Math.max(insets.bottom, 15) }}>
+        {/* Forma de pagamento */}
         <TouchableOpacity
-          className="bg-[#02de95] rounded-2xl py-4 items-center flex-row justify-center"
-          onPress={handleContinue}
+          style={{ height: 36, flexDirection: "row", alignItems: "center" }}
+          onPress={() => setShowPaymentMethods(true)}
+          activeOpacity={0.8}
         >
-          <Text className="text-[#091A2F] text-lg font-black">
-            ENVIAR LANCE PARA MOTORISTAS
+          <View style={{ marginRight: 8, width: 26, height: 26, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: paymentMethod === "cash" ? "#ffae00" : paymentMethod === "pix" ? "#02de95" : "#ff6b35" }}>
+             {paymentMethod === "cash" ? (
+               <Banknote size={15} color="#fff" />
+             ) : paymentMethod === "pix" ? (
+               <QrCode size={15} color="#fff" />
+             ) : (
+               <CreditCard size={15} color="#fff" />
+             )}
+          </View>
+          <Text style={{ fontSize: 15, fontWeight: "900", color: "#111827" }}>
+             {paymentMethod === "cash" ? "Dinheiro" : paymentMethod === "pix" ? "Pix" : "Maquininha de cartão"}
           </Text>
-          <Ionicons name="arrow-forward" size={24} color="#091A2F" className="ml-2" />
+          <View style={{ flex: 1 }} />
+          <Text style={{ fontSize: 13, fontWeight: "600", color: "#4b5563" }} numberOfLines={1}>Use saldo e poupe R$ 4,00</Text>
+          <ChevronRight size={18} color="#9ca3af" style={{ marginLeft: 4 }} />
         </TouchableOpacity>
+
+        {/* Total + botão */}
+        <View style={{ marginTop: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+          <Text style={{ fontSize: 22, fontWeight: "900", color: "#111827" }}>R$ {clientOffer}</Text>
+          <TouchableOpacity
+            style={{ height: 60, minWidth: 184, borderRadius: 22, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#02de95" }}
+            onPress={handleContinue}
+            activeOpacity={0.9}
+          >
+            <ShieldCheck size={21} color="#111827" />
+            <Text style={{ fontSize: 22, fontWeight: "900", color: "#111827" }}>Enviar lance</Text>
+          </TouchableOpacity>
+        </View>
       </View>
+
+      <PaymentMethodsSheet
+        visible={showPaymentMethods}
+        value={paymentMethod}
+        onChange={setPaymentMethod}
+        onClose={() => setShowPaymentMethods(false)}
+        subtitle="Escolha como pagar sua corrida"
+        onDeposit={() => {
+          setShowPaymentMethods(false);
+          (navigation as any).navigate("Deposit", { onSuccess: () => loadEstimate() });
+        }}
+        onAddCard={() => navigation.navigate("AddPaymentMethod")}
+      />
     </SafeAreaView>
   );
 }

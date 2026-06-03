@@ -2,7 +2,7 @@
 import { ActivityIndicator, ScrollView, Text, View } from "react-native";
 import { useRoute } from "@react-navigation/native";
 import MapView, { Marker, Polyline } from "react-native-maps";
-import { MaterialIcons, Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 import { DriverScreen } from "./components/DriverScreen";
 import { GlobalMap } from "@/components/GlobalMap";
 import MapMarker from "../../../components/MapMarker";
@@ -254,11 +254,11 @@ export default function DriverHistoryRideDetailsScreen() {
         <View style={{ marginTop: 12, backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 16, padding: 14, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" }}>
           <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15, marginBottom: 8 }}>Endereços</Text>
           <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-start", marginBottom: 8 }}>
-            <MaterialIcons name="radio-button-checked" size={12} color="#02de95" style={{ marginTop: 4 }} />
+            <Icon name="radio-button-checked" size={12} color="#02de95" style={{ marginTop: 4 }} />
             <Text style={{ color: "rgba(255,255,255,0.78)", flex: 1 }}>{ride?.pickup?.address || "--"}</Text>
           </View>
           <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
-            <MaterialIcons name="radio-button-checked" size={12} color="#ef4444" style={{ marginTop: 4 }} />
+            <Icon name="radio-button-checked" size={12} color="#ef4444" style={{ marginTop: 4 }} />
             <Text style={{ color: "rgba(255,255,255,0.78)", flex: 1 }}>{ride?.dropoff?.address || "--"}</Text>
           </View>
           {!!ride?.details?.specialInstructions && (
@@ -272,7 +272,7 @@ export default function DriverHistoryRideDetailsScreen() {
                 gap: 8,
               }}
             >
-              <Ionicons name="information-circle-outline" size={16} color="rgba(255,255,255,0.7)" style={{ marginTop: 1 }} />
+              <Icon name="information-circle-outline" size={16} color="rgba(255,255,255,0.7)" style={{ marginTop: 1 }} />
               <Text style={{ color: "rgba(255,255,255,0.7)", flex: 1 }}>{ride.details.specialInstructions}</Text>
             </View>
           )}

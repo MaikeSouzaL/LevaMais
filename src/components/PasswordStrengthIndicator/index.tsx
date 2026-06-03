@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text } from "react-native";
-import { Feather } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 import theme from "../../theme";
 
 interface PasswordStrengthIndicatorProps {
@@ -154,7 +154,7 @@ function RequirementItem({ met, text }: { met: boolean; text: string }) {
           met ? "bg-brand-light" : "border-2 border-gray-600"
         }`}
       >
-        {met && <Feather name="check" size={12} color={theme.COLORS.WHITE} />}
+        {met && <Icon name="check" size={12} color={theme.COLORS.WHITE} />}
       </View>
       <Text className={`text-xs ${met ? "text-gray-300" : "text-gray-500"}`}>
         {text}

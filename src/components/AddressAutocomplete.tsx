@@ -8,7 +8,8 @@ import {
   FlatList,
   Keyboard,
 } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
+import { MapPin } from "lucide-react-native";
 import googlePlacesService, {
   PlaceAutocompleteResult,
   PlaceDetails,
@@ -29,6 +30,7 @@ type AddressAutocompleteProps = {
 
   // Optional styling tweaks
   containerStyle?: any;
+  theme?: "light" | "dark";
 };
 
 export default function AddressAutocomplete(props: AddressAutocompleteProps) {
@@ -42,7 +44,10 @@ export default function AddressAutocomplete(props: AddressAutocompleteProps) {
     debounceMs = 400,
     onSelect,
     containerStyle,
+    theme = "dark",
   } = props;
+
+  const isDark = theme === "dark";
 
   const [results, setResults] = useState<PlaceAutocompleteResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -109,7 +114,7 @@ export default function AddressAutocomplete(props: AddressAutocompleteProps) {
       {!!label && (
         <Text
           style={{
-            color: "#9abcb0",
+            color: isDark ? "#9abcb0" : "#475569",
             fontSize: 13,
             fontWeight: "700",
             marginBottom: 8,
@@ -124,25 +129,25 @@ export default function AddressAutocomplete(props: AddressAutocompleteProps) {
           style={{
             flexDirection: "row",
             alignItems: "center",
-            backgroundColor: "#11253E",
+            backgroundColor: isDark ? "#11253E" : "#F1F5F9",
             borderWidth: 1,
-            borderColor: "rgba(255,255,255,0.08)",
+            borderColor: isDark ? "rgba(255,255,255,0.08)" : "#E2E8F0",
             borderRadius: 12,
             paddingHorizontal: 12,
             height: 48,
           }}
         >
-          <MaterialIcons name="search" size={20} color="#9abcb0" />
+          <Icon name="search" size={20} color={isDark ? "#9abcb0" : "#64748B"} />
 
           <TextInput
             value={query}
             onChangeText={setQuery}
             editable={!disabled}
             placeholder={placeholder}
-            placeholderTextColor="#6b8f8f"
+            placeholderTextColor={isDark ? "#6b8f8f" : "#94A3B8"}
             style={{
               flex: 1,
-              color: "#fff",
+              color: isDark ? "#fff" : "#0F172A",
               fontSize: 15,
               marginLeft: 8,
               paddingVertical: 0,
@@ -155,7 +160,7 @@ export default function AddressAutocomplete(props: AddressAutocompleteProps) {
 
           {!isSearching && query.length > 0 && (
             <TouchableOpacity onPress={handleClear}>
-              <MaterialIcons name="close" size={20} color="#9abcb0" />
+              <Icon name="close" size={20} color={isDark ? "#9abcb0" : "#64748B"} />
             </TouchableOpacity>
           )}
         </View>
@@ -167,12 +172,17 @@ export default function AddressAutocomplete(props: AddressAutocompleteProps) {
               top: 52,
               left: 0,
               right: 0,
-              backgroundColor: "#11253E",
+              backgroundColor: isDark ? "#11253E" : "#FFFFFF",
               borderRadius: 12,
               borderWidth: 1,
-              borderColor: "rgba(255,255,255,0.08)",
+              borderColor: isDark ? "rgba(255,255,255,0.08)" : "#E2E8F0",
               maxHeight: 260,
               overflow: "hidden",
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.15,
+              shadowRadius: 10,
+              elevation: 5,
             }}
           >
             <FlatList
@@ -186,7 +196,7 @@ export default function AddressAutocomplete(props: AddressAutocompleteProps) {
                     paddingHorizontal: 12,
                     paddingVertical: 12,
                     borderBottomWidth: 1,
-                    borderBottomColor: "rgba(255,255,255,0.06)",
+                    borderBottomColor: isDark ? "rgba(255,255,255,0.06)" : "#F1F5F9",
                     flexDirection: "row",
                     gap: 10,
                     alignItems: "center",
@@ -197,22 +207,22 @@ export default function AddressAutocomplete(props: AddressAutocompleteProps) {
                       width: 32,
                       height: 32,
                       borderRadius: 16,
-                      backgroundColor: "rgba(2, 222, 149, 0.12)",
+                      backgroundColor: isDark ? "rgba(2, 222, 149, 0.12)" : "rgba(2, 222, 149, 0.08)",
                       alignItems: "center",
                       justifyContent: "center",
                     }}
                   >
-                    <MaterialIcons
-                      name="location-on"
-                      size={18}
+                    <MapPin
+                      size={16}
                       color="#02de95"
+                      strokeWidth={2.5}
                     />
                   </View>
 
                   <View style={{ flex: 1 }}>
                     <Text
                       style={{
-                        color: "#fff",
+                        color: isDark ? "#fff" : "#0F172A",
                         fontSize: 14,
                         fontWeight: "700",
                       }}
@@ -221,14 +231,14 @@ export default function AddressAutocomplete(props: AddressAutocompleteProps) {
                       {item.mainText}
                     </Text>
                     <Text
-                      style={{ color: "#9abcb0", fontSize: 12, marginTop: 2 }}
+                      style={{ color: isDark ? "#9abcb0" : "#64748B", fontSize: 12, marginTop: 2 }}
                       numberOfLines={1}
                     >
                       {item.secondaryText}
                     </Text>
                   </View>
 
-                  <MaterialIcons name="north-west" size={16} color="#9abcb0" />
+                  <Icon name="north-west" size={16} color={isDark ? "#9abcb0" : "#94A3B8"} />
                 </TouchableOpacity>
               )}
             />

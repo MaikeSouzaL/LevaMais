@@ -5,7 +5,7 @@ import { RouteProp, StackActions, useNavigation, useRoute } from '@react-navigat
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { GlobalMap } from "@/components/GlobalMap";
 import MapView, { Marker, Region } from 'react-native-maps';
-import { MaterialIcons } from '@expo/vector-icons';
+import { Icon } from "@/components/ui/Icon";
 
 // Design System
 import { colors } from '@/theme';
@@ -456,7 +456,7 @@ export default function AddressPickerScreen() {
 
         {/* Pin Fixo no Centro */}
         <View style={styles.centerMarkerContainer} pointerEvents="none">
-            <MaterialIcons name="location-on" size={40} color="#02de95" style={{ marginBottom: 40 }} />
+            <Icon name="location-on" size={40} color="#02de95" style={{ marginBottom: 40 }} />
         </View>
 
         {/* Botão Voltar (Cancelar) */}
@@ -465,7 +465,7 @@ export default function AddressPickerScreen() {
             onPress={() => navigation.goBack()}
             activeOpacity={0.7}
         >
-            <MaterialIcons name="arrow-back" size={24} color="#fff" />
+            <Icon name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
 
         {/* Input de Busca */}
@@ -494,7 +494,7 @@ export default function AddressPickerScreen() {
             
             <View style={styles.addressRow}>
                  <View style={styles.locationIconBg}>
-                     <MaterialIcons name="location-on" size={24} color="#02de95" />
+                     <Icon name="location-on" size={24} color="#02de95" />
                  </View>
                  <View style={styles.addressTexts}>
                      <Text style={styles.addressLabel}>Endereço selecionado</Text>
@@ -509,7 +509,7 @@ export default function AddressPickerScreen() {
                         style={styles.favBtnIcon}
                         activeOpacity={0.7}
                     >
-                        <MaterialIcons name="add" size={28} color="#02de95" />
+                        <Icon name="add" size={28} color="#02de95" />
                     </TouchableOpacity>
                  )}
             </View>

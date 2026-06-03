@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, RefreshControl, ScrollView } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import { Icon } from "@/components/ui/Icon";
 import { useFocusEffect } from '@react-navigation/native';
 import Toast from 'react-native-toast-message';
 import driverService, { DriverBalance } from '@/services/driver.service';
@@ -121,7 +121,7 @@ export function BalanceWidget({
               R$ {balance.balance.toFixed(2)}
             </Text>
           </View>
-          <MaterialIcons
+          <Icon
             name={isCritical ? 'warning' : isLowBalance ? 'info' : 'account-balance-wallet'}
             size={32}
             color={isCritical ? '#ef4444' : isLowBalance ? '#f59e0b' : 'white'}
@@ -131,7 +131,7 @@ export function BalanceWidget({
         {/* Status Indicator */}
         {isCritical && (
           <View className="bg-[#ef4444]/20 rounded-lg p-3 flex-row items-center gap-2">
-            <MaterialIcons name="error" size={18} color="#ef4444" />
+            <Icon name="error" size={18} color="#ef4444" />
             <Text className="text-[#ef4444] font-bold text-xs flex-1">
               Seu saldo acabou. Faça um depósito para continuar.
             </Text>
@@ -140,7 +140,7 @@ export function BalanceWidget({
 
         {isLowBalance && !isCritical && (
           <View className="bg-[#f59e0b]/20 rounded-lg p-3 flex-row items-center gap-2">
-            <MaterialIcons name="warning" size={18} color="#f59e0b" />
+            <Icon name="warning" size={18} color="#f59e0b" />
             <Text className="text-[#f59e0b] font-bold text-xs flex-1">
               Saldo baixo. Considere fazer um depósito.
             </Text>
@@ -171,7 +171,7 @@ export function BalanceWidget({
           disabled={refreshing || localRefreshing}
           className="flex-1 bg-[#02de95] rounded-lg py-3 flex-row items-center justify-center gap-2"
         >
-          <MaterialIcons name="add-circle" size={20} color="#091A2F" />
+          <Icon name="add-circle" size={20} color="#091A2F" />
           <Text className="text-[#091A2F] font-bold">Depositar</Text>
         </TouchableOpacity>
 
@@ -185,7 +185,7 @@ export function BalanceWidget({
               : 'bg-[#0ea5e9]'
           }`}
         >
-          <MaterialIcons name="arrow-downward" size={20} color="white" />
+          <Icon name="arrow-downward" size={20} color="white" />
           <Text className="text-white font-bold">Sacar</Text>
         </TouchableOpacity>
       </View>
@@ -193,7 +193,7 @@ export function BalanceWidget({
       {/* Info Box */}
       <View className="bg-[#0ea5e9]/10 border border-[#0ea5e9]/30 rounded-lg p-4 mt-4">
         <View className="flex-row items-start gap-3">
-          <MaterialIcons name="info" size={18} color="#0ea5e9" />
+          <Icon name="info" size={18} color="#0ea5e9" />
           <View className="flex-1">
             <Text className="text-[#0ea5e9] font-bold text-sm mb-1">Como funciona</Text>
             <Text className="text-[#0ea5e9]/80 text-xs leading-4">

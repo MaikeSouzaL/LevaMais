@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Toast from "react-native-toast-message";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
@@ -303,7 +303,7 @@ export default function SettingsScreen() {
                 {currentCity ? `${currentCity.name} - ${currentCity.state}` : "Selecionar cidade"}
               </Text>
             </View>
-            <MaterialIcons name="chevron-right" size={24} color="#666" />
+            <Icon name="chevron-right" size={24} color="#666" />
           </View>
         </TouchableOpacity>
 

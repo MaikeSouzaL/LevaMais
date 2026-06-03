@@ -8,7 +8,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Toast from "react-native-toast-message";
@@ -216,7 +216,7 @@ export default function PrivacyDataScreen() {
 
       <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, gap: 12 }}>
         <View className="bg-[#0d2838] border border-gray-700 rounded-lg p-4 gap-2">
-          <MaterialIcons name="verified-user" size={28} color={colors.primary[500]} />
+          <Icon name="verified-user" size={28} color={colors.primary[500]} />
           <Text className="text-white font-bold text-base">Seus dados</Text>
           <Text className="text-gray-400 text-sm leading-5">
             Você pode exportar seus dados, revisar seu consentimento e controlar o ciclo de vida da sua conta.
@@ -256,27 +256,27 @@ export default function PrivacyDataScreen() {
         )}
 
         <TouchableOpacity className="flex-row items-center gap-3 bg-[#0d2838] border border-gray-700 rounded-lg p-3" onPress={exportData} disabled={loading}>
-          <MaterialIcons name="download" size={20} color={colors.primary[500]} />
+          <Icon name="download" size={20} color={colors.primary[500]} />
           <Text className="text-white font-semibold text-base">{loading ? "Processando..." : "Exportar meus dados"}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity className="flex-row items-center gap-3 bg-[#0d2838] border border-gray-700 rounded-lg p-3" onPress={handleRefreshConsent} disabled={loading}>
-          <MaterialIcons name="task-alt" size={20} color={colors.primary[500]} />
+          <Icon name="task-alt" size={20} color={colors.primary[500]} />
           <Text className="text-white font-semibold text-base">Atualizar aceite atual</Text>
         </TouchableOpacity>
 
         <TouchableOpacity className="flex-row items-center gap-3 bg-[#0d2838] border border-amber-600 rounded-lg p-3" onPress={handleRevokeConsent} disabled={loading}>
-          <MaterialIcons name="privacy-tip" size={20} color="#fbbf24" />
+          <Icon name="privacy-tip" size={20} color="#fbbf24" />
           <Text className="text-white font-semibold text-base">Revogar consentimento</Text>
         </TouchableOpacity>
 
         <TouchableOpacity className="flex-row items-center gap-3 bg-[#2A1010] border border-red-700 rounded-lg p-3" onPress={handleDeleteAccount} disabled={loading}>
-          <MaterialIcons name="delete-forever" size={20} color="#f87171" />
+          <Icon name="delete-forever" size={20} color="#f87171" />
           <Text className="text-white font-semibold text-base">Excluir minha conta</Text>
         </TouchableOpacity>
 
         <TouchableOpacity className="flex-row items-center gap-3 bg-[#0d2838] border border-gray-700 rounded-lg p-3" onPress={() => navigation.navigate("Settings")}>
-          <MaterialIcons name="settings" size={20} color={colors.primary[500]} />
+          <Icon name="settings" size={20} color={colors.primary[500]} />
           <Text className="text-white font-semibold text-base">Gerenciar preferências de privacidade</Text>
         </TouchableOpacity>
       </ScrollView>

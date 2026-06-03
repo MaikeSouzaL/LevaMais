@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { Text, View, Image, TouchableOpacity, Modal, Dimensions, ActivityIndicator, Alert, Platform } from "react-native";
-import { MaterialIcons, Ionicons, FontAwesome5 } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
 import Toast from "react-native-toast-message";
@@ -208,12 +208,12 @@ export default function DriverDocumentsScreen() {
                 resizeMode="cover"
               />
               <View style={{ position: "absolute", top: 6, right: 6, width: 24, height: 24, borderRadius: 12, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center" }}>
-                <Ionicons name="eye" size={12} color="#fff" />
+                <Icon name="eye" size={12} color="#fff" />
               </View>
             </>
           ) : (
             <View style={{ alignItems: "center", opacity: 0.5 }}>
-              <MaterialIcons name="add-photo-alternate" size={26} color="#02de95" />
+              <Icon name="add-photo-alternate" size={26} color="#02de95" />
               <Text style={{ color: "#02de95", fontSize: 9, fontWeight: "900", marginTop: 4, letterSpacing: 0.5 }}>ENVIAR</Text>
             </View>
           )}
@@ -224,7 +224,7 @@ export default function DriverDocumentsScreen() {
             <Text style={{ color: "#02de95", fontSize: 9, fontWeight: "700", marginTop: 2 }}>Enviando...</Text>
           ) : url ? (
             <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2, gap: 2 }}>
-              <MaterialIcons name="check-circle" size={10} color={isApproved ? "#02de95" : "#f59e0b"} />
+              <Icon name="check-circle" size={10} color={isApproved ? "#02de95" : "#f59e0b"} />
               <Text style={{ color: isApproved ? "#02de95" : "#f59e0b", fontSize: 9, fontWeight: "900" }}>
                 {isApproved ? "APROVADO" : "EM ANÁLISE"}
               </Text>
@@ -248,7 +248,7 @@ export default function DriverDocumentsScreen() {
               Status do Cadastro
             </Text>
             <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4, gap: 6 }}>
-              <MaterialIcons name={statusCfg.icon} size={20} color={statusCfg.color} />
+              <Icon name={statusCfg.icon} size={20} color={statusCfg.color} />
               <Text style={{ color: "#fff", fontWeight: "900", fontSize: 18 }}>
                 {statusCfg.label}
               </Text>
@@ -282,7 +282,7 @@ export default function DriverDocumentsScreen() {
             gap: 8, 
             alignItems: "center" 
           }}>
-            <MaterialIcons name="error" size={20} color="#EF4444" />
+            <Icon name="error" size={20} color="#EF4444" />
             <View style={{ flex: 1 }}>
               <Text style={{ color: "#EF4444", fontSize: 12, fontWeight: "800", textTransform: "uppercase" }}>Motivo da Recusa:</Text>
               <Text style={{ color: "rgba(255, 255, 255, 0.8)", fontSize: 12, fontWeight: "600", marginTop: 2 }}>
@@ -296,7 +296,7 @@ export default function DriverDocumentsScreen() {
       {/* 💳 Grupo 1: Carteira de Habilitação */}
       <View style={{ marginVertical: 12 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10, paddingHorizontal: 4 }}>
-          <FontAwesome5 name="id-card" size={14} color="#02de95" style={{ opacity: 0.8 }} />
+          <Icon name="id-card" size={14} color="#02de95" style={{ opacity: 0.8 }} />
           <Text style={{ color: "rgba(255,255,255,0.7)", fontWeight: "800", fontSize: 13, textTransform: "uppercase", letterSpacing: 0.5 }}>
             Carteira de Motorista (CNH)
           </Text>
@@ -310,7 +310,7 @@ export default function DriverDocumentsScreen() {
       {/* 🛡️ Grupo 3: Identidade e Veículo */}
       <View style={{ marginVertical: 12, marginBottom: 20 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10, paddingHorizontal: 4 }}>
-          <FontAwesome5 name="camera" size={14} color="#02de95" style={{ opacity: 0.8 }} />
+          <Icon name="camera" size={14} color="#02de95" style={{ opacity: 0.8 }} />
           <Text style={{ color: "rgba(255,255,255,0.7)", fontWeight: "800", fontSize: 13, textTransform: "uppercase", letterSpacing: 0.5 }}>
             Reconhecimento Facial
           </Text>
@@ -323,7 +323,7 @@ export default function DriverDocumentsScreen() {
 
       <SectionCard style={{ marginBottom: 30, borderRadius: 16 }}>
         <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
-          <Ionicons name="information-circle-outline" size={20} color="#02de95" style={{ opacity: 0.7 }} />
+          <Icon name="information-circle-outline" size={20} color="#02de95" style={{ opacity: 0.7 }} />
           <Text style={{ flex: 1, color: "rgba(255,255,255,0.45)", fontSize: 11, lineHeight: 16 }}>
             Toque nos itens vazios para carregar fotos nítidas ou toque em miniaturas já enviadas para visualizá-las em tela cheia.
           </Text>
@@ -394,7 +394,7 @@ export default function DriverDocumentsScreen() {
             style={{ position: "absolute", top: 40, right: 20, zIndex: 10, padding: 8, borderRadius: 30, backgroundColor: "rgba(255,255,255,0.1)" }}
             onPress={() => setSelectedImage(null)}
           >
-            <Ionicons name="close" size={28} color="#fff" />
+            <Icon name="close" size={28} color="#fff" />
           </TouchableOpacity>
 
           {selectedImage && (

@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from "react-nati
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
 import { LoadingButton, ClientScreenHeader } from "../../../Shared/components";
 import { formatBRL } from "@/utils/mappers";
@@ -67,7 +67,7 @@ export default function TipDriverScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.heroCard}>
-          <MaterialIcons name="volunteer-activism" size={36} color={colors.primary[500]} />
+          <Icon name="volunteer-activism" size={36} color={colors.primary[500]} />
           <Text style={styles.heroTitle}>Reconheca o bom atendimento</Text>
           <Text style={styles.heroSubtitle}>
             A gorjeta vai 100% para o motorista.

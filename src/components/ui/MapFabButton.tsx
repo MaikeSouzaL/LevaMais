@@ -6,10 +6,10 @@ import {
   View,
   ViewStyle,
 } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 
 export type MapFabButtonProps = {
-  icon: keyof typeof MaterialIcons.glyphMap;
+  icon: string;
   onPress: () => void;
   disabled?: boolean;
   loading?: boolean;
@@ -78,7 +78,7 @@ export function MapFabButton({
         {loading ? (
           <ActivityIndicator size="small" color={iconColor} />
         ) : (
-          <MaterialIcons name={icon} size={iconSize} color={iconColor} />
+          <Icon name={icon} size={iconSize} color={iconColor} />
         )}
       </View>
     </Pressable>

@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 
 export type DriverTopHudProps = {
   driverName?: string | null;
@@ -83,7 +83,7 @@ export function DriverTopHud({
           accessibilityLabel="Notificacoes"
         >
           <View>
-            <MaterialIcons
+            <Icon
               name="notifications"
               size={22}
               color="rgba(255,255,255,0.9)"

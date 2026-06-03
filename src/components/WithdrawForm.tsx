@@ -8,7 +8,7 @@ import {
   ScrollView,
   ViewStyle,
 } from 'react-native';
-import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Icon } from "@/components/ui/Icon";
 import { colors, spacing, fontSize, fontWeight, borderRadius } from '@/theme';
 import { formatBRL } from '@/utils/mappers';
 
@@ -122,25 +122,25 @@ export const WithdrawForm: React.FC<WithdrawFormProps> = ({
     {
       id: 'cpf' as PixKeyType,
       label: 'CPF',
-      icon: <MaterialIcons name="assignment-ind" size={16} color="white" />,
+      icon: <Icon name="assignment-ind" size={16} color="white" />,
       placeholder: '000.000.000-00',
     },
     {
       id: 'email' as PixKeyType,
       label: 'Email',
-      icon: <MaterialIcons name="mail" size={16} color="white" />,
+      icon: <Icon name="mail" size={16} color="white" />,
       placeholder: 'seu@email.com',
     },
     {
       id: 'phone' as PixKeyType,
       label: 'Telefone',
-      icon: <MaterialIcons name="phone" size={16} color="white" />,
+      icon: <Icon name="phone" size={16} color="white" />,
       placeholder: '(11) 99999-9999',
     },
     {
       id: 'random' as PixKeyType,
       label: 'Aleatória',
-      icon: <MaterialIcons name="vpn-key" size={16} color="white" />,
+      icon: <Icon name="vpn-key" size={16} color="white" />,
       placeholder: 'UUID PIX',
     },
   ];
@@ -189,7 +189,7 @@ export const WithdrawForm: React.FC<WithdrawFormProps> = ({
             editable={editable}
           />
           {amount && (
-            <MaterialIcons
+            <Icon
               name={isValidAmount ? 'check-circle' : 'cancel'}
               size={20}
               color={isValidAmount ? '#02de95' : '#ef4444'}
@@ -253,7 +253,7 @@ export const WithdrawForm: React.FC<WithdrawFormProps> = ({
             },
           ]}
         >
-          <MaterialCommunityIcons
+          <Icon
             name="qrcode-scan"
             size={20}
             color="rgba(255,255,255,0.5)"
@@ -268,7 +268,7 @@ export const WithdrawForm: React.FC<WithdrawFormProps> = ({
             editable={editable}
           />
           {pixKey && (
-            <MaterialIcons
+            <Icon
               name={isValidKey ? 'check-circle' : 'cancel'}
               size={20}
               color={isValidKey ? '#02de95' : '#ef4444'}
@@ -289,7 +289,7 @@ export const WithdrawForm: React.FC<WithdrawFormProps> = ({
         )}
 
         <View style={styles.securityInfo}>
-          <MaterialIcons name="info" size={14} color="rgba(255,255,255,0.6)" />
+          <Icon name="info" size={14} color="rgba(255,255,255,0.6)" />
           <Text style={styles.securityText}>
             Verifique se a chave PIX está correta
           </Text>
@@ -302,7 +302,7 @@ export const WithdrawForm: React.FC<WithdrawFormProps> = ({
         onPress={handleSubmit}
         disabled={!canSubmit || !editable}
       >
-        <MaterialIcons name="call-made" size={20} color="white" />
+        <Icon name="call-made" size={20} color="white" />
         <Text style={styles.submitButtonText}>
           Solicitar Saque de {formatBRL(amountNumber)}
         </Text>

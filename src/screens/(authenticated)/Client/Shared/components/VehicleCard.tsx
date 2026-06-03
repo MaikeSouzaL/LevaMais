@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ViewStyle } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import { Icon } from "@/components/ui/Icon";
 import { colors, spacing, borderRadius, fontSize, fontWeight, shadows } from '@/theme';
 import { mapVehicleTypeToEmoji, mapVehicleTypeToName } from '../utils/mappers';
 import type { VehicleType } from '../../types';
@@ -16,7 +16,7 @@ interface VehicleCardProps {
   // Props novas (para compatibilidade com SelectVehicleScreen)
   title?: string;
   description?: string;
-  icon?: keyof typeof MaterialIcons.glyphMap;
+  icon?: string;
   badge?: string;
   badgeColor?: string;
   style?: ViewStyle;
@@ -54,7 +54,7 @@ export default function VehicleCard({
       {/* Icon ou Emoji */}
       {icon ? (
         <View style={styles.iconContainer}>
-          <MaterialIcons name={icon} size={32} color={colors.primary[500]} />
+          <Icon name={icon} size={32} color={colors.primary[500]} />
         </View>
       ) : (
         <Text style={styles.emoji}>{emoji}</Text>

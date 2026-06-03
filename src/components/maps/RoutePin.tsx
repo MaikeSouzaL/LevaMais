@@ -1,6 +1,6 @@
 import React from "react";
 import { View, StyleSheet } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 import { MotiView } from "moti";
 
 /**
@@ -39,7 +39,7 @@ export default function RoutePin({ variant, iconNode }: RoutePinProps) {
   const renderCenter = () => {
     if (iconNode) return iconNode;
     if (config.icon) {
-      return <MaterialIcons name={config.icon as any} size={16} color={config.iconColor} />;
+      return <Icon name={config.icon as any} size={16} color={config.iconColor} />;
     }
     return <View style={[styles.innerDot, { backgroundColor: config.iconColor }]} />;
   };

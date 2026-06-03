@@ -10,7 +10,7 @@ import {
   Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 import Toast from "react-native-toast-message";
 
 import rideService from "@/services/ride.service";
@@ -26,6 +26,7 @@ export default function RideBiddingScreen({ route, navigation }: any) {
     rideCategory,
     clientOffer,
     estimate,
+    paymentMethod,
   } = route.params || {};
 
   const [ride, setRide] = useState<any>(null);
@@ -38,6 +39,7 @@ export default function RideBiddingScreen({ route, navigation }: any) {
 
   useEffect(() => {
     createRide();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -64,6 +66,10 @@ export default function RideBiddingScreen({ route, navigation }: any) {
         dropoff,
         stops,
         routeCoordinates,
+        payment: {
+          // Normaliza para os métodos aceitos pelo backend (cash | card | pix)
+          method: paymentMethod === "card_machine" ? "card" : (paymentMethod || "cash"),
+        },
         pricing: {
           basePrice: estimate.pricingBreakdown.baseFare,
           distancePrice: estimate.pricingBreakdown.distancePrice,
@@ -263,7 +269,7 @@ export default function RideBiddingScreen({ route, navigation }: any) {
       {/* Header */}
       <View className="flex-row items-center px-5 py-4 border-b border-white/10">
         <TouchableOpacity onPress={() => navigation.goBack()} className="mr-4">
-          <Ionicons name="arrow-back" size={24} color="#fff" />
+          <Icon name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         <Text className="text-white text-xl font-bold flex-1">
           Propostas de Motoristas
@@ -301,7 +307,7 @@ export default function RideBiddingScreen({ route, navigation }: any) {
 
           {offers.length === 0 ? (
             <View className="bg-[#11253E] rounded-3xl p-8 items-center border border-white/10">
-              <Ionicons name="time-outline" size={64} color="#ffffff40" />
+              <Icon name="time-outline" size={64} color="#ffffff40" />
               <Text className="text-white/60 text-center mt-4 text-base">
                 Aguardando motoristas enviarem propostas...
               </Text>
@@ -334,7 +340,7 @@ export default function RideBiddingScreen({ route, navigation }: any) {
                       />
                     ) : (
                       <View className="w-16 h-16 rounded-full bg-[#02de95]/20 items-center justify-center border-2 border-[#02de95]">
-                        <Ionicons name="person" size={32} color="#02de95" />
+                        <Icon name="person" size={32} color="#02de95" />
                       </View>
                     )}
                     <View className="flex-1 ml-4">
@@ -342,7 +348,7 @@ export default function RideBiddingScreen({ route, navigation }: any) {
                         {driver.name || "Motorista"}
                       </Text>
                       <View className="flex-row items-center mt-1">
-                        <Ionicons name="star" size={16} color="#FFD700" />
+                        <Icon name="star" size={16} color="#FFD700" />
                         <Text className="text-white/80 text-sm ml-1">
                           {driver.rating?.toFixed(1) || "Novo"}
                         </Text>
@@ -422,7 +428,7 @@ export default function RideBiddingScreen({ route, navigation }: any) {
                       className="bg-red-500/20 rounded-xl px-4 py-3 items-center border border-red-500/50"
                       onPress={() => handleRejectOffer(offer)}
                     >
-                      <Ionicons name="close" size={20} color="#ef4444" />
+                      <Icon name="close" size={20} color="#ef4444" />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -439,7 +445,7 @@ export default function RideBiddingScreen({ route, navigation }: any) {
             <View className="flex-row justify-between items-center mb-4">
               <Text className="text-white text-xl font-bold">Contra-Proposta</Text>
               <TouchableOpacity onPress={() => setShowCounterModal(false)}>
-                <Ionicons name="close" size={28} color="#fff" />
+                <Icon name="close" size={28} color="#fff" />
               </TouchableOpacity>
             </View>
 

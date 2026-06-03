@@ -1,7 +1,7 @@
 import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 
 export function DriverHeader({
   title,
@@ -55,7 +55,7 @@ export function DriverHeader({
             justifyContent: "center",
           }}
         >
-          <MaterialIcons 
+          <Icon 
             name={canGoBack ? "arrow-back" : "menu"} 
             size={22} 
             color={canGoBack ? "#fff" : "#02de95"} 

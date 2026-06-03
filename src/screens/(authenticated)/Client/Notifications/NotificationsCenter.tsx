@@ -9,7 +9,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 import { colors } from "@/theme";
 import { ClientScreenHeader, EmptyState } from "../Shared/components";
 import { getNotifications } from "@/services/auth.service";
@@ -24,7 +24,7 @@ type NotificationItem = {
   read: boolean;
 };
 
-type MaterialIconName = React.ComponentProps<typeof MaterialIcons>["name"];
+type MaterialIconName = string;
 
 const NOTIF_ICONS: Record<NotificationItem["type"], MaterialIconName> = {
   ride: "local-shipping",
@@ -99,7 +99,7 @@ export default function NotificationsCenterScreen() {
               <View className={`w-11 h-11 rounded-lg items-center justify-center mr-3 ${
                 !item.read ? "bg-[rgba(2,222,149,0.1)]" : "bg-white/5"
               }`}>
-                <MaterialIcons
+                <Icon
                   name={NOTIF_ICONS[item.type]}
                   size={22}
                   color={!item.read ? colors.primary[500] : "#666"}

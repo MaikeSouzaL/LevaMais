@@ -7,7 +7,7 @@ import {
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { MaterialCommunityIcons, Feather } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 import * as Device from "expo-device";
 import Constants from "expo-constants";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -149,7 +149,7 @@ export default function NotificationPermissionScreen() {
             className="w-32 h-32 rounded-full items-center justify-center mb-6"
             style={{ backgroundColor: `${theme.COLORS.BRAND_LIGHT}20` }}
           >
-            <MaterialCommunityIcons
+            <Icon
               name="bell-ring"
               size={64}
               color={theme.COLORS.BRAND_LIGHT}
@@ -172,7 +172,7 @@ export default function NotificationPermissionScreen() {
               className="w-12 h-12 rounded-full items-center justify-center mr-4"
               style={{ backgroundColor: theme.COLORS.SURFACE_PRIMARY }}
             >
-              <MaterialCommunityIcons
+              <Icon
                 name="check-circle"
                 size={24}
                 color={theme.COLORS.BRAND_LIGHT}
@@ -193,7 +193,7 @@ export default function NotificationPermissionScreen() {
               className="w-12 h-12 rounded-full items-center justify-center mr-4"
               style={{ backgroundColor: theme.COLORS.SURFACE_PRIMARY }}
             >
-              <MaterialCommunityIcons
+              <Icon
                 name="message-alert"
                 size={24}
                 color={theme.COLORS.BRAND_LIGHT}
@@ -214,7 +214,7 @@ export default function NotificationPermissionScreen() {
               className="w-12 h-12 rounded-full items-center justify-center mr-4"
               style={{ backgroundColor: theme.COLORS.SURFACE_PRIMARY }}
             >
-              <MaterialCommunityIcons
+              <Icon
                 name="shield-check"
                 size={24}
                 color={theme.COLORS.BRAND_LIGHT}
@@ -235,7 +235,7 @@ export default function NotificationPermissionScreen() {
           className="flex-row items-center p-4 rounded-xl mb-8"
           style={{ backgroundColor: theme.COLORS.SURFACE_PRIMARY }}
         >
-          <Feather
+          <Icon
             name="lock"
             size={20}
             color={theme.COLORS.BRAND_LIGHT}

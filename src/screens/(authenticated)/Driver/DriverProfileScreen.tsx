@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { TouchableOpacity, View, Text, Image, ActivityIndicator, ScrollView, StyleSheet } from 'react-native';
 import Toast from 'react-native-toast-message';
-import { MaterialIcons, Ionicons } from '@expo/vector-icons';
+import { Icon } from "@/components/ui/Icon";
 import { useNavigation } from '@react-navigation/native';
 import { MotiView } from 'moti';
 import { Star, Car, Calendar, Camera, ChevronRight, ShieldCheck, Edit3 } from 'lucide-react-native';
@@ -123,7 +123,7 @@ export default function DriverProfileScreen() {
           ) : profilePhoto ? (
             <Image source={{ uri: profilePhoto }} style={styles.avatarImage} />
           ) : (
-            <MaterialIcons name="person" size={56} color={driverColors.textMuted} />
+            <Icon name="person" size={56} color={driverColors.textMuted} />
           )}
           <View style={styles.cameraBadge}>
             <Camera size={13} color={driverColors.bg} />
@@ -169,9 +169,9 @@ export default function DriverProfileScreen() {
         {/* Informações Pessoais */}
         <GlassCard variant="default" padding="md" onPress={() => toggleSection('personal')}>
           <View style={sectionHeader}>
-            <Ionicons name="person-circle-outline" size={20} color={driverColors.accent} />
+            <Icon name="person-circle-outline" size={20} color={driverColors.accent} />
             <Text style={sectionTitle}>Informações Pessoais</Text>
-            <MaterialIcons name={expandedSection === 'personal' ? 'expand-less' : 'expand-more'} size={24} color={driverColors.textMuted} />
+            <Icon name={expandedSection === 'personal' ? 'expand-less' : 'expand-more'} size={24} color={driverColors.textMuted} />
           </View>
           {expandedSection === 'personal' && (
             <MotiView from={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} style={{ marginTop: 12, gap: 10 }}>
@@ -185,13 +185,13 @@ export default function DriverProfileScreen() {
         {/* Documentos */}
         <GlassCard variant="default" padding="md" onPress={() => navigation.navigate('DriverDocuments')}>
           <View style={sectionHeader}>
-            <Ionicons name="document-text-outline" size={20} color={driverColors.accent} />
+            <Icon name="document-text-outline" size={20} color={driverColors.accent} />
             <Text style={sectionTitle}>Documentos</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Text style={{ color: isVerified ? driverColors.accent : driverColors.warning, fontSize: 11, fontWeight: '700' }}>
                 {isVerified ? 'Verificado' : 'Pendente'}
               </Text>
-              <MaterialIcons name="chevron-right" size={22} color={driverColors.textMuted} />
+              <Icon name="chevron-right" size={22} color={driverColors.textMuted} />
             </View>
           </View>
         </GlassCard>
@@ -199,27 +199,27 @@ export default function DriverProfileScreen() {
         {/* Veículos */}
         <GlassCard variant="default" padding="md" onPress={() => navigation.navigate('DriverVehicle')}>
           <View style={sectionHeader}>
-            <Ionicons name="car-outline" size={20} color={driverColors.accent} />
+            <Icon name="car-outline" size={20} color={driverColors.accent} />
             <Text style={sectionTitle}>Veículos</Text>
-            <MaterialIcons name="chevron-right" size={22} color={driverColors.textMuted} />
+            <Icon name="chevron-right" size={22} color={driverColors.textMuted} />
           </View>
         </GlassCard>
 
         {/* Pagamentos e Conta */}
         <GlassCard variant="default" padding="md" onPress={() => navigation.navigate('DriverPayouts')}>
           <View style={sectionHeader}>
-            <Ionicons name="wallet-outline" size={20} color={driverColors.accent} />
+            <Icon name="wallet-outline" size={20} color={driverColors.accent} />
             <Text style={sectionTitle}>Pagamentos e Conta</Text>
-            <MaterialIcons name="chevron-right" size={22} color={driverColors.textMuted} />
+            <Icon name="chevron-right" size={22} color={driverColors.textMuted} />
           </View>
         </GlassCard>
 
         {/* Preferências */}
         <GlassCard variant="default" padding="md" onPress={() => navigation.navigate('DriverWorkPreferences')}>
           <View style={sectionHeader}>
-            <Ionicons name="options-outline" size={20} color={driverColors.accent} />
+            <Icon name="options-outline" size={20} color={driverColors.accent} />
             <Text style={sectionTitle}>Preferências de Trabalho</Text>
-            <MaterialIcons name="chevron-right" size={22} color={driverColors.textMuted} />
+            <Icon name="chevron-right" size={22} color={driverColors.textMuted} />
           </View>
         </GlassCard>
 
@@ -228,7 +228,7 @@ export default function DriverProfileScreen() {
           <View style={sectionHeader}>
             <Star size={18} color={driverColors.accent} />
             <Text style={sectionTitle}>Avaliações ({totalRatings})</Text>
-            <MaterialIcons name="chevron-right" size={22} color={driverColors.textMuted} />
+            <Icon name="chevron-right" size={22} color={driverColors.textMuted} />
           </View>
         </GlassCard>
       </View>

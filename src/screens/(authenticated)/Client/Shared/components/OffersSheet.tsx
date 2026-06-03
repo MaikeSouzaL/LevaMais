@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Icon } from "@/components/ui/Icon";
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '@/theme';
 import { formatBRL } from '../utils/formatters';
 import {
@@ -94,7 +94,7 @@ export default function OffersSheet({
                 </View>
 
                 {isSelected && (
-                  <MaterialCommunityIcons
+                  <Icon
                     name="check-circle"
                     size={24}
                     color={colors.primary[500]}

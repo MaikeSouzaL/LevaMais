@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 import Toast from "react-native-toast-message";
 
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
@@ -292,7 +292,7 @@ export default function PaymentScreenEnhanced() {
             <Text style={styles.sectionTitle}>Cupom Promocional</Text>
             {appliedPromo ? (
               <View style={styles.promoApplied}>
-                <MaterialIcons name="check-circle" size={20} color="#02de95" />
+                <Icon name="check-circle" size={20} color="#02de95" />
                 <View style={styles.promoInfo}>
                   <Text style={styles.promoCode}>{appliedPromo.code}</Text>
                   <Text style={styles.promoDescription}>
@@ -300,13 +300,13 @@ export default function PaymentScreenEnhanced() {
                   </Text>
                 </View>
                 <TouchableOpacity onPress={handleRemovePromo}>
-                  <MaterialIcons name="close" size={20} color="rgba(255,255,255,0.5)" />
+                  <Icon name="close" size={20} color="rgba(255,255,255,0.5)" />
                 </TouchableOpacity>
               </View>
             ) : (
               <View style={styles.promoInput}>
                 <View style={styles.inputWrapper}>
-                  <MaterialIcons
+                  <Icon
                     name="local-offer"
                     size={20}
                     color="rgba(255,255,255,0.5)"
@@ -362,7 +362,7 @@ export default function PaymentScreenEnhanced() {
           {paymentForm.method === "pix" && (
             <View style={styles.section}>
               <View style={styles.pixCard}>
-                <MaterialIcons name="qr-code" size={48} color="#32BCAD" />
+                <Icon name="qr-code" size={48} color="#32BCAD" />
                 <Text style={styles.pixTitle}>Pague via PIX</Text>
                 <Text style={styles.pixDescription}>
                   Informe a chave PIX para vincular este pagamento antes de solicitar o motorista.
@@ -382,7 +382,7 @@ export default function PaymentScreenEnhanced() {
           {paymentForm.method === "cash" && (
             <View style={styles.section}>
               <View style={styles.cashCard}>
-                <MaterialIcons name="money" size={48} color="#85bb65" />
+                <Icon name="money" size={48} color="#85bb65" />
                 <Text style={styles.cashTitle}>Pagamento em Dinheiro</Text>
                 <Text style={styles.cashDescription}>
                   Pague {formatBRL(finalAmount)} diretamente ao motorista
@@ -393,7 +393,7 @@ export default function PaymentScreenEnhanced() {
 
           {paymentForm.error && (
             <View style={styles.errorBox}>
-              <MaterialIcons name="error-outline" size={20} color="#ef4444" />
+              <Icon name="error-outline" size={20} color="#ef4444" />
               <Text style={styles.errorText}>{paymentForm.error}</Text>
             </View>
           )}

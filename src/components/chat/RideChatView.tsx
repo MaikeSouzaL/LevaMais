@@ -12,7 +12,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 import { ArrowLeft, Send, MessageCircle, User } from "lucide-react-native";
 
 export type RideChatItem = {
@@ -26,7 +26,7 @@ type RideChatViewProps = {
   title: string;
   subtitle?: string;
   peerName: string;
-  peerIcon?: keyof typeof MaterialIcons.glyphMap;
+  peerIcon?: string;
   peerAvatarUrl?: string;
   online?: boolean;
   messages: RideChatItem[];

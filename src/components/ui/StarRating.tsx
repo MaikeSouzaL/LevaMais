@@ -1,6 +1,6 @@
 import React from "react";
 import { View, TouchableOpacity } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Star } from "lucide-react-native";
 
 export type StarRatingProps = {
   value: number;
@@ -26,10 +26,10 @@ export default function StarRating(props: StarRatingProps) {
             disabled={props.disabled || !props.onChange}
             onPress={() => props.onChange?.(i)}
           >
-            <MaterialIcons
-              name={filled ? "star" : "star-border"}
+            <Star
               size={size}
               color={color}
+              fill={filled ? color : "transparent"}
             />
           </TouchableOpacity>
         );

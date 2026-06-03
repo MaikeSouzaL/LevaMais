@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from "react-nati
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { RouteProp, useRoute, useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
 import { LoadingButton, EmptyState } from "../../../Shared/components";
@@ -35,8 +35,8 @@ type FinalOrderSummaryData = {
 
 type Params = { FinalOrderSummary: { data: FinalOrderSummaryData } };
 
-type MaterialIconName = React.ComponentProps<typeof MaterialIcons>["name"];
-type MaterialCommunityIconName = React.ComponentProps<typeof MaterialCommunityIcons>["name"];
+type MaterialIconName = string;
+type MaterialCommunityIconName = string;
 
 const VEHICLE_META: Record<
   string,
@@ -96,11 +96,11 @@ export default function OrderSummaryScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
-          <MaterialIcons name="arrow-back" size={24} color={colors.text.primary} />
+          <Icon name="arrow-back" size={24} color={colors.text.primary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Resumo do pedido</Text>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
-          <MaterialIcons name="edit" size={20} color={colors.primary[500]} />
+          <Icon name="edit" size={20} color={colors.primary[500]} />
         </TouchableOpacity>
       </View>
 
@@ -121,7 +121,7 @@ export default function OrderSummaryScreen() {
             <View style={styles.addressDivider} />
 
             <View style={styles.addressRow}>
-              <MaterialIcons name="location-on" size={14} color="#ff6b6b" />
+              <Icon name="location-on" size={14} color="#ff6b6b" />
               <Text style={styles.addressLabel}>Destino</Text>
             </View>
             <Text style={styles.addressText}>{data.dropoffAddress}</Text>
@@ -132,19 +132,11 @@ export default function OrderSummaryScreen() {
           <Text style={styles.sectionTitle}>Servico selecionado</Text>
           <View style={styles.serviceCard}>
               <View style={styles.vehicleIconBg}>
-              {vehicle.iconLib === "MaterialCommunityIcons" ? (
-                <MaterialCommunityIcons
-                  name={vehicle.icon as MaterialCommunityIconName}
-                  size={30}
-                  color={colors.primary[500]}
-                />
-              ) : (
-                <MaterialIcons
-                  name={vehicle.icon as MaterialIconName}
-                  size={30}
-                  color={colors.primary[500]}
-                />
-              )}
+              <Icon
+                name={vehicle.icon}
+                size={30}
+                color={colors.primary[500]}
+              />
             </View>
             <View style={{ flex: 1, marginLeft: spacing.lg }}>
               <Text style={styles.serviceName}>

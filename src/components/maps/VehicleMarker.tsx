@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { View, StyleSheet, Image } from "react-native";
 import { MotiView } from "moti";
-import { FontAwesome5 } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 
 export type VehicleType = "motorcycle" | "car" | "van" | "truck" | "moto" | "carro";
 
@@ -71,7 +71,7 @@ export const VehicleMarker = ({ type, isOnline = true, avatarUrl }: VehicleMarke
             onError={() => setImageError(true)}
           />
         ) : (
-          <FontAwesome5
+          <Icon
             name={config.name as any}
             size={config.size}
             color="#091A2F"

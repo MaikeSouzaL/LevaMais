@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { Animated, Easing, Text, View } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Shield } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 
 export function SecureTransactionBadge() {
@@ -77,7 +77,7 @@ export function SecureTransactionBadge() {
               borderColor: "rgba(34,211,238,0.3)",
             }}
           >
-            <MaterialIcons name="shield" size={16} color="#22d3ee" />
+            <Shield size={16} color="#22d3ee" />
           </View>
         </Animated.View>
 

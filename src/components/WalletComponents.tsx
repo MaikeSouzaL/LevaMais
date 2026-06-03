@@ -7,7 +7,7 @@ import {
   ViewStyle,
   TouchableOpacity,
 } from 'react-native';
-import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Icon } from "@/components/ui/Icon";
 import { colors, spacing, fontSize, fontWeight, borderRadius } from '@/theme';
 import { formatBRL } from '@/utils/mappers';
 import { format } from 'date-fns';
@@ -35,15 +35,15 @@ interface TransactionHistoryProps {
 const getTransactionIcon = (type: WalletTransaction['type']) => {
   switch (type) {
     case 'topup':
-      return <MaterialIcons name="add-circle" size={20} color="#02de95" />;
+      return <Icon name="add-circle" size={20} color="#02de95" />;
     case 'ride_payment':
-      return <MaterialCommunityIcons name="car" size={20} color="#ef4444" />;
+      return <Icon name="car" size={20} color="#ef4444" />;
     case 'refund':
-      return <MaterialIcons name="account-balance-wallet" size={20} color="#fbbf24" />;
+      return <Icon name="account-balance-wallet" size={20} color="#fbbf24" />;
     case 'adjustment':
-      return <MaterialIcons name="tune" size={20} color="#60a5fa" />;
+      return <Icon name="tune" size={20} color="#60a5fa" />;
     default:
-      return <MaterialIcons name="help" size={20} color="#999" />;
+      return <Icon name="help" size={20} color="#999" />;
   }
 };
 
@@ -124,7 +124,7 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
   if (transactions.length === 0 && !loading) {
     return (
       <View style={[styles.emptyContainer, style]}>
-        <MaterialIcons name="history" size={48} color="rgba(255,255,255,0.3)" />
+        <Icon name="history" size={48} color="rgba(255,255,255,0.3)" />
         <Text style={styles.emptyTitle}>Sem transações</Text>
         <Text style={styles.emptyDescription}>
           Suas transações aparecerão aqui
@@ -175,7 +175,7 @@ export const WalletBalanceCard: React.FC<WalletBalanceCardProps> = ({
           style={[styles.actionButton, styles.topupButton]}
           onPress={onTopupPress}
         >
-          <MaterialIcons name="add-circle" size={20} color="white" />
+          <Icon name="add-circle" size={20} color="white" />
           <Text style={styles.actionButtonText}>Recarga</Text>
         </TouchableOpacity>
 
@@ -183,7 +183,7 @@ export const WalletBalanceCard: React.FC<WalletBalanceCardProps> = ({
           style={[styles.actionButton, styles.withdrawButton]}
           onPress={onWithdrawPress}
         >
-          <MaterialIcons name="call-made" size={20} color="white" />
+          <Icon name="call-made" size={20} color="white" />
           <Text style={styles.actionButtonText}>Sacar</Text>
         </TouchableOpacity>
       </View>

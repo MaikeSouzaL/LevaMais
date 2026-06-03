@@ -5,14 +5,14 @@
 
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ViewStyle } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import { type LucideIcon, ChevronRight } from 'lucide-react-native';
 import { colors, spacing, borderRadius, fontSize, fontWeight, shadows } from '@/theme';
 
 interface PurposeCardProps {
   id: string;
   title: string;
   subtitle: string;
-  icon: keyof typeof MaterialIcons.glyphMap;
+  icon: LucideIcon;
   onPress: () => void;
   style?: ViewStyle;
 }
@@ -20,7 +20,7 @@ interface PurposeCardProps {
 export default function PurposeCard({
   title,
   subtitle,
-  icon,
+  icon: Icon,
   onPress,
   style,
 }: PurposeCardProps) {
@@ -33,7 +33,7 @@ export default function PurposeCard({
       <View style={styles.content}>
         {/* Icon */}
         <View style={styles.iconContainer}>
-          <MaterialIcons name={icon} size={28} color={colors.primary[500]} />
+          <Icon size={28} color={colors.primary[500]} />
         </View>
 
         {/* Info */}
@@ -44,7 +44,7 @@ export default function PurposeCard({
       </View>
 
       {/* Arrow */}
-      <MaterialIcons name="chevron-right" size={24} color={colors.text.tertiary} />
+      <ChevronRight size={24} color={colors.text.tertiary} />
     </TouchableOpacity>
   );
 }

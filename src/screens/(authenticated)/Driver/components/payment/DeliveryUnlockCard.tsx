@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { Animated, Easing, Text, View } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 import { LinearGradient } from "expo-linear-gradient";
 
 export function DeliveryUnlockCard() {
@@ -61,7 +61,7 @@ export function DeliveryUnlockCard() {
               borderColor: "rgba(2,222,149,0.35)",
             }}
           >
-            <MaterialIcons name="rocket-launch" size={18} color="#02de95" />
+            <Icon name="rocket-launch" size={18} color="#02de95" />
           </View>
         </Animated.View>
 
@@ -100,7 +100,7 @@ export function DeliveryUnlockCard() {
             justifyContent: "center",
           }}
         >
-          <MaterialIcons name="chevron-right" size={16} color="#02de95" />
+          <Icon name="chevron-right" size={16} color="#02de95" />
         </View>
       </LinearGradient>
     </View>

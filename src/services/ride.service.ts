@@ -137,7 +137,7 @@ export interface CalculatePriceRequest {
   dropoff: Location;
   stops?: Location[];
   vehicleType: "motorcycle" | "car" | "van" | "truck";
-  // Logistic Extensions for Smart Engine âš¡
+  // Logistic Extensions for Smart Engine¡
   serviceType?: "ride" | "delivery";
   deliveryType?: string;
   cargoSize?: string;

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
 import { LoadingButton } from "../../../Shared/components";
 import Toast from "react-native-toast-message";
@@ -67,7 +67,7 @@ export default function PromoCodeSheet({
       <View style={styles.headerRow}>
         <Text style={styles.title}>Cupom de desconto</Text>
         <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-          <MaterialIcons name="close" size={24} color="#8ea6a3" />
+          <Icon name="close" size={24} color="#8ea6a3" />
         </TouchableOpacity>
       </View>
 
@@ -93,7 +93,7 @@ export default function PromoCodeSheet({
 
       {!!error && (
         <View style={styles.errorRow}>
-          <MaterialIcons name="error-outline" size={16} color="#ef4444" />
+          <Icon name="error-outline" size={16} color="#ef4444" />
           <Text style={styles.errorText}>{error}</Text>
         </View>
       )}

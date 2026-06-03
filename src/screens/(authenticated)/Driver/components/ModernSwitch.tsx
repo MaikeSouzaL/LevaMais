@@ -8,7 +8,7 @@ import Animated, {
   withTiming,
   withRepeat,
 } from "react-native-reanimated";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 
 type Props = {
   value: boolean;
@@ -124,7 +124,7 @@ export function ModernSwitch({ value, onTrack, isLoading }: Props) {
           {isLoading ? (
             <ActivityIndicator size="small" color={value ? "#02de95" : "#6b7280"} />
           ) : (
-            <MaterialIcons
+            <Icon
               name={value ? "check" : "power-settings-new"}
               size={24}
               color={value ? "#02de95" : "#6b7280"}

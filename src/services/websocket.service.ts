@@ -209,7 +209,7 @@ class WebSocketService {
    */
   on(event: string, callback: (data: any) => void): void {
     if (!this.socket) {
-      console.warn("âš ï¸ WebSocket nÃ£o inicializado");
+      console.warn("WebSocket não inicializado");
       return;
     }
 

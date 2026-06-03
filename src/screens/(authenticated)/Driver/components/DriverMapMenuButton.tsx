@@ -1,7 +1,7 @@
 import React from "react";
 import { TouchableOpacity } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 
 export type DriverMapMenuButtonProps = {
   onPress?: () => void;
@@ -26,7 +26,7 @@ export function DriverMapMenuButton({ onPress }: DriverMapMenuButtonProps) {
         borderColor: "rgba(255,255,255,0.10)",
       }}
     >
-      <MaterialIcons name="menu" size={24} color="#02de95" />
+      <Icon name="menu" size={24} color="#02de95" />
     </TouchableOpacity>
   );
 }

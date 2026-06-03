@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 
 import { colors, spacing, fontSize } from "@/theme";
 import { ClientScreenHeader, LoadingButton } from "../../../Shared/components";
@@ -28,7 +28,7 @@ export default function CancelFeeScreen() {
       />
 
       <View style={styles.content}>
-        <MaterialIcons name="warning" size={74} color="#ff9800" />
+        <Icon name="warning" size={74} color="#ff9800" />
         <Text style={styles.title}>Taxa aplicada</Text>
         <Text style={styles.subtitle}>Sera cobrada uma taxa de {formatBRL(fee)} neste cancelamento.</Text>
 

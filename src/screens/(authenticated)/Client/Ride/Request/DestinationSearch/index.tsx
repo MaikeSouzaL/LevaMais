@@ -126,6 +126,21 @@ export default function DestinationSearchScreen({ navigation, route }: any) {
     }
   }, [userRegion, currentAddress]);
 
+  // Limpa rota e destinos ao retornar com a flag clearRoute
+  useEffect(() => {
+    if (params.clearRoute) {
+      setDestinationTxt("");
+      setDestinationDetails(null);
+      setRouteCoordinates([]);
+      setIsReadyToContinue(false);
+      setDistanceStr("");
+      setDurationStr("");
+      setDistanceRaw(null);
+      setDurationRaw(null);
+      navigation.setParams({ clearRoute: undefined });
+    }
+  }, [params.clearRoute]);
+
   // Reset selected details and route readiness when user clears the search texts
   useEffect(() => {
     if (!destinationTxt.trim()) {
@@ -268,15 +283,17 @@ export default function DestinationSearchScreen({ navigation, route }: any) {
     setRouteCoordinates(result.coordinates);
     setIsRouteLoading(false);
     
-    mapRef.current?.fitToCoordinates(result.coordinates, {
-      edgePadding: {
-        right: width / 8,
-        bottom: height / 3, 
-        left: width / 8,
-        top: height / 3.5,
-      },
-      animated: true,
-    });
+    setTimeout(() => {
+      mapRef.current?.fitToCoordinates(result.coordinates, {
+        edgePadding: {
+          right: width * 0.1,
+          bottom: height * 0.45, 
+          left: width * 0.1,
+          top: height * 0.2,
+        },
+        animated: true,
+      });
+    }, 500);
   };
 
   const handleContinue = () => {
@@ -413,7 +430,7 @@ export default function DestinationSearchScreen({ navigation, route }: any) {
       {/* 💎 Overlaid User Controls without styleSheet */}
       <View className="absolute inset-0 z-[100]" pointerEvents="box-none">
         <DestinationHeader 
-          onBack={navigation.goBack}
+          onBack={() => navigation.navigate("Home")}
           title={params.serviceType === "delivery" ? "Definir endereços" : "Para onde vamos?"} 
         />
 

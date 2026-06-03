@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, Animated, Easing } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import { Icon } from "@/components/ui/Icon";
 import { logger } from '@/utils/logger';
 
 interface QueueTagYellowProps {
@@ -78,7 +78,7 @@ export function QueueTagYellow({
         <View className="bg-[#fbbf24]/90 rounded-2xl px-6 py-4 flex-row items-center gap-3 shadow-2xl border-2 border-[#f59e0b]">
           {/* Exclamation Icon with pulse effect */}
           <View className="relative">
-            <MaterialIcons name="notifications-active" size={24} color="#d97706" />
+            <Icon name="notifications-active" size={24} color="#d97706" />
             {/* Pulse rings */}
             <Animated.View
               style={{
@@ -115,7 +115,7 @@ export function QueueTagYellow({
           </View>
 
           {/* Arrow Icon */}
-          <MaterialIcons name="arrow-forward" size={24} color="#d97706" />
+          <Icon name="arrow-forward" size={24} color="#d97706" />
         </View>
       </Animated.View>
 
@@ -216,7 +216,7 @@ export function QueueTagYellowFloating({
 
           {/* Icon and Count */}
           <View className="items-center justify-center">
-            <MaterialIcons name="notifications-active" size={28} color="#d97706" />
+            <Icon name="notifications-active" size={28} color="#d97706" />
             <Text className="text-[#92400e] font-black text-xs absolute bottom-1">
               {queueCount}
             </Text>

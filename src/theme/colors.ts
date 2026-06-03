@@ -60,13 +60,58 @@ export const colors = {
     lightLegacy: 'rgba(0, 0, 0, 0.3)',
   },
 
-  // Borders
+  // Borders (dark mode — tema principal do app)
   border: {
     subtle: 'rgba(255, 255, 255, 0.08)',
     default: 'rgba(255, 255, 255, 0.12)',
     strong: 'rgba(255, 255, 255, 0.20)',
     light: 'rgba(255, 255, 255, 0.08)',
     medium: 'rgba(255, 255, 255, 0.12)',
+  },
+
+  // Tema claro (opt-in) — para telas financeiras e fluxos auxiliares
+  light: {
+    background: {
+      primary: '#F7F8FA',
+      secondary: '#FFFFFF',
+      tertiary: '#F8FAFC',
+    },
+    text: {
+      primary: '#0F172A',
+      secondary: '#475569',
+      tertiary: '#64748B',
+      muted: '#94A3B8',
+      inverse: '#FFFFFF',
+    },
+    border: {
+      subtle: '#EEF1F4',
+      default: '#E2E8F0',
+      strong: '#CBD5E1',
+      focus: '#10B981',
+      danger: '#FECACA',
+    },
+    surface: {
+      card: '#FFFFFF',
+      input: '#F8FAFC',
+      disabled: '#F1F5F9',
+      warning: '#FFFBEB',
+      warningStrong: '#FEF3C7',
+      successSoft: '#ECFDF5',
+      dangerSoft: '#FEF2F2',
+    },
+    icon: {
+      brand: '#059669',
+      brandStrong: '#047857',
+      onBrand: '#0F172A',
+      muted: '#94A3B8',
+      warning: '#D97706',
+      warningStrong: '#B45309',
+      onWarning: '#92400E',
+      danger: '#DC2626',
+    },
+    shadow: {
+      card: '#0F172A',
+    },
   },
 } as const;
 

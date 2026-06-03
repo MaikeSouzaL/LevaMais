@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
 import shiftOfferService, { ShiftOffer } from "@/services/shiftOffer.service";
@@ -256,7 +256,7 @@ export default function ShiftOffersClientScreen() {
               </Text>
               {typeof offer.acceptedBy === "object" && offer.acceptedBy?.name && (
                 <View style={styles.acceptedLine}>
-                  <MaterialIcons name="check-circle" size={16} color={colors.primary[500]} />
+                  <Icon name="check-circle" size={16} color={colors.primary[500]} />
                   <Text style={styles.acceptedText}>
                     Aceito por {offer.acceptedBy.name}
                   </Text>

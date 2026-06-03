@@ -11,7 +11,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import { Icon } from "@/components/ui/Icon";
 import { colors, spacing, borderRadius, fontSize, shadows } from '@/theme';
 
 interface SearchBarProps {
@@ -42,7 +42,7 @@ export default function SearchBar({
   return (
     <View style={styles.container}>
       {/* Search Icon */}
-      <MaterialIcons
+      <Icon
         name="search"
         size={24}
         color={colors.text.tertiary}
@@ -77,7 +77,7 @@ export default function SearchBar({
           style={styles.clearButton}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <MaterialIcons
+          <Icon
             name="close"
             size={20}
             color={colors.text.tertiary}

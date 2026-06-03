@@ -6,7 +6,7 @@ import {
   Text,
   TouchableOpacity,
 } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -34,7 +34,7 @@ const VEHICLES: Array<{
   type: VehicleType;
   title: string;
   description: string;
-  icon: keyof typeof MaterialIcons.glyphMap;
+  icon: string;
   badge?: string;
   badgeColor?: string;
 }> = [
@@ -185,7 +185,7 @@ export default function SelectVehicleScreen() {
           <View style={styles.routeDivider} />
 
           <View style={styles.routeRow}>
-            <MaterialIcons name="location-on" size={14} color="#ff6b6b" />
+            <Icon name="location-on" size={14} color="#ff6b6b" />
             <Text style={styles.routeText} numberOfLines={1}>{summaryLines.dropoff}</Text>
           </View>
 
@@ -202,7 +202,7 @@ export default function SelectVehicleScreen() {
                 })
               }
             >
-              <MaterialIcons name="edit-location-alt" size={16} color={colors.primary[500]} />
+              <Icon name="edit-location-alt" size={16} color={colors.primary[500]} />
               <Text style={styles.missingDestinationText}>Escolher destino</Text>
             </TouchableOpacity>
           )}

@@ -8,7 +8,7 @@ import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { GlobalMap } from "@/components/GlobalMap";
 import MapView, { Marker, Polyline, AnimatedRegion } from "react-native-maps";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 import Toast from "react-native-toast-message";
 import * as Location from "expo-location";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -863,7 +863,7 @@ export default function RideTrackingScreen() {
               accessibilityRole="button"
               onPress={() => navigation.navigate("Home")}
             >
-              <MaterialIcons name="home" size={14} color="#fff" />
+              <Icon name="home" size={14} color="#fff" />
               <Text className="text-white text-[11px] font-bold">Inicio</Text>
             </TouchableOpacity>
           )}
@@ -979,7 +979,7 @@ export default function RideTrackingScreen() {
             accessibilityLabel={`Abrir chat com ${driverName || 'motorista'}`}
             accessibilityRole="button"
           >
-            <MaterialIcons name="chat-bubble-outline" size={17} color="#fff" />
+            <Icon name="chat-bubble-outline" size={17} color="#fff" />
             <Text className="text-white text-[13px] font-semibold">Chat</Text>
             {unreadCount > 0 && (
               <View className="absolute -top-1 right-1 min-w-[18px] h-[18px] rounded-full bg-[#ef4444] items-center justify-center px-1">
@@ -989,7 +989,7 @@ export default function RideTrackingScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity className="flex-1 min-w-[88px] flex-row items-center justify-center gap-1.5 h-11 rounded-xl border border-[rgba(2,222,149,0.35)] bg-[rgba(2,222,149,0.12)]" onPress={handleShareRide} accessibilityLabel="Compartilhar viagem" accessibilityRole="button">
-            <MaterialIcons name="ios-share" size={17} color="#fff" />
+            <Icon name="ios-share" size={17} color="#fff" />
             <Text className="text-white text-[13px] font-semibold">Compartilhar</Text>
           </TouchableOpacity>
 
@@ -1008,7 +1008,7 @@ export default function RideTrackingScreen() {
             accessibilityRole="button"
             accessibilityState={{ disabled: !canCancel }}
           >
-            <MaterialIcons name="close" size={17} color="#ef4444" />
+            <Icon name="close" size={17} color="#ef4444" />
             <Text className="text-[#ef4444] text-[13px] font-semibold">Cancelar</Text>
           </TouchableOpacity>
         </View>

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Linking, Text, TouchableOpacity, View } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 import { useNavigation } from "@react-navigation/native";
 
 import { DriverScreen } from "./components/DriverScreen";
@@ -8,7 +8,7 @@ import SectionCard from "../../../components/ui/SectionCard";
 import configService, { SupportChannels } from "../../../services/config.service";
 
 type SupportItem = {
-  icon: keyof typeof MaterialIcons.glyphMap;
+  icon: string;
   title: string;
   subtitle: string;
   action: () => void;
@@ -65,14 +65,14 @@ export default function DriverSupportCenterScreen() {
         <TouchableOpacity key={item.title} activeOpacity={0.85} onPress={item.action}>
           <SectionCard>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-              <MaterialIcons name={item.icon} size={22} color="#02de95" />
+              <Icon name={item.icon} size={22} color="#02de95" />
               <View style={{ flex: 1 }}>
                 <Text style={{ color: "#fff", fontWeight: "800" }}>{item.title}</Text>
                 <Text style={{ color: "rgba(255,255,255,0.62)", marginTop: 3 }}>
                   {item.subtitle}
                 </Text>
               </View>
-              <MaterialIcons name="chevron-right" size={22} color="rgba(255,255,255,0.5)" />
+              <Icon name="chevron-right" size={22} color="rgba(255,255,255,0.5)" />
             </View>
           </SectionCard>
         </TouchableOpacity>

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Clock } from "lucide-react-native";
 
 function asMMSS(totalSeconds: number) {
   const safe = Math.max(0, totalSeconds);
@@ -92,8 +92,7 @@ export function ProcessingCountdown({ initialSeconds = 300 }: { initialSeconds?:
         }}
       >
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <MaterialIcons
-            name="access-time"
+          <Clock
             size={16}
             color={themeColor}
             style={{ opacity: 0.9 }}

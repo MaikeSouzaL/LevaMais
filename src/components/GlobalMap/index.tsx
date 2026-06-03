@@ -11,7 +11,7 @@ import MapView, {
   PROVIDER_DEFAULT,
   PROVIDER_GOOGLE,
 } from "react-native-maps";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 import { darkMapStyle } from "@/utils/mapStyle";
 
 export interface GlobalMapProps extends Omit<MapViewProps, "customMapStyle" | "mapType"> {
@@ -135,7 +135,7 @@ export const GlobalMap = forwardRef<MapView, GlobalMapProps>(({
             }}
             activeOpacity={0.8}
           >
-            <MaterialIcons name="my-location" size={24} color="#02de95" />
+            <Icon name="my-location" size={24} color="#02de95" />
           </TouchableOpacity>
         </View>
       )}

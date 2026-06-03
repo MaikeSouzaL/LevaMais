@@ -10,7 +10,7 @@ import {
   Keyboard,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import { Feather } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import theme from "../../../theme";
@@ -120,7 +120,7 @@ export default function NewPasswordScreen() {
             className="w-10 h-10 items-center justify-center"
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Feather name="arrow-left" size={24} color={theme.COLORS.WHITE} />
+            <Icon name="arrow-left" size={24} color={theme.COLORS.WHITE} />
           </TouchableOpacity>
         </View>
 
@@ -153,7 +153,7 @@ export default function NewPasswordScreen() {
                 Nova senha
               </Text>
               <View className="flex-row items-center border border-gray-700 rounded-xl bg-surface-secondary px-4 h-14 focus:border-brand-light">
-                <Feather
+                <Icon
                   name="lock"
                   size={20}
                   color={theme.COLORS.BRAND_LIGHT}
@@ -178,7 +178,7 @@ export default function NewPasswordScreen() {
                   onPress={() => setShowPassword(!showPassword)}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
-                  <Feather
+                  <Icon
                     name={showPassword ? "eye" : "eye-off"}
                     size={20}
                     color={theme.COLORS.GRAY_400}
@@ -194,7 +194,7 @@ export default function NewPasswordScreen() {
                 Confirmar senha
               </Text>
               <View className="flex-row items-center border border-gray-700 rounded-xl bg-surface-secondary px-4 h-14 focus:border-brand-light">
-                <Feather
+                <Icon
                   name="lock"
                   size={20}
                   color={theme.COLORS.BRAND_LIGHT}
@@ -216,7 +216,7 @@ export default function NewPasswordScreen() {
                   onPress={() => setShowConfirmPassword(!showConfirmPassword)}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
-                  <Feather
+                  <Icon
                     name={showConfirmPassword ? "eye" : "eye-off"}
                     size={20}
                     color={theme.COLORS.GRAY_400}

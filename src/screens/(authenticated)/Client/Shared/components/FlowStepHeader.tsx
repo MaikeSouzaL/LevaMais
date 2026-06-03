@@ -1,6 +1,6 @@
 ﻿import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 
 import { colors, spacing, fontSize, fontWeight } from "@/theme";
 
@@ -32,7 +32,7 @@ export default function FlowStepHeader({
           style={styles.backButton}
           accessibilityRole="button"
         >
-          <MaterialIcons
+          <Icon
             name="arrow-back"
             size={22}
             color={colors.text.primary}

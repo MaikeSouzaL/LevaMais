@@ -9,7 +9,7 @@ import {
   ViewStyle,
   TextStyle,
 } from 'react-native';
-import { MaterialIcons, FontAwesome5, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Icon } from "@/components/ui/Icon";
 import { colors, spacing, fontSize, fontWeight, borderRadius } from '@/theme';
 
 export type PaymentMethodType = 'credit_card' | 'pix' | 'cash' | 'wallet';
@@ -35,7 +35,7 @@ const defaultMethods: PaymentMethodOption[] = [
     id: 'credit_card',
     label: 'Cartão de Crédito',
     sublabel: 'Pagamento no app',
-    icon: <MaterialIcons name="credit-card" size={24} color={colors.text.primary} />,
+    icon: <Icon name="credit-card" size={24} color={colors.text.primary} />,
     color: '#3b82f6',
     isAvailable: true,
   },
@@ -43,7 +43,7 @@ const defaultMethods: PaymentMethodOption[] = [
     id: 'pix',
     label: 'PIX',
     sublabel: 'Aprovação imediata',
-    icon: <MaterialCommunityIcons name="qrcode-scan" size={24} color="#32BCAD" />,
+    icon: <Icon name="qrcode-scan" size={24} color="#32BCAD" />,
     color: '#32BCAD',
     isAvailable: true,
   },
@@ -51,7 +51,7 @@ const defaultMethods: PaymentMethodOption[] = [
     id: 'wallet',
     label: 'Carteira',
     sublabel: 'Saldo disponível',
-    icon: <MaterialIcons name="account-balance-wallet" size={24} color="#02de95" />,
+    icon: <Icon name="account-balance-wallet" size={24} color="#02de95" />,
     color: '#02de95',
     isAvailable: true,
   },
@@ -59,7 +59,7 @@ const defaultMethods: PaymentMethodOption[] = [
     id: 'cash',
     label: 'Dinheiro',
     sublabel: 'Pagar ao motorista',
-    icon: <FontAwesome5 name="money-bill-wave" size={20} color="#85bb65" />,
+    icon: <Icon name="money-bill-wave" size={20} color="#85bb65" />,
     color: '#85bb65',
     isAvailable: true,
   },
@@ -121,7 +121,7 @@ export const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
                   { backgroundColor: method.color },
                 ]}
               >
-                <MaterialIcons name="check" size={16} color="white" />
+                <Icon name="check" size={16} color="white" />
               </View>
             )}
           </TouchableOpacity>

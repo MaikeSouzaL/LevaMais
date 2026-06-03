@@ -1,7 +1,7 @@
 import React, { useEffect } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -142,7 +142,7 @@ export default function LocationPermissionScreen({
               className="w-32 h-32 rounded-full items-center justify-center"
               style={{ backgroundColor: theme.COLORS.SURFACE_PRIMARY }}
             >
-              <MaterialCommunityIcons
+              <Icon
                 name="map-marker"
                 size={80}
                 color={theme.COLORS.BRAND_LIGHT}

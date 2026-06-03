@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import Toast from "react-native-toast-message";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/ui/Icon";
 import { LinearGradient } from "expo-linear-gradient";
 
 import shiftOfferService, { ShiftOffer } from "../../../services/shiftOffer.service";
@@ -113,7 +113,7 @@ export default function DriverShiftOffersScreen() {
           >
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 12 }}>
               <View style={{ backgroundColor: "rgba(2,222,149,0.2)", padding: 10, borderRadius: 12 }}>
-                <MaterialIcons name="radio-button-checked" size={20} color="#02de95" />
+                <Icon name="radio-button-checked" size={20} color="#02de95" />
               </View>
               <Text style={{ color: "#02de95", fontWeight: "900", fontSize: 14, textTransform: "uppercase", letterSpacing: 0.5 }}>
                 Plantão Ativo
@@ -124,7 +124,7 @@ export default function DriverShiftOffersScreen() {
             </Text>
             <View style={{ backgroundColor: "rgba(255,255,255,0.05)", padding: 12, borderRadius: 12, marginTop: 8 }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                <MaterialIcons name="access-time" size={16} color="rgba(255,255,255,0.6)" />
+                <Icon name="access-time" size={16} color="rgba(255,255,255,0.6)" />
                 <Text style={{ color: "rgba(255,255,255,0.6)", fontWeight: "600" }}>
                   Até {new Date(activeAccepted.endAt).toLocaleString("pt-BR")}
                 </Text>
@@ -139,7 +139,7 @@ export default function DriverShiftOffersScreen() {
         {/* My Accepted Shifts */}
         <View style={{ marginBottom: 20 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12, paddingHorizontal: 4 }}>
-            <MaterialIcons name="check-circle" size={24} color="#02de95" />
+            <Icon name="check-circle" size={24} color="#02de95" />
             <Text style={{ color: "#fff", fontWeight: "900", fontSize: 18 }}>
               Meus Plantões
             </Text>
@@ -161,7 +161,7 @@ export default function DriverShiftOffersScreen() {
                 borderColor: "rgba(255,255,255,0.08)",
               }}
             >
-              <MaterialIcons name="info-outline" size={40} color="rgba(255,255,255,0.3)" />
+              <Icon name="info-outline" size={40} color="rgba(255,255,255,0.3)" />
               <Text style={{ color: "rgba(255,255,255,0.5)", marginTop: 12, textAlign: "center" }}>
                 Você ainda não aceitou nenhum plantão
               </Text>
@@ -195,13 +195,13 @@ export default function DriverShiftOffersScreen() {
 
                 <View style={{ gap: 6 }}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                    <MaterialIcons name="local-gas-station" size={14} color="rgba(255,255,255,0.5)" />
+                    <Icon name="local-gas-station" size={14} color="rgba(255,255,255,0.5)" />
                     <Text style={{ color: "rgba(255,255,255,0.65)", fontSize: 13 }}>
                       {item.fuelIncluded ? "Gasolina inclusa" : "Sem gasolina"}
                     </Text>
                   </View>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                    <MaterialIcons name="schedule" size={14} color="rgba(255,255,255,0.5)" />
+                    <Icon name="schedule" size={14} color="rgba(255,255,255,0.5)" />
                     <Text style={{ color: "rgba(255,255,255,0.55)", fontSize: 13 }}>
                       {new Date(item.startAt).toLocaleDateString("pt-BR")} • {new Date(item.startAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} a {new Date(item.endAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                     </Text>
@@ -215,7 +215,7 @@ export default function DriverShiftOffersScreen() {
         {/* Available Shifts */}
         <View>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12, paddingHorizontal: 4 }}>
-            <MaterialIcons name="local-offer" size={24} color="#fbbf24" />
+            <Icon name="local-offer" size={24} color="#fbbf24" />
             <Text style={{ color: "#fff", fontWeight: "900", fontSize: 18 }}>
               Plantões Disponíveis
             </Text>
@@ -244,7 +244,7 @@ export default function DriverShiftOffersScreen() {
                 borderColor: "rgba(255,255,255,0.08)",
               }}
             >
-              <MaterialIcons name="inbox" size={40} color="rgba(255,255,255,0.3)" />
+              <Icon name="inbox" size={40} color="rgba(255,255,255,0.3)" />
               <Text style={{ color: "rgba(255,255,255,0.5)", marginTop: 12, textAlign: "center" }}>
                 Nenhum plantão disponível no momento
               </Text>
@@ -290,7 +290,7 @@ export default function DriverShiftOffersScreen() {
                   </View>
 
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                    <MaterialIcons name="schedule" size={14} color="#02de95" />
+                    <Icon name="schedule" size={14} color="#02de95" />
                     <Text style={{ color: "rgba(255,255,255,0.65)", fontSize: 12 }}>
                       {new Date(item.startAt).toLocaleDateString("pt-BR")} • {new Date(item.startAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} a {new Date(item.endAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                     </Text>
@@ -330,7 +330,7 @@ export default function DriverShiftOffersScreen() {
                       </>
                     ) : (
                       <>
-                        <MaterialIcons name="check-circle" size={18} color="#091A2F" />
+                        <Icon name="check-circle" size={18} color="#091A2F" />
                         <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 15 }}>
                           Aceitar Plantão
                         </Text>

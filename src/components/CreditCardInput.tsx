@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   Platform,
 } from 'react-native';
-import { MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
+import { Icon } from "@/components/ui/Icon";
 import { colors, spacing, fontSize, fontWeight, borderRadius } from '@/theme';
 
 interface CreditCardInputProps {
@@ -79,10 +79,10 @@ export const CreditCardInput: React.FC<CreditCardInputProps> = ({
   const isValid = useMemo(() => validateCard(cardNumber), [cardNumber]);
 
   const brandIcon = {
-    visa: <FontAwesome5 name="cc-visa" size={28} color="#1a56db" />,
-    mastercard: <FontAwesome5 name="cc-mastercard" size={28} color="#eb001b" />,
-    amex: <FontAwesome5 name="cc-amex" size={28} color="#006fcf" />,
-    unknown: <MaterialIcons name="credit-card" size={28} color="rgba(255,255,255,0.5)" />,
+    visa: <Icon name="cc-visa" size={28} color="#1a56db" />,
+    mastercard: <Icon name="cc-mastercard" size={28} color="#eb001b" />,
+    amex: <Icon name="cc-amex" size={28} color="#006fcf" />,
+    unknown: <Icon name="credit-card" size={28} color="rgba(255,255,255,0.5)" />,
   };
 
   const expiryParts = expiry.split('/');
@@ -147,7 +147,7 @@ export const CreditCardInput: React.FC<CreditCardInputProps> = ({
           />
           {cardNumber && (
             <View style={styles.validation}>
-              <MaterialIcons
+              <Icon
                 name={isValid ? 'check-circle' : 'cancel'}
                 size={16}
                 color={isValid ? '#02de95' : '#ef4444'}
@@ -216,7 +216,7 @@ export const CreditCardInput: React.FC<CreditCardInputProps> = ({
 
         {/* Security Notice */}
         <View style={styles.securityNotice}>
-          <MaterialIcons name="lock" size={16} color="#02de95" />
+          <Icon name="lock" size={16} color="#02de95" />
           <Text style={styles.securityText}>
             Seus dados estão seguros com criptografia SSL
           </Text>
