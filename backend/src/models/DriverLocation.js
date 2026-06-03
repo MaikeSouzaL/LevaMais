@@ -37,6 +37,13 @@ const driverLocationSchema = new mongoose.Schema(
       enum: ["motorcycle", "car", "van", "truck"],
       required: true,
     },
+    // Categoria de corrida do motorista (cache para filtro rápido por categoria)
+    // moto | car_economy | car_comfort | car_luxury
+    rideCategory: {
+      type: String,
+      enum: ["moto", "car_economy", "car_comfort", "car_luxury", null],
+      default: null,
+    },
     // Dados do veículo
     vehicle: {
       plate: String,

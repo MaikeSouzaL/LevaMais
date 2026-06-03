@@ -15,7 +15,7 @@ if (__DEV__) {
 function createApiInstance(): AxiosInstance {
   const instance = axios.create({
     baseURL: API_BASE_URL,
-    timeout: 10000,
+    timeout: 15000,
     headers: {
       "Content-Type": "application/json",
     },
@@ -48,9 +48,11 @@ function createApiInstance(): AxiosInstance {
     (error) => Promise.reject(error),
   );
 
+  // Interceptor de resposta com retry global para falhas transitórias de rede
   instance.interceptors.response.use(
     (response) => response,
-    (error) => {
+    async (error) => {
+      // Erros com resposta do servidor (4xx, 5xx) — não retentar
       if (error.response) {
         const status = error.response.status;
 
@@ -77,11 +79,10 @@ function createApiInstance(): AxiosInstance {
             error.response?.data?.message ||
             error.response?.data?.error ||
             "Voce nao tem permissao para realizar esta acao.";
-          
-          // Salvaguarda extra para casos em que o backend retornou 403 mas Ã© um problema de token
-          const isTokenIssue = 
-            String(apiMsg).toLowerCase().includes("token") || 
-            String(apiMsg).toLowerCase().includes("expirado") || 
+
+          const isTokenIssue =
+            String(apiMsg).toLowerCase().includes("token") ||
+            String(apiMsg).toLowerCase().includes("expirado") ||
             String(apiMsg).toLowerCase().includes("inativo");
 
           if (isTokenIssue) {
@@ -99,9 +100,34 @@ function createApiInstance(): AxiosInstance {
         return Promise.reject(error);
       }
 
+      // Erro de rede (sem resposta) — retry com backoff
       if (error.request) {
+        const config = error.config;
+        config._retryCount = config._retryCount || 0;
+
+        if (config._retryCount < 2) {
+          config._retryCount++;
+          const delay = config._retryCount * 2000; // 2s, 4s
+          if (__DEV__) {
+            console.log(`[API] Retry ${config._retryCount}/2 em ${delay}ms para ${config.url}`);
+          }
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          return instance(config);
+        }
+
+        // Esgotadas as tentativas — mensagem descritiva
+        if (error.code === "ECONNABORTED") {
+          return Promise.reject(
+            new Error("Tempo limite excedido. O servidor está demorando para responder."),
+          );
+        }
+        if (error.code === "ERR_NETWORK" || error.code === "ERR_NETWORK_IO_ERROR") {
+          return Promise.reject(
+            new Error("Erro de conexao. Verifique sua internet."),
+          );
+        }
         return Promise.reject(
-          new Error("Erro de conexao. Verifique sua internet."),
+          new Error("Erro de conexao com o servidor. Tente novamente em instantes."),
         );
       }
 
@@ -133,12 +159,12 @@ export function apiPost<T = any>(
   token?: string,
 ): Promise<AxiosResponse<T>> {
   const config: AxiosRequestConfig = { headers: {} };
-  
+
   if (token) {
     config.headers!.Authorization = `Bearer ${token}`;
   }
 
-  // 🚀 Critical Fix: Override default JSON header if payload is binary stream FormData!
+  // Critical Fix: Override default JSON header if payload is binary stream FormData!
   if (data instanceof FormData) {
     config.headers!["Content-Type"] = "multipart/form-data";
   }
@@ -152,7 +178,7 @@ export function apiPut<T = any>(
   token?: string,
 ): Promise<AxiosResponse<T>> {
   const config: AxiosRequestConfig = { headers: {} };
-  
+
   if (token) {
     config.headers!.Authorization = `Bearer ${token}`;
   }
@@ -170,7 +196,7 @@ export function apiPatch<T = any>(
   token?: string,
 ): Promise<AxiosResponse<T>> {
   const config: AxiosRequestConfig = { headers: {} };
-  
+
   if (token) {
     config.headers!.Authorization = `Bearer ${token}`;
   }

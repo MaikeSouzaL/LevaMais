@@ -50,6 +50,13 @@ const vehicleSchema = new mongoose.Schema(
     color: { type: String, trim: true },
     year: { type: Number },
     renavam: { type: String, trim: true },
+    // Categoria de corrida do veículo (carros): car_economy | car_comfort | car_luxury.
+    // Motos são sempre "moto" (resolvido pelo tipo).
+    rideCategory: {
+      type: String,
+      enum: ["moto", "car_economy", "car_comfort", "car_luxury", null],
+      default: null,
+    },
     
     // Campos Oficiais da API de Consulta de Placa
     officialBrand: { type: String, trim: true },
@@ -390,6 +397,13 @@ const userSchema = new mongoose.Schema(
       model: String,
       color: String,
       year: Number,
+      // Categoria de corrida do veículo (para filtrar disponibilidade no fluxo ride)
+      // moto | car_economy | car_comfort | car_luxury
+      rideCategory: {
+        type: String,
+        enum: ["moto", "car_economy", "car_comfort", "car_luxury", null],
+        default: null,
+      },
     },
     activeVehicleId: {
       type: mongoose.Schema.Types.ObjectId,

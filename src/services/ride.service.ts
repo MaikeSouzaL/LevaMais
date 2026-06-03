@@ -50,6 +50,7 @@ export interface RideDetails {
 export interface CreateRideRequest {
   serviceType: "ride" | "delivery";
   vehicleType: "motorcycle" | "car" | "van" | "truck";
+  rideCategory?: "moto" | "car_economy" | "car_comfort" | "car_luxury";
   purposeId?: string;
   pickup: Location;
   dropoff: Location;
@@ -79,8 +80,10 @@ export interface Ride {
   driverId?: any;
   serviceType: string;
   vehicleType: string;
+  rideCategory?: string;
   pickup: Location;
   dropoff: Location;
+  stops?: Location[];
   pricing: PricingCalculation;
   distance: DistanceDuration;
   duration: DistanceDuration;
@@ -145,6 +148,37 @@ export interface CalculatePriceRequest {
   // Pre-computed precise routing metrics from trusted client
   distance?: number;
   duration?: number;
+}
+
+export type RideCategoryKey = "moto" | "car_economy" | "car_comfort" | "car_luxury";
+
+export interface RideCategoryOption {
+  category: RideCategoryKey;
+  label: string;
+  description: string;
+  icon: string;
+  vehicleType: "motorcycle" | "car";
+  maxPassengers: number;
+  order: number;
+  available?: boolean;
+  availableCount?: number;
+  pricing: {
+    basePrice: number;
+    distancePrice: number;
+    timePrice: number;
+    stopsFee: number;
+    total: number;
+    currency: string;
+    multiplier: number;
+    feePerStop: number;
+  };
+}
+
+export interface RideCategoriesResponse {
+  categories: RideCategoryOption[];
+  distance: DistanceDuration;
+  duration: DistanceDuration;
+  stopsCount: number;
 }
 
 export interface CalculatePriceResponse {
@@ -272,6 +306,42 @@ class RideService {
         "Falha ao calcular estimativa";
       throw new Error(msg);
     }
+  }
+
+  /**
+   * Listar categorias de CORRIDA (moto/economy/comfort/luxury) com preços calculados.
+   * Fluxo de corrida — separado de entrega.
+   */
+  async calculateRideCategories(data: {
+    pickup: Location;
+    dropoff: Location;
+    stops?: Location[];
+    cityId?: string;
+    distance?: number;
+    duration?: number;
+  }): Promise<RideCategoriesResponse> {
+    try {
+      const response = await api.post("/rides/calculate-ride-categories", data);
+      return response.data;
+    } catch (e: any) {
+      const msg =
+        e?.response?.data?.error ||
+        e?.response?.data?.message ||
+        e?.message ||
+        "Falha ao calcular categorias de corrida";
+      throw new Error(msg);
+    }
+  }
+
+  /**
+   * Adicionar parada a uma corrida/entrega em andamento.
+   */
+  async addStop(
+    rideId: string,
+    stop: { address: string; latitude: number; longitude: number; order?: number },
+  ): Promise<{ success: boolean; stops: Location[] }> {
+    const response = await api.patch(`/rides/${rideId}/add-stop`, stop);
+    return response.data;
   }
 
   /**

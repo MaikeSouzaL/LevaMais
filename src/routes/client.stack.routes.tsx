@@ -15,6 +15,8 @@ import FavoriteAddressFlowScreen from "../screens/(authenticated)/Client/Favorit
 import RideSetupScreen from "../screens/(authenticated)/Client/Ride/Request/RideSetup";
 import RideBidSetupScreen from "../screens/(authenticated)/Client/Ride/Request/RideBidSetupScreen";
 import RideBiddingScreen from "../screens/(authenticated)/Client/Ride/Request/RideBiddingScreen";
+import RideCategorySelectScreen from "../screens/(authenticated)/Client/Ride/Request/RideCategorySelect";
+import RouteAuditScreen from "../screens/(authenticated)/Client/History/RouteAudit";
 import DeliverySetupScreen from "../screens/(authenticated)/Client/Ride/Request/DeliverySetup";
 import DeliverySenderInfoScreen from "../screens/(authenticated)/Client/Ride/Request/DeliverySenderInfo";
 import DeliveryDetailsScreen from "../screens/(authenticated)/Client/Ride/Request/DeliveryDetails";
@@ -80,6 +82,8 @@ export default function ClientStackRoutes({
       <Stack.Screen name="Favorites" component={FavoritesScreen} />
       <Stack.Screen name="FavoriteAddressFlow" component={FavoriteAddressFlowScreen} />
       <Stack.Screen name="RideSetup" component={RideSetupScreen} />
+      <Stack.Screen name="RideCategorySelect" component={RideCategorySelectScreen} />
+      <Stack.Screen name="RouteAudit" component={RouteAuditScreen} />
       <Stack.Screen name="RideBidSetup" component={RideBidSetupScreen} />
       <Stack.Screen name="RideBiddingScreen" component={RideBiddingScreen} />
       <Stack.Screen name="DeliverySenderInfo" component={DeliverySenderInfoScreen} />

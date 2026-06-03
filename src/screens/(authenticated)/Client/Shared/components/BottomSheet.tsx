@@ -137,7 +137,7 @@ export default function BottomSheet({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: colors.overlay,
+    backgroundColor: colors.overlay.legacy,
     justifyContent: 'flex-end',
   },
   backdrop: {

@@ -29,6 +29,14 @@ export interface UserData extends User {
   aceitouTermos: boolean;
 }
 
+/**
+ * Entrada aceita por `login`: os campos canônicos derivados (`_id`, `phone`,
+ * `acceptedTerms`) são opcionais porque `normalizeUserData` os preenche a partir
+ * dos aliases em português (`id`/`telefone`/`aceitouTermos`).
+ */
+export type LoginUserInput = Omit<UserData, "_id" | "phone" | "acceptedTerms"> &
+  Partial<Pick<UserData, "_id" | "phone" | "acceptedTerms">>;
+
 export interface AuthState {
   hasHydrated: boolean;
   isAuthenticated: boolean;
@@ -37,7 +45,7 @@ export interface AuthState {
   token: string | null;
   walletBalance: number;
 
-  login: (userType: UserType, userData: UserData, token: string) => void;
+  login: (userType: UserType, userData: LoginUserInput, token: string) => void;
   logout: () => void;
   updateUserData: (data: Partial<UserData>) => void;
   updateUserType: (userType: UserType) => void;
@@ -47,13 +55,14 @@ export interface AuthState {
   resetWallet: () => void;
 }
 
-function normalizeUserData(data: UserData): UserData {
+function normalizeUserData(data: LoginUserInput): UserData {
   const resolvedName = data.name?.trim() || data.nome?.trim() || "";
   const resolvedCity = data.city || data.cidade || "";
   const resolvedPhone = data.phone || data.telefone || "";
 
   return {
     ...data,
+    _id: data._id || data.id || "",
     id: data._id || data.id,
     // Canonical English fields — prefer these in new code
     name: resolvedName,

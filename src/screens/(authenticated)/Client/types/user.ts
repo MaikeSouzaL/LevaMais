@@ -8,9 +8,6 @@ export type { User, UserType } from "../../../../types/models";
 
 import type { User } from "../../../../types/models";
 
-// Re-export UserType as a convenience alias
-export type { UserType } from "../../../../types/models";
-
 /**
  * Perfil do cliente
  */

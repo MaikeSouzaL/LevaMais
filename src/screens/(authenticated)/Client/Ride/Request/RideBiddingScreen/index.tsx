@@ -20,8 +20,10 @@ export default function RideBiddingScreen({ route, navigation }: any) {
   const {
     pickup,
     dropoff,
+    stops,
     routeCoordinates,
     vehicleType,
+    rideCategory,
     clientOffer,
     estimate,
   } = route.params || {};
@@ -57,8 +59,10 @@ export default function RideBiddingScreen({ route, navigation }: any) {
       const rideData = {
         serviceType: "ride" as const,
         vehicleType,
+        rideCategory,
         pickup,
         dropoff,
+        stops,
         routeCoordinates,
         pricing: {
           basePrice: estimate.pricingBreakdown.baseFare,

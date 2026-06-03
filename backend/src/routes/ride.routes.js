@@ -19,6 +19,9 @@ router.post("/calculate-price", rideController.calculatePrice);
 // Calcular estimativa de corrida (estilo inDriver)
 router.post("/calculate-ride-estimate", rideController.calculateRideEstimate);
 
+// Listar categorias de corrida (moto/economy/comfort/luxury) com preços (fluxo de corrida)
+router.post("/calculate-ride-categories", rideController.calculateRideCategories);
+
 // Criar nova corrida
 router.post("/", rideController.create);
 

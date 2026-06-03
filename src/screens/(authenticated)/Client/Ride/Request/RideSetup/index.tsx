@@ -24,7 +24,7 @@ import { RidePrioritySlider, PriorityLevel } from "@/components/client/ride-setu
 import { SearchDriversButton } from "@/components/client/ride-setup/SearchDriversButton";
 
 // Visual Atoms 🎨
-import { PremiumMapMarker } from "@/components/maps/PremiumMapMarker";
+import RoutePin from "@/components/maps/RoutePin";
 
 const { width, height } = Dimensions.get("window");
 const GOOGLE_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || "";
@@ -196,12 +196,12 @@ export default function RideSetupScreen() {
              </>
           )}
           
-          <Marker coordinate={params.pickup} anchor={{ x: 0.5, y: 0.5 }}>
-            <PremiumMapMarker type="origin" />
+          <Marker coordinate={params.pickup} anchor={{ x: 0.5, y: 1 }}>
+            <RoutePin variant="pickup" />
           </Marker>
-          
-          <Marker coordinate={params.dropoff} anchor={{ x: 0.5, y: 0.5 }}>
-            <PremiumMapMarker type="destination" />
+
+          <Marker coordinate={params.dropoff} anchor={{ x: 0.5, y: 1 }}>
+            <RoutePin variant="dropoff" />
           </Marker>
 
           <MapViewDirections

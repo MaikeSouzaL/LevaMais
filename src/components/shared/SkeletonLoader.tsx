@@ -51,7 +51,8 @@ export function SkeletonBox({
         animatedStyle,
         style,
       ]}
-      accessibilityHidden
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
     />
   );
 }

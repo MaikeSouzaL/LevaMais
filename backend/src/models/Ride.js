@@ -26,6 +26,13 @@ const rideSchema = new mongoose.Schema(
       enum: ["motorcycle", "car", "van", "truck"],
       required: true,
     },
+    // Categoria de CORRIDA escolhida (fluxo ride): moto | car_economy | car_comfort | car_luxury
+    // Salvo para controle/relatórios na dashboard. Vazio para entregas.
+    rideCategory: {
+      type: String,
+      enum: ["moto", "car_economy", "car_comfort", "car_luxury", null],
+      default: null,
+    },
     // Localização de origem
     pickup: {
       address: {

@@ -30,6 +30,9 @@ export function useActiveRideMonitor() {
   const processedCancellations = useRef<Set<string>>(new Set());
   const processedAcceptances = useRef<Set<string>>(new Set());
   const processedPaymentExpired = useRef<Set<string>>(new Set());
+  // Corridas que já foram redirecionadas automaticamente para o rastreamento.
+  // Evita "prender" o cliente: depois do 1º redirect ele pode voltar para a Home livremente.
+  const autoRedirectedRides = useRef<Set<string>>(new Set());
 
   const [state, setState] = useState<ActiveRideMonitorState>({
     negotiationRideId: null,
@@ -98,13 +101,17 @@ export function useActiveRideMonitor() {
         waitingQueueCount: queuedRides.length,
       }));
 
-      // 4. Auto-redirect para rastreamento se motorista aceitou
+      // 4. Auto-redirect para rastreamento se motorista aceitou (apenas 1x por corrida).
+      // Depois do primeiro redirect, o cliente pode tocar em "Início" e ficar na Home
+      // sem ser trazido de volta à força (estilo Uber).
       const primaryRide = activeRides.find((ride: any) => !ride.isWaitingInQueue);
       if (primaryRide) {
         if (
           primaryRide.driverId &&
-          ["accepted", "driver_arriving", "arrived", "in_progress"].includes(primaryRide.status)
+          ["accepted", "driver_arriving", "arrived", "in_progress"].includes(primaryRide.status) &&
+          !autoRedirectedRides.current.has(primaryRide._id)
         ) {
+          autoRedirectedRides.current.add(primaryRide._id);
           const trackingScreen = primaryRide.serviceType === "delivery" ? "DeliveryTracking" : "RideTracking";
           try {
             (navigation as any).navigate(trackingScreen, { rideId: primaryRide._id });
@@ -120,7 +127,7 @@ export function useActiveRideMonitor() {
         }
       }
     } catch (err) {
-      logger.error("useActiveRideMonitor", "Erro ao verificar corridas ativas", err);
+      logger.warn("useActiveRideMonitor", "Erro ao verificar corridas ativas", err);
     }
   }, [navigation]);
 

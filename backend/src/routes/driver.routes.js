@@ -25,5 +25,6 @@ router.get("/vehicles", driverController.listVehicles.bind(driverController));
 router.post("/vehicles", driverController.addVehicle.bind(driverController));
 router.post("/vehicles/:vehicleId/documents", uploadDriverBundle, driverController.uploadVehicleDocuments.bind(driverController));
 router.patch("/vehicles/:id/activate", driverController.activateVehicle.bind(driverController));
+router.patch("/vehicles/:id/ride-category", driverController.setVehicleRideCategory.bind(driverController));
 
 module.exports = router;

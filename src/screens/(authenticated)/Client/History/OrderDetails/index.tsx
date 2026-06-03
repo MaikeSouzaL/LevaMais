@@ -434,6 +434,25 @@ export default function OrderDetailsScreen() {
             </Text>
           </TouchableOpacity>
 
+          {ride.status === "completed" && (
+            <TouchableOpacity
+              onPress={() => navigation.navigate("RouteAudit", { rideId: String(ride._id) })}
+              activeOpacity={0.85}
+              style={{
+                height: 54, borderRadius: 18,
+                borderWidth: 1.5, borderColor: "rgba(2,222,149,0.35)",
+                backgroundColor: "rgba(2,222,149,0.08)",
+                alignItems: "center", justifyContent: "center",
+                flexDirection: "row", gap: 10,
+              }}
+            >
+              <Route size={16} color="#02de95" />
+              <Text style={{ color: "#02de95", fontWeight: "800", fontSize: 14 }}>
+                Ver trajeto percorrido
+              </Text>
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity
             onPress={() => navigation.navigate("Home")}
             activeOpacity={0.85}

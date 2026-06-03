@@ -235,7 +235,7 @@ export default function PaymentScreenEnhanced() {
     } catch (error) {
       logger.error("PaymentScreen", "Erro ao processar pagamento", error);
       if (transactionId && rideId) {
-        logger.error("PaymentScreen", "CRITICAL: Payment succeeded but post-payment flow failed. Manual refund may be needed.", { rideId, transactionId, error: error?.message });
+        logger.error("PaymentScreen", "CRITICAL: Payment succeeded but post-payment flow failed. Manual refund may be needed.", { rideId, transactionId, error: (error as any)?.message });
       }
       handleError(error, "Erro ao processar pagamento. Tente novamente.");
     } finally {

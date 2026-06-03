@@ -576,11 +576,13 @@ export default function DeliveryDetailsScreen() {
       distance: priceData.distance,
       duration: priceData.duration,
       scheduledFor: parseScheduleToISO(scheduledFor) || undefined,
-      routeCoordinates: [
-        { latitude: pickupCoords.latitude, longitude: pickupCoords.longitude },
-        ...stops.map((s) => ({ latitude: s.addressCoords?.latitude || 0, longitude: s.addressCoords?.longitude || 0 })),
-        { latitude: dropoffCoords.latitude, longitude: dropoffCoords.longitude },
-      ],
+      routeCoordinates: routeCoords.length >= 2
+        ? routeCoords
+        : [
+            { latitude: pickupCoords.latitude, longitude: pickupCoords.longitude },
+            ...stops.map((s) => ({ latitude: s.addressCoords?.latitude || 0, longitude: s.addressCoords?.longitude || 0 })),
+            { latitude: dropoffCoords.latitude, longitude: dropoffCoords.longitude },
+          ],
       details: {
         itemType,
         pickupComplement: routeProfiles.pickupProfile.details,

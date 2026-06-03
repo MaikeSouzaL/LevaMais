@@ -87,12 +87,12 @@ export const DriverAvailabilityBadge = memo(({
         <View style={styles.breakdownContainer}>
           {rideDrivers > 0 && (
             <View style={styles.badge}>
-              <Text style={styles.badgeText}>{rideDrivers} corridas</Text>
+              <Text style={styles.badgeText}>{rideDrivers} {rideDrivers === 1 ? "corrida" : "corridas"}</Text>
             </View>
           )}
           {deliveryDrivers > 0 && (
             <View style={[styles.badge, styles.deliveryBadge]}>
-              <Text style={styles.badgeText}>{deliveryDrivers} entregas</Text>
+              <Text style={styles.badgeText}>{deliveryDrivers} {deliveryDrivers === 1 ? "entrega" : "entregas"}</Text>
             </View>
           )}
         </View>

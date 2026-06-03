@@ -63,8 +63,9 @@ export function ShareRideSheet({ rideId, driverName, isVisible, onClose }: Share
     const url = await generateShareUrl();
     // Clipboard is available via expo
     try {
-      const Clipboard = await import('expo-clipboard');
-      await Clipboard.default.setStringAsync(url);
+      // expo-clipboard é dependência opcional; importação dinâmica tolerante a ausência de tipos.
+      const Clipboard: any = await import('expo-clipboard' as any);
+      await (Clipboard.default || Clipboard).setStringAsync(url);
       Alert.alert('Link copiado!', 'O link foi copiado para a área de transferência.');
     } catch {
       Alert.alert('Link', url);

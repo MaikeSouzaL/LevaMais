@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text } from "react-native";
+import { Shield, Key, CheckCircle, Clock } from "lucide-react-native";
 
 interface PINsCardProps {
   pickupPin?: string;
@@ -19,52 +20,75 @@ export default function PINsCard({
   }
 
   return (
-    <View className="rounded-2xl p-4 mb-4" style={{ backgroundColor: "rgba(2,222,149,0.1)" }}>
-      <Text className="text-white text-sm font-bold mb-3">Códigos de Segurança</Text>
+    <View className="rounded-2xl p-4 mb-4 bg-[#11253E] border border-white/[0.05]">
+      <View className="flex-row items-center gap-2 mb-4">
+        <Shield size={16} color="#02de95" />
+        <Text className="text-white text-base font-bold">Códigos de Segurança</Text>
+      </View>
 
-      {pickupPin && (
-        <View className="flex-row items-center justify-between mb-3 p-3 rounded-xl bg-[rgba(255,255,255,0.05)]">
-          <View className="flex-1">
-            <Text className="text-[rgba(255,255,255,0.6)] text-xs mb-1">PIN de Coleta</Text>
-            <Text className="text-white text-lg font-bold">{pickupPin}</Text>
-          </View>
-          <View
-            className={`px-3 py-1 rounded-full ${
-              pickupPinValidated ? "bg-[#02de95]" : "bg-[rgba(251,191,36,0.2)]"
-            }`}
-          >
-            <Text
-              className={`text-xs font-bold ${
-                pickupPinValidated ? "text-[#091A2F]" : "text-[#fbbf24]"
+      <View className="flex-row gap-3">
+        {pickupPin && (
+          <View className="flex-1 p-3 rounded-xl bg-white/[0.01] border border-white/[0.03] items-center justify-between">
+            <View className="items-center mb-2">
+              <View className="w-8 h-8 rounded-lg bg-[#02de95]/10 items-center justify-center mb-1.5">
+                <Key size={14} color="#02de95" />
+              </View>
+              <Text className="text-white/40 text-[9px] font-bold uppercase tracking-wider text-center">PIN de Coleta</Text>
+              <Text className="text-white text-base font-black tracking-widest mt-1 text-center" style={{ fontFamily: "monospace" }}>
+                {pickupPin}
+              </Text>
+            </View>
+            <View
+              className={`flex-row items-center gap-1 px-2 py-0.5 rounded-full ${
+                pickupPinValidated ? "bg-[#02de95]/10 border border-[#02de95]/30" : "bg-amber-500/10 border border-amber-500/30"
               }`}
             >
-              {pickupPinValidated ? "Validado" : "Pendente"}
-            </Text>
+              {pickupPinValidated ? (
+                <>
+                  <CheckCircle size={10} color="#02de95" />
+                  <Text className="text-[10px] font-bold text-[#02de95]">Validado</Text>
+                </>
+              ) : (
+                <>
+                  <Clock size={10} color="#f59e0b" />
+                  <Text className="text-[10px] font-bold text-amber-500">Pendente</Text>
+                </>
+              )}
+            </View>
           </View>
-        </View>
-      )}
+        )}
 
-      {deliveryPin && (
-        <View className="flex-row items-center justify-between p-3 rounded-xl bg-[rgba(255,255,255,0.05)]">
-          <View className="flex-1">
-            <Text className="text-[rgba(255,255,255,0.6)] text-xs mb-1">PIN de Entrega</Text>
-            <Text className="text-white text-lg font-bold">{deliveryPin}</Text>
-          </View>
-          <View
-            className={`px-3 py-1 rounded-full ${
-              deliveryPinValidated ? "bg-[#02de95]" : "bg-[rgba(251,191,36,0.2)]"
-            }`}
-          >
-            <Text
-              className={`text-xs font-bold ${
-                deliveryPinValidated ? "text-[#091A2F]" : "text-[#fbbf24]"
+        {deliveryPin && (
+          <View className="flex-1 p-3 rounded-xl bg-white/[0.01] border border-white/[0.03] items-center justify-between">
+            <View className="items-center mb-2">
+              <View className="w-8 h-8 rounded-lg bg-[#02de95]/10 items-center justify-center mb-1.5">
+                <Key size={14} color="#02de95" />
+              </View>
+              <Text className="text-white/40 text-[9px] font-bold uppercase tracking-wider text-center">PIN de Entrega</Text>
+              <Text className="text-white text-base font-black tracking-widest mt-1 text-center" style={{ fontFamily: "monospace" }}>
+                {deliveryPin}
+              </Text>
+            </View>
+            <View
+              className={`flex-row items-center gap-1 px-2 py-0.5 rounded-full ${
+                deliveryPinValidated ? "bg-[#02de95]/10 border border-[#02de95]/30" : "bg-amber-500/10 border border-amber-500/30"
               }`}
             >
-              {deliveryPinValidated ? "Validado" : "Pendente"}
-            </Text>
+              {deliveryPinValidated ? (
+                <>
+                  <CheckCircle size={10} color="#02de95" />
+                  <Text className="text-[10px] font-bold text-[#02de95]">Validado</Text>
+                </>
+              ) : (
+                <>
+                  <Clock size={10} color="#f59e0b" />
+                  <Text className="text-[10px] font-bold text-amber-500">Pendente</Text>
+                </>
+              )}
+            </View>
           </View>
-        </View>
-      )}
+        )}
+      </View>
     </View>
   );
 }

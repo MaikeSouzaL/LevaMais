@@ -24,6 +24,7 @@ interface UseAvailabilityOptions {
 /**
  * Hook para monitorar disponibilidade de motoristas próximos.
  * Atualiza automaticamente em intervalos regulares.
+ * O retry em falhas de rede é feito pelo interceptor global do axios (api.ts).
  */
 export function useAvailability({
   region,
@@ -69,7 +70,7 @@ export function useAvailability({
         });
       } catch (err) {
         if (!mounted) return;
-        logger.error("useAvailability", "Erro ao buscar motoristas próximos", err);
+        logger.warn("useAvailability", "Erro ao buscar motoristas próximos", err);
         setError("Não foi possível validar disponibilidade local agora.");
       } finally {
         if (mounted) {

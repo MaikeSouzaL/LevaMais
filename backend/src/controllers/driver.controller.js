@@ -762,11 +762,19 @@ const driverController = {
         return res.status(401).json({ error: "Usuário não autenticado" });
       }
 
-      const { type, plate, model, color, year, renavam, documents } = req.body;
+      const { type, plate, model, color, year, renavam, documents, rideCategory } = req.body;
 
       if (!type || !plate || !model) {
         return res.status(400).json({ error: "Campos obrigatórios faltando: tipo, placa e modelo" });
       }
+
+      // Categoria de corrida: moto sempre "moto"; carro usa a informada ou "car_economy".
+      const resolvedRideCategory =
+        type === "motorcycle"
+          ? "moto"
+          : type === "car"
+            ? (["car_economy", "car_comfort", "car_luxury"].includes(rideCategory) ? rideCategory : "car_economy")
+            : null;
 
       const cleanPlate = String(plate).toUpperCase().replace(/[^A-Z0-9]/g, "");
 
@@ -805,6 +813,7 @@ const driverController = {
         color: finalColor,
         year: finalYear,
         renavam: renavam ? String(renavam).trim() : undefined,
+        rideCategory: resolvedRideCategory,
         officialBrand: apiResult.brand ? String(apiResult.brand).trim() : undefined,
         officialChassis: apiResult.chassis ? String(apiResult.chassis).trim() : undefined,
         officialColor: apiResult.color ? String(apiResult.color).trim() : undefined,
@@ -864,6 +873,16 @@ const driverController = {
         });
       }
 
+      // Categoria de corrida: moto sempre "moto"; carro usa a do veículo ou "car_economy".
+      const resolvedRideCategory =
+        vehicle.type === "motorcycle"
+          ? "moto"
+          : vehicle.type === "car"
+            ? (["car_economy", "car_comfort", "car_luxury"].includes(vehicle.rideCategory)
+                ? vehicle.rideCategory
+                : "car_economy")
+            : null;
+
       // Set as active
       user.activeVehicleId = vehicle._id;
       user.vehicleType = vehicle.type;
@@ -871,7 +890,8 @@ const driverController = {
         plate: vehicle.plate,
         model: vehicle.model,
         color: vehicle.color,
-        year: vehicle.year
+        year: vehicle.year,
+        rideCategory: resolvedRideCategory,
       };
 
       await user.save();
@@ -881,8 +901,9 @@ const driverController = {
         const DriverLocation = require("../models/DriverLocation");
         await DriverLocation.findOneAndUpdate(
           { driverId: userId },
-          { 
+          {
             vehicleType: vehicle.type,
+            rideCategory: resolvedRideCategory,
             vehicle: {
               plate: vehicle.plate,
               model: vehicle.model,
@@ -903,6 +924,60 @@ const driverController = {
           info: user.vehicleInfo,
           id: user.activeVehicleId
         }
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+
+  // 🚗 Define a categoria de CORRIDA de um carro (economy/comfort/luxury)
+  setVehicleRideCategory: async (req, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Usuário não autenticado" });
+      }
+
+      const { id } = req.params;
+      const { rideCategory } = req.body;
+      const VALID = ["car_economy", "car_comfort", "car_luxury"];
+      if (!VALID.includes(rideCategory)) {
+        return res.status(400).json({ error: "Categoria de corrida inválida", valid: VALID });
+      }
+
+      const user = await User.findById(userId);
+      if (!user || user.userType !== "driver") {
+        return res.status(403).json({ error: "Usuário não é um motorista" });
+      }
+
+      const vehicle = user.vehicles && user.vehicles.id(id);
+      if (!vehicle) {
+        return res.status(404).json({ error: "Veículo não encontrado na sua frota" });
+      }
+      if (vehicle.type !== "car") {
+        return res.status(400).json({ error: "Categoria de corrida só se aplica a carros" });
+      }
+
+      vehicle.rideCategory = rideCategory;
+
+      // Se for o veículo ativo, reflete em vehicleInfo + DriverLocation (cache de disponibilidade)
+      if (String(user.activeVehicleId || "") === String(vehicle._id)) {
+        user.vehicleInfo = { ...(user.vehicleInfo || {}), rideCategory };
+        try {
+          const DriverLocation = require("../models/DriverLocation");
+          await DriverLocation.findOneAndUpdate({ driverId: userId }, { rideCategory });
+        } catch (locErr) {
+          console.error("Falha ao sincronizar rideCategory no DriverLocation:", locErr);
+        }
+      }
+
+      await user.save();
+
+      res.json({
+        success: true,
+        message: "Categoria de corrida atualizada",
+        vehicleId: String(vehicle._id),
+        rideCategory,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });

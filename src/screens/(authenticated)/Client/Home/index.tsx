@@ -25,11 +25,13 @@ import { ClientRealtimeMap } from "@/components/client/home/ClientRealtimeMap";
 import {Modal} from "@/components/Modal";
 import { colors } from "@/theme";
 import { ClientStackParamList, DeliveryAddressProfile } from "../types/navigation";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function HomeScreen() {
   const navigation = useNavigation<NavigationProp<ClientStackParamList>>();
   const route = useRoute<RouteProp<ClientStackParamList, "Home">>();
   const { userData: user } = useAuthStore();
+  const insets = useSafeAreaInsets();
 
   const [showHomeSuccessModal, setShowHomeSuccessModal] = useState(false);
   const [showNoDriversModal, setShowNoDriversModal] = useState(false);
@@ -288,7 +290,7 @@ export default function HomeScreen() {
   return (
     <ErrorBoundary componentName="ClientHomeScreen">
       <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#091A2F" }}>
-        <StatusBar barStyle={activeService === "ride" ? "dark-content" : "light-content"} backgroundColor="transparent" translucent />
+        <StatusBar hidden barStyle={activeService === "ride" ? "dark-content" : "light-content"} backgroundColor="transparent" translucent />
         
         {activeService === "ride" && (
           <View className="flex-1 pb-[110px]" style={{ paddingTop: StatusBar.currentHeight || 20 }}>
@@ -359,12 +361,12 @@ export default function HomeScreen() {
               accessibilityLabel="Buscar destino"
               accessibilityRole="search"
             >
-              <Search size={28} color="#091A2F" style={{ marginRight: 14 }} />
-              <Text className="text-[#091A2F] text-xl font-black">Para onde vamos?</Text>
+              <Search size={28} color="#FFFFFF" style={{ marginRight: 14 }} />
+              <Text className="text-white text-xl font-black">Para onde vamos?</Text>
             </TouchableOpacity>
 
             {/* Quick Favorites Pills */}
-            <View className="mt-[15px] px-5">
+            <View className="mt-4 px-5">
               <ScrollView 
                 horizontal 
                 showsHorizontalScrollIndicator={false} 
@@ -579,7 +581,7 @@ export default function HomeScreen() {
               <ScrollView 
                 horizontal 
                 showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ gap: 12, paddingRight: 20 }}
+                contentContainerStyle={{ gap: 12, paddingLeft: 20, paddingRight: 20 }}
               >
                 {/* Promo Card */}
                 <TouchableOpacity
@@ -591,10 +593,10 @@ export default function HomeScreen() {
                 >
                   <View className="flex-1 justify-between h-full pr-1">
                     <View className="self-start bg-[#02de95]/10 border border-[#02de95]/20 px-2 py-0.5 rounded-md">
-                      <Text className="text-[#02de95] text-[9px] font-black tracking-widest uppercase">Leva+</Text>
+                      <Text className="text-white text-[9px] font-black tracking-widest uppercase">Leva+</Text>
                     </View>
                     <View className="mt-1">
-                      <Text className="text-[#02de95] text-lg font-black tracking-tight mb-0.5">Vá com a Leva+</Text>
+                      <Text className="text-white text-lg font-black tracking-tight mb-0.5">Vá com a Leva+</Text>
                       <Text className="text-white/60 text-[11px] leading-[15px]" numberOfLines={2}>
                         Escolha entre entrega ou corrida com preço justo.
                       </Text>
@@ -628,10 +630,10 @@ export default function HomeScreen() {
                 >
                   <View className="flex-1 justify-between h-full pr-1">
                     <View className="self-start bg-[#02de95]/10 border border-[#02de95]/20 px-2 py-0.5 rounded-md">
-                      <Text className="text-[#02de95] text-[9px] font-black tracking-widest uppercase">Promoção</Text>
+                      <Text className="text-white text-[9px] font-black tracking-widest uppercase">Promoção</Text>
                     </View>
                     <View className="mt-1">
-                      <Text className="text-[#02de95] text-lg font-black tracking-tight mb-0.5">Indique & Ganhe</Text>
+                      <Text className="text-white text-lg font-black tracking-tight mb-0.5">Indique & Ganhe</Text>
                       <Text className="text-white/60 text-[11px] leading-[15px]" numberOfLines={2}>
                         Ative sua conta e ganhe cupons compartilhando!
                       </Text>
@@ -1014,16 +1016,8 @@ export default function HomeScreen() {
 
         {/* Floating Navigation Tab Bar */}
         <View 
-          className="absolute bottom-6 h-[72px] bg-white rounded-[36px] flex-row items-center justify-between px-2 z-[100]" 
-          style={{ 
-            width: 250, 
-            alignSelf: "center", 
-            shadowColor: "#000", 
-            shadowOffset: { width: 0, height: 10 }, 
-            shadowOpacity: 0.12, 
-            shadowRadius: 18, 
-            elevation: 12 
-          }}
+          className="absolute h-[72px] bg-white rounded-[36px] flex-row items-center justify-between px-2 z-[100]" style={{ bottom: (insets?.bottom || 0) + 24, width: 250, alignSelf: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.12, shadowRadius: 18, elevation: 12 }} 
+          
         >
           {/* Fluid Water-Drop Indicator Dot */}
           <MotiView

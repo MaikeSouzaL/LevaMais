@@ -7,6 +7,7 @@ const ShiftOffer = require("../models/ShiftOffer");
 
 const { getRuntimeConfig } = require("../services/platformConfig.service");
 const { calculateDeliveryPricingSnapshot, fetchRouteMetricsWithGoogleMaps } = require("../services/delivery-pricing.service");
+const { calculateRideCategories } = require("../services/ride-pricing.service");
 
 // mixins (rating + proofs)
 const ratingProofMixin = require("./ride.ratingProof.mixin");
@@ -284,6 +285,36 @@ function isServiceCompatibleWithVehicle(vehicleType, serviceType) {
   if (normalizedService === "delivery") return true;
   if (normalizedService === "ride") return RIDE_CAPABLE_VEHICLES.has(normalizedVehicle);
   return false;
+}
+
+// Resolve a categoria de CORRIDA de um motorista a partir do tipo de veículo + classificação.
+// motos -> "moto"; carros sem classificação caem em "car_economy".
+function resolveDriverRideCategory(vehicleType, rideCategory) {
+  const v = String(vehicleType || "").trim().toLowerCase();
+  if (v === "motorcycle") return "moto";
+  if (v === "car") {
+    const c = String(rideCategory || "").trim().toLowerCase();
+    if (["car_economy", "car_comfort", "car_luxury"].includes(c)) return c;
+    return "car_economy";
+  }
+  return null;
+}
+
+// Rank dos tiers de carro (luxo atende comfort/economy; comfort atende economy).
+const CAR_TIER_RANK = { car_economy: 1, car_comfort: 2, car_luxury: 3 };
+
+// Verifica se um motorista pode atender uma corrida de uma dada categoria.
+// Regra estilo Uber: tier superior atende tiers inferiores; moto só atende moto.
+function isDriverCategoryCompatible(driverVehicleType, driverRideCategory, requestedRideCategory) {
+  const requested = String(requestedRideCategory || "").trim().toLowerCase();
+  if (!requested) return true; // corrida sem categoria definida: sem restrição
+  const driverCat = resolveDriverRideCategory(driverVehicleType, driverRideCategory);
+  if (!driverCat) return false;
+  if (requested === "moto") return driverCat === "moto";
+  const reqRank = CAR_TIER_RANK[requested];
+  const drvRank = CAR_TIER_RANK[driverCat];
+  if (!reqRank || !drvRank) return false; // moto não atende carro e vice-versa
+  return drvRank >= reqRank;
 }
 
 function getDateKeyInTimezone(date = new Date(), timeZone = DEFAULT_APP_TIMEZONE) {
@@ -592,7 +623,7 @@ class RideController {
       try {
         const ride = await Ride.findById(rideId)
           .populate("clientId", "name phone profilePhoto")
-          .populate("driverId", "name phone profilePhoto");
+          .populate("driverId", "name phone profilePhoto ratingStats vehicleInfo createdAt");
 
         if (!ride || ride.status !== "scheduled") return;
 
@@ -702,7 +733,7 @@ class RideController {
         let ride = dl?.currentRideId
           ? await Ride.findById(dl.currentRideId)
               .populate("clientId", "name phone profilePhoto")
-              .populate("driverId", "name phone profilePhoto")
+              .populate("driverId", "name phone profilePhoto ratingStats vehicleInfo createdAt")
                         : null;
 
         if (!ride) {
@@ -712,7 +743,7 @@ class RideController {
           })
             .sort({ updatedAt: -1 })
             .populate("clientId", "name phone profilePhoto")
-            .populate("driverId", "name phone profilePhoto");
+            .populate("driverId", "name phone profilePhoto ratingStats vehicleInfo createdAt");
 
           if (ride?._id && dl) {
             await DriverLocation.findOneAndUpdate(
@@ -750,7 +781,7 @@ class RideController {
         })
           .sort({ createdAt: -1 })
           .populate("clientId", "name phone profilePhoto")
-          .populate("driverId", "name phone profilePhoto");
+          .populate("driverId", "name phone profilePhoto ratingStats vehicleInfo createdAt");
 
         if (!ride) return res.json({ active: false, ride: null });
         return res.json({ active: true, ride });
@@ -783,7 +814,7 @@ class RideController {
         })
           .sort({ createdAt: -1 })
           .populate("clientId", "name phone profilePhoto")
-          .populate("driverId", "name phone profilePhoto");
+          .populate("driverId", "name phone profilePhoto ratingStats vehicleInfo createdAt");
 
         // Dynamically add allRejected flag
         const enrichedRides = [];
@@ -825,7 +856,7 @@ class RideController {
         })
           .sort({ createdAt: -1 })
           .populate("clientId", "name phone profilePhoto")
-          .populate("driverId", "name phone profilePhoto");
+          .populate("driverId", "name phone profilePhoto ratingStats vehicleInfo createdAt");
 
         return res.json({ active: rides.length > 0, count: rides.length, rides });
       }
@@ -1128,10 +1159,12 @@ class RideController {
       const {
         serviceType,
         vehicleType,
+        rideCategory,
         purposeId,
         cityId,
         pickup,
         dropoff,
+        stops,
         pricing,
         distance,
         duration,
@@ -1142,6 +1175,30 @@ class RideController {
         promotionCode,
         routeCoordinates,
       } = req.body;
+
+      // Sanitiza paradas (waypoints): mantém apenas coords válidas e normaliza a ordem
+      const sanitizedStops = Array.isArray(stops)
+        ? stops
+            .filter(
+              (s) =>
+                Number.isFinite(Number(s?.latitude)) &&
+                Number.isFinite(Number(s?.longitude)),
+            )
+            .map((s, idx) => ({
+              address: s.address || "",
+              latitude: Number(s.latitude),
+              longitude: Number(s.longitude),
+              order: Number.isFinite(Number(s.order)) ? Number(s.order) : idx,
+            }))
+        : [];
+
+      // Categoria de corrida válida (apenas fluxo ride)
+      const VALID_RIDE_CATEGORIES = ["moto", "car_economy", "car_comfort", "car_luxury"];
+      const resolvedRideCategory =
+        String(serviceType || "").toLowerCase() === "ride" &&
+        VALID_RIDE_CATEGORIES.includes(rideCategory)
+          ? rideCategory
+          : null;
 
       const clientId = req.user.id; // Do middleware de autenticaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o
 
@@ -1323,9 +1380,11 @@ class RideController {
         clientId: req.user.id,
         serviceType,
         vehicleType,
+        rideCategory: resolvedRideCategory,
         purposeId: resolvedPurposeId,
         pickup,
         dropoff,
+        stops: sanitizedStops,
         pricing: safePricing,
         splitDetails,
         distance: resolvedDistance,
@@ -1457,7 +1516,7 @@ class RideController {
       }
 
       const rideSnapshot = await Ride.findById(rideId).select(
-        "_id serviceType vehicleType status driverId rejectedBy negotiation",
+        "_id serviceType vehicleType rideCategory status driverId rejectedBy negotiation",
       );
       if (!rideSnapshot) {
         return sendError(res, 404, "Corrida nao encontrada");
@@ -1476,6 +1535,17 @@ class RideController {
       }
       if (String(driverLocation.vehicleType || "") !== String(rideSnapshot.vehicleType || "")) {
         return sendError(res, 400, "Tipo de veiculo do motorista nao corresponde a solicitacao");
+      }
+      // Corrida: o motorista precisa atender a categoria solicitada (tier compatível)
+      if (String(rideSnapshot.serviceType || "") === "ride" && rideSnapshot.rideCategory) {
+        let driverCat = driverLocation.rideCategory;
+        if (!driverCat) {
+          const driverUser = await User.findById(driverId).select("vehicleInfo.rideCategory");
+          driverCat = driverUser?.vehicleInfo?.rideCategory;
+        }
+        if (!isDriverCategoryCompatible(driverLocation.vehicleType, driverCat, rideSnapshot.rideCategory)) {
+          return sendError(res, 400, "Sua categoria de veiculo nao corresponde a categoria da corrida");
+        }
       }
 
       // 1) Tenta ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œtravarÃƒÂ¢Ã¢â€šÂ¬Ã‚Â o motorista (evita ele aceitar duas corridas em paralelo)
@@ -1536,7 +1606,7 @@ class RideController {
       }
 
       // Popular dados
-      await ride.populate("driverId", "name phone profilePhoto rating");
+      await ride.populate("driverId", "name phone profilePhoto ratingStats vehicleInfo createdAt");
       await ride.populate("clientId", "name phone profilePhoto");
 
       // Notificar cliente via WebSocket
@@ -1831,7 +1901,7 @@ class RideController {
       }
 
       const driverLocation = await DriverLocation.findOne({ driverId }).select(
-        "vehicleType serviceTypes currentRideId",
+        "vehicleType rideCategory serviceTypes currentRideId",
       );
       if (!driverLocation) {
         return sendError(res, 400, "Atualize sua localizacao antes de responder negociacoes");
@@ -1855,6 +1925,17 @@ class RideController {
       }
       if (String(driverLocation.vehicleType || "") !== String(ride.vehicleType || "")) {
         return sendError(res, 400, "Tipo de veiculo do motorista nao corresponde a solicitacao");
+      }
+      // Corrida: motorista precisa atender a categoria solicitada (tier compatível)
+      if (String(ride.serviceType || "") === "ride" && ride.rideCategory) {
+        let driverCat = driverLocation.rideCategory;
+        if (!driverCat) {
+          const driverUser = await User.findById(driverId).select("vehicleInfo.rideCategory");
+          driverCat = driverUser?.vehicleInfo?.rideCategory;
+        }
+        if (!isDriverCategoryCompatible(driverLocation.vehicleType, driverCat, ride.rideCategory)) {
+          return sendError(res, 400, "Sua categoria de veiculo nao corresponde a categoria da corrida");
+        }
       }
 
       if (!["requesting", "driver_assigned"].includes(String(ride.status || ""))) {
@@ -1945,7 +2026,7 @@ class RideController {
         ride.requestedAt = now;
 
         await ride.save();
-        await ride.populate("driverId", "name phone profilePhoto");
+        await ride.populate("driverId", "name phone profilePhoto ratingStats vehicleInfo createdAt");
         await ride.populate("clientId");
 
         if (io) {
@@ -2155,7 +2236,7 @@ class RideController {
       ride.requestedAt = new Date();
 
       await ride.save();
-      await ride.populate("driverId", "name phone profilePhoto");
+      await ride.populate("driverId", "name phone profilePhoto ratingStats vehicleInfo createdAt");
       await ride.populate("clientId");
 
       const io = req.app.get("io");
@@ -2230,7 +2311,7 @@ class RideController {
       ride.status = "driver_assigned";
 
       await ride.save();
-      await ride.populate("driverId", "name phone profilePhoto");
+      await ride.populate("driverId", "name phone profilePhoto ratingStats vehicleInfo createdAt");
       await ride.populate("clientId");
 
       const io = req.app.get("io");
@@ -2979,12 +3060,12 @@ class RideController {
 
       let ride = await Ride.findById(rideId)
         .populate("clientId", "name phone profilePhoto")
-        .populate("driverId", "name phone profilePhoto");
+        .populate("driverId", "name phone profilePhoto ratingStats vehicleInfo createdAt");
 
       if (!ride) {
         ride = await RideHistory.findById(rideId)
           .populate("clientId", "name phone profilePhoto")
-          .populate("driverId", "name phone profilePhoto");
+          .populate("driverId", "name phone profilePhoto ratingStats vehicleInfo createdAt");
       }
 
       if (!ride) {
@@ -3034,11 +3115,11 @@ class RideController {
       const [activeRides, historyRides] = await Promise.all([
         Ride.find(query)
           .populate("clientId", "name phone profilePhoto")
-          .populate("driverId", "name phone profilePhoto")
+          .populate("driverId", "name phone profilePhoto ratingStats vehicleInfo createdAt")
           .lean(),
         RideHistory.find(query)
           .populate("clientId", "name phone profilePhoto")
-          .populate("driverId", "name phone profilePhoto")
+          .populate("driverId", "name phone profilePhoto ratingStats vehicleInfo createdAt")
           .lean()
       ]);
 
@@ -3709,6 +3790,57 @@ class RideController {
   }
 
   // Calcular estimativa de corrida (estilo inDriver - pré-cálculo para lance do cliente)
+  /**
+   * Lista categorias de CORRIDA (moto / economy / comfort / luxury) já com preço
+   * calculado para a rota (pickup -> stops -> dropoff). Fluxo separado de entrega.
+   */
+  async calculateRideCategories(req, res) {
+    try {
+      const { pickup, dropoff, stops, cityId, distance, duration } = req.body;
+
+      if (!pickup || !dropoff) {
+        return sendError(res, 400, "Origem e destino são obrigatórios");
+      }
+
+      const result = await calculateRideCategories({
+        pickup,
+        dropoff,
+        stops,
+        cityId,
+        distance,
+        duration,
+      });
+
+      // Disponibilidade por categoria: conta motoristas de CORRIDA próximos ao embarque.
+      try {
+        const pLat = Number(pickup.latitude);
+        const pLng = Number(pickup.longitude);
+        if (Number.isFinite(pLat) && Number.isFinite(pLng)) {
+          const nearby = await DriverLocation.findNearby(pLat, pLng, 15000, undefined, 50, "ride");
+
+          // Conta, por categoria, motoristas compatíveis (tier superior atende inferior).
+          // Usa o cache DriverLocation.rideCategory (sincronizado no update de localização).
+          result.categories = result.categories.map((c) => {
+            const count = nearby.reduce((acc, d) => {
+              return acc + (isDriverCategoryCompatible(d.vehicleType, d.rideCategory, c.category) ? 1 : 0);
+            }, 0);
+            return { ...c, availableCount: count, available: count > 0 };
+          });
+        }
+      } catch (availErr) {
+        // Disponibilidade é best-effort; não bloqueia o cálculo de preço.
+        console.warn("[calculateRideCategories] disponibilidade indisponível:", availErr?.message);
+      }
+
+      return res.json(result);
+    } catch (error) {
+      const status = error?.statusCode || 500;
+      return sendError(res, status, error?.message || "Erro ao calcular categorias de corrida", {
+        details: error?.details,
+      });
+    }
+  }
+
   async calculateRideEstimate(req, res) {
     try {
       const { pickup, dropoff, vehicleType } = req.body;
@@ -4180,6 +4312,15 @@ class RideController {
         endedAt,
         totalDurationMs,
         phases,
+        // Trajeto completo percorrido (flat, ordenado) — "por onde o motorista passou"
+        track: points.map((p) => ({
+          latitude: p.latitude,
+          longitude: p.longitude,
+          capturedAt: p.capturedAt,
+          phase: p.phase,
+          speed: p.speed ?? null,
+          heading: p.heading ?? null,
+        })),
       });
     } catch (error) {
       console.error("Erro ao consultar auditoria de rota:", error);

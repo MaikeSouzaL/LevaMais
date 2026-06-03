@@ -277,7 +277,8 @@ export default function DestinationSearchScreen({ navigation, route }: any) {
         initialDurationMin: durationRaw,
       });
     } else {
-      navigation.navigate("RideBidSetup", {
+      // Novo fluxo de corrida: escolher categoria (moto/economy/comfort/luxury) com preços
+      navigation.navigate("RideCategorySelect", {
         pickup: pickupData,
         dropoff: dropoffData,
         routeCoordinates,

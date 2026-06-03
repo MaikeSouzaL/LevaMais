@@ -46,6 +46,7 @@ export default function ChatScreen() {
   const [driverName, setDriverName] = useState<string>(
     route.params?.driverName || "Motorista",
   );
+  const [driverPhoto, setDriverPhoto] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     let mounted = true;
@@ -68,8 +69,10 @@ export default function ChatScreen() {
             ? ride.driverId
             : ride?.driverId?._id || ride?.driverId?.id;
         const dname = typeof ride?.driverId === "string" ? undefined : ride?.driverId?.name;
+        const dphoto = typeof ride?.driverId === "string" ? undefined : (ride?.driverId as any)?.profilePhoto || (ride?.driverId as any)?.fotoPerfil;
         if (did) setDriverId(String(did));
         if (dname) setDriverName(String(dname));
+        if (dphoto) setDriverPhoto(String(dphoto));
         setMessages(persistedMessages.map((item) => toChatItem(item, currentUserId)));
       } catch {
         Toast.show({
@@ -129,13 +132,15 @@ export default function ChatScreen() {
     () => Boolean(message.trim() && rideId),
     [message, rideId],
   );
-  const quickReplies = ["Estou no local", "Pode me ligar?", "Chego em 2 min"];
+  const quickReplies = ["Estou a caminho", "Estou descendo", "Já estou saindo", "OK, obrigado!"];
 
-  const handleSend = async () => {
-    const txt = message.trim();
+  const handleSend = async (customText?: string) => {
+    const txt = typeof customText === "string" ? customText.trim() : message.trim();
     if (!txt || !rideId) return;
 
-    setMessage("");
+    if (!customText) {
+      setMessage("");
+    }
 
     try {
       chatService.sendViaSocket(rideId, txt);
@@ -154,7 +159,9 @@ export default function ChatScreen() {
         text1: "Mensagem nao enviada",
         text2: e?.message || "Tente novamente.",
       });
-      setMessage(txt);
+      if (!customText) {
+        setMessage(txt);
+      }
     }
   };
 
@@ -164,6 +171,7 @@ export default function ChatScreen() {
       subtitle={`Conversando com ${driverName}`}
       peerName={driverName}
       peerIcon="support-agent"
+      peerAvatarUrl={driverPhoto}
       messages={messages}
       loading={loading}
       message={message}

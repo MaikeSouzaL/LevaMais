@@ -300,6 +300,15 @@ class DriverLocationController {
         },
         status: normalizedStatus || "available",
         vehicleType: normalizedVehicleType,
+        // Cache da categoria de corrida (moto sempre "moto"; carro usa vehicleInfo ou economy)
+        rideCategory:
+          normalizedVehicleType === "motorcycle"
+            ? "moto"
+            : normalizedVehicleType === "car"
+              ? (["car_economy", "car_comfort", "car_luxury"].includes(driverUser.vehicleInfo?.rideCategory)
+                  ? driverUser.vehicleInfo.rideCategory
+                  : "car_economy")
+              : null,
         lastUpdated: new Date(),
       };
 

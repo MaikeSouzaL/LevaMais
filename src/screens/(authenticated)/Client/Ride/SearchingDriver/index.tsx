@@ -14,7 +14,7 @@ import { darkMapStyle } from "@/utils/mapStyle";
 import { MapActionButtons } from "@/components/MapActionButtons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// New High-End Components ðŸ›°ï¸
+// New High-End Components Ã°Å¸âºÂ°Ã¯Â¸Â
 import { RadarScanner } from "@/components/client/searching-delivery/RadarScanner";
 import { SearchingHeader } from "@/components/client/searching-delivery/SearchingHeader";
 import { NearbyDriversLayer } from "@/components/client/searching-delivery/NearbyDriversLayer";
@@ -23,7 +23,7 @@ import { useRealtimeDelivery } from "@/hooks/useRealtimeDelivery";
 import {Modal} from "@/components/Modal";
 import { SearchTimeoutView } from "@/components/client/searching-delivery/timeout/SearchTimeoutView";
 
-const SEARCH_TIME = 60; // Tempo de busca padrÃ£o caso o banco de dados venha vazio (60 segundos)
+const SEARCH_TIME = 60; // Tempo de busca padrÃÂ£o caso o banco de dados venha vazio (60 segundos)
 const TERMINAL_CANCEL_STATUSES = [
   "cancelled",
   "cancelled_by_client",
@@ -126,7 +126,7 @@ export default function SearchingDriverScreen() {
 
   const doneRef = useRef(false);
 
-  // Custom Dynamic Simulation Hook âš¡ - upgraded with continuous tracking
+  // Custom Dynamic Simulation Hook Ã¢Å¡Â¡ - upgraded with continuous tracking
   const pickupCoords = rideData?.pickup?.latitude ? rideData.pickup : null;
   const { drivers, feedMessage, searchState } = useRealtimeDelivery(
     pickupCoords?.latitude,
@@ -150,7 +150,7 @@ export default function SearchingDriverScreen() {
       try {
         const data = await rideService.getById(rideId);
         setRideData(data);
-        // â±ï¸ SincronizaÃ§Ã£o Vital: Seta a contagem regressiva inicial EXATAMENTE com o tempo configurado no banco!
+        // Ã¢ÂÂ±Ã¯Â¸Â SincronizaÃÂ§ÃÂ£o Vital: Seta a contagem regressiva inicial EXATAMENTE com o tempo configurado no banco!
         if (data?.searchTimeoutSeconds && secondsElapsed === 0) {
           setSecondsLeft(data.searchTimeoutSeconds);
         }
@@ -160,13 +160,13 @@ export default function SearchingDriverScreen() {
     fetchRide();
   }, [rideId]);
 
-  // ðŸŽ¥ DYNAMIC AUTO-ZOOM & LOGARITHMIC RADIUS EXPANSION
+  // Ã°Å¸Å½Â¥ DYNAMIC AUTO-ZOOM & LOGARITHMIC RADIUS EXPANSION
   // Whenever the search radius increases, the camera smoothly floats up to fit the entire radius circle!
   useEffect(() => {
     if (!pickupCoords || !mapRef.current) return;
     
-    // ðŸ§  CÃ¡lculo logarÃ­tmico preciso de NÃ­vel de Zoom baseado no raio dinÃ¢mico da busca!
-    // Base: Raio de 2.5km mapeia para o zoom ideal 14.2. Para cada dobra do raio, diminuÃ­mos 1 nÃ­vel de zoom.
+    // Ã°Å¸Â§Â  CÃÂ¡lculo logarÃÂ­tmico preciso de NÃÂ­vel de Zoom baseado no raio dinÃÂ¢mico da busca!
+    // Base: Raio de 2.5km mapeia para o zoom ideal 14.2. Para cada dobra do raio, diminuÃÂ­mos 1 nÃÂ­vel de zoom.
     const radiusKm = searchState.radius;
     const dynamicZoom = 13.5 - Math.log2(radiusKm / 2.5);
 
@@ -176,10 +176,10 @@ export default function SearchingDriverScreen() {
           latitude: pickupCoords.latitude,
           longitude: pickupCoords.longitude,
         },
-        zoom: Math.max(2, Math.min(20, dynamicZoom)), // ProteÃ§Ã£o matemÃ¡tica de limites
-        pitch: 35, // MantÃ©m o belÃ­ssimo visual tÃ©cnico 3D inclinado!
+        zoom: Math.max(2, Math.min(20, dynamicZoom)), // ProteÃÂ§ÃÂ£o matemÃÂ¡tica de limites
+        pitch: 35, // MantÃÂ©m o belÃÂ­ssimo visual tÃÂ©cnico 3D inclinado!
         heading: 0,
-      }, { duration: 3000 }); // 3 segundos de flutuaÃ§Ã£o super suave e premium
+      }, { duration: 3000 }); // 3 segundos de flutuaÃÂ§ÃÂ£o super suave e premium
     }, 200);
 
     return () => clearTimeout(timer);
@@ -303,7 +303,7 @@ export default function SearchingDriverScreen() {
         // Re-update price/details dynamic if needed
         setRideData(ride);
 
-        // âš¡ NEW: If dynamic negotiation materialized (offers arriving), forward to Marketplace!
+        // Ã¢Å¡Â¡ NEW: If dynamic negotiation materialized (offers arriving), forward to Marketplace!
         const offerCount = ride.negotiation?.offers?.length || 0;
         if (offerCount > 0 && !doneRef.current) {
            doneRef.current = true;
@@ -352,7 +352,7 @@ export default function SearchingDriverScreen() {
         pollFailures += 1;
         if (pollFailures >= 2) {
           setNetworkUnstable(true);
-          setError("ConexÃ£o instÃ¡vel. Tentando reconectar...");
+          setError("ConexÃÂ£o instÃÂ¡vel. Tentando reconectar...");
         }
       }
     }, 4000);
@@ -376,12 +376,12 @@ export default function SearchingDriverScreen() {
 
   useEffect(() => {
     const timer = setInterval(() => {
-      // Track total lifetime of search for logic progression âŒš
+      // Track total lifetime of search for logic progression Ã¢ÅÅ¡
       setSecondsElapsed((prev) => prev + 1);
 
       setSecondsLeft((prev) => {
         if (prev <= 1) {
-          // ðŸš¨ Hit zero! Trigger logical expiration so the UI fallback shows up instead of staying stuck.
+          // Ã°Å¸Å¡Â¨ Hit zero! Trigger logical expiration so the UI fallback shows up instead of staying stuck.
           clearInterval(timer);
           rideExpiredCallback();
           return 0; 
@@ -418,8 +418,8 @@ export default function SearchingDriverScreen() {
     if (cancelling) return;
     setCancelling(true);
     
-    // ðŸ§  Se o pedido jÃ¡ atingiu um estado terminal no servidor (Timeout, Rejeitado por todos, ou Fila Encerrada),
-    // a corrida jÃ¡ estÃ¡ inativa no banco. NÃ£o chamamos a API para evitar erros desnecessÃ¡rios de HTTP 400!
+    // Ã°Å¸Â§Â  Se o pedido jÃÂ¡ atingiu um estado terminal no servidor (Timeout, Rejeitado por todos, ou Fila Encerrada),
+    // a corrida jÃÂ¡ estÃÂ¡ inativa no banco. NÃÂ£o chamamos a API para evitar erros desnecessÃÂ¡rios de HTTP 400!
     const isAlreadyTerminated = timeout || queueCancelled || allDriversRejected;
 
     try {
@@ -431,7 +431,7 @@ export default function SearchingDriverScreen() {
       cleanup();
       
       if (!isAlreadyTerminated) {
-        Toast.show({ type: "info", text1: "SolicitaÃ§Ã£o cancelada com sucesso." });
+        Toast.show({ type: "info", text1: "SolicitaÃÂ§ÃÂ£o cancelada com sucesso." });
       }
       navigation.reset({
         index: 1,
@@ -459,11 +459,11 @@ export default function SearchingDriverScreen() {
     webSocketService.off("driver-found", driverFoundCallback);
     webSocketService.off("ride-expired", rideExpiredCallback);
     webSocketService.off("ride-cancelled", rideCancelledCallback);
-    // ðŸ”„ EXPLICIT REACTIVATION: Wake up the backend dispatch cycle for this ride again!
+    // Ã°Å¸ââ EXPLICIT REACTIVATION: Wake up the backend dispatch cycle for this ride again!
     try {
       await rideService.retry(rideId);
     } catch (e: any) {
-            Toast.show({ type: "error", text1: "Erro", text2: "NÃ£o foi possÃ­vel reconectar o pedido." });
+            Toast.show({ type: "error", text1: "Erro", text2: "NÃÂ£o foi possÃÂ­vel reconectar o pedido." });
       return; // Stop restart loop if backend failed to reactivate
     }
 
@@ -476,7 +476,7 @@ export default function SearchingDriverScreen() {
       setAdjusting(true);
       const res = await rideService.increaseOffer(rideId, incrementAmount);
       
-      // Trigger special golden radar blast âœ¨ðŸ›¸
+      // Trigger special golden radar blast Ã¢ÅÂ¨Ã°Å¸âºÂ¸
       setBoostCount((prev) => prev + 1);
 
       // Hydrate local context with latest payload from backend directly
@@ -489,14 +489,14 @@ export default function SearchingDriverScreen() {
       
       Toast.show({
         type: "success",
-        text1: "Oferta Impulsionada! ðŸš€",
+        text1: "Oferta Impulsionada! Ã°Å¸Å¡â¬",
         text2: `Sua entrega agora oferece +R$ ${incrementAmount},00.`,
       });
     } catch (err: any) {
       Toast.show({
         type: "error",
         text1: "Erro ao impulsionar",
-        text2: err?.message || "NÃ£o foi possÃ­vel alterar a oferta.",
+        text2: err?.message || "NÃÂ£o foi possÃÂ­vel alterar a oferta.",
       });
     } finally {
       setAdjusting(false);
@@ -504,7 +504,7 @@ export default function SearchingDriverScreen() {
   }, [rideId, adjusting]);
 
 
-  // â±ï¸ TIMEOUT FALLBACK VIEW: Handles search ending with zero active results
+  // Ã¢ÂÂ±Ã¯Â¸Â TIMEOUT FALLBACK VIEW: Handles search ending with zero active results
   if (timeout) {
     return (
       <SearchTimeoutView
@@ -518,7 +518,7 @@ export default function SearchingDriverScreen() {
     );
   }
 
-  // Logic for rendering HARD terminal fallback states elegantly with nativewind ðŸƒ
+  // Logic for rendering HARD terminal fallback states elegantly with nativewind Ã°Å¸ÂÆ
   if (queueCancelled) {
     return (
       <View className="flex-1 bg-[#091A2F] items-center justify-center p-6">
@@ -535,7 +535,7 @@ export default function SearchingDriverScreen() {
              Busca Finalizada
            </Text>
            <Text className="text-white/60 text-center mb-8 text-base">
-             NÃ£o foi possÃ­vel estabelecer conexÃ£o a tempo. Sua solicitaÃ§Ã£o foi removida da fila ativa.
+             NÃÂ£o foi possÃÂ­vel estabelecer conexÃÂ£o a tempo. Sua solicitaÃÂ§ÃÂ£o foi removida da fila ativa.
            </Text>
 
            <TouchableOpacity 
@@ -543,7 +543,7 @@ export default function SearchingDriverScreen() {
              className="w-full h-14 bg-[#02de95] rounded-2xl flex-row items-center justify-center mb-4"
            >
              <Home size={18} color="#091A2F" className="mr-2" />
-             <Text className="text-[#091A2F] font-bold text-base">Voltar para InÃ­cio</Text>
+             <Text className="text-[#091A2F] font-bold text-base">Voltar para InÃÂ­cio</Text>
            </TouchableOpacity>
 
            <TouchableOpacity onPress={handleCancel} className="mt-4">
@@ -554,7 +554,7 @@ export default function SearchingDriverScreen() {
     );
   }
 
-  // ðŸš€ MAIN RENDER: HIGH FIDELITY RADAR MAP VIEWPORT 
+  // Ã°Å¸Å¡â¬ MAIN RENDER: HIGH FIDELITY RADAR MAP VIEWPORT 
   return (
     <GestureHandlerRootView className="flex-1 bg-[#091A2F]">
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
@@ -596,7 +596,7 @@ export default function SearchingDriverScreen() {
               <RadarScanner size={500} boostCount={boostCount} />
             </Marker>
 
-            {/* Visual Pulse Search Radius Circle ðŸŸ¢ */}
+            {/* Visual Pulse Search Radius Circle Ã°Å¸Å¸Â¢ */}
             <Circle
               center={{ 
                 latitude: pickupCoords.latitude, 
@@ -609,7 +609,7 @@ export default function SearchingDriverScreen() {
               zIndex={1}
             />
 
-            {/* Simulated Realtime Nearby Layer ðŸ›°ï¸ */}
+            {/* Simulated Realtime Nearby Layer Ã°Å¸âºÂ°Ã¯Â¸Â */}
             <NearbyDriversLayer drivers={drivers} />
           </>
         )}

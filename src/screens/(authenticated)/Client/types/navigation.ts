@@ -329,12 +329,26 @@ export type ClientStackParamList = {
   InviteFriends: undefined;
   SupportCenter: undefined;
   OrderSent: { rideId?: string };
+  RouteAudit: { rideId: string };
+  RideCategorySelect:
+    | {
+        pickup: { address: string; latitude: number; longitude: number };
+        dropoff: { address: string; latitude: number; longitude: number };
+        stops?: Array<{ address?: string; latitude: number; longitude: number }>;
+        routeCoordinates?: Array<{ latitude: number; longitude: number }>;
+        initialDistanceKm?: number;
+        initialDurationMin?: number;
+      }
+    | undefined;
   RideBidSetup:
     | {
         pickup?: { address: string; latitude: number; longitude: number };
         dropoff?: { address: string; latitude: number; longitude: number };
+        stops?: Array<{ address?: string; latitude: number; longitude: number }>;
         routeCoordinates?: Array<{ latitude: number; longitude: number }>;
         vehicleType?: string;
+        rideCategory?: "moto" | "car_economy" | "car_comfort" | "car_luxury";
+        presetOffer?: number;
         initialDistanceKm?: number;
         initialDurationMin?: number;
         preferScheduled?: boolean;
@@ -344,8 +358,10 @@ export type ClientStackParamList = {
     | {
         pickup: { address: string; latitude: number; longitude: number };
         dropoff: { address: string; latitude: number; longitude: number };
+        stops?: Array<{ address?: string; latitude: number; longitude: number }>;
         routeCoordinates?: Array<{ latitude: number; longitude: number }>;
         vehicleType: string;
+        rideCategory?: "moto" | "car_economy" | "car_comfort" | "car_luxury";
         clientOffer: number;
         estimate: {
           suggestedPrice: number;

@@ -23,7 +23,7 @@ export function AddressRow({
     <View style={{ gap: compact ? 6 : 10 }}>
       {/* Pickup */}
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: compact ? 8 : 10 }}>
-        <View style={{ alignItems: 'center', width: dotSize + 4 }} accessibilityHidden>
+        <View style={{ alignItems: 'center', width: dotSize + 4 }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
           <View
             style={{
               width: dotSize,
@@ -66,7 +66,7 @@ export function AddressRow({
       </View>
       {/* Dropoff */}
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: compact ? 8 : 10 }}>
-        <View style={{ alignItems: 'center', width: dotSize + 4 }} accessibilityHidden>
+        <View style={{ alignItems: 'center', width: dotSize + 4 }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
           <View
             style={{
               width: dotSize,

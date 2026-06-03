@@ -51,6 +51,7 @@ export default function DriverChatScreen() {
   const [clientName, setClientName] = useState<string>(
     route.params?.clientName || "Cliente",
   );
+  const [clientPhoto, setClientPhoto] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     let mounted = true;
@@ -70,8 +71,10 @@ export default function DriverChatScreen() {
 
         const cid = (ride?.clientId as any)?._id || (ride?.clientId as any)?.id;
         const cname = (ride?.clientId as any)?.name;
+        const cphoto = (ride?.clientId as any)?.profilePhoto || (ride?.clientId as any)?.fotoPerfil;
         if (cid) setClientId(String(cid));
         if (cname) setClientName(String(cname));
+        if (cphoto) setClientPhoto(String(cphoto));
         setMessages(persistedMessages.map((item) => toChatItem(item, currentUserId)));
       } catch {
         Toast.show({
@@ -132,11 +135,13 @@ export default function DriverChatScreen() {
     [message, rideId],
   );
 
-  const handleSend = async () => {
-    const txt = message.trim();
+  const handleSend = async (customText?: string) => {
+    const txt = typeof customText === "string" ? customText.trim() : message.trim();
     if (!txt || !rideId) return;
 
-    setMessage("");
+    if (!customText) {
+      setMessage("");
+    }
 
     try {
       chatService.sendViaSocket(rideId, txt);
@@ -155,7 +160,9 @@ export default function DriverChatScreen() {
         text1: "Mensagem nao enviada",
         text2: e?.message || "Tente novamente.",
       });
-      setMessage(txt);
+      if (!customText) {
+        setMessage(txt);
+      }
     }
   };
 
@@ -165,10 +172,11 @@ export default function DriverChatScreen() {
       subtitle={`Conversando com ${clientName}`}
       peerName={clientName}
       peerIcon="person"
+      peerAvatarUrl={clientPhoto}
       messages={messages}
       loading={loading}
       message={message}
-      quickReplies={["Cheguei", "Estou indo", "Pode entregar o pacote"]}
+      quickReplies={["Cheguei", "Estou a caminho", "Estou no ponto de encontro", "OK!"]}
       canSend={canSend}
       onBack={() => (navigation as any).goBack()}
       onChangeMessage={setMessage}

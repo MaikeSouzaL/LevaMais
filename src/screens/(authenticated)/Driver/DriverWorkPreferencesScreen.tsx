@@ -74,7 +74,7 @@ export default function DriverWorkPreferencesScreen() {
             autoAccept: Boolean(profile?.driverPreferences?.autoAccept),
             searchRadiusKm: Math.min(persistedRadius, limitConfig.max),
             vehicleType,
-            acceptsCardMachine: Boolean(profile?.driverPreferences?.acceptsCardMachine),
+            acceptsCardMachine: Boolean((profile?.driverPreferences as any)?.acceptsCardMachine),
           });
         } catch {
           if (!mounted) return;

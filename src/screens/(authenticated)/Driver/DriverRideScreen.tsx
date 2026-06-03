@@ -1,9 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, TouchableOpacity, AppState, Alert, Modal, TextInput } from "react-native";
+import { View, Text, TouchableOpacity, AppState, Alert, Modal, TextInput, StyleSheet, Animated } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { createAudioPlayer } from "expo-audio";
+import { MessageCircle } from "lucide-react-native";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { GlobalMap } from "@/components/GlobalMap";
 import MapView, { Marker, Polyline } from "react-native-maps";
+import { smoothHeading } from "@/utils/heading";
 import * as Location from "expo-location";
 import * as ImagePicker from "expo-image-picker";
 import Toast from "react-native-toast-message";
@@ -22,9 +25,10 @@ import rideService, { Ride } from "../../../services/ride.service";
 import webSocketService from "../../../services/websocket.service";
 import { useAuthStore } from "../../../context/authStore";
 import { useChatStore } from "../../../context/chatStore";
-import MapMarker, { getClientMarkerType } from "../../../components/MapMarker";
 import { decodePolyline, LatLng } from "../../../utils/polyline";
 import { VehicleMarker } from "@/components/maps/VehicleMarker";
+import RoutePin from "@/components/maps/RoutePin";
+import StopPin from "@/components/maps/StopPin";
 import { MapActionButtons } from "@/components/MapActionButtons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -41,6 +45,9 @@ export default function DriverRideScreen() {
   const currentUserId = useAuthStore((s) => s.userData?.id) || "";
   const vehicleType = useAuthStore((s) => s.userData?.vehicleType) || "motorcycle";
   const unreadCount = useChatStore((s) => s.unreadCounts[rideId || ""]) || 0;
+  const [chatNotification, setChatNotification] = useState<{ sender: string; text: string } | null>(null);
+  const slideAnim = useRef(new Animated.Value(-400)).current;
+  const notificationTimeoutRef = useRef<any>(null);
 
   const [ride, setRide] = useState<Ride | null>(null);
   const [status, setStatus] = useState<string>("accepted");
@@ -64,9 +71,27 @@ export default function DriverRideScreen() {
   const lastAppStateRef = useRef(AppState.currentState);
   const autoArrivingRequestedRef = useRef(false);
 
+  // Bússola física (magnetômetro) para girar mapa + puck suavemente (estilo Uber)
+  const [navHeading, setNavHeading] = useState(0);
+  const lastHeadingRef = useRef<number | null>(null);
+  const lastHeadingSetRef = useRef(0);
+  const lastRotateRef = useRef(0);
+  // Modo "seguir motorista": desliga quando o usuário mexe no mapa, religa no botão de GPS
+  const followingRef = useRef(true);
+  const [isFollowing, setIsFollowing] = useState(true);
+
   const [useDarkMap, setUseDarkMap] = useState(true);
   const [isSwitchingMapStyle, setIsSwitchingMapStyle] = useState(false);
   const [isCentering, setIsCentering] = useState(false);
+  const [navigationModeEnabled, setNavigationModeEnabled] = useState(true);
+  const [mapReady, setMapReady] = useState(false);
+  const didInitial3DRef = useRef(false);
+  // Garante que o puck (View customizada) renderize no Android e depois congela para performance
+  const [puckRendered, setPuckRendered] = useState(false);
+  // Mesmo tratamento para os pins de coleta/destino (evita o ícone "sumir" no Android)
+  const [markersReady, setMarkersReady] = useState(false);
+  // Altura medida do bottom sheet para empurrar o conteúdo do mapa para cima (mapPadding)
+  const [sheetHeight, setSheetHeight] = useState(300);
 
   // Security PIN Verification States 🔐
   const [pinModalVisible, setPinModalVisible] = useState(false);
@@ -111,13 +136,41 @@ export default function DriverRideScreen() {
   const handleCenterMyLocation = () => {
     if (!driverCoords) return;
     setIsCentering(true);
-    mapRef.current?.animateToRegion({
-      ...driverCoords,
-      latitudeDelta: 0.008,
-      longitudeDelta: 0.008,
-    }, 600);
+
+    // Religa o modo "seguir motorista"
+    followingRef.current = true;
+    setIsFollowing(true);
+    lastCameraUpdateRef.current = 0;
+
+    const navMode =
+      statusRef.current === "driver_arriving" ||
+      statusRef.current === "in_progress";
+
+    // Vista de topo (sem inclinação), seguindo o motorista
+    mapRef.current?.animateCamera(
+      {
+        center: driverCoords,
+        pitch: 0,
+        heading: lastHeadingRef.current ?? 0,
+        zoom: navMode ? 18.4 : 16.5,
+      },
+      { duration: 600 },
+    );
     setTimeout(() => setIsCentering(false), 700);
   };
+
+  // Desliga o "seguir" quando o usuário arrasta/dá zoom no mapa
+  const handleUserMapGesture = useCallback(() => {
+    if (followingRef.current) {
+      followingRef.current = false;
+      setIsFollowing(false);
+    }
+  }, []);
+
+  const handleMapReady = useCallback(() => {
+    setMapReady(true);
+  }, []);
+
 
   const handleSOS = () => {
     try {
@@ -146,22 +199,56 @@ export default function DriverRideScreen() {
     [],
   );
 
+  const isDelivery = ride?.serviceType === "delivery";
+
   const statusLabel = useMemo(() => {
     if (!status) return "-";
     if (status === "payment_pending") return "Aguardando pagamento do cliente";
-    if (status === "driver_arriving") return "A caminho da coleta";
-    if (status === "driver_assigned") return "Entrega reservada";
+    if (status === "driver_arriving") return isDelivery ? "A caminho da coleta" : "A caminho do embarque";
+    if (status === "driver_assigned") return isDelivery ? "Entrega reservada" : "Corrida reservada";
     if (status === "accepted") return "Aceita";
     if (status === "arrived") return "Cheguei";
     if (status === "in_progress") return "Em andamento";
     if (status === "completed") return "Finalizada";
     if (String(status).startsWith("cancelled")) return "Cancelada";
     return status;
-  }, [status]);
+  }, [status, isDelivery]);
 
-  const isDelivery = ride?.serviceType === "delivery";
   const isAwaitingPayment = status === "payment_pending";
   const arrivedAtDropoff = Boolean(ride?.arrivedAtDropoff);
+
+  const handleNotificationPress = () => {
+    if (notificationTimeoutRef.current) {
+      clearTimeout(notificationTimeoutRef.current);
+    }
+    Animated.timing(slideAnim, {
+      toValue: 400,
+      duration: 300,
+      useNativeDriver: true,
+    }).start(() => {
+      setChatNotification(null);
+      if (rideId) {
+        useChatStore.getState().clearUnread(rideId);
+        (navigation as any).navigate("DriverChat", {
+          rideId,
+          clientName: chatNotification?.sender || "Cliente",
+        });
+      }
+    });
+  };
+
+  const handleNotificationClose = () => {
+    if (notificationTimeoutRef.current) {
+      clearTimeout(notificationTimeoutRef.current);
+    }
+    Animated.timing(slideAnim, {
+      toValue: 400,
+      duration: 300,
+      useNativeDriver: true,
+    }).start(() => {
+      setChatNotification(null);
+    });
+  };
 
   const canArrive =
     status === "accepted" ||
@@ -385,7 +472,7 @@ export default function DriverRideScreen() {
       );
     };
 
-    const onNewMsg = (data: any) => {
+    const onNewMsg = async (data: any) => {
       if (!mounted) return;
       if (data?.rideId !== rideId) return;
       if (String(data?.senderId) === currentUserId) return;
@@ -402,7 +489,46 @@ export default function DriverRideScreen() {
 
       if (activeRouteName !== "DriverChat") {
         useChatStore.getState().incrementUnread(rideId);
-        Toast.show({ type: "info", text1: sender, text2: preview });
+
+        // Play sound
+        try {
+          const player = createAudioPlayer(require("../../../assets/sound/notification.mp3"));
+          player.volume = 1.0;
+          player.loop = false;
+          player.play();
+          const subscription = player.addListener("playbackStatusUpdate", (status) => {
+            if (status.didJustFinish) {
+              subscription.remove();
+              player.release();
+            }
+          });
+        } catch (error) {
+          console.log("Falha ao reproduzir som:", error);
+        }
+
+        if (notificationTimeoutRef.current) {
+          clearTimeout(notificationTimeoutRef.current);
+        }
+        setChatNotification({ sender, text: preview });
+        slideAnim.setValue(-400);
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 40,
+          friction: 8,
+        }).start();
+
+        notificationTimeoutRef.current = setTimeout(() => {
+          if (mounted) {
+            Animated.timing(slideAnim, {
+              toValue: 400,
+              duration: 300,
+              useNativeDriver: true,
+            }).start(() => {
+              setChatNotification(null);
+            });
+          }
+        }, 10000);
       }
     };
 
@@ -416,6 +542,14 @@ export default function DriverRideScreen() {
       }
     };
 
+    const onStopsUpdated = (payload: any) => {
+      if (!mounted) return;
+      if (payload?.rideId !== rideId) return;
+      if (Array.isArray(payload?.stops)) {
+        setRide((prev) => (prev ? ({ ...prev, stops: payload.stops } as any) : prev));
+      }
+    };
+
     (async () => {
       try {
         await webSocketService.connect();
@@ -424,6 +558,7 @@ export default function DriverRideScreen() {
         webSocketService.on("delivery-cancelled", onRideCancelled);
         webSocketService.on("new-message", onNewMsg);
         webSocketService.on("client-location-update", onClientLocationUpdate);
+        webSocketService.on("ride-stops-updated", onStopsUpdated);
       } catch {}
     })();
 
@@ -434,6 +569,10 @@ export default function DriverRideScreen() {
       webSocketService.off("delivery-cancelled", onRideCancelled);
       webSocketService.off("new-message", onNewMsg);
       webSocketService.off("client-location-update", onClientLocationUpdate);
+      webSocketService.off("ride-stops-updated", onStopsUpdated);
+      if (notificationTimeoutRef.current) {
+        clearTimeout(notificationTimeoutRef.current);
+      }
     };
   }, [navigation, rideId, currentUserId]);
 
@@ -520,15 +659,22 @@ export default function DriverRideScreen() {
             capturedAt: new Date().toISOString(),
           });
 
+          const navMode =
+            statusRef.current === "driver_arriving" ||
+            statusRef.current === "in_progress";
+
           const now = Date.now();
-          if (now - lastCameraUpdateRef.current > 700) {
+          if (followingRef.current && now - lastCameraUpdateRef.current > 700) {
             lastCameraUpdateRef.current = now;
+            // Prioriza a bússola suavizada; cai para o heading do GPS se ainda não houver leitura
+            const camHeading =
+              lastHeadingRef.current ?? pos.coords.heading ?? 0;
             mapRef.current?.animateCamera(
               {
                 center: current,
-                pitch: 52,
-                heading: pos.coords.heading ?? 0,
-                zoom: statusRef.current === "in_progress" ? 19.6 : 19.2,
+                pitch: 0,
+                heading: camHeading,
+                zoom: navMode ? (statusRef.current === "in_progress" ? 18.6 : 18.3) : 17,
               },
               { duration: 450 },
             );
@@ -547,6 +693,52 @@ export default function DriverRideScreen() {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
+    };
+  }, []);
+
+  // Bússola física: gira o mapa e o puck suavemente entre as atualizações de posição (estilo Uber)
+  useEffect(() => {
+    let subscription: Location.LocationSubscription | null = null;
+    let active = true;
+
+    (async () => {
+      try {
+        const { status: permissionStatus } =
+          await Location.requestForegroundPermissionsAsync();
+        if (permissionStatus !== "granted" || !active) return;
+
+        subscription = await Location.watchHeadingAsync((data) => {
+          if (!active) return;
+          const raw = data.trueHeading !== -1 ? data.trueHeading : data.magHeading;
+          if (raw == null || raw === -1) return;
+
+          const smoothed = smoothHeading(lastHeadingRef.current, raw, 0.4);
+          lastHeadingRef.current = smoothed;
+
+          const now = Date.now();
+          // Atualiza a rotação do puck (re-render) no máximo a cada 120ms
+          if (now - lastHeadingSetRef.current > 120) {
+            lastHeadingSetRef.current = now;
+            setNavHeading(smoothed);
+          }
+
+          // Gira a câmera entre os ticks de posição, no máximo a cada 250ms
+          const navMode =
+            statusRef.current === "driver_arriving" ||
+            statusRef.current === "in_progress";
+          if (followingRef.current && navMode && mapRef.current && now - lastRotateRef.current > 250) {
+            lastRotateRef.current = now;
+            mapRef.current.animateCamera({ heading: smoothed }, { duration: 250 });
+          }
+        });
+      } catch (e) {
+        console.warn("watchHeading falhou:", e);
+      }
+    })();
+
+    return () => {
+      active = false;
+      subscription?.remove();
     };
   }, []);
 
@@ -708,6 +900,7 @@ export default function DriverRideScreen() {
   const dropoffLng = Number(ride?.dropoff?.longitude);
   const hasPickupCoords = Number.isFinite(pickupLat) && Number.isFinite(pickupLng);
   const hasDropoffCoords = Number.isFinite(dropoffLat) && Number.isFinite(dropoffLng);
+  const rideStops = Array.isArray(ride?.stops) ? (ride!.stops as any[]) : [];
 
   const targetCoords =
     status === "in_progress"
@@ -764,6 +957,47 @@ export default function DriverRideScreen() {
     };
   }, [driverCoords?.latitude, driverCoords?.longitude, targetCoords?.latitude, targetCoords?.longitude]);
 
+  const isNavMode =
+    navigationModeEnabled &&
+    (status === "driver_arriving" || status === "in_progress");
+
+  // Câmera 3D inicial: garante a perspectiva inclinada assim que o mapa carrega,
+  // mesmo antes do GPS travar (evita a tela ficar achatada em 2D / topo).
+  useEffect(() => {
+    if (!mapReady || didInitial3DRef.current || !mapRef.current) return;
+
+    const center =
+      driverCoords ??
+      targetCoords ??
+      { latitude: initialRegion.latitude, longitude: initialRegion.longitude };
+    if (!center) return;
+
+    didInitial3DRef.current = true;
+    mapRef.current.animateCamera(
+      {
+        center,
+        pitch:0,
+        heading: 0,
+        zoom: isNavMode ? 18.2 : 16,
+      },
+      { duration: 800 },
+    );
+  }, [mapReady, driverCoords, targetCoords, isNavMode]);
+
+  // Após o puck aparecer pela primeira vez, congela o tracking de mudanças (performance)
+  useEffect(() => {
+    if (driverCoords && !puckRendered) {
+      const t = setTimeout(() => setPuckRendered(true), 1500);
+      return () => clearTimeout(t);
+    }
+  }, [driverCoords, puckRendered]);
+
+  // Deixa os pins (coleta/destino) renderizarem e depois congela (evita o ícone sumir no Android)
+  useEffect(() => {
+    const t = setTimeout(() => setMarkersReady(true), 1500);
+    return () => clearTimeout(t);
+  }, []);
+
   const driverAvatar = useAuthStore((s) => s.userData?.profilePhoto || s.userData?.fotoPerfil);
 
   return (
@@ -772,6 +1006,7 @@ export default function DriverRideScreen() {
         driverPhoto={driverAvatar}
         isDelivery={isDelivery}
         canCancel={canCancel}
+        status={status}
         onCancelPress={() => {
           try {
             (navigation as any).navigate("DriverCancelRide", { rideId });
@@ -786,67 +1021,127 @@ export default function DriverRideScreen() {
           initialRegion={initialRegion as any}
           showsUserLocation={false}
           useDarkStyle={useDarkMap}
+          mapPadding={{ top: 0, right: 0, left: 0, bottom: Math.max(sheetHeight - 24, 0) }}
+          onPanDrag={handleUserMapGesture}
+          onRegionChange={(_region: any, details: any) => {
+            // Só desliga o follow em gestos do usuário (não em animações programáticas)
+            if (details?.isGesture) handleUserMapGesture();
+          }}
           onMapRef={(ref) => {
             mapRef.current = ref;
           }}
+          onMapReady={handleMapReady}
         >
+          {/* TRAÇADO DE ROTA */}
+          {routeCoords.length >= 2 ? (
+            <Polyline
+              coordinates={routeCoords as any}
+              strokeWidth={isNavMode ? 9 : 5}
+              strokeColor={isNavMode ? "#0A0A0A" : "#02de95"}
+              lineCap="round"
+              lineJoin="round"
+            />
+          ) : !!driverCoords && !!targetCoords ? (
+            <Polyline
+              coordinates={[driverCoords, targetCoords] as any}
+              strokeWidth={isNavMode ? 9 : 5}
+              strokeColor={isNavMode ? "#0A0A0A" : "#02de95"}
+              lineCap="round"
+              lineJoin="round"
+            />
+          ) : null}
+
+          {/* MARCADOR DO MOTORISTA */}
           {!!driverCoords && (
-             <Marker
-               key={`driver-puck-${vehicleType}`}
-               coordinate={{
-                 latitude: driverCoords.latitude,
-                 longitude: driverCoords.longitude,
-               }}
-               flat={true}
-               anchor={{ x: 0.5, y: 0.5 }}
-               tracksViewChanges={true}
-               style={{ width: 40, height: 40 }}
-             >
-                <VehicleMarker 
-                  type={vehicleType as any} 
-                  isOnline={true} 
+            isNavMode ? (
+              // Puck de navegação: círculo branco + seta verde girando com a bússola
+              <Marker
+                key="driver-nav-puck"
+                coordinate={{
+                  latitude: driverCoords.latitude,
+                  longitude: driverCoords.longitude,
+                }}
+                flat={true}
+                anchor={{ x: 0.5, y: 0.5 }}
+                rotation={navHeading}
+                tracksViewChanges={!puckRendered}
+              >
+                <View style={puckStyles.wrapper}>
+                  <View style={puckStyles.glow} />
+                  <View style={puckStyles.circle}>
+                    <View style={puckStyles.arrow} />
+                  </View>
+                </View>
+              </Marker>
+            ) : (
+              <Marker
+                key={`driver-puck-${vehicleType}`}
+                coordinate={{
+                  latitude: driverCoords.latitude,
+                  longitude: driverCoords.longitude,
+                }}
+                flat={true}
+                anchor={{ x: 0.5, y: 0.5 }}
+                tracksViewChanges={true}
+                style={{ width: 40, height: 40 }}
+              >
+                <VehicleMarker
+                  type={vehicleType as any}
+                  isOnline={true}
                 />
-             </Marker>
+              </Marker>
+            )
           )}
-          {!!clientCoords && (
+
+          {/* Cliente em tempo real (apenas fora do modo navegação) */}
+          {!isNavMode && !!clientCoords && (
              <Marker
                coordinate={{
                  latitude: clientCoords.latitude,
                  longitude: clientCoords.longitude,
                }}
                title="Cliente"
-               tracksViewChanges={false}
+               tracksViewChanges={!markersReady}
                anchor={{ x: 0.5, y: 1 }}
              >
-               <MapMarker type="client" />
+               <RoutePin variant="client" />
              </Marker>
           )}
-          {routeCoords.length >= 2 ? (
-            <Polyline
-              coordinates={routeCoords as any}
-              strokeWidth={5}
-              strokeColor="#02de95"
-            />
-          ) : !!driverCoords && !!targetCoords ? (
-            <Polyline
-              coordinates={[driverCoords, targetCoords] as any}
-              strokeWidth={5}
-              strokeColor="#02de95"
-            />
-          ) : null}
-          {hasPickupCoords && (
+
+          {/* PARADAS: marcador distinto ao longo do trajeto */}
+          {rideStops.map((stop, idx) => {
+            const sLat = Number(stop?.latitude);
+            const sLng = Number(stop?.longitude);
+            if (!Number.isFinite(sLat) || !Number.isFinite(sLng)) return null;
+            return (
+              <Marker
+                key={`stop-${idx}`}
+                coordinate={{ latitude: sLat, longitude: sLng }}
+                title={`Parada ${idx + 1}`}
+                tracksViewChanges={!markersReady}
+                anchor={{ x: 0.5, y: 1 }}
+              >
+                <StopPin index={idx + 1} />
+              </Marker>
+            );
+          })}
+
+          {/* PIN DE COLETA: mostra enquanto o alvo é a coleta */}
+          {hasPickupCoords && status !== "in_progress" && (
             <Marker
               coordinate={{
                 latitude: pickupLat,
                 longitude: pickupLng,
               }}
               title="Coleta"
-              tracksViewChanges={false}
+              tracksViewChanges={true}
               anchor={{ x: 0.5, y: 1 }}
             >
-              <MapMarker type={getClientMarkerType(ride?.serviceType)} />
+              <RoutePin variant="pickup" />
             </Marker>
           )}
+
+          {/* PIN DE DESTINO (desenhado com Views — sempre renderiza no Android) */}
           {hasDropoffCoords && (
             <Marker
               coordinate={{
@@ -854,13 +1149,14 @@ export default function DriverRideScreen() {
                 longitude: dropoffLng,
               }}
               title="Destino"
-              tracksViewChanges={false}
+              tracksViewChanges={true}
               anchor={{ x: 0.5, y: 1 }}
             >
-              <MapMarker type="dropoff" />
+              <RoutePin variant="dropoff" />
             </Marker>
           )}
         </GlobalMap>
+
 
         {/* Floating GPS Map Controls */}
         <FloatingMapControls
@@ -872,7 +1168,13 @@ export default function DriverRideScreen() {
         />
 
         {/* Active Delivery Bottom Sheet */}
-        <View style={{ position: "absolute", left: 0, right: 0, bottom: 0 }}>
+        <View
+          style={{ position: "absolute", left: 0, right: 0, bottom: 0 }}
+          onLayout={(e) => {
+            const h = e.nativeEvent.layout.height;
+            if (h > 0 && Math.abs(h - sheetHeight) > 4) setSheetHeight(h);
+          }}
+        >
           <ActiveDeliveryBottomSheet
             status={status}
             pickupAddress={ride?.pickup?.address}
@@ -1054,6 +1356,122 @@ export default function DriverRideScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Floating Chat Notification Banner */}
+      {chatNotification && (
+        <Animated.View
+          style={{
+            position: "absolute",
+            top: 50, // driver screen uses safe area or top spacing
+            left: 16,
+            right: 16,
+            transform: [{ translateX: slideAnim }],
+            zIndex: 9999,
+          }}
+        >
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={handleNotificationPress}
+            style={{
+              backgroundColor: "#11253E",
+              borderRadius: 16,
+              padding: 16,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 12,
+              borderWidth: 1,
+              borderColor: "rgba(2,222,149,0.3)",
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.4,
+              shadowRadius: 8,
+              elevation: 10,
+            }}
+          >
+            <View style={{
+              width: 38,
+              height: 38,
+              borderRadius: 19,
+              backgroundColor: "rgba(2,222,149,0.15)",
+              alignItems: "center",
+              justifyContent: "center",
+            }}>
+              <MessageCircle size={20} color="#02de95" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: "#02de95", fontSize: 10, fontWeight: "800", textTransform: "uppercase" }}>
+                Nova mensagem
+              </Text>
+              <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700", marginTop: 2 }} numberOfLines={1}>
+                {chatNotification.sender}
+              </Text>
+              <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 13, marginTop: 1 }} numberOfLines={1}>
+                {chatNotification.text}
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={handleNotificationClose}
+              style={{
+                width: 24,
+                height: 24,
+                borderRadius: 12,
+                backgroundColor: "rgba(255,255,255,0.08)",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, fontWeight: "bold" }}>✕</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Animated.View>
+      )}
     </SafeAreaView>
   );
 }
+
+const puckStyles = StyleSheet.create({
+  wrapper: {
+    width: 38,
+    height: 38,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  // Halo/sombra suave de chão (estilo Uber)
+  glow: {
+    position: "absolute",
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "#0000",
+  },
+  // Círculo branco com borda clara discreta e sombra (estilo Uber)
+  circle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "rgba(17, 37, 62, 0.10)",
+    borderWidth: 1.5,
+    borderColor: "#000",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 6,
+  },
+  // Seta (chevron) escura apontando para cima, igual à da Uber
+  arrow: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 8,
+    borderRightWidth: 8,
+    borderBottomWidth: 14,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+    borderBottomColor: "#ffff",
+    marginTop: -1,
+  },
+});
+
+

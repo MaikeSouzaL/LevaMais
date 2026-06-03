@@ -14,12 +14,15 @@ import Toast from "react-native-toast-message";
 import rideService from "@/services/ride.service";
 
 export default function RideBidSetupScreen({ route, navigation }: any) {
-  const { pickup, dropoff, routeCoordinates, initialDistanceKm, initialDurationMin } = route.params || {};
+  const { pickup, dropoff, stops, routeCoordinates, initialDistanceKm, initialDurationMin, rideCategory, presetOffer } = route.params || {};
 
-  const [vehicleType, setVehicleType] = useState<"motorcycle" | "car">("car");
+  const initialVehicle: "motorcycle" | "car" =
+    route.params?.vehicleType === "motorcycle" ? "motorcycle" : "car";
+  const [vehicleType, setVehicleType] = useState<"motorcycle" | "car">(initialVehicle);
   const [estimate, setEstimate] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [clientOffer, setClientOffer] = useState("");
+  const presetAppliedRef = React.useRef(false);
 
   useEffect(() => {
     loadEstimate();
@@ -36,7 +39,13 @@ export default function RideBidSetupScreen({ route, navigation }: any) {
         duration: initialDurationMin,
       });
       setEstimate(result);
-      setClientOffer(result.suggestedPrice.toFixed(2));
+      // Usa o valor da categoria escolhida na 1ª carga; depois segue o sugerido.
+      if (!presetAppliedRef.current && typeof presetOffer === "number" && presetOffer > 0) {
+        presetAppliedRef.current = true;
+        setClientOffer(presetOffer.toFixed(2));
+      } else {
+        setClientOffer(result.suggestedPrice.toFixed(2));
+      }
     } catch (error: any) {
       Toast.show({
         type: "error",
@@ -62,8 +71,10 @@ export default function RideBidSetupScreen({ route, navigation }: any) {
     navigation.navigate("RideBiddingScreen", {
       pickup,
       dropoff,
+      stops,
       routeCoordinates,
       vehicleType,
+      rideCategory,
       clientOffer: offer,
       estimate,
     });

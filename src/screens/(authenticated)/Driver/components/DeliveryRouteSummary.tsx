@@ -6,16 +6,18 @@ type DeliveryRouteSummaryProps = {
   pickupAddress?: string;
   dropoffAddress?: string;
   paymentLabel?: string;
+  highlightStep?: "to_pickup" | "at_pickup" | "to_dropoff" | "completed";
 };
 
 export function DeliveryRouteSummary({
   pickupAddress = "R. Josias da Silva, 295",
   dropoffAddress = "Av. Maceió, 1132",
   paymentLabel = "DINHEIRO",
+  highlightStep = "to_pickup",
 }: DeliveryRouteSummaryProps) {
   // Normalize and translate payment label
   const rawPayment = String(paymentLabel || "DINHEIRO").toLowerCase();
-  
+
   let translatedPayment = "Dinheiro";
   let PaymentIcon = Banknote;
   let paymentColor = "#16a34a"; // readable green for light bg
@@ -34,29 +36,77 @@ export function DeliveryRouteSummary({
     paymentColor = "#2563eb";
   }
 
+  const pickupActive = highlightStep === "to_pickup" || highlightStep === "at_pickup";
+  const pickupDone = highlightStep === "to_dropoff" || highlightStep === "completed";
+  const dropoffActive = highlightStep === "to_dropoff";
+  const dropoffDone = highlightStep === "completed";
+
+  const pickupDotColor = pickupDone ? "#16a34a" : pickupActive ? "#02de95" : "#cbd5e1";
+  const pickupRingColor = pickupActive ? "rgba(2, 222, 149, 0.25)" : "transparent";
+  const dropoffDotColor = dropoffDone ? "#16a34a" : dropoffActive ? "#ea580c" : "#cbd5e1";
+  const dropoffRingColor = dropoffActive ? "rgba(234, 88, 12, 0.25)" : "transparent";
+  const lineColor = pickupDone ? "#16a34a" : "#e2e8f0";
+
   return (
     <View className="bg-white border border-slate-100 rounded-[24px] p-4 mb-3.5 shadow-sm">
       {/* Route Timeline */}
       <View className="flex-row gap-3">
         <View className="items-center pt-1.5">
-          <View className="w-2.5 h-2.5 rounded-full bg-[#16a34a] border border-white" />
-          <View className="w-[1.5px] h-6 bg-slate-150 my-1 rounded-full" />
-          <View className="w-2.5 h-2.5 rounded-full bg-[#ea580c] border border-white" />
+          <View
+            className="w-2.5 h-2.5 rounded-full border border-white"
+            style={{
+              backgroundColor: pickupDotColor,
+              shadowColor: pickupRingColor,
+              shadowOffset: { width: 0, height: 0 },
+              shadowOpacity: 1,
+              shadowRadius: 6,
+            }}
+          />
+          <View
+            className="w-[1.5px] h-6 my-1 rounded-full"
+            style={{ backgroundColor: lineColor }}
+          />
+          <View
+            className="w-2.5 h-2.5 rounded-full border border-white"
+            style={{
+              backgroundColor: dropoffDotColor,
+              shadowColor: dropoffRingColor,
+              shadowOffset: { width: 0, height: 0 },
+              shadowOpacity: 1,
+              shadowRadius: 6,
+            }}
+          />
         </View>
         <View className="flex-1 gap-2">
           <View>
-            <Text className="text-slate-400 text-[8px] font-black uppercase tracking-wider">
-              Coleta
+            <Text
+              className="text-[8px] font-black uppercase tracking-wider"
+              style={{ color: pickupActive ? "#02de95" : "#94a3b8" }}
+            >
+              Coleta {pickupActive && "• Em andamento"}
+              {pickupDone && "• Concluído"}
             </Text>
-            <Text className="text-slate-800 text-[11px] font-black mt-0.5 leading-tight" numberOfLines={1}>
+            <Text
+              className="text-[11px] font-black mt-0.5 leading-tight"
+              numberOfLines={1}
+              style={{ color: pickupActive ? "#0f172a" : "#475569" }}
+            >
               {pickupAddress}
             </Text>
           </View>
           <View>
-            <Text className="text-slate-400 text-[8px] font-black uppercase tracking-wider">
-              Entrega
+            <Text
+              className="text-[8px] font-black uppercase tracking-wider"
+              style={{ color: dropoffActive ? "#ea580c" : "#94a3b8" }}
+            >
+              Entrega {dropoffActive && "• Em andamento"}
+              {dropoffDone && "• Concluído"}
             </Text>
-            <Text className="text-slate-800 text-[11px] font-black mt-0.5 leading-tight" numberOfLines={1}>
+            <Text
+              className="text-[11px] font-black mt-0.5 leading-tight"
+              numberOfLines={1}
+              style={{ color: dropoffActive ? "#0f172a" : "#475569" }}
+            >
               {dropoffAddress}
             </Text>
           </View>

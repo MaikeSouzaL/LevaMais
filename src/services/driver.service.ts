@@ -40,6 +40,8 @@ export interface DriverPreferences {
   acceptsPix?: boolean;
 }
 
+export type RideCategoryKey = 'moto' | 'car_economy' | 'car_comfort' | 'car_luxury';
+
 export interface DriverVehicle {
   _id: string;
   type: 'motorcycle' | 'car' | 'van' | 'truck';
@@ -48,6 +50,7 @@ export interface DriverVehicle {
   color?: string;
   year?: number;
   renavam?: string;
+  rideCategory?: RideCategoryKey | null;
   documents?: {
     crlvFront?: string;
     crlvBack?: string;
@@ -354,6 +357,7 @@ class DriverService {
     color?: string;
     year?: number;
     renavam?: string;
+    rideCategory?: 'car_economy' | 'car_comfort' | 'car_luxury';
     documents?: any;
   }): Promise<DriverVehicle> {
     try {
@@ -387,6 +391,19 @@ class DriverService {
       return response.data;
     } catch (error) {
       logger.error('DRIVER_SERVICE', 'Failed to activate vehicle', error);
+      throw error;
+    }
+  }
+
+  async setVehicleRideCategory(
+    id: string,
+    rideCategory: 'car_economy' | 'car_comfort' | 'car_luxury',
+  ): Promise<any> {
+    try {
+      const response = await apiClient.patch<any>(`/drivers/vehicles/${id}/ride-category`, { rideCategory });
+      return response.data;
+    } catch (error) {
+      logger.error('DRIVER_SERVICE', 'Failed to set vehicle ride category', error);
       throw error;
     }
   }

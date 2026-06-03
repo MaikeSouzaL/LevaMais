@@ -38,6 +38,7 @@ export default function DriverVehicleScreen() {
   // State for "Add New Vehicle" form
   const [submitting, setSubmitting] = useState(false);
   const [newVehicleType, setNewVehicleType] = useState<string>("motorcycle");
+  const [newRideCategory, setNewRideCategory] = useState<"car_economy" | "car_comfort" | "car_luxury">("car_economy");
   const [newPlate, setNewPlate] = useState("");
   const [newModel, setNewModel] = useState("");
   const [newColor, setNewColor] = useState("");
@@ -144,6 +145,30 @@ export default function DriverVehicleScreen() {
     }
   };
 
+  const handleSetRideCategory = async (
+    id: string,
+    rideCategory: "car_economy" | "car_comfort" | "car_luxury",
+  ) => {
+    // Atualização otimista
+    setFleet((prev) => prev.map((v) => (v._id === id ? { ...v, rideCategory } : v)));
+    try {
+      await driverService.setVehicleRideCategory(id, rideCategory);
+      Toast.show({ type: "success", text1: "Categoria de corrida atualizada" });
+    } catch (e: any) {
+      Toast.show({
+        type: "error",
+        text1: "Falha ao atualizar categoria",
+        text2: e?.response?.data?.error || e?.message,
+      });
+      // Recarrega em caso de erro
+      const refreshed = await driverService.listVehicles().catch(() => null);
+      if (refreshed) {
+        setFleet(refreshed.vehicles || []);
+        setActiveVehicleId(refreshed.activeVehicleId || null);
+      }
+    }
+  };
+
   const handleRegister = async () => {
     if (!newPlate || !newModel || !newVehicleType || !newRenavam) {
       Alert.alert("Atenção", "Preencha modelo, placa, renavam e tipo do veículo.");
@@ -170,6 +195,7 @@ export default function DriverVehicleScreen() {
         color: newColor || undefined,
         year: newYear ? Number(newYear) : undefined,
         renavam: newRenavam,
+        rideCategory: newVehicleType === "car" ? newRideCategory : undefined,
         documents: {
           crlvFront: crlvFront.uri,
           crlvBack: crlvBack.uri,
@@ -504,6 +530,43 @@ export default function DriverVehicleScreen() {
                       </View>
                     )}
 
+                    {/* Categoria de corrida (somente carros aprovados) */}
+                    {isApproved && vehicle.type === "car" && (
+                      <View style={{ marginTop: 12 }}>
+                        <Text style={{ color: "rgba(255,255,255,0.45)", fontSize: 10, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6 }}>
+                          Categoria de corrida
+                        </Text>
+                        <View style={{ flexDirection: "row", gap: 8 }}>
+                          {([
+                            { key: "car_economy", label: "Economy" },
+                            { key: "car_comfort", label: "Comfort" },
+                            { key: "car_luxury", label: "Luxo" },
+                          ] as const).map((opt) => {
+                            const selected = (vehicle.rideCategory || "car_economy") === opt.key;
+                            return (
+                              <TouchableOpacity
+                                key={opt.key}
+                                onPress={() => handleSetRideCategory(vehicle._id, opt.key)}
+                                style={{
+                                  flex: 1,
+                                  paddingVertical: 8,
+                                  borderRadius: 10,
+                                  alignItems: "center",
+                                  borderWidth: 1.5,
+                                  borderColor: selected ? "#02de95" : "rgba(255,255,255,0.1)",
+                                  backgroundColor: selected ? "rgba(2,222,149,0.12)" : "transparent",
+                                }}
+                              >
+                                <Text style={{ color: selected ? "#02de95" : "rgba(255,255,255,0.6)", fontSize: 12, fontWeight: "800" }}>
+                                  {opt.label}
+                                </Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      </View>
+                    )}
+
                     {/* Action Area per vehicle */}
                     {isApproved && !isActive && (
                       <TouchableOpacity
@@ -652,6 +715,43 @@ export default function DriverVehicleScreen() {
             );
           })}
         </View>
+
+        {/* Categoria de corrida (somente carros) */}
+        {newVehicleType === "car" && (
+          <View style={{ marginTop: 18 }}>
+            <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 13, fontWeight: "800", textTransform: "uppercase", paddingLeft: 4, marginBottom: 12 }}>
+              Categoria de corrida
+            </Text>
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              {([
+                { key: "car_economy", label: "Economy", desc: "Dia a dia" },
+                { key: "car_comfort", label: "Comfort", desc: "Mais conforto" },
+                { key: "car_luxury", label: "Luxo", desc: "Premium" },
+              ] as const).map((opt) => {
+                const active = newRideCategory === opt.key;
+                return (
+                  <TouchableOpacity
+                    key={opt.key}
+                    activeOpacity={0.9}
+                    onPress={() => setNewRideCategory(opt.key)}
+                    style={{
+                      flex: 1,
+                      paddingVertical: 14,
+                      borderRadius: 16,
+                      alignItems: "center",
+                      borderWidth: 1.5,
+                      borderColor: active ? "#02de95" : "rgba(255,255,255,0.08)",
+                      backgroundColor: active ? "rgba(2,222,149,0.12)" : "rgba(255,255,255,0.02)",
+                    }}
+                  >
+                    <Text style={{ color: active ? "#02de95" : "#fff", fontSize: 14, fontWeight: "800" }}>{opt.label}</Text>
+                    <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: "600", marginTop: 2 }}>{opt.desc}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        )}
       </View>
 
       {/* Main technical information inputs */}

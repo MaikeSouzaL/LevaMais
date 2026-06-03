@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, TouchableOpacity, Linking, Share } from "react-native";
+import { View, Text, TouchableOpacity, Linking, Share, Animated } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { createAudioPlayer } from "expo-audio";
+import { MessageCircle } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -17,7 +19,8 @@ import { useAuthStore } from "@/context/authStore";
 import { useChatStore } from "@/context/chatStore";
 import { darkMapStyle } from "@/utils/mapStyle";
 import { decodePolyline, LatLng } from "@/utils/polyline";
-import MapMarker from "@/components/MapMarker";
+import RoutePin from "@/components/maps/RoutePin";
+import StopPin from "@/components/maps/StopPin";
 import { MapActionButtons } from "@/components/MapActionButtons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ClientStackParamList } from "../../../types/navigation";
@@ -218,6 +221,37 @@ export default function RideTrackingScreen() {
   const mapRef = useRef<MapView>(null);
   const watchRef = useRef<any>(null);
   const driverAnimatedLocation = useRef<any>(null);
+  const [chatNotification, setChatNotification] = useState<{ sender: string; text: string } | null>(null);
+  const notificationTimeoutRef = useRef<any>(null);
+  const slideAnim = useRef(new Animated.Value(-400)).current;
+
+  const handleNotificationPress = () => {
+    if (notificationTimeoutRef.current) {
+      clearTimeout(notificationTimeoutRef.current);
+    }
+    Animated.timing(slideAnim, {
+      toValue: 400,
+      duration: 300,
+      useNativeDriver: true,
+    }).start(() => {
+      setChatNotification(null);
+      useChatStore.getState().clearUnread(rideId);
+      navigation.navigate("Chat", { rideId, driverName: chatNotification?.sender });
+    });
+  };
+
+  const handleNotificationClose = () => {
+    if (notificationTimeoutRef.current) {
+      clearTimeout(notificationTimeoutRef.current);
+    }
+    Animated.timing(slideAnim, {
+      toValue: 400,
+      duration: 300,
+      useNativeDriver: true,
+    }).start(() => {
+      setChatNotification(null);
+    });
+  };
 
   const [useDarkMap, setUseDarkMap] = useState(true);
   const [isSwitchingMapStyle, setIsSwitchingMapStyle] = useState(false);
@@ -276,6 +310,7 @@ export default function RideTrackingScreen() {
   const [loading, setLoading] = useState(true);
   const [driverLocation, setDriverLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [routeCoords, setRouteCoords] = useState<LatLng[]>([]);
+  const [traveledPath, setTraveledPath] = useState<LatLng[]>([]);
   const [routeEtaText, setRouteEtaText] = useState("");
   const [routeDistanceText, setRouteDistanceText] = useState("");
   const isDeliveryFlow =
@@ -417,7 +452,7 @@ export default function RideTrackingScreen() {
       loadRide();
     };
 
-    const onNewMsg = (data: any) => {
+    const onNewMsg = async (data: any) => {
       if (!mounted) return;
       if (data?.rideId !== rideId) return;
       if (String(data?.senderId) === currentUserId) return;
@@ -434,7 +469,46 @@ export default function RideTrackingScreen() {
 
       if (activeRouteName !== "Chat") {
         useChatStore.getState().incrementUnread(rideId);
-        Toast.show({ type: "info", text1: sender, text2: preview });
+
+        // Play sound
+        try {
+          const player = createAudioPlayer(require("../../../../../../assets/sound/notification.mp3"));
+          player.volume = 1.0;
+          player.loop = false;
+          player.play();
+          const subscription = player.addListener("playbackStatusUpdate", (status) => {
+            if (status.didJustFinish) {
+              subscription.remove();
+              player.release();
+            }
+          });
+        } catch (error) {
+          console.log("Falha ao reproduzir som:", error);
+        }
+
+        if (notificationTimeoutRef.current) {
+          clearTimeout(notificationTimeoutRef.current);
+        }
+        setChatNotification({ sender, text: preview });
+        slideAnim.setValue(-400);
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 40,
+          friction: 8,
+        }).start();
+
+        notificationTimeoutRef.current = setTimeout(() => {
+          if (mounted) {
+            Animated.timing(slideAnim, {
+              toValue: 400,
+              duration: 300,
+              useNativeDriver: true,
+            }).start(() => {
+              setChatNotification(null);
+            });
+          }
+        }, 10000);
       }
     };
 
@@ -463,6 +537,9 @@ export default function RideTrackingScreen() {
       webSocketService.off("ride-started", onStarted);
       webSocketService.off("new-message", onNewMsg);
       webSocketService.off("connect", onSocketConnected);
+      if (notificationTimeoutRef.current) {
+        clearTimeout(notificationTimeoutRef.current);
+      }
     };
   }, [rideId, loadRide, navigation, currentUserId, ride?.serviceType]);
 
@@ -475,7 +552,9 @@ export default function RideTrackingScreen() {
         if (status !== "granted") return;
 
         if (watchRef.current) {
-          await watchRef.current();
+          if (typeof watchRef.current.remove === "function") {
+            watchRef.current.remove();
+          }
           watchRef.current = null;
         }
 
@@ -506,11 +585,39 @@ export default function RideTrackingScreen() {
     return () => {
       mounted = false;
       if (watchRef.current) {
-        watchRef.current();
+        if (typeof watchRef.current.remove === "function") {
+          watchRef.current.remove();
+        }
         watchRef.current = null;
       }
     };
   }, [rideId]);
+
+  // Breadcrumb: trajeto realmente percorrido pelo motorista (route-audit)
+  useEffect(() => {
+    if (!rideId) return;
+    const activeStatuses = ["accepted", "driver_arriving", "arrived", "in_progress"];
+    if (!activeStatuses.includes(String(ride?.status || ""))) return;
+
+    let active = true;
+    const loadTrack = async () => {
+      try {
+        const audit = await rideService.getRouteAudit(rideId);
+        if (!active) return;
+        const pts = Array.isArray(audit?.track) ? audit.track : [];
+        const path = pts
+          .filter((p: any) => Number.isFinite(Number(p?.latitude)) && Number.isFinite(Number(p?.longitude)))
+          .map((p: any) => ({ latitude: Number(p.latitude), longitude: Number(p.longitude) }));
+        if (path.length >= 2) setTraveledPath(path);
+      } catch {}
+    };
+    loadTrack();
+    const timer = setInterval(loadTrack, 10000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [rideId, ride?.status]);
 
   const pickupCoord = useMemo(() => {
     const pickupLat = Number(ride?.pickup?.latitude);
@@ -679,13 +786,24 @@ export default function RideTrackingScreen() {
           longitudeDelta: 0.04,
         }}
         useDarkStyle={useDarkMap}
-        showsUserLocation
+        showsUserLocation={false}
       >
+        {/* Breadcrumb: por onde o motorista já passou (cinza, por baixo) */}
+        {traveledPath.length >= 2 && (
+          <Polyline
+            coordinates={traveledPath}
+            strokeWidth={5}
+            strokeColor="rgba(148,163,184,0.65)"
+            lineCap="round"
+            lineJoin="round"
+            zIndex={1}
+          />
+        )}
         {routeCoords.length >= 2 ? (
           <Polyline
             coordinates={routeCoords}
             strokeWidth={4}
-            strokeColor={routeMode === "toPickup" ? "#60a5fa" : "#02de95"}
+            strokeColor={routeMode === "toPickup" ? "#60a5fa" : "#0000"}
           />
         ) : routeMode === "toPickup" && driverLocation && pickupCoord ? (
           <Polyline
@@ -697,28 +815,38 @@ export default function RideTrackingScreen() {
           <Polyline
             coordinates={[toDropoffOrigin, dropoffCoord]}
             strokeWidth={4}
-            strokeColor="#02de95"
+            strokeColor="#0000"
           />
         ) : null}
 
 {!!pickupCoord && (
-  <Marker coordinate={pickupCoord} title="Coleta" tracksViewChanges={false} anchor={{ x: 0.5, y: 1 }}>
-    <MapMarker type="pickup" />
+  <Marker coordinate={pickupCoord} title="Coleta" tracksViewChanges={true} anchor={{ x: 0.5, y: 1 }}>
+    <RoutePin variant="pickup" />
   </Marker>
 )}
+{Array.isArray(ride?.stops) && ride!.stops!.map((stop: any, idx: number) => {
+  const sLat = Number(stop?.latitude);
+  const sLng = Number(stop?.longitude);
+  if (!Number.isFinite(sLat) || !Number.isFinite(sLng)) return null;
+  return (
+    <Marker key={`stop-${idx}`} coordinate={{ latitude: sLat, longitude: sLng }} title={`Parada ${idx + 1}`} tracksViewChanges={true} anchor={{ x: 0.5, y: 1 }}>
+      <StopPin index={idx + 1} />
+    </Marker>
+  );
+})}
 {!!dropoffCoord && (
-  <Marker coordinate={dropoffCoord} title="Destino" tracksViewChanges={false} anchor={{ x: 0.5, y: 1 }}>
-    <MapMarker type="dropoff" />
+  <Marker coordinate={dropoffCoord} title="Destino" tracksViewChanges={true} anchor={{ x: 0.5, y: 1 }}>
+    <RoutePin variant="dropoff" />
   </Marker>
 )}
 {!!driverLocation && driverAnimatedLocation.current && (
-  <Marker.Animated coordinate={driverAnimatedLocation.current as any} title="Motorista" tracksViewChanges={false} anchor={{ x: 0.5, y: 1 }}>
-    <MapMarker type="driver" />
+  <Marker.Animated coordinate={driverAnimatedLocation.current as any} title="Motorista" tracksViewChanges={true} anchor={{ x: 0.5, y: 1 }}>
+    <RoutePin variant="driver" />
   </Marker.Animated>
 )}
       </GlobalMap>
 
-      <View className="absolute left-4 right-4 bg-[rgba(12,25,39,0.95)] border border-white/10 rounded-xl p-4" style={{ top: Math.max(insets.top + 10, 20) }}>
+      <View className="absolute left-4 right-4 bg-[#11253E] border border-white/[0.06] rounded-2xl p-4" style={{ top: Math.max(insets.top + 10, 20) }}>
         <View className="flex-row justify-between items-center gap-1">
           <Text className="text-[rgba(255,255,255,0.5)] text-[10px] font-bold tracking-widest mb-1">ACOMPANHAMENTO EM TEMPO REAL</Text>
           {(ride?.serviceType === "delivery" || ride?.serviceType === "frete") && (
@@ -738,10 +866,14 @@ export default function RideTrackingScreen() {
           <Text className="text-[10px] font-bold" style={{ color: statusMeta.color }}>{statusMeta.title}</Text>
         </View>
         <Text className="text-[rgba(255,255,255,0.85)] text-[13px] mt-1.5 leading-5">{statusMeta.subtitle}</Text>
-        {isDriverGoingToPickup && (
+        {(isDriverGoingToPickup || status === "in_progress") && (
           <View className="mt-3 p-4 rounded-xl border border-[rgba(96,165,250,0.24)] bg-[rgba(96,165,250,0.10)] flex-row items-center justify-between">
             <View>
-              <Text className="text-[rgba(255,255,255,0.5)] text-[10px] font-bold uppercase">Chegada na coleta</Text>
+              <Text className="text-[rgba(255,255,255,0.5)] text-[10px] font-bold uppercase">
+                {status === "in_progress"
+                  ? (isDeliveryFlow ? "Chegada no destino" : "Chegada no desembarque")
+                  : (isDeliveryFlow ? "Chegada na coleta" : "Chegada no embarque")}
+              </Text>
               <Text className="text-white text-[17px] font-bold mt-1">{routeEtaText || "Calculando..."}</Text>
             </View>
             <View className="w-[1px] h-9 bg-white/[0.12]" />
@@ -763,7 +895,7 @@ export default function RideTrackingScreen() {
         isSwitchingStyle={isSwitchingMapStyle}
         bottomOffset={320}
       />
-      <View className="absolute left-4 right-4 bg-[rgba(12,25,39,0.96)] border border-white/10 rounded-2xl p-4" style={{ bottom: Math.max(insets.bottom + 10, 16) }}>
+      <View className="absolute left-4 right-4 bg-[#11253E] border border-white/[0.06] rounded-2xl p-4" style={{ bottom: Math.max(insets.bottom + 10, 16) }}>
         <Text className="text-white text-[17px] font-bold mb-2">
           {status === "in_progress" ? `${rideLabel} em andamento` : "Resumo do pedido"}
         </Text>
@@ -829,7 +961,7 @@ export default function RideTrackingScreen() {
 
         <View className="mt-3 flex-row flex-wrap gap-2">
           <TouchableOpacity
-            className="flex-1 min-w-[88px] flex-row items-center justify-center gap-1 py-2 rounded-lg border border-[rgba(2,222,149,0.35)] bg-[rgba(2,222,149,0.12)]"
+            className="flex-1 min-w-[88px] flex-row items-center justify-center gap-1.5 h-11 rounded-xl border border-[rgba(2,222,149,0.35)] bg-[rgba(2,222,149,0.12)]"
             onPress={() => {
               useChatStore.getState().clearUnread(rideId);
               navigation.navigate("Chat", {
@@ -849,14 +981,14 @@ export default function RideTrackingScreen() {
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity className="flex-1 min-w-[88px] flex-row items-center justify-center gap-1 py-2 rounded-lg border border-[rgba(2,222,149,0.35)] bg-[rgba(2,222,149,0.12)]" onPress={handleShareRide} accessibilityLabel="Compartilhar viagem" accessibilityRole="button">
+          <TouchableOpacity className="flex-1 min-w-[88px] flex-row items-center justify-center gap-1.5 h-11 rounded-xl border border-[rgba(2,222,149,0.35)] bg-[rgba(2,222,149,0.12)]" onPress={handleShareRide} accessibilityLabel="Compartilhar viagem" accessibilityRole="button">
             <MaterialIcons name="ios-share" size={17} color="#fff" />
             <Text className="text-white text-[13px] font-semibold">Compartilhar</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             disabled={!canCancel}
-            className={`flex-1 min-w-[88px] flex-row items-center justify-center gap-1 py-2 rounded-lg border border-[rgba(239,68,68,0.45)] bg-[rgba(239,68,68,0.12)] ${!canCancel ? "opacity-45" : ""}`}
+            className={`flex-1 min-w-[88px] flex-row items-center justify-center gap-1.5 h-11 rounded-xl border border-[rgba(239,68,68,0.45)] bg-[rgba(239,68,68,0.12)] ${!canCancel ? "opacity-45" : ""}`}
             onPress={() =>
               navigation.navigate("ClientCancelRide", {
                 rideId,
@@ -923,8 +1055,78 @@ export default function RideTrackingScreen() {
         isVisible={shareSheetVisible}
         onClose={() => setShareSheetVisible(false)}
       />
+
+      {/* Floating Chat Notification Banner */}
+      {chatNotification && (
+        <Animated.View
+          style={{
+            position: "absolute",
+            top: insets.top + 10,
+            left: 16,
+            right: 16,
+            transform: [{ translateX: slideAnim }],
+            zIndex: 9999,
+          }}
+        >
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={handleNotificationPress}
+            style={{
+              backgroundColor: "#11253E",
+              borderRadius: 16,
+              padding: 16,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 12,
+              borderWidth: 1,
+              borderColor: "rgba(2,222,149,0.3)",
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.4,
+              shadowRadius: 8,
+              elevation: 10,
+            }}
+          >
+            <View style={{
+              width: 38,
+              height: 38,
+              borderRadius: 19,
+              backgroundColor: "rgba(2,222,149,0.15)",
+              alignItems: "center",
+              justifyContent: "center",
+            }}>
+              <MessageCircle size={20} color="#02de95" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: "#02de95", fontSize: 10, fontWeight: "800", textTransform: "uppercase" }}>
+                Nova mensagem
+              </Text>
+              <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700", marginTop: 2 }} numberOfLines={1}>
+                {chatNotification.sender}
+              </Text>
+              <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 13, marginTop: 1 }} numberOfLines={1}>
+                {chatNotification.text}
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={handleNotificationClose}
+              style={{
+                width: 24,
+                height: 24,
+                borderRadius: 12,
+                backgroundColor: "rgba(255,255,255,0.08)",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, fontWeight: "bold" }}>✕</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Animated.View>
+      )}
     </ErrorBoundary>
   );
 }
+
 
 

@@ -1,10 +1,11 @@
 import React from "react";
 import { View, Text } from "react-native";
-import { MotiView } from "moti";
-import { DeliveryQuickStats } from "./DeliveryQuickStats";
-import { DeliveryRouteSummary } from "./DeliveryRouteSummary";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { MotiView, AnimatePresence } from "moti";
 import { DriverActionButtons } from "./DriverActionButtons";
 import { ArrivedButton } from "./ArrivedButton";
+import { PickupProgressIndicator } from "./PickupProgressIndicator";
+import { Check, MapPin, Package, Truck } from "lucide-react-native";
 
 type ActiveDeliveryBottomSheetProps = {
   status: string;
@@ -28,6 +29,63 @@ type ActiveDeliveryBottomSheetProps = {
   onArriveDropoff?: () => void;
 };
 
+type ProgressStep = "to_pickup" | "at_pickup" | "to_dropoff" | "completed";
+
+function getProgressStep(
+  status: string,
+  canArrive: boolean,
+  canStart: boolean,
+  canComplete: boolean,
+): ProgressStep {
+  if (status === "completed") return "completed";
+  if (canComplete) return "to_dropoff";
+  if (canStart) return "at_pickup";
+  if (canArrive) return "to_pickup";
+  if (status === "in_progress") return "to_dropoff";
+  if (status === "arrived") return "at_pickup";
+  if (
+    status === "driver_arriving" ||
+    status === "accepted" ||
+    status === "driver_assigned"
+  ) {
+    return "to_pickup";
+  }
+  return "to_pickup";
+}
+
+const STEP_ICON: Record<
+  ProgressStep,
+  React.ComponentType<{ size: number; color: string; strokeWidth?: number }>
+> = {
+  to_pickup: Truck,
+  at_pickup: MapPin,
+  to_dropoff: Package,
+  completed: Check,
+};
+
+function getStepLabel(step: ProgressStep, isDelivery: boolean): string {
+  if (isDelivery) {
+    return {
+      to_pickup: "Indo para coleta",
+      at_pickup: "Aguardando retirada",
+      to_dropoff: "A caminho da entrega",
+      completed: "Finalizado",
+    }[step];
+  }
+  // Corrida: terminologia de embarque/desembarque
+  return {
+    to_pickup: "A caminho do embarque",
+    at_pickup: "No ponto de embarque",
+    to_dropoff: "A caminho do desembarque",
+    completed: "Finalizado",
+  }[step];
+}
+
+function formatCurrency(value?: number) {
+  if (value == null) return "R$ 0,00";
+  return `R$ ${Number(value).toFixed(2).replace(".", ",")}`;
+}
+
 export function ActiveDeliveryBottomSheet({
   status,
   pickupAddress = "R. Josias da Silva, 295",
@@ -49,133 +107,155 @@ export function ActiveDeliveryBottomSheet({
   canArriveDropoff = false,
   onArriveDropoff,
 }: ActiveDeliveryBottomSheetProps) {
-  
-  const isGoingToPickup = canArrive || status === "accepted" || status === "driver_arriving" || status === "driver_assigned";
+  const insets = useSafeAreaInsets();
+  const progressStep = getProgressStep(status, canArrive, canStart, canComplete);
+
+  const isGoingToPickup =
+    canArrive ||
+    status === "accepted" ||
+    status === "driver_arriving" ||
+    status === "driver_assigned";
   const isAtPickup = canStart || status === "arrived";
   const isGoingToDropoff = canComplete || status === "in_progress";
 
-  let headerBadge = isDelivery ? "ENTREGA ATIVA" : "CORRIDA ATIVA";
-  let headerTitle = pickupAddress;
-  if (isGoingToPickup) {
-    headerBadge = isDelivery ? "INDO PARA A COLETA" : "INDO BUSCAR PASSAGEIRO";
-    headerTitle = pickupAddress;
-  } else if (isAtPickup) {
-    headerBadge = isDelivery ? "AGUARDANDO RETIRADA" : "AGUARDANDO EMBARQUE";
-    headerTitle = pickupAddress;
-  } else if (isGoingToDropoff) {
-    headerBadge = isDelivery ? "A CAMINHO DA ENTREGA" : "A CAMINHO DO DESTINO";
-    headerTitle = dropoffAddress;
-  }
-
-  const getAddressSubtitle = (address: string) => {
-    if (!address) return "Pimenta Bueno - RO";
-    const parts = address.split(",");
-    if (parts.length > 2) {
-      return `${parts[1]?.trim() || ""} - ${parts[2]?.trim() || ""}`;
-    }
-    return address;
-  };
-  
-  const headerSubtitle = getAddressSubtitle(headerTitle);
+  const activeStepLabel = getStepLabel(progressStep, isDelivery);
+  const ActiveIcon = STEP_ICON[progressStep];
 
   return (
     <MotiView
-      from={{ opacity: 0, translateY: 30 }}
+      from={{ opacity: 0, translateY: 10 }}
       animate={{ opacity: 1, translateY: 0 }}
       transition={{ type: "spring", damping: 18 }}
-      className="bg-[#11253E] rounded-t-[36px] p-5 pb-6 border-t border-white/[0.06] w-full"
+      className="bg-[#11253E] rounded-t-[36px] border-t border-white/[0.06] w-full"
       style={{
         shadowColor: "#000",
         shadowOffset: { width: 0, height: -10 },
         shadowOpacity: 0.35,
         shadowRadius: 15,
         elevation: 10,
+        maxHeight: 400,
+        paddingBottom: 16 + insets.bottom,
       }}
     >
       {/* Small drag handle indicator */}
-      <View className="align-self-center items-center mb-4">
+      <View className="items-center mt-2 mb-3">
         <View className="w-10 h-1.5 rounded-full bg-white/10" />
       </View>
 
-      {/* Header Info */}
-      <View className="flex-row items-start justify-between mb-4">
-        <View className="flex-1 mr-3">
-          <View className="bg-[#02de95]/10 border border-[#02de95]/20 self-start px-2.5 py-0.5 rounded-lg mb-1.5">
-            <Text className="text-[#02de95] text-[9px] font-black uppercase tracking-wider">
-              {headerBadge}
-            </Text>
-          </View>
-          <Text className="text-white text-lg font-black leading-tight" numberOfLines={1}>
-            {headerTitle}
+      {/* Header: ícone da fase ativa + endereço atual */}
+      <View className="px-5 flex-row items-center mb-3">
+        <View
+          className="w-10 h-10 rounded-xl items-center justify-center mr-3"
+          style={{
+            backgroundColor: "rgba(2, 222, 149, 0.15)",
+            borderWidth: 1,
+            borderColor: "rgba(2, 222, 149, 0.45)",
+          }}
+        >
+          <AnimatePresence exitBeforeEnter>
+            <MotiView
+              key={progressStep}
+              from={{ opacity: 0, scale: 0.6, rotate: "-15deg" }}
+              animate={{ opacity: 1, scale: 1, rotate: "0deg" }}
+              exit={{ opacity: 0, scale: 0.6, rotate: "15deg" }}
+              transition={{ type: "timing", duration: 280 }}
+            >
+              <ActiveIcon size={18} color="#02de95" strokeWidth={2.5} />
+            </MotiView>
+          </AnimatePresence>
+        </View>
+        <View className="flex-1">
+          <Text
+            className="text-white text-base font-black leading-tight"
+            numberOfLines={1}
+          >
+            {isGoingToDropoff ? dropoffAddress : pickupAddress}
           </Text>
-          <Text className="text-white/50 text-xs font-semibold mt-0.5">
-            {headerSubtitle}
+          <Text className="text-white/45 text-[11px] font-semibold mt-0.5">
+            {activeStepLabel}
           </Text>
         </View>
-
-        {duration && (
-          <View className="w-12 h-12 rounded-full bg-[#091A2F]/80 border border-[#02de95]/30 items-center justify-center flex-shrink-0">
-            <Text className="text-white/50 text-[7px] font-black uppercase tracking-wider">ETA</Text>
-            <Text className="text-[#02de95] text-xs font-black -mt-0.5">
-              {duration.replace("mins", "min").replace("minutos", "min")}
-            </Text>
-          </View>
-        )}
       </View>
 
-      {/* Quick Stats Grid */}
-      <DeliveryQuickStats
-        distance={distance}
-        duration={duration}
-        earnings={earnings}
-      />
+      {/* Stats inline (Distância / Tempo / Ganho) */}
+      <View className="mx-5 flex-row gap-2 mb-3">
+        <View className="flex-1 bg-[#1E2D3D] border border-white/[0.06] rounded-xl py-2.5 items-center">
+          <Text className="text-white/45 text-[10px] font-black uppercase tracking-wider mb-0.5">
+            Distância
+          </Text>
+          <Text className="text-white text-[13px] font-black">{distance}</Text>
+        </View>
+        <View className="flex-1 bg-[#1E2D3D] border border-white/[0.06] rounded-xl py-2.5 items-center">
+          <Text className="text-white/45 text-[10px] font-black uppercase tracking-wider mb-0.5">
+            Tempo
+          </Text>
+          <Text className="text-white text-[13px] font-black">{duration}</Text>
+        </View>
+        <View className="flex-1 bg-[#1E2D3D] border border-[#02de95]/35 rounded-xl py-2.5 items-center">
+          <Text className="text-[#02de95]/80 text-[10px] font-black uppercase tracking-wider mb-0.5">
+            Ganho
+          </Text>
+          <Text className="text-[#02de95] text-[13px] font-black">
+            {formatCurrency(earnings)}
+          </Text>
+        </View>
+      </View>
 
-      {/* Route Timeline & Payment */}
-      <DeliveryRouteSummary
-        pickupAddress={pickupAddress}
-        dropoffAddress={dropoffAddress}
-        paymentLabel={paymentLabel}
-      />
+      {/* Progress Indicator (animado em tempo real) */}
+      <View className="mx-5 mb-3">
+        <PickupProgressIndicator
+          currentStep={progressStep}
+          isDelivery={isDelivery}
+        />
+      </View>
 
       {/* Actions Row */}
-      <DriverActionButtons
-        recipientPhone={recipientPhone}
-        onChat={onChat}
-        unreadCount={unreadCount}
-        onReportProblem={onReportProblem}
-      />
+      <View className="px-5">
+        <DriverActionButtons
+          recipientPhone={recipientPhone}
+          onChat={onChat}
+          unreadCount={unreadCount}
+          onReportProblem={onReportProblem}
+        />
+      </View>
 
       {/* Primary Action Button */}
       {isGoingToPickup && (
-        <ArrivedButton
-          label="CHEGUEI"
-          loading={actionLoading}
-          onPress={onPrimaryActionPress}
-        />
-      )}
-
-      {isAtPickup && (
-        <ArrivedButton
-          label={isDelivery ? "COLETAR ENCOMENDA" : "INICIAR CORRIDA"}
-          loading={actionLoading}
-          onPress={onPrimaryActionPress}
-        />
-      )}
-
-      {isGoingToDropoff && (
-        canArriveDropoff ? (
+        <View className="px-5 mt-3">
           <ArrivedButton
-            label="CHEGUEI NO DESTINO"
-            loading={actionLoading}
-            onPress={onArriveDropoff || onPrimaryActionPress}
-          />
-        ) : (
-          <ArrivedButton
-            label={isDelivery ? "FINALIZAR ENTREGA" : "FINALIZAR CORRIDA"}
+            label="CHEGUEI"
             loading={actionLoading}
             onPress={onPrimaryActionPress}
           />
-        )
+        </View>
+      )}
+
+      {isAtPickup && (
+        <View className="px-5 mt-3">
+          <ArrivedButton
+            label={isDelivery ? "COLETAR ENCOMENDA" : "INICIAR CORRIDA"}
+            loading={actionLoading}
+            onPress={onPrimaryActionPress}
+          />
+        </View>
+      )}
+
+      {isGoingToDropoff && (
+        <View className="px-5 mt-3">
+          {canArriveDropoff ? (
+            <ArrivedButton
+              label="CHEGUEI NO DESTINO"
+              loading={actionLoading}
+              onPress={onArriveDropoff || onPrimaryActionPress}
+            />
+          ) : (
+            <ArrivedButton
+              label={isDelivery ? "FINALIZAR ENTREGA" : "FINALIZAR CORRIDA"}
+              loading={actionLoading}
+              onPress={onPrimaryActionPress}
+            />
+          )}
+        </View>
       )}
     </MotiView>
   );

@@ -210,8 +210,8 @@ export default function DriverOnboardingDashboard() {
           companyEmail: profile.companyEmail || "",
           companyPhone: profile.companyPhone || "",
           driverStatus: profile.driverStatus || "none",
-          vehicleType: profile.vehicleType || null,
-          vehicleInfo: profile.vehicleInfo || null,
+          vehicleType: profile.vehicleType || undefined,
+          vehicleInfo: profile.vehicleInfo || undefined,
         });
 
         // Seed fields
