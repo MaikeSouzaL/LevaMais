@@ -16,6 +16,7 @@ import {
   QrCode,
   Banknote,
   CreditCard,
+  Wallet,
 } from "lucide-react-native";
 import Toast from "react-native-toast-message";
 
@@ -292,17 +293,19 @@ export default function RideBidSetupScreen({ route, navigation }: any) {
           onPress={() => setShowPaymentMethods(true)}
           activeOpacity={0.8}
         >
-          <View style={{ marginRight: 8, width: 26, height: 26, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: paymentMethod === "cash" ? "#ffae00" : paymentMethod === "pix" ? "#02de95" : "#ff6b35" }}>
+          <View style={{ marginRight: 8, width: 26, height: 26, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: paymentMethod === "cash" ? "#ffae00" : paymentMethod === "pix" ? "#02de95" : paymentMethod === "wallet" ? "#02de95" : "#ff6b35" }}>
              {paymentMethod === "cash" ? (
                <Banknote size={15} color="#fff" />
              ) : paymentMethod === "pix" ? (
                <QrCode size={15} color="#fff" />
+             ) : paymentMethod === "wallet" ? (
+               <Wallet size={15} color="#fff" />
              ) : (
                <CreditCard size={15} color="#fff" />
              )}
           </View>
           <Text style={{ fontSize: 15, fontWeight: "900", color: "#111827" }}>
-             {paymentMethod === "cash" ? "Dinheiro" : paymentMethod === "pix" ? "Pix" : "Maquininha de cartão"}
+             {paymentMethod === "cash" ? "Dinheiro" : paymentMethod === "pix" ? "Pix" : paymentMethod === "wallet" ? "Saldo LevaPay" : "Maquininha de cartão"}
           </Text>
           <View style={{ flex: 1 }} />
           <Text style={{ fontSize: 13, fontWeight: "600", color: "#4b5563" }} numberOfLines={1}>Use saldo e poupe R$ 4,00</Text>

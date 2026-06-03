@@ -553,7 +553,7 @@ export default function DeliveryDetailsScreen() {
       ? customItemType.trim() || "other"
       : selectedItemType || "standard";
     const paymentType =
-      paymentMethod === "card_machine" ? "credit_card" : paymentMethod === "pix" ? "pix" : "cash";
+      paymentMethod === "card_machine" ? "credit_card" : paymentMethod === "pix" ? "pix" : paymentMethod === "wallet" ? "wallet" : "cash";
 
     const payload: CreateRideRequest = {
       serviceType: "delivery",
@@ -1078,17 +1078,19 @@ export default function DeliveryDetailsScreen() {
         </View>
 
         <TouchableOpacity style={styles.paymentRow} activeOpacity={0.8} onPress={() => setShowPaymentMethods(true)}>
-          <View style={[styles.cashBadge, paymentMethod === "pix" ? { backgroundColor: "#02de95" } : paymentMethod === "card_machine" ? { backgroundColor: "#f97316" } : null]}>
+          <View style={[styles.cashBadge, paymentMethod === "pix" ? { backgroundColor: "#02de95" } : paymentMethod === "card_machine" ? { backgroundColor: "#f97316" } : paymentMethod === "wallet" ? { backgroundColor: "#02de95" } : null]}>
             {paymentMethod === "pix" ? (
               <QrCode size={15} color="#fff" />
             ) : paymentMethod === "card_machine" ? (
               <CreditCard size={15} color="#fff" />
+            ) : paymentMethod === "wallet" ? (
+              <Wallet size={15} color="#fff" />
             ) : (
               <Wallet size={15} color="#fff" />
             )}
           </View>
           <Text style={styles.paymentLabel}>
-            {paymentMethod === "pix" ? "Pix" : paymentMethod === "card_machine" ? "Maquininha de cartão" : "Dinheiro"}
+            {paymentMethod === "pix" ? "Pix" : paymentMethod === "card_machine" ? "Maquininha de cartão" : paymentMethod === "wallet" ? "Saldo LevaPay" : "Dinheiro"}
           </Text>
           <View style={styles.paymentSpacer} />
           <Text style={styles.discountText}>Use saldo e poupe R$4,00</Text>

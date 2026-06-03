@@ -10,15 +10,13 @@ import {
   XCircle,
   QrCode,
   Tag,
-  PlusCircle,
-  ChevronRight,
   Banknote,
   CreditCard,
   CheckCircle2,
   Circle,
 } from "lucide-react-native";
 
-export type PaymentMethod = "cash" | "pix" | "card_machine";
+export type PaymentMethod = "cash" | "pix" | "card_machine" | "wallet";
 
 export interface PaymentMethodsSheetProps {
   /** Controla a exibição do overlay em tela cheia. */
@@ -73,9 +71,6 @@ export function PaymentMethodsSheet({
   const handleDeposit =
     onDeposit ||
     (() => Toast.show({ type: "info", text1: "Depósito via Pix", text2: "Recurso em desenvolvimento." }));
-  const handleAddCard =
-    onAddCard ||
-    (() => Toast.show({ type: "info", text1: "Cartão", text2: "Recurso em desenvolvimento." }));
 
   return (
     <View style={{ position: "absolute", inset: 0, zIndex: 50, elevation: 60, backgroundColor: "#F2F4F7" }}>
@@ -164,36 +159,21 @@ export function PaymentMethodsSheet({
           </View>
         </View>
 
-        {/* ───── Pague pelo app ───── */}
-        <Text style={{ fontSize: 11, fontWeight: "800", color: "#94a3b8", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10, marginLeft: 2 }}>Pague pelo app</Text>
+        <Text style={{ fontSize: 11, fontWeight: "800", color: "#94a3b8", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10, marginLeft: 2 }}>Pague ao motorista</Text>
 
         <PayOption
-          selected={value === "pix"}
-          onPress={() => onChange("pix")}
+          selected={value === "wallet"}
+          onPress={() => {
+            if (insufficient) handleDeposit();
+            else onChange("wallet");
+          }}
           iconBg="#02de95"
-          iconEl={<QrCode size={20} color="#fff" />}
-          title="Pix"
-          subtitle="Instantâneo · Sem taxas"
-          badge="Rápido"
+          iconEl={<Wallet size={20} color="#fff" />}
+          title="Cash"
+          subtitle={insufficient ? "Adicione saldo para pagar" : `${formatBRL(balance)} disponível`}
+          badge={insufficient ? undefined : "Cash"}
         />
         <View style={{ height: 10 }} />
-        <TouchableOpacity
-          activeOpacity={0.85}
-          onPress={handleAddCard}
-          style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#fff", borderRadius: 18, paddingHorizontal: 16, paddingVertical: 14, borderWidth: 1, borderColor: "#EEF0F3", marginBottom: 20, shadowColor: "#0f172a", shadowOpacity: 0.03, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 1 }}
-        >
-          <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: "#F8F9FB", alignItems: "center", justifyContent: "center", marginRight: 14, borderWidth: 1, borderColor: "#EEF0F3" }}>
-            <PlusCircle size={22} color="#475569" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 15, fontWeight: "700", color: "#1e293b" }}>Adicionar cartão</Text>
-            <Text style={{ fontSize: 12, color: "#94a3b8", marginTop: 2 }}>Crédito ou débito</Text>
-          </View>
-          <ChevronRight size={20} color="#cbd5e1" />
-        </TouchableOpacity>
-
-        {/* ───── Pague ao motorista ───── */}
-        <Text style={{ fontSize: 11, fontWeight: "800", color: "#94a3b8", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10, marginLeft: 2 }}>Pague ao motorista</Text>
 
         <PayOption
           selected={value === "cash"}

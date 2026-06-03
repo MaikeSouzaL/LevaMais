@@ -61,7 +61,7 @@ export interface CreateRideRequest {
   details?: RideDetails;
   payment?: {
     method?: {
-      type?: "credit_card" | "pix" | "cash";
+      type?: "credit_card" | "pix" | "cash" | "wallet";
     };
   };
   scheduledFor?: string;

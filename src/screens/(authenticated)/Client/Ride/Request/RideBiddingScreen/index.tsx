@@ -67,7 +67,7 @@ export default function RideBiddingScreen({ route, navigation }: any) {
         stops,
         routeCoordinates,
         payment: {
-          // Normaliza para os métodos aceitos pelo backend (cash | card | pix)
+          // Normaliza para os métodos aceitos pelo backend (cash | card | pix | wallet)
           method: paymentMethod === "card_machine" ? "card" : (paymentMethod || "cash"),
         },
         pricing: {
