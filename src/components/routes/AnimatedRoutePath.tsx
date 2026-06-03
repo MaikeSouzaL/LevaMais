@@ -105,21 +105,6 @@ export const AnimatedRoutePath = ({ coordinates }: AnimatedRoutePathProps) => {
 
   return (
     <>
-      {/* The Soft Fade Trail Indicator */}
-      <AnimatedMarker
-        coordinate={sharedCoords.value[0]}
-        animatedProps={trailProps}
-        anchor={{ x: 0.5, y: 0.5 }}
-        tracksViewChanges={true}
-        zIndex={21}
-      >
-        <View style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}>
-          <Animated.View style={{ opacity: 0.35, transform: [{ scale: 0.75 }] }}>
-            <RoutePulseIndicator />
-          </Animated.View>
-        </View>
-      </AnimatedMarker>
-
       {/* The Main Active Particle */}
       <AnimatedMarker
         coordinate={sharedCoords.value[0]}

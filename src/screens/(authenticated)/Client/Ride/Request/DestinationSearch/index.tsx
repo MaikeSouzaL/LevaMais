@@ -21,7 +21,7 @@ import { RouteBottomCard } from "@/components/client/destination/RouteBottomCard
 import { MapActionButtons } from "@/components/MapActionButtons";
 
 // Refined Realtime Core Mapping Imports 🚀
-import { PremiumMapMarker } from "@/components/maps/PremiumMapMarker";
+import RoutePin from "@/components/maps/RoutePin";
 import { PremiumDottedRoute } from "@/components/routes/PremiumDottedRoute";
 import { MotiView } from "moti";
 
@@ -97,6 +97,7 @@ export default function DestinationSearchScreen({ navigation, route }: any) {
   const [distanceRaw, setDistanceRaw] = useState<number | null>(null);
   const [durationRaw, setDurationRaw] = useState<number | null>(null);
   const [isReadyToContinue, setIsReadyToContinue] = useState(!!params.dropoff);
+  const [isRouteLoading, setIsRouteLoading] = useState(false);
   const [vehicles, setVehicles] = useState<RealtimeVehicle[]>([]);
 
   // 🔥 Mutable Origin States
@@ -143,6 +144,31 @@ export default function DestinationSearchScreen({ navigation, route }: any) {
       setOriginDetails(null);
     }
   }, [originTxt]);
+
+  const handleSwapAddresses = () => {
+    const tempOriginTxt = originTxt;
+    const tempOriginDetails = originDetails;
+
+    setOriginTxt(destinationTxt);
+    setOriginDetails(destinationDetails);
+    
+    setDestinationTxt(tempOriginTxt);
+    setDestinationDetails(tempOriginDetails);
+
+    if (tempOriginDetails && destinationDetails) {
+      setIsReadyToContinue(true);
+      setIsRouteLoading(true);
+    } else if (tempOriginDetails) {
+      setIsReadyToContinue(true);
+    } else {
+      setIsReadyToContinue(false);
+      setRouteCoordinates([]);
+      setDistanceStr("");
+      setDurationStr("");
+      setDistanceRaw(null);
+      setDurationRaw(null);
+    }
+  };
 
   const origin = {
     latitude: originDetails?.latitude || userRegion?.latitude || region?.latitude || -23.55,
@@ -216,6 +242,9 @@ export default function DestinationSearchScreen({ navigation, route }: any) {
   }, [userRegion?.latitude, origin.latitude]);
 
   const handleSelectDestination = (details: PlaceDetails) => {
+    if (originDetails || originTxt) {
+      setIsRouteLoading(true);
+    }
     setDestinationDetails(details);
     setIsReadyToContinue(true);
   };
@@ -237,6 +266,7 @@ export default function DestinationSearchScreen({ navigation, route }: any) {
     setDistanceRaw(result.distance); // in KM
     setDurationRaw(result.duration); // in MINUTES
     setRouteCoordinates(result.coordinates);
+    setIsRouteLoading(false);
     
     mapRef.current?.fitToCoordinates(result.coordinates, {
       edgePadding: {
@@ -301,7 +331,7 @@ export default function DestinationSearchScreen({ navigation, route }: any) {
 
   return (
     <View className="flex-1 bg-[#0f231c]">
-      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+      <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" hidden={false} />
 
       {/* 🗺️ Maps Implementation using 100% absolute placement utility */}
       <View className="absolute inset-0">
@@ -323,8 +353,8 @@ export default function DestinationSearchScreen({ navigation, route }: any) {
           }}
         >
           {/* Origin Marker */}
-          <Marker coordinate={{ latitude: origin.latitude, longitude: origin.longitude }} anchor={{ x: 0.5, y: 0.5 }}>
-            <PremiumMapMarker type="origin" />
+          <Marker coordinate={{ latitude: origin.latitude, longitude: origin.longitude }} anchor={{ x: 0.35, y: 0.75 }}>
+            <RoutePin variant="pickup" />
           </Marker>
 
           {/* Realtime Vehicle Background Traffic */}
@@ -333,7 +363,7 @@ export default function DestinationSearchScreen({ navigation, route }: any) {
               key={veh.id}
               coordinate={{ latitude: veh.lat, longitude: veh.lng }}
               rotation={veh.rotation}
-              anchor={{ x: 0.5, y: 0.5 }}
+              anchor={{ x: 0.5, y: 0.3 }}
               tracksViewChanges={Platform.OS === "ios"}
             >
               <View className={`w-5 h-5 rounded-lg items-center justify-center shadow shadow-black elevation-4 ${veh.type === "motorcycle" ? 'bg-blue-400' : 'bg-primary'}`}>
@@ -353,9 +383,9 @@ export default function DestinationSearchScreen({ navigation, route }: any) {
                   latitude: destinationDetails.latitude,
                   longitude: destinationDetails.longitude,
                 }}
-                anchor={{ x: 0.5, y: 0.5 }}
+                anchor={{ x: 0.35, y: 0.75 }}
               >
-                <PremiumMapMarker type="destination" />
+                <RoutePin variant="dropoff" />
               </Marker>
 
               <MapViewDirections
@@ -370,6 +400,10 @@ export default function DestinationSearchScreen({ navigation, route }: any) {
                 strokeWidth={0}
                 strokeColor="transparent" 
                 onReady={onDirectionsReady}
+                onError={(err) => {
+                  console.warn("MapViewDirections error:", err);
+                  setIsRouteLoading(false);
+                }}
               />
             </>
           )}
@@ -386,7 +420,6 @@ export default function DestinationSearchScreen({ navigation, route }: any) {
         {/* 📡 Absolute Map Controls Right Wing (Placed first to render behind input cards!) */}
         <MapActionButtons 
           onLocationPress={handleCenterMyLocation}
-          onSosPress={handleSOS}
           onMapStylePress={handleToggleMapStyle}
           useDarkMap={useDarkMap}
           isCentering={isCentering}
@@ -400,6 +433,9 @@ export default function DestinationSearchScreen({ navigation, route }: any) {
           onOriginChange={setOriginTxt}
           onDestinationChange={setDestinationTxt}
           onSelectOrigin={(details) => {
+             if (destinationDetails) {
+               setIsRouteLoading(true);
+             }
              setOriginDetails(details);
              setOriginTxt(details.formattedAddress);
           }}
@@ -418,6 +454,7 @@ export default function DestinationSearchScreen({ navigation, route }: any) {
                longitude: destinationDetails.longitude
              });
           } : undefined}
+          onSwap={handleSwapAddresses}
         />
 
         {/* 💡 FRIENDLY TIP BANNER (ADDRESS NUMBER VERIFICATION) */}
@@ -427,25 +464,25 @@ export default function DestinationSearchScreen({ navigation, route }: any) {
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ delay: 600, type: "timing", duration: 400 }}
-            className="mx-6 mt-3 bg-[#091A2F] border border-[#FFB900]/30 px-3 py-2.5 rounded-xl flex-row items-center relative shadow-lg"
+            className="mx-6 mt-3 bg-amber-50 border border-amber-200 px-3 py-2.5 rounded-xl flex-row items-center relative shadow-md"
           >
-            <View className="bg-[#FFB900]/10 p-1.5 rounded-full mr-3">
-               <Info size={14} color="#FFB900" />
+            <View className="bg-amber-100 p-1.5 rounded-full mr-3">
+               <Info size={14} color="#d97706" />
             </View>
             <View className="flex-1 pr-6">
-              <Text className="text-[#FFB900] font-bold text-[12px] leading-tight">
+              <Text className="text-amber-800 font-bold text-[12px] leading-tight">
                 Confirme o Número da Casa
               </Text>
-              <Text className="text-white/70 text-[11px] mt-0.5">
+              <Text className="text-slate-600 text-[11px] mt-0.5 font-medium">
                 Verifique se o número do local está preenchido corretamente para evitar atrasos.
               </Text>
             </View>
             <TouchableOpacity 
                onPress={() => setShowVerifTip(false)}
-               className="absolute right-2 top-2 bg-white/5 p-1 rounded-full"
+               className="absolute right-2 top-2 bg-slate-200/50 p-1 rounded-full"
                hitSlop={8}
             >
-              <X size={12} color="#FFB900" />
+              <X size={12} color="#d97706" />
             </TouchableOpacity>
           </MotiView>
         )}
@@ -459,6 +496,7 @@ export default function DestinationSearchScreen({ navigation, route }: any) {
         visible={isReadyToContinue}
         distance={distanceStr}
         duration={durationStr}
+        isLoading={isRouteLoading}
         onConfirm={handleContinue}
       />
 

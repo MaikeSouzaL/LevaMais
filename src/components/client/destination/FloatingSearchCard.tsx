@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { View, Text, TextInput, TouchableOpacity, FlatList, ActivityIndicator, Keyboard, Modal, Alert } from "react-native";
 import { MotiView, AnimatePresence } from "moti";
 import { BlurView } from "expo-blur";
-import { Navigation, MapPin, X, Search, Heart, Trash2, AlertTriangle } from "lucide-react-native";
+import { Navigation, MapPin, X, Search, Heart, Trash2, AlertTriangle, ArrowUpDown } from "lucide-react-native";
 import googlePlacesService, { PlaceAutocompleteResult, PlaceDetails } from "@/services/googlePlaces.service";
 import favoriteAddressService, { FavoriteAddress } from "@/services/favoriteAddress.service";
 import { SearchResultItem } from "./SearchResultItem";
@@ -16,6 +16,7 @@ interface FloatingSearchCardProps {
   onSelectDestination: (details: PlaceDetails) => void;
   onFavoriteOrigin?: () => void;
   onFavoriteDestination?: () => void;
+  onSwap?: () => void;
 }
 
 export const FloatingSearchCard = ({
@@ -27,6 +28,7 @@ export const FloatingSearchCard = ({
   onSelectDestination,
   onFavoriteOrigin,
   onFavoriteDestination,
+  onSwap,
 }: FloatingSearchCardProps) => {
   const [results, setResults] = useState<PlaceAutocompleteResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -47,6 +49,18 @@ export const FloatingSearchCard = ({
   const [deletingFav, setDeletingFav] = useState<FavoriteAddress | null>(null);
   
   const [isActionLoading, setIsActionLoading] = useState(false);
+  const [animatingSwap, setAnimatingSwap] = useState(false);
+  const [rotated, setRotated] = useState(false);
+
+  const handleSwapPress = () => {
+    if (animatingSwap) return;
+    setAnimatingSwap(true);
+    setRotated(prev => !prev);
+    onSwap?.();
+    setTimeout(() => {
+      setAnimatingSwap(false);
+    }, 350);
+  };
 
   const refreshFavorites = async () => {
     try {
@@ -232,25 +246,66 @@ export const FloatingSearchCard = ({
     >
       <View className="shadow-2xl shadow-black elevation-12">
         {/* 🎨 SOLIDIFIED BACKGROUND (Anti-transparency Fix) */}
-        <View className="rounded-3xl bg-[#0B1522] border border-white/10 overflow-hidden p-4 relative">
+        <View className="rounded-3xl bg-white border border-slate-200 overflow-hidden p-4 relative">
           {/* Light Glow overlay simulation */}
-          <View className="absolute inset-0 border border-primary/10 rounded-2xl pointer-events-none" />
+          <View className="absolute inset-0 border border-slate-100 rounded-3xl pointer-events-none" />
 
-          <View>
-            {/* Origin Group (NOW EDITABLE 🚀) */}
-            <View className="flex-row items-center">
-              <View className="w-7 items-center justify-center">
-                <View className="w-2.5 h-2.5 rounded-full bg-[#02de95]" />
-                <View className="w-[1px] h-[22px] border border-dashed border-white/20 mt-0.5 -mb-0.5" />
-              </View>
-              
-              <View className={`flex-1 h-11 bg-white/5 border ${activeField === 'origin' ? 'border-[#02de95]/40' : 'border-white/5'} rounded-xl flex-row items-center px-3`}>
+          <View className="flex-row items-center">
+            {/* Column 1: Pins, connecting line and Swap button in the center */}
+            <View className="w-8 items-center justify-between relative" style={{ height: 96, paddingVertical: 10 }}>
+              <MapPin size={18} color="#02de95" fill="#02de95" />
+              <View className="flex-1 w-[1px] border-l border-dashed border-slate-300 my-1.5" />
+              <MapPin size={18} color="#ef4444" fill="#ef4444" />
+
+              {onSwap && (
+                <TouchableOpacity
+                  onPress={handleSwapPress}
+                  className="absolute bg-white items-center justify-center"
+                  style={{ 
+                    top: 38, // (96 / 2) - 10
+                    left: 6,  // (32 / 2) - 10
+                    height: 20,
+                    width: 20,
+                    zIndex: 10,
+                  }}
+                  activeOpacity={0.7}
+                  hitSlop={15}
+                >
+                  <MotiView
+                    animate={{
+                      rotate: rotated ? "180deg" : "0deg"
+                    }}
+                    transition={{
+                      type: "timing",
+                      duration: 300
+                    }}
+                  >
+                    <ArrowUpDown size={16} color="#64748b" />
+                  </MotiView>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Column 2: Inputs */}
+            <View className="flex-1 gap-2">
+              {/* Origin Group (NOW EDITABLE 🚀) */}
+              <MotiView
+                animate={{
+                  translateY: animatingSwap ? 52 : 0
+                }}
+                transition={{
+                  type: "timing",
+                  duration: 300
+                }}
+                style={{ zIndex: animatingSwap ? 10 : 1 }}
+                className={`h-11 bg-slate-50 border ${activeField === 'origin' ? 'border-[#02de95]/50' : 'border-slate-200'} rounded-xl flex-row items-center px-3`}
+              >
                 <TextInput
                   value={originText}
                   onChangeText={onOriginChange}
                   placeholder="Local de Coleta"
-                  placeholderTextColor="rgba(255,255,255,0.35)"
-                  className="flex-1 text-white text-sm h-full p-0 pr-4"
+                  placeholderTextColor="rgba(15,23,42,0.4)"
+                  className="flex-1 text-slate-800 text-sm h-full p-0 pr-4 font-medium"
                   autoFocus={!originText}
                   onFocus={() => {
                      setActiveField('origin');
@@ -267,35 +322,40 @@ export const FloatingSearchCard = ({
                           <TouchableOpacity onPress={onFavoriteOrigin} hitSlop={8}>
                             <Heart 
                               size={15} 
-                              color={isOriginFavorite ? "#ef4444" : "#ffffff"} 
+                              color={isOriginFavorite ? "#ef4444" : "#64748b"} 
                               fill={isOriginFavorite ? "#ef4444" : "transparent"}
-                              opacity={isOriginFavorite ? 1 : 0.35} 
+                              opacity={isOriginFavorite ? 1 : 0.5} 
                             />
                           </TouchableOpacity>
                        )}
                        <TouchableOpacity onPress={() => onOriginChange("")} hitSlop={8}>
-                         <X size={16} color="rgba(255,255,255,0.5)" />
+                         <X size={16} color="rgba(15,23,42,0.5)" />
                        </TouchableOpacity>
                      </>
                    ) : (
-                     <Search size={16} color="rgba(255,255,255,0.3)" />
+                     <Search size={16} color="rgba(15,23,42,0.4)" />
                    )}
                 </View>
-              </View>
-            </View>
+              </MotiView>
 
-            {/* Destination Group */}
-            <View className="flex-row items-center mt-2">
-              <View className="w-7 items-center justify-center">
-                <MapPin size={16} color="#ef4444" fill="#ef4444" opacity={0.9} />
-              </View>
-              <View className={`flex-1 h-11 bg-white/5 border ${activeField === 'destination' ? 'border-red-400/40' : 'border-white/5'} rounded-xl flex-row items-center px-3`}>
+              {/* Destination Group */}
+              <MotiView
+                animate={{
+                  translateY: animatingSwap ? -52 : 0
+                }}
+                transition={{
+                  type: "timing",
+                  duration: 300
+                }}
+                style={{ zIndex: animatingSwap ? 10 : 1 }}
+                className={`h-11 bg-slate-50 border ${activeField === 'destination' ? 'border-red-400/50' : 'border-slate-200'} rounded-xl flex-row items-center px-3`}
+              >
                 <TextInput
                   value={destinationText}
                   onChangeText={onDestinationChange}
                   placeholder="Insira o destino"
-                  placeholderTextColor="rgba(255,255,255,0.35)"
-                  className="flex-1 text-white text-sm h-full p-0 pr-4"
+                  placeholderTextColor="rgba(15,23,42,0.4)"
+                  className="flex-1 text-slate-800 text-sm h-full p-0 pr-4 font-medium"
                   onFocus={() => {
                     setActiveField('destination');
                     setShowDrop(true);
@@ -312,21 +372,21 @@ export const FloatingSearchCard = ({
                          <TouchableOpacity onPress={onFavoriteDestination} hitSlop={8}>
                            <Heart 
                              size={15} 
-                             color={isDestinationFavorite ? "#ef4444" : "#ffffff"} 
+                             color={isDestinationFavorite ? "#ef4444" : "#64748b"} 
                              fill={isDestinationFavorite ? "#ef4444" : "transparent"}
-                             opacity={isDestinationFavorite ? 1 : 0.35} 
+                             opacity={isDestinationFavorite ? 1 : 0.5} 
                            />
                          </TouchableOpacity>
                       )}
                       <TouchableOpacity onPress={() => onDestinationChange("")}>
-                        <X size={16} color="rgba(255,255,255,0.5)" />
+                        <X size={16} color="rgba(15,23,42,0.5)" />
                       </TouchableOpacity>
                     </>
                   ) : (
-                    <Search size={16} color="rgba(255,255,255,0.3)" />
+                    <Search size={16} color="rgba(15,23,42,0.4)" />
                   )}
                 </View>
-              </View>
+              </MotiView>
             </View>
           </View>
         </View>
@@ -340,10 +400,10 @@ export const FloatingSearchCard = ({
               exit={{ opacity: 0, height: 0 }}
               className="mt-1.5 rounded-2xl overflow-hidden shadow-2xl shadow-black"
             >
-              <View className="flex-1 bg-[#0B1522] border border-white/10">
+              <View className="flex-1 bg-white border border-slate-200">
                 {results.length === 0 && favorites.length > 0 && (
                   <View className="px-4 pt-3 pb-1">
-                    <Text className="text-white/40 text-[10px] font-bold uppercase tracking-widest">Seus Favoritos</Text>
+                    <Text className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Seus Favoritos</Text>
                   </View>
                 )}
                 
@@ -351,7 +411,7 @@ export const FloatingSearchCard = ({
                   data={combinedList}
                   keyExtractor={(i: any, index) => (i.placeId || i._id || index.toString())}
                   keyboardShouldPersistTaps="handled"
-                  ItemSeparatorComponent={() => <View className="h-[1px] bg-white/5 mx-4" />}
+                  ItemSeparatorComponent={() => <View className="h-[1px] bg-slate-100 mx-4" />}
                   renderItem={({ item }: any) => {
                     const isFav = !!item._id;
                     return (

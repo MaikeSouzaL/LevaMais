@@ -68,14 +68,14 @@ export const RecentPlaces = ({ onSelect }: RecentPlacesProps) => {
         {places.map((place) => (
           <TouchableOpacity
             key={place.id}
-            className="flex-row items-center bg-[#091A2F] px-4 py-2 rounded-full border border-white/10 shadow-md"
+            className="flex-row items-center bg-white px-4 py-2 rounded-full border border-slate-200 shadow-sm"
             onPress={() => onSelect(place)}
             activeOpacity={0.7}
           >
             <View className="mr-1">
               {renderIcon(place.type)}
             </View>
-            <Text className="text-white text-xs font-bold" numberOfLines={1}>
+            <Text className="text-slate-800 text-xs font-bold" numberOfLines={1}>
               {place.label}
             </Text>
           </TouchableOpacity>

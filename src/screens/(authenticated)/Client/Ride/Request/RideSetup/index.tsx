@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { View, Dimensions, ScrollView, ActivityIndicator } from "react-native";
+import { View, Dimensions, ScrollView, ActivityIndicator, StatusBar } from "react-native";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { GlobalMap } from "@/components/GlobalMap";
@@ -165,6 +165,7 @@ export default function RideSetupScreen() {
 
   return (
     <View className="flex-1 bg-[#050F0C]">
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
       {/* 🌌 BACKGROUND LAYER: Dark Blured Active Map 🗺️ */}
       <View className="absolute inset-0 opacity-60">
         <GlobalMap
@@ -196,11 +197,11 @@ export default function RideSetupScreen() {
              </>
           )}
           
-          <Marker coordinate={params.pickup} anchor={{ x: 0.5, y: 1 }}>
+          <Marker coordinate={params.pickup} anchor={{ x: 0.35, y: 0.75 }}>
             <RoutePin variant="pickup" />
           </Marker>
 
-          <Marker coordinate={params.dropoff} anchor={{ x: 0.5, y: 1 }}>
+          <Marker coordinate={params.dropoff} anchor={{ x: 0.35, y: 0.75 }}>
             <RoutePin variant="dropoff" />
           </Marker>
 

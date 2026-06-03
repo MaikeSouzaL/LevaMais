@@ -290,7 +290,7 @@ export default function HomeScreen() {
   return (
     <ErrorBoundary componentName="ClientHomeScreen">
       <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#091A2F" }}>
-        <StatusBar hidden barStyle={activeService === "ride" ? "dark-content" : "light-content"} backgroundColor="transparent" translucent />
+        <StatusBar barStyle={activeService === "ride" ? "dark-content" : "dark-content"} backgroundColor="transparent" translucent />
         
         {activeService === "ride" && (
           <View className="flex-1 pb-[110px]" style={{ paddingTop: StatusBar.currentHeight || 20 }}>
@@ -372,43 +372,6 @@ export default function HomeScreen() {
                 showsHorizontalScrollIndicator={false} 
                 contentContainerStyle={{ gap: 10, paddingRight: 20 }}
               >
-                {favorites.length > 0 && (
-                  favorites.slice(0, 3).map((fav, index) => (
-                    <TouchableOpacity
-                      key={fav.id || index}
-                      className="flex-row items-center bg-[#11253E] px-3.5 py-2 rounded-[20px] border border-white/[0.03]"
-                      accessibilityLabel={`Endereço favorito: ${fav.name?.toLowerCase() || "favorito"}`}
-                      accessibilityRole="button"
-                      onPress={() => {
-                        navigation.navigate("DestinationSearch", {
-                          pickup: {
-                            address: currentAddress || "Localização Atual",
-                            latitude: userRegion?.latitude || region?.latitude || -11.67,
-                            longitude: userRegion?.longitude || region?.longitude || -61.19,
-                          },
-                          dropoff: {
-                            address: fav.formattedAddress || fav.address,
-                            latitude: Number(fav.latitude),
-                            longitude: Number(fav.longitude),
-                          }
-                        });
-                      }}
-                    >
-                      <View className="w-6 h-6 rounded-full bg-[#02de95]/10 items-center justify-center mr-2">
-                        {fav.name?.toLowerCase() === "casa" ? (
-                          <HomeIcon size={14} color="#02de95" />
-                        ) : fav.name?.toLowerCase() === "trabalho" ? (
-                          <Briefcase size={14} color="#02de95" />
-                        ) : (
-                          <Sparkles size={14} color="#02de95" />
-                        )}
-                      </View>
-                      <Text className="text-white text-xs font-bold" numberOfLines={1}>
-                        {fav.name}
-                      </Text>
-                    </TouchableOpacity>
-                  ))
-                )}
                 <>
                     <TouchableOpacity
                       className="flex-row items-center bg-[#11253E] px-3.5 py-2 rounded-[20px] border border-white/[0.03]"
@@ -443,7 +406,7 @@ export default function HomeScreen() {
                       <View className="w-6 h-6 rounded-full bg-[#02de95]/10 items-center justify-center mr-2">
                         <Sparkles size={14} color="#02de95" />
                       </View>
-                      <Text className="text-white text-xs font-bold">Adicionar Favorito</Text>
+                      <Text className="text-white text-xs font-bold">Adicionar Favoritos Extras</Text>
                     </TouchableOpacity>
                   </>
               </ScrollView>
@@ -801,7 +764,7 @@ export default function HomeScreen() {
                   <View className="w-6 h-6 rounded-full bg-[#091A2F]/10 items-center justify-center mr-2">
                     <Sparkles size={14} color="#091A2F" />
                   </View>
-                  <Text className="text-[#091A2F] text-xs font-bold">Adicionar Favorito</Text>
+                  <Text className="text-[#091A2F] text-xs font-bold">Adicionar Favoritos Extras</Text>
                 </TouchableOpacity>
               </ScrollView>
             </View>

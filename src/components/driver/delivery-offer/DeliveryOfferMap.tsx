@@ -3,7 +3,7 @@ import { View, StyleSheet, Dimensions } from "react-native";
 import { Marker } from "react-native-maps";
 import MapView from "react-native-maps";
 import { GlobalMap } from "@/components/GlobalMap";
-import { PremiumMapMarker } from "@/components/maps/PremiumMapMarker";
+import RoutePin from "@/components/maps/RoutePin";
 import MapViewDirections from "react-native-maps-directions";
 import Constants from "expo-constants";
 
@@ -66,13 +66,13 @@ export function DeliveryOfferMap({ pickup, destination, isSmall }: DeliveryOffer
         )}
 
         {/* Pickup Node */}
-        <Marker coordinate={pickup} anchor={{ x: 0.5, y: 0.5 }}>
-          <PremiumMapMarker type="origin" />
+        <Marker coordinate={pickup} anchor={{ x: 0.35, y: 0.75 }}>
+          <RoutePin variant="pickup" />
         </Marker>
 
         {/* Dropoff Node */}
-        <Marker coordinate={destination} anchor={{ x: 0.5, y: 0.5 }}>
-          <PremiumMapMarker type="destination" />
+        <Marker coordinate={destination} anchor={{ x: 0.35, y: 0.75 }}>
+          <RoutePin variant="dropoff" />
         </Marker>
       </GlobalMap>
     </View>

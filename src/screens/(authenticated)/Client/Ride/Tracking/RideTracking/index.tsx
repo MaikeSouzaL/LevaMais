@@ -704,9 +704,15 @@ export default function RideTrackingScreen() {
       }
 
       try {
+        let waypointsQuery = "";
+        if (routeMode === "toDropoff" && Array.isArray(ride?.stops) && ride.stops.length > 0) {
+          const wpString = ride.stops.map((s: any) => `${s.latitude},${s.longitude}`).join("|");
+          waypointsQuery = `&waypoints=${encodeURIComponent(wpString)}`;
+        }
+
         const url =
           `https://maps.googleapis.com/maps/api/directions/json?origin=${encodeURIComponent(`${origin.latitude},${origin.longitude}`)}` +
-          `&destination=${encodeURIComponent(`${destination.latitude},${destination.longitude}`)}` +
+          `&destination=${encodeURIComponent(`${destination.latitude},${destination.longitude}`)}${waypointsQuery}` +
           `&mode=driving&key=${encodeURIComponent(key)}`;
 
         const res = await fetch(url);
@@ -738,6 +744,7 @@ export default function RideTrackingScreen() {
     pickupCoord?.longitude,
     dropoffCoord?.latitude,
     dropoffCoord?.longitude,
+    JSON.stringify(ride?.stops),
   ]);
 
   useEffect(() => {
@@ -820,7 +827,7 @@ export default function RideTrackingScreen() {
         ) : null}
 
 {!!pickupCoord && (
-  <Marker coordinate={pickupCoord} title="Coleta" tracksViewChanges={true} anchor={{ x: 0.5, y: 1 }}>
+  <Marker coordinate={pickupCoord} title="Coleta" tracksViewChanges={true} anchor={{ x: 0.35, y: 0.75 }}>
     <RoutePin variant="pickup" />
   </Marker>
 )}
@@ -835,12 +842,12 @@ export default function RideTrackingScreen() {
   );
 })}
 {!!dropoffCoord && (
-  <Marker coordinate={dropoffCoord} title="Destino" tracksViewChanges={true} anchor={{ x: 0.5, y: 1 }}>
+  <Marker coordinate={dropoffCoord} title="Destino" tracksViewChanges={true} anchor={{ x: 0.35, y: 0.75 }}>
     <RoutePin variant="dropoff" />
   </Marker>
 )}
 {!!driverLocation && driverAnimatedLocation.current && (
-  <Marker.Animated coordinate={driverAnimatedLocation.current as any} title="Motorista" tracksViewChanges={true} anchor={{ x: 0.5, y: 1 }}>
+  <Marker.Animated coordinate={driverAnimatedLocation.current as any} title="Motorista" tracksViewChanges={true} anchor={{ x: 0.35, y: 0.75 }}>
     <RoutePin variant="driver" />
   </Marker.Animated>
 )}

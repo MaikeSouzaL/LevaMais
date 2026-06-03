@@ -43,9 +43,10 @@ import { StatusBar } from "expo-status-bar";
 import { MotiView, AnimatePresence } from "moti";
 import { MapPin, Menu, Target, Layers, ShieldAlert, Info , AlertTriangle, X, User, Wifi, WifiOff, QrCode } from "lucide-react-native";
 import { NewIncomingOfferSheet } from "@/components/driver/home/NewIncomingOfferSheet";
-import { PremiumMapMarker } from "@/components/maps/PremiumMapMarker";
 import { PremiumDottedRoute } from "@/components/routes/PremiumDottedRoute";
 import { VehicleMarker } from "@/components/maps/VehicleMarker";
+import RoutePin from "@/components/maps/RoutePin";
+import StopPin from "@/components/maps/StopPin";
 
 
 // 🔋 ConfiguraÃ§Ãµes de Sinal GPS baseadas na Escolha de ConservaÃ§Ã£o de Bateria
@@ -1744,20 +1745,27 @@ export default function DriverHomeScreen() {
     }
   };
 
-  const loadRealRoute = async (pickup: LatLng, dropoff: LatLng) => {
+  const loadRealRoute = async (pickup: LatLng, dropoff: LatLng, stops?: any[]) => {
     try {
       const key = getGoogleMapsApiKey();
       if (!key) {
-                setRouteCoords([]);
+        setRouteCoords([]);
         return;
       }
 
       const origin = `${pickup.latitude},${pickup.longitude}`;
       const destination = `${dropoff.latitude},${dropoff.longitude}`;
+      
+      let waypointsQuery = "";
+      if (Array.isArray(stops) && stops.length > 0) {
+        const wpString = stops.map((s) => `${s.latitude},${s.longitude}`).join("|");
+        waypointsQuery = `&waypoints=${encodeURIComponent(wpString)}`;
+      }
+
       const url =
         `https://maps.googleapis.com/maps/api/directions/json?origin=${encodeURIComponent(
           origin,
-        )}&destination=${encodeURIComponent(destination)}` +
+        )}&destination=${encodeURIComponent(destination)}${waypointsQuery}` +
         `&mode=driving&key=${encodeURIComponent(key)}`;
 
       const res = await fetch(url);
@@ -1765,7 +1773,7 @@ export default function DriverHomeScreen() {
 
       const points = data?.routes?.[0]?.overview_polyline?.points;
       if (!points) {
-                setRouteCoords([]);
+        setRouteCoords([]);
         return;
       }
 
@@ -1786,13 +1794,14 @@ export default function DriverHomeScreen() {
         }, 350);
       }
     } catch (e) {
-            setRouteCoords([]);
+      setRouteCoords([]);
     }
   };
 
   useEffect(() => {
     const pickup = incomingRequest?.pickup;
     const dropoff = incomingRequest?.dropoff;
+    const stops = incomingRequest?.stops;
     hasIncomingRequestRef.current = Boolean(incomingRequest?.rideId);
 
     if (
@@ -1805,6 +1814,7 @@ export default function DriverHomeScreen() {
       loadRealRoute(
         { latitude: pickup.latitude, longitude: pickup.longitude },
         { latitude: dropoff.latitude, longitude: dropoff.longitude },
+        stops,
       );
     } else {
       setRouteCoords([]);
@@ -1940,14 +1950,18 @@ export default function DriverHomeScreen() {
                       latitude: driverCoords.latitude,
                       longitude: driverCoords.longitude
                     }}
-                    rotation={driverCoords.heading}
-                    anchor={{ x: 0.5, y: 0.5 }}
-                    flat={true}
+                    anchor={{ x: 0.35, y: 0.75 }}
                   >
-                    <VehicleMarker 
-                      type={vehicleType as any} 
-                      isOnline={online} 
-                      avatarUrl={userData?.fotoPerfil || userData?.profilePhoto || undefined}
+                    <RoutePin 
+                      variant="driver"
+                      iconNode={
+                        (userData?.fotoPerfil || userData?.profilePhoto) ? (
+                          <Image 
+                            source={{ uri: userData.fotoPerfil || userData.profilePhoto }}
+                            style={{ width: 16, height: 16, borderRadius: 11, resizeMode: "cover" }}
+                          />
+                        ) : undefined
+                      }
                     />
                   </Marker>
                 )}
@@ -1963,6 +1977,21 @@ export default function DriverHomeScreen() {
                     >
                       <MapMarker type="pickup" />
                     </Marker>
+                    {Array.isArray(incomingRequest?.stops) && incomingRequest.stops.map((stop: any, idx: number) => {
+                      const sLat = Number(stop?.latitude);
+                      const sLng = Number(stop?.longitude);
+                      if (!Number.isFinite(sLat) || !Number.isFinite(sLng)) return null;
+                      return (
+                        <Marker
+                          key={`incoming-stop-${idx}`}
+                          coordinate={{ latitude: sLat, longitude: sLng }}
+                          title={`Parada ${idx + 1}`}
+                          anchor={{ x: 0.5, y: 1 }}
+                        >
+                          <StopPin index={idx + 1} />
+                        </Marker>
+                      );
+                    })}
                     <Marker 
                       coordinate={routeCoords[routeCoords.length - 1]} 
                       title="Destino"
@@ -2202,16 +2231,7 @@ export default function DriverHomeScreen() {
                 </MotiView>
               )}
 
-              {!!error && (
-                <MotiView
-                  from={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="absolute top-[120px] left-4 right-4 z-40 bg-[#091A2F] border-2 border-amber-500/50 rounded-2xl p-4 flex-row items-center shadow-2xl"
-                >
-                  <ShieldAlert size={20} color="#FBBF24" className="mr-3" />
-                  <Text className="text-white font-bold text-xs flex-1">{error}</Text>
-                </MotiView>
-              )}
+
             </>
           )}
 

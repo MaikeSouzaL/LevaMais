@@ -139,12 +139,12 @@ export default function RouteAuditScreen() {
                 <Polyline coordinates={track} strokeColor="#02de95" strokeWidth={5} lineCap="round" lineJoin="round" />
               )}
               {!!pickup?.latitude && (
-                <Marker coordinate={{ latitude: Number(pickup.latitude), longitude: Number(pickup.longitude) }} anchor={{ x: 0.5, y: 1 }}>
+                <Marker coordinate={{ latitude: Number(pickup.latitude), longitude: Number(pickup.longitude) }} anchor={{ x: 0.35, y: 0.75 }}>
                   <RoutePin variant="pickup" />
                 </Marker>
               )}
               {!!dropoff?.latitude && (
-                <Marker coordinate={{ latitude: Number(dropoff.latitude), longitude: Number(dropoff.longitude) }} anchor={{ x: 0.5, y: 1 }}>
+                <Marker coordinate={{ latitude: Number(dropoff.latitude), longitude: Number(dropoff.longitude) }} anchor={{ x: 0.35, y: 0.75 }}>
                   <RoutePin variant="dropoff" />
                 </Marker>
               )}

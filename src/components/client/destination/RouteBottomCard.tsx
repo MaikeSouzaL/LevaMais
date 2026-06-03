@@ -33,23 +33,31 @@ export const RouteBottomCard = ({
           className="absolute bottom-0 left-0 right-0 px-6 z-[120]"
           style={{ paddingBottom: insets.bottom + 16 }}
         >
-          <View className="rounded-3xl bg-[#091A2F] border border-white/10 p-6 shadow-2xl shadow-black overflow-hidden elevation-15">
+          <View className="rounded-3xl bg-white border border-slate-200 p-6 shadow-2xl shadow-black overflow-hidden elevation-15">
             <View className="flex-row justify-around items-center mb-6">
               <View className="flex-row items-center gap-2">
                 <Clock size={18} color="#02de95" />
                 <View>
-                  <Text className="text-white/40 text-[10px] font-bold uppercase tracking-wider">Tempo</Text>
-                  <Text className="text-white text-lg font-bold">{duration || "..."}</Text>
+                  <Text className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Tempo</Text>
+                  {isLoading ? (
+                    <ActivityIndicator size="small" color="#02de95" style={{ alignSelf: 'flex-start', marginTop: 4 }} />
+                  ) : (
+                    <Text className="text-slate-800 text-lg font-bold">{duration || "..."}</Text>
+                  )}
                 </View>
               </View>
 
-              <View className="w-[1px] h-8 bg-white/10" />
+              <View className="w-[1px] h-8 bg-slate-200" />
 
               <View className="flex-row items-center gap-2">
                 <RouteIcon size={18} color="#02de95" />
                 <View>
-                  <Text className="text-white/40 text-[10px] font-bold uppercase tracking-wider">Distância</Text>
-                  <Text className="text-white text-lg font-bold">{distance || "..."}</Text>
+                  <Text className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Distância</Text>
+                  {isLoading ? (
+                    <ActivityIndicator size="small" color="#02de95" style={{ alignSelf: 'flex-start', marginTop: 4 }} />
+                  ) : (
+                    <Text className="text-slate-800 text-lg font-bold">{distance || "..."}</Text>
+                  )}
                 </View>
               </View>
             </View>
@@ -67,7 +75,10 @@ export const RouteBottomCard = ({
               />
               <View className="absolute inset-0 flex-row items-center justify-center gap-1">
                 {isLoading ? (
-                  <ActivityIndicator size="small" color="#000" />
+                  <View className="flex-row items-center gap-2">
+                    <ActivityIndicator size="small" color="#000" />
+                    <Text className="text-black text-base font-bold tracking-wider">Calculando rota...</Text>
+                  </View>
                 ) : (
                   <>
                     <Text className="text-black text-base font-bold tracking-wider">Confirmar Corrida</Text>

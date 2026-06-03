@@ -12,10 +12,10 @@ interface VehicleMarkerProps {
 }
 
 const VEHICLE_ICONS: Record<"motorcycle" | "car" | "van" | "truck", { name: string; size: number }> = {
-  motorcycle: { name: "motorcycle", size: 12 },
-  car: { name: "car", size: 11 },
-  van: { name: "truck", size: 10 },
-  truck: { name: "truck", size: 10 },
+  motorcycle: { name: "motorcycle", size: 14 },
+  car: { name: "car", size: 13 },
+  van: { name: "truck", size: 12 },
+  truck: { name: "truck", size: 12 },
 };
 
 const normalizeVehicleType = (type?: string): "motorcycle" | "car" | "van" | "truck" => {
@@ -37,21 +37,30 @@ export const VehicleMarker = ({ type, isOnline = true, avatarUrl }: VehicleMarke
 
   return (
     <View style={styles.container}>
-      {/* Pulsing neon ring */}
+      {/* Outer breathing pulse ring */}
       <MotiView
-        from={{ scale: 0.7, opacity: 0.9 }}
-        animate={{ scale: 2.0, opacity: 0 }}
-        transition={{ loop: true, type: "timing", duration: 1800 }}
+        from={{ scale: 0.6, opacity: 0.7 }}
+        animate={{ scale: 2.5, opacity: 0 }}
+        transition={{ loop: true, type: "timing", duration: 2000 }}
         style={[styles.pulseRing, { backgroundColor: accentColor }]}
       />
 
-      {/* Puck: photo if available, otherwise motorbike icon on neon background */}
+      {/* Secondary pulse ring (delayed) */}
+      <MotiView
+        from={{ scale: 0.6, opacity: 0.5 }}
+        animate={{ scale: 2.0, opacity: 0 }}
+        transition={{ loop: true, type: "timing", duration: 2000, delay: 600 }}
+        style={[styles.pulseRing, { backgroundColor: accentColor }]}
+      />
+
+      {/* Puck: photo if available, otherwise vehicle icon */}
       <View
         style={[
           styles.puck,
-          { 
+          {
             backgroundColor: showAvatar ? "#091A2F" : accentColor,
-            borderColor: accentColor,
+            borderColor: "#FFFFFF",
+            shadowColor: accentColor,
           },
         ]}
       >
@@ -65,7 +74,7 @@ export const VehicleMarker = ({ type, isOnline = true, avatarUrl }: VehicleMarke
           <FontAwesome5
             name={config.name as any}
             size={config.size}
-            color={showAvatar ? accentColor : "#091A2F"}
+            color="#091A2F"
           />
         )}
       </View>
@@ -73,39 +82,38 @@ export const VehicleMarker = ({ type, isOnline = true, avatarUrl }: VehicleMarke
   );
 };
 
+const PUCK_SIZE = 30;
+
 const styles = StyleSheet.create({
   container: {
-    width: 30,
-    height: 30,
+    width: PUCK_SIZE + 12,
+    height: PUCK_SIZE + 12,
     alignItems: "center",
     justifyContent: "center",
   },
   pulseRing: {
     position: "absolute",
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    opacity: 0.4,
+    width: PUCK_SIZE,
+    height: PUCK_SIZE,
+    borderRadius: PUCK_SIZE / 2,
   },
   puck: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 2,
-    borderColor: "#02de95",
+    width: PUCK_SIZE,
+    height: PUCK_SIZE,
+    borderRadius: PUCK_SIZE / 2,
+    borderWidth: 3,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.4,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.5,
+    shadowRadius: 6,
+    elevation: 8,
     overflow: "hidden",
   },
   avatar: {
     width: "100%",
     height: "100%",
-    borderRadius: 11,
+    borderRadius: PUCK_SIZE / 2,
     resizeMode: "cover",
   },
 });

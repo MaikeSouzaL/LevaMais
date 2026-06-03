@@ -126,23 +126,23 @@ export function DriverBottomSheet({
             animate={{ opacity: 1, scale: 1, translateY: 0 }}
             transition={{ type: "spring", damping: 15 }}
             style={{
-              backgroundColor: "rgba(239, 68, 68, 0.06)",
+              backgroundColor: "#FFFFFF",
               borderRadius: 24,
-              borderWidth: 1.5,
-              borderColor: "rgba(239, 68, 68, 0.25)",
+              borderWidth: 1,
+              borderColor: "#e2e8f0",
               padding: 16,
               marginBottom: 16,
             }}
           >
             <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-              <View style={{ backgroundColor: "rgba(239, 68, 68, 0.12)", padding: 10, borderRadius: 14 }}>
+              <View style={{ backgroundColor: "rgba(239, 68, 68, 0.1)", padding: 10, borderRadius: 14 }}>
                 <AlertTriangle size={20} color="#ef4444" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={{ color: "#ef4444", fontWeight: "900", fontSize: 13, textTransform: "uppercase", letterSpacing: 0.8 }}>
                   Saldo Insuficiente
                 </Text>
-                <Text style={{ color: "rgba(255, 255, 255, 0.65)", fontSize: 11, fontWeight: "600", marginTop: 4, lineHeight: 15 }}>
+                <Text style={{ color: "#475569", fontSize: 11, fontWeight: "600", marginTop: 4, lineHeight: 15 }}>
                   Você precisa de saldo positivo para ficar online e aceitar corridas.
                 </Text>
               </View>
@@ -181,18 +181,18 @@ export function DriverBottomSheet({
             <Text style={styles.statLabel}>Avaliação</Text>
           </TouchableOpacity>
 
-          {/* Balance */}
-          <TouchableOpacity
-            activeOpacity={0.7}
-            onPress={onPressBalance}
-            style={[styles.statColumn, { flex: 1.4, borderRightWidth: 1, borderRightColor: "rgba(255,255,255,0.06)" }]}
-          >
-            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 3 }}>
-              <TrendingUp size={13} color="#02de95" style={{ marginRight: 6 }} />
-              <Text style={{ color: "#02de95", fontWeight: "900", fontSize: 15.5 }}>{displayBalance}</Text>
-            </View>
-            <Text style={styles.statLabel}>Saldo</Text>
-          </TouchableOpacity>
+           {/* Balance */}
+           <TouchableOpacity
+             activeOpacity={0.7}
+             onPress={onPressBalance}
+             style={[styles.statColumn, { flex: 1.4, borderRightWidth: 1, borderRightColor: "rgba(255,255,255,0.06)" }]}
+           >
+             <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 3 }}>
+               <TrendingUp size={13} color={driverBalance != null && driverBalance < 0 ? "#ef4444" : "#02de95"} style={{ marginRight: 6 }} />
+               <Text style={{ color: driverBalance != null && driverBalance < 0 ? "#ef4444" : "#02de95", fontWeight: "900", fontSize: 15.5 }}>{displayBalance}</Text>
+             </View>
+             <Text style={styles.statLabel}>Saldo</Text>
+           </TouchableOpacity>
 
           {/* Time Online */}
           <TouchableOpacity

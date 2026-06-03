@@ -5,6 +5,7 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
+  StatusBar,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import MapView, { Marker, Polyline } from "react-native-maps";
@@ -92,6 +93,7 @@ export default function RideBidSetupScreen({ route, navigation }: any) {
   if (loading || !estimate) {
     return (
       <SafeAreaView className="flex-1 bg-[#091A2F] items-center justify-center">
+        <StatusBar barStyle="light-content" backgroundColor="#091A2F" />
         <ActivityIndicator size="large" color="#02de95" />
         <Text className="text-white mt-4 text-base">Calculando estimativa...</Text>
       </SafeAreaView>
@@ -100,6 +102,7 @@ export default function RideBidSetupScreen({ route, navigation }: any) {
 
   return (
     <SafeAreaView className="flex-1 bg-[#091A2F]">
+      <StatusBar barStyle="light-content" backgroundColor="#091A2F" />
       {/* Header */}
       <View className="flex-row items-center px-5 py-4 border-b border-white/10">
         <TouchableOpacity onPress={() => navigation.goBack()} className="mr-4">

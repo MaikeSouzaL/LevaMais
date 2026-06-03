@@ -150,7 +150,7 @@ export default function FavoriteAddressFlowScreen() {
   }, [mode, query]);
 
   const scopedTitle = favoriteFilter === "home" ? "Casa" : favoriteFilter === "work" ? "Trabalho" : favoriteFilter === "favorite" ? "Favoritos extras" : "Favoritos";
-  const scopedAddLabel = favoriteFilter === "home" ? "Adicionar casa" : favoriteFilter === "work" ? "Adicionar trabalho" : "Adicionar favorito";
+  const scopedAddLabel = favoriteFilter === "home" ? "Adicionar casa" : favoriteFilter === "work" ? "Adicionar trabalho" : "Adicionar favoritos extras";
   const title = mode === "favoriteName"
     ? (draft?.icon === "home" ? "Casa" : draft?.icon === "work" ? "Trabalho" : "Favoritos extras")
     : (isSelectionMode

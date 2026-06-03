@@ -422,7 +422,7 @@ export default function DeliveryTracking() {
                   latitude: ride.pickup.latitude,
                   longitude: ride.pickup.longitude,
                 }}
-                anchor={{ x: 0.5, y: 1 }}
+                anchor={{ x: 0.35, y: 0.75 }}
                 tracksViewChanges={true}
               >
                 <RoutePin variant="pickup" />
@@ -449,7 +449,7 @@ export default function DeliveryTracking() {
               {driverLocation && (
                 <Marker
                   coordinate={driverLocation}
-                  anchor={{ x: 0.5, y: 1 }}
+                  anchor={{ x: 0.35, y: 0.75 }}
                   tracksViewChanges={true}
                 >
                   <RoutePin variant="driver" />
@@ -463,7 +463,7 @@ export default function DeliveryTracking() {
                       latitude: ride.dropoff.latitude,
                       longitude: ride.dropoff.longitude,
                     }}
-                    anchor={{ x: 0.5, y: 1 }}
+                    anchor={{ x: 0.35, y: 0.75 }}
                     tracksViewChanges={true}
                   >
                     <RoutePin variant="dropoff" />

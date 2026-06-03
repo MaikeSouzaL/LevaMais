@@ -1,19 +1,20 @@
 import React from "react";
 import { View, StyleSheet } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
+import { MotiView } from "moti";
 
 /**
  * RoutePin — marcador de ponto padrão de TODOS os mapas (coleta / destino / motorista / cliente).
  *
  * É o mesmo "drop-pin" que o motorista vê quando está a caminho:
- * cabeça #091A2F, borda branca, haste (spike) e uma bolinha colorida (ou ícone) no centro.
+ * cabeça colorida, borda branca, haste (spike) e uma bolinha no base.
  *
- *  - pickup   -> bolinha azul (#60a5fa) = ponto de coleta / embarque
- *  - dropoff  -> bolinha verde (#02de95) = ponto de entrega / desembarque
- *  - driver   -> ícone de carro azul = motorista em tempo real
- *  - client   -> ícone de pessoa verde = cliente em tempo real
+ *  - pickup   -> verde (#02de95)  = ponto de coleta / embarque
+ *  - dropoff  -> vermelho (#ef4444) = ponto de entrega / desembarque
+ *  - driver   -> azul (#3B82F6) com ícone de carro = motorista em tempo real
+ *  - client   -> verde (#02de95) com ícone de pessoa = cliente em tempo real
  *
- * Use sempre dentro de <Marker anchor={{ x: 0.5, y: 1 }}> para que a ponta toque a coordenada.
+ * Use sempre dentro de <Marker anchor={{ x: 0.35, y: 0.75 }}> para que a ponta toque a coordenada.
  */
 
 export type RoutePinVariant = "pickup" | "dropoff" | "driver" | "client";
@@ -24,72 +25,102 @@ interface RoutePinProps {
   iconNode?: React.ReactNode;
 }
 
-const DOT_COLOR: Record<RoutePinVariant, string> = {
-  pickup: "#60a5fa",
-  dropoff: "#02de95",
-  driver: "#60a5fa",
-  client: "#02de95",
+const VARIANT_CONFIG: Record<RoutePinVariant, { bg: string; icon?: string; iconColor: string }> = {
+  pickup: { bg: "#02de95", iconColor: "#FFFFFF" },
+  dropoff: { bg: "#ef4444", iconColor: "#FFFFFF" },
+  driver: { bg: "#3B82F6", icon: "directions-car", iconColor: "#FFFFFF" },
+  client: { bg: "#02de95", icon: "person", iconColor: "#FFFFFF" },
 };
 
 export default function RoutePin({ variant, iconNode }: RoutePinProps) {
+  const config = VARIANT_CONFIG[variant];
+  const showPulse = variant === "driver" || variant === "client";
+
   const renderCenter = () => {
     if (iconNode) return iconNode;
-    if (variant === "driver") {
-      return <MaterialIcons name="directions-car" size={16} color={DOT_COLOR.driver} />;
+    if (config.icon) {
+      return <MaterialIcons name={config.icon as any} size={16} color={config.iconColor} />;
     }
-    if (variant === "client") {
-      return <MaterialIcons name="person" size={16} color={DOT_COLOR.client} />;
-    }
-    return <View style={[styles.dot, { backgroundColor: DOT_COLOR[variant] }]} />;
+    return <View style={[styles.innerDot, { backgroundColor: config.iconColor }]} />;
   };
 
   return (
     <View style={styles.wrapper}>
-      <View style={styles.head}>{renderCenter()}</View>
-      <View style={styles.spike} />
+      {/* Pulse ring for live markers (driver/client) */}
+      {showPulse && (
+        <MotiView
+          from={{ scale: 0.6, opacity: 0.7 }}
+          animate={{ scale: 2.5, opacity: 0 }}
+          transition={{ loop: true, type: "timing", duration: 1800 }}
+          style={[styles.pulseRing, { backgroundColor: config.bg }]}
+        />
+      )}
+
+      {/* Pin Head */}
+      <View
+        style={[
+          styles.head,
+          {
+            backgroundColor: config.bg,
+            shadowColor: config.bg,
+          },
+        ]}
+      >
+        {renderCenter()}
+      </View>
+
+      {/* Spike / Stem */}
+      <View style={[styles.spike, { borderTopColor: config.bg }]} />
     </View>
   );
 }
 
-const HEAD = 30;
-const SPIKE_H = 22;
+const HEAD = 32;
+const SPIKE_H = 14;
 
 const styles = StyleSheet.create({
   wrapper: {
-    width: HEAD + 8,
-    height: HEAD + SPIKE_H + 2,
+    width: HEAD + 10,
+    height: HEAD + SPIKE_H + 4,
     alignItems: "center",
     justifyContent: "flex-start",
+  },
+  pulseRing: {
+    position: "absolute",
+    top: HEAD / 2 - 8,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
   },
   head: {
     width: HEAD,
     height: HEAD,
     borderRadius: HEAD / 2,
-    backgroundColor: "#091A2F",
     borderWidth: 3,
     borderColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.35,
-    shadowRadius: 4,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.45,
+    shadowRadius: 6,
+    elevation: 8,
+    zIndex: 10,
+    overflow: "hidden",
   },
-  dot: {
-    width: 9,
-    height: 9,
-    borderRadius: 4.5,
+  innerDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   },
   spike: {
     width: 0,
     height: 0,
-    borderLeftWidth: 6,
-    borderRightWidth: 6,
+    borderLeftWidth: 7,
+    borderRightWidth: 7,
     borderTopWidth: SPIKE_H,
     borderLeftColor: "transparent",
     borderRightColor: "transparent",
-    borderTopColor: "#091A2F",
-    marginTop: -1,
+    marginTop: -2,
+    zIndex: 9,
   },
 });

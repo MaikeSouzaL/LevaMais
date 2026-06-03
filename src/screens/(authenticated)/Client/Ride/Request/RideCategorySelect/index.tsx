@@ -7,13 +7,14 @@ import {
   ActivityIndicator,
   StyleSheet,
   Modal,
+  StatusBar,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import { MaterialIcons } from "@expo/vector-icons";
-import { ChevronLeft, Users, Check, Plus, X } from "lucide-react-native";
+import { ChevronLeft, Users, Check, Plus, X, ArrowUp, ArrowDown } from "lucide-react-native";
 import Toast from "react-native-toast-message";
 
 import { GlobalMap } from "@/components/GlobalMap";
@@ -23,6 +24,7 @@ import AddressAutocomplete from "@/components/AddressAutocomplete";
 import { PlaceDetails } from "@/services/googlePlaces.service";
 import rideService, { RideCategoryOption } from "@/services/ride.service";
 import { useClientCityStore } from "@/context/clientCityStore";
+import { decodePolyline } from "@/utils/polyline";
 import { ClientStackParamList } from "../../../types/navigation";
 
 const formatBRL = (v: number) =>
@@ -39,8 +41,9 @@ export default function RideCategorySelectScreen() {
   const pickup: Coord = params.pickup;
   const dropoff: Coord = params.dropoff;
   const [stops, setStops] = useState<Coord[]>(Array.isArray(params.stops) ? params.stops : []);
-  const routeCoordinates: Array<{ latitude: number; longitude: number }> =
-    Array.isArray(params.routeCoordinates) ? params.routeCoordinates : [];
+  const [routeCoordinates, setRouteCoordinates] = useState<Array<{ latitude: number; longitude: number }>>(
+    Array.isArray(params.routeCoordinates) ? params.routeCoordinates : []
+  );
   const cityId = useClientCityStore((s) => (s as any)?.city?.id || (s as any)?.city?._id);
 
   const mapRef = useRef<MapView>(null);
@@ -74,7 +77,37 @@ export default function RideCategorySelectScreen() {
     (async () => {
       try {
         setLoading(true);
-        // Com paradas, ignora a distância pré-computada (A→B) e recalcula a rota completa.
+
+        // 1. Recalculate route polyline with stops if stops exist or route is recalculated
+        const key = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || "";
+        if (key && pickup && dropoff) {
+          const originCoords = `${pickup.latitude},${pickup.longitude}`;
+          const destinationCoords = `${dropoff.latitude},${dropoff.longitude}`;
+          
+          let waypointsQuery = "";
+          if (stops.length > 0) {
+            const wpString = stops.map((s) => `${s.latitude},${s.longitude}`).join("|");
+            waypointsQuery = `&waypoints=${encodeURIComponent(wpString)}`;
+          }
+
+          const url =
+            `https://maps.googleapis.com/maps/api/directions/json?origin=${encodeURIComponent(
+              originCoords,
+            )}&destination=${encodeURIComponent(destinationCoords)}${waypointsQuery}` +
+            `&mode=driving&key=${encodeURIComponent(key)}`;
+
+          const res = await fetch(url);
+          const data = await res.json();
+          if (mounted) {
+            const points = data?.routes?.[0]?.overview_polyline?.points;
+            if (points) {
+              const decoded = decodePolyline(points);
+              setRouteCoordinates(decoded);
+            }
+          }
+        }
+
+        // 2. Calculate category options
         const hasStops = stops.length > 0;
         const resp = await rideService.calculateRideCategories({
           pickup: { address: pickup?.address || "", latitude: pickup.latitude, longitude: pickup.longitude },
@@ -117,7 +150,29 @@ export default function RideCategorySelectScreen() {
       mounted = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stops]);
+  }, [stops, pickup, dropoff]);
+
+  const handleMoveStopUp = (index: number) => {
+    if (index === 0) return;
+    setStops((prev) => {
+      const next = [...prev];
+      const temp = next[index];
+      next[index] = next[index - 1];
+      next[index - 1] = temp;
+      return next;
+    });
+  };
+
+  const handleMoveStopDown = (index: number) => {
+    if (index === stops.length - 1) return;
+    setStops((prev) => {
+      const next = [...prev];
+      const temp = next[index];
+      next[index] = next[index + 1];
+      next[index + 1] = temp;
+      return next;
+    });
+  };
 
   const fitCoords = useMemo(() => {
     const pts: Array<{ latitude: number; longitude: number }> = [];
@@ -144,8 +199,7 @@ export default function RideCategorySelectScreen() {
       pickup,
       dropoff,
       stops,
-      // Com paradas, a rota reta A→B fica obsoleta; deixa o destino reconstruir via paradas.
-      routeCoordinates: stops.length > 0 ? undefined : routeCoordinates,
+      routeCoordinates,
       vehicleType: selected.vehicleType,
       rideCategory: selected.category,
       presetOffer: selected.pricing.total,
@@ -156,6 +210,7 @@ export default function RideCategorySelectScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
+      <StatusBar barStyle="light-content" backgroundColor="#091A2F" />
       {/* Mapa no topo */}
       <View style={styles.mapWrap}>
         <GlobalMap
@@ -172,10 +227,10 @@ export default function RideCategorySelectScreen() {
           onMapReady={handleMapReady}
         >
           {routeCoordinates.length >= 2 && (
-            <Polyline coordinates={routeCoordinates} strokeColor="#02de95" strokeWidth={4} lineCap="round" lineJoin="round" />
+            <Polyline coordinates={routeCoordinates} strokeColor="#000" strokeWidth={4} lineCap="round" lineJoin="round" />
           )}
           {!!pickup && (
-            <Marker coordinate={{ latitude: pickup.latitude, longitude: pickup.longitude }} anchor={{ x: 0.5, y: 1 }}>
+            <Marker coordinate={{ latitude: pickup.latitude, longitude: pickup.longitude }} anchor={{ x: 0.35, y: 0.75 }}>
               <RoutePin variant="pickup" />
             </Marker>
           )}
@@ -185,7 +240,7 @@ export default function RideCategorySelectScreen() {
             </Marker>
           ))}
           {!!dropoff && (
-            <Marker coordinate={{ latitude: dropoff.latitude, longitude: dropoff.longitude }} anchor={{ x: 0.5, y: 1 }}>
+            <Marker coordinate={{ latitude: dropoff.latitude, longitude: dropoff.longitude }} anchor={{ x: 0.35, y: 0.75 }}>
               <RoutePin variant="dropoff" />
             </Marker>
           )}
@@ -199,7 +254,12 @@ export default function RideCategorySelectScreen() {
           <ChevronLeft size={24} color="#fff" />
         </TouchableOpacity>
 
-        {!!distanceText && (
+        {loading ? (
+          <View style={[styles.routePill, { top: insets.top + 10 }]}>
+            <ActivityIndicator size="small" color="#02de95" style={{ marginRight: 4 }} />
+            <Text style={styles.routePillText}>Calculando...</Text>
+          </View>
+        ) : !!distanceText ? (
           <View style={[styles.routePill, { top: insets.top + 10 }]}>
             <MaterialIcons name="near-me" size={13} color="#02de95" />
             <Text style={styles.routePillText}>
@@ -207,7 +267,7 @@ export default function RideCategorySelectScreen() {
               {durationText ? ` • ${durationText}` : ""}
             </Text>
           </View>
-        )}
+        ) : null}
       </View>
 
       {/* Detalhes do endereço (em cima) */}
@@ -226,6 +286,20 @@ export default function RideCategorySelectScreen() {
               <Text style={styles.addressStopText} numberOfLines={1}>
                 Parada {i + 1}: {s.address || "—"}
               </Text>
+
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginRight: 8 }}>
+                {i > 0 && (
+                  <TouchableOpacity onPress={() => handleMoveStopUp(i)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                    <ArrowUp size={16} color="#02de95" strokeWidth={2.5} />
+                  </TouchableOpacity>
+                )}
+                {i < stops.length - 1 && (
+                  <TouchableOpacity onPress={() => handleMoveStopDown(i)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                    <ArrowDown size={16} color="#02de95" strokeWidth={2.5} />
+                  </TouchableOpacity>
+                )}
+              </View>
+
               <TouchableOpacity onPress={() => handleRemoveStop(i)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <X size={16} color="#ef4444" strokeWidth={2.5} />
               </TouchableOpacity>

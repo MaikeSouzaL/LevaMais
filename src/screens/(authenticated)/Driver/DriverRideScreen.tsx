@@ -929,9 +929,16 @@ export default function DriverRideScreen() {
       try {
         const origin = `${driverCoords.latitude},${driverCoords.longitude}`;
         const destination = `${targetCoords.latitude},${targetCoords.longitude}`;
+        
+        let waypointsQuery = "";
+        if (status === "in_progress" && Array.isArray(rideStops) && rideStops.length > 0) {
+          const wpString = rideStops.map((s: any) => `${s.latitude},${s.longitude}`).join("|");
+          waypointsQuery = `&waypoints=${encodeURIComponent(wpString)}`;
+        }
+
         const url =
           `https://maps.googleapis.com/maps/api/directions/json?origin=${encodeURIComponent(origin)}` +
-          `&destination=${encodeURIComponent(destination)}&mode=driving&key=${encodeURIComponent(key)}`;
+          `&destination=${encodeURIComponent(destination)}${waypointsQuery}&mode=driving&key=${encodeURIComponent(key)}`;
 
         const res = await fetch(url);
         const data = await res.json();
@@ -955,7 +962,14 @@ export default function DriverRideScreen() {
       active = false;
       if (timer) clearInterval(timer);
     };
-  }, [driverCoords?.latitude, driverCoords?.longitude, targetCoords?.latitude, targetCoords?.longitude]);
+  }, [
+    driverCoords?.latitude,
+    driverCoords?.longitude,
+    targetCoords?.latitude,
+    targetCoords?.longitude,
+    status,
+    JSON.stringify(rideStops),
+  ]);
 
   const isNavMode =
     navigationModeEnabled &&
@@ -1102,7 +1116,7 @@ export default function DriverRideScreen() {
                }}
                title="Cliente"
                tracksViewChanges={!markersReady}
-               anchor={{ x: 0.5, y: 1 }}
+               anchor={{ x: 0.35, y: 0.75 }}
              >
                <RoutePin variant="client" />
              </Marker>
@@ -1135,7 +1149,7 @@ export default function DriverRideScreen() {
               }}
               title="Coleta"
               tracksViewChanges={true}
-              anchor={{ x: 0.5, y: 1 }}
+              anchor={{ x: 0.35, y: 0.75 }}
             >
               <RoutePin variant="pickup" />
             </Marker>
@@ -1150,7 +1164,7 @@ export default function DriverRideScreen() {
               }}
               title="Destino"
               tracksViewChanges={true}
-              anchor={{ x: 0.5, y: 1 }}
+              anchor={{ x: 0.35, y: 0.75 }}
             >
               <RoutePin variant="dropoff" />
             </Marker>

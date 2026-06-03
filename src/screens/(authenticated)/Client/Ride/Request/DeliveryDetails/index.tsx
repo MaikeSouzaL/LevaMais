@@ -149,7 +149,7 @@ function formatScheduleDisplay(isoStr: string | null): string {
 import { GlobalMap } from "@/components/GlobalMap";
 import MapView, { Marker, PROVIDER_GOOGLE, Polyline } from "react-native-maps";
 import MapViewDirections from "react-native-maps-directions";
-import { PremiumMapMarker } from "@/components/maps/PremiumMapMarker";
+import RoutePin from "@/components/maps/RoutePin";
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -685,15 +685,15 @@ export default function DeliveryDetailsScreen() {
         >
           {/* Pickup Marker */}
           {!!routeProfiles.pickupProfile.addressCoords && (
-            <Marker coordinate={routeProfiles.pickupProfile.addressCoords} anchor={{ x: 0.3, y: 0.5 }}>
-              <PremiumMapMarker type="origin" />
+            <Marker coordinate={routeProfiles.pickupProfile.addressCoords} anchor={{ x: 0.35, y: 0.75 }}>
+              <RoutePin variant="pickup" />
             </Marker>
           )}
 
           {/* Dropoff Marker */}
           {!!routeProfiles.dropoffProfile.addressCoords && (
-            <Marker coordinate={routeProfiles.dropoffProfile.addressCoords} anchor={{ x: 0.3, y: 0.5 }}>
-              <PremiumMapMarker type="destination" />
+            <Marker coordinate={routeProfiles.dropoffProfile.addressCoords} anchor={{ x: 0.35, y: 0.75 }}>
+              <RoutePin variant="dropoff" />
             </Marker>
           )}
 

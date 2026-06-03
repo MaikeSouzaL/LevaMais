@@ -17,18 +17,18 @@ export const DestinationHeader = ({ title = "Para onde vamos?", onBack }: Destin
       from={{ opacity: 0, translateY: -20 }}
       animate={{ opacity: 1, translateY: 0 }}
       transition={{ type: "timing", duration: 400 }}
-      className="flex-row items-center px-6 pb-5 z-[100] bg-[#091A2F] border-b border-white/10 shadow-xl"
+      className="flex-row items-center px-6 pb-5 z-[100] bg-white border-b border-slate-100 shadow-sm"
       style={{ paddingTop: insets.top + 12 }}
     >
       <TouchableOpacity
         onPress={onBack}
-        className="w-10 h-10 rounded-xl bg-white/10 border border-white/10 items-center justify-center mr-4"
+        className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-200 items-center justify-center mr-4"
         activeOpacity={0.7}
       >
-        <ArrowLeft size={22} color="#fff" />
+        <ArrowLeft size={22} color="#0F172A" />
       </TouchableOpacity>
       
-      <Text className="text-white text-xl font-bold tracking-wide">{title}</Text>
+      <Text className="text-slate-800 text-xl font-bold tracking-wide">{title}</Text>
     </MotiView>
   );
 };

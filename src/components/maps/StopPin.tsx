@@ -1,13 +1,14 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
-import { AlertTriangle } from "lucide-react-native";
+import { Circle } from "lucide-react-native";
+import { MotiView } from "moti";
 
 /**
  * StopPin — marcador DISTINTO para paradas (waypoints) no trajeto.
  *
- * Diferente do RoutePin de coleta/destino: usa um triângulo verde (AlertTriangle)
- * com haste e bolinha, e mostra opcionalmente o número da parada.
- * Padrão único usado em todos os mapas (motorista + acompanhamento).
+ * Redesigned: uses a solid orange disc with a circle icon inside,
+ * a stem, and an optional index badge. Consistent with the
+ * RoutePin visual language (colored head + white border + spike).
  *
  * Use dentro de <Marker anchor={{ x: 0.5, y: 1 }}>.
  */
@@ -20,69 +21,88 @@ interface StopPinProps {
 export default function StopPin({ index }: StopPinProps) {
   return (
     <View style={styles.wrapper}>
+      {/* Head */}
       <View style={styles.head}>
-        <AlertTriangle size={18} color="#091A2F" fill="#02de95" strokeWidth={2.5} />
+        <Circle size={14} color="#FFFFFF" fill="#FFFFFF" />
         {typeof index === "number" && (
           <View style={styles.badge}>
             <Text style={styles.badgeText}>{index}</Text>
           </View>
         )}
       </View>
-      <View style={styles.spike} />
-      <View style={styles.foot} />
+
+      {/* Stem */}
+      <View style={styles.stem} />
+
+      {/* Base Dot */}
+      <View style={styles.baseDot} />
     </View>
   );
 }
 
 const HEAD = 28;
-const SPIKE_H = 10;
+const STEM_H = 10;
 
 const styles = StyleSheet.create({
   wrapper: {
-    width: HEAD + 8,
-    height: HEAD + SPIKE_H + 8,
+    width: HEAD + 10,
+    height: HEAD + STEM_H + 10,
     alignItems: "center",
     justifyContent: "flex-start",
   },
   head: {
     width: HEAD,
     height: HEAD,
+    borderRadius: HEAD / 2,
+    backgroundColor: "#F59E0B",
+    borderWidth: 3,
+    borderColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: "#F59E0B",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.45,
+    shadowRadius: 5,
+    elevation: 7,
+    zIndex: 10,
   },
   badge: {
     position: "absolute",
-    top: -6,
+    top: -5,
     right: -8,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
-    paddingHorizontal: 3,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
     backgroundColor: "#091A2F",
     borderWidth: 1.5,
-    borderColor: "#02de95",
+    borderColor: "#F59E0B",
     alignItems: "center",
     justifyContent: "center",
+    zIndex: 20,
   },
   badgeText: {
-    color: "#02de95",
+    color: "#F59E0B",
     fontSize: 9,
     fontWeight: "900",
   },
-  spike: {
+  stem: {
     width: 3,
-    height: SPIKE_H,
-    backgroundColor: "#02de95",
-    borderBottomLeftRadius: 1,
-    borderBottomRightRadius: 1,
+    height: STEM_H,
+    backgroundColor: "#F59E0B",
+    borderBottomLeftRadius: 1.5,
+    borderBottomRightRadius: 1.5,
+    marginTop: -2,
+    zIndex: 9,
   },
-  foot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "#02de95",
-    borderWidth: 1,
-    borderColor: "#ffffff",
+  baseDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#F59E0B",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
     marginTop: -1,
+    zIndex: 12,
   },
 });
