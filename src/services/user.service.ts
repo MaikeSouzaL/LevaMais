@@ -48,6 +48,7 @@ export type UserProfile = {
     submittedAt?: string;
     rejectionReason?: string;
     faceMatchStatus?: "none" | "pending" | "approved" | "rejected";
+    faceMatchConfidence?: number;
     backgroundCheckStatus?: "none" | "pending" | "approved" | "rejected";
     riskFlags?: string[];
   };

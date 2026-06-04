@@ -505,6 +505,14 @@ class RideService {
   }
 
   /**
+   * Recibo / NFS-e da corrida concluída. (NFS-e atualmente SIMULADA — não fiscal.)
+   */
+  async getRideNfse(rideId: string): Promise<any> {
+    const response = await api.get(`/rides/${rideId}/nfse`);
+    return response.data?.nfse || null;
+  }
+
+  /**
    * Relatar problema na entrega no destino (destinatário ausente / endereço errado).
    * Aciona a devolução do pacote e a liquidação (cliente 100%, motorista total×1,15).
    */

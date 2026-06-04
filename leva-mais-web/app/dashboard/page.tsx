@@ -7,17 +7,18 @@ import {
   Car,
   MapPin,
   RefreshCw,
-  Clock,
   Compass,
-  AlertTriangle,
-  DollarSign
+  DollarSign,
 } from "lucide-react";
-import { ridesService, Ride } from "@/services/ridesService";
+import { operationsService, OperationsSummary, ridesService, Ride } from "@/services/ridesService";
 import { driverLocationService, DriverLocation } from "@/services/driverLocationService";
 import { clientsService } from "@/services/clientsService";
 import { driversService } from "@/services/driversService";
 import { useToast } from "@/components/ui/Toast";
+import { OperationsFeed } from "@/components/dashboard/OperationsFeed";
+import { OperationsHealthPanel } from "@/components/dashboard/OperationsHealthPanel";
 import dynamic from "next/dynamic";
+import NfseModal from "@/components/NfseModal";
 
 const LiveMap = dynamic(() => import("@/components/LiveMap"), {
   ssr: false,
@@ -37,24 +38,31 @@ export default function DashboardPage() {
   const [clientsCount, setClientsCount] = useState(0);
   const [clientsList, setClientsList] = useState<any[]>([]);
   const [driversCount, setDriversCount] = useState(0);
+  const [operations, setOperations] = useState<OperationsSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [radarPulse, setRadarPulse] = useState(true);
   const { showToast, ToastContainer } = useToast();
+  
+  // Controle NFS-e simulada
+  const [selectedRideId, setSelectedRideId] = useState<string | null>(null);
+  const [isNfseOpen, setIsNfseOpen] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
-      const [ridesData, locationsData, clientsData, driversData] = await Promise.all([
+      const [ridesData, locationsData, clientsData, driversData, operationsData] = await Promise.all([
         ridesService.getAll(),
         driverLocationService.getAll(),
         clientsService.getAll(),
-        driversService.getAll()
+        driversService.getAll(),
+        operationsService.getSummary()
       ]);
       setRides(ridesData);
       setLocations(locationsData);
       setClientsCount(clientsData.length);
       setClientsList(clientsData);
       setDriversCount(driversData.length);
+      setOperations(operationsData);
     } catch (err) {
       console.error(err);
       showToast("Erro ao sincronizar dados do painel de monitoramento", "error");
@@ -96,14 +104,46 @@ export default function DashboardPage() {
       totalDeliveries,
       completedDeliveries,
       cancelledDeliveries,
-      activeRidesCount: activeRides.length,
+      activeRidesCount: operations?.rides.active ?? activeRides.length,
       activeRides,
-      onlineDrivers,
-      busyDrivers,
-      availableDrivers,
+      onlineDrivers: operations?.drivers.online ?? onlineDrivers,
+      busyDrivers: operations?.drivers.busy ?? busyDrivers,
+      availableDrivers: operations?.drivers.available ?? availableDrivers,
       earnings
     };
-  }, [rides, locations]);
+  }, [rides, locations, operations]);
+
+  const operationHealth = useMemo(() => {
+    if (!operations) {
+      return {
+        label: "Sem resumo",
+        className: "bg-slate-100 text-slate-700 border-slate-200",
+        description: "Usando dados legados do painel",
+      };
+    }
+
+    if (operations.health === "critical") {
+      return {
+        label: "Crítico",
+        className: "bg-red-100 text-red-800 border-red-200",
+        description: "Atenção imediata necessária",
+      };
+    }
+
+    if (operations.health === "warning") {
+      return {
+        label: "Atenção",
+        className: "bg-amber-100 text-amber-800 border-amber-200",
+        description: "Há alertas operacionais ativos",
+      };
+    }
+
+    return {
+      label: "Saudável",
+      className: "bg-emerald-100 text-emerald-800 border-emerald-200",
+      description: "Telemetria dentro do esperado",
+    };
+  }, [operations]);
 
   const handleManualRefresh = () => {
     setRefreshing(true);
@@ -182,6 +222,8 @@ export default function DashboardPage() {
         />
       </div>
 
+      <OperationsHealthPanel operations={operations} operationHealth={operationHealth} />
+
       {/* Radar de Monitoramento de Frota & Feed de Atividades */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
@@ -224,61 +266,14 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Feed de Atividades Recentes do App */}
-        <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-5 flex flex-col justify-between">
-          <div className="border-b border-gray-100 pb-3 mb-4">
-            <h3 className="font-extrabold text-gray-900 flex items-center gap-2">
-              <Clock className="w-5 h-5 text-emerald-600 animate-spin-slow" />
-              Feed Operacional ao Vivo
-            </h3>
-            <p className="text-xs text-gray-500 mt-0.5">Últimas ações e ocorrências registradas no Leva+.</p>
-          </div>
-
-          <div className="flex-1 space-y-4 overflow-y-auto max-h-[360px] pr-2">
-            {rides.length === 0 ? (
-              <p className="text-gray-400 text-xs text-center py-10 font-semibold">Nenhuma atividade registrada hoje.</p>
-            ) : (
-              rides.slice(0, 7).map((ride) => {
-                const serviceLabel = ride.serviceType === "delivery" ? "Entrega" : "Corrida";
-                let labelColor = "bg-emerald-50 text-emerald-700 border-emerald-100";
-                let actionDesc = "foi iniciada na plataforma";
-
-                if (ride.status === "completed") {
-                  labelColor = "bg-emerald-100 text-emerald-800 border-emerald-200";
-                  actionDesc = `foi CONCLUÍDA com sucesso! Total: R$ ${Number(ride.pricing?.total || 0).toFixed(2)}`;
-                } else if (ride.status === "cancelled") {
-                  labelColor = "bg-rose-50 text-rose-700 border-rose-100";
-                  actionDesc = "foi CANCELADA pelo usuário";
-                } else if (ride.status === "in_progress") {
-                  labelColor = "bg-blue-50 text-blue-700 border-blue-100";
-                  actionDesc = "está atualmente EM ROTA de entrega";
-                }
-
-                return (
-                  <div key={ride._id} className="flex gap-3 text-xs border-b border-gray-100 pb-3 last:border-b-0">
-                    <div className={`px-2 py-1 rounded-lg border font-bold text-[10px] tracking-wide self-start shrink-0 ${labelColor}`}>
-                      {serviceLabel.toUpperCase()}
-                    </div>
-                    <div>
-                      <p className="text-gray-900 font-semibold leading-relaxed">
-                        A {serviceLabel.toLowerCase()} de <span className="font-extrabold">{ride.clientId?.name || "Cliente"}</span> {actionDesc}.
-                      </p>
-                      <p className="text-[10px] text-gray-400 mt-1">
-                        De: {ride.pickup.address.split(",")[0]} {"→"} Para: {ride.dropoff.address.split(",")[0]}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-
-          <div className="border-t border-gray-100 pt-4 mt-4 text-center">
-            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-3 py-1.5 rounded-full inline-block tracking-wider uppercase">
-              Sincronizado via WebSockets ✓
-            </span>
-          </div>
-        </div>
+        <OperationsFeed
+          operations={operations}
+          rides={rides}
+          onOpenNfse={(rideId) => {
+            setSelectedRideId(rideId);
+            setIsNfseOpen(true);
+          }}
+        />
 
       </div>
 
@@ -356,6 +351,16 @@ export default function DashboardPage() {
         )}
       </div>
 
+      {selectedRideId && (
+        <NfseModal
+          rideId={selectedRideId}
+          isOpen={isNfseOpen}
+          onClose={() => {
+            setIsNfseOpen(false);
+            setSelectedRideId(null);
+          }}
+        />
+      )}
     </div>
   );
 }

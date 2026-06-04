@@ -545,7 +545,7 @@ export function DriverBottomSheet({
                     <Car size={18} color="#4a5568" />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.menuTitle, { color: "rgba(255,255,255,0.7)" }]}>Aceitar Saldo do App (Cash)</Text>
+                    <Text style={[styles.menuTitle, { color: "rgba(255,255,255,0.7)" }]}>Aceitar Saldo do App (LevaPay)</Text>
                     <Text style={styles.menuSubtitle}>Pago com saldo da carteira (Obrigatório)</Text>
                   </View>
                 </View>

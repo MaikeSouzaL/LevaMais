@@ -4,10 +4,12 @@ const DriverLocation = require("../models/DriverLocation");
 const User = require("../models/User");
 const Promotion = require("../models/Promotion");
 const ShiftOffer = require("../models/ShiftOffer");
+const City = require("../models/City");
 
 const { getRuntimeConfig } = require("../services/platformConfig.service");
 const { calculateDeliveryPricingSnapshot, fetchRouteMetricsWithGoogleMaps, fetchRouteMetricsBatch } = require("../services/delivery-pricing.service");
 const { calculateRideCategories } = require("../services/ride-pricing.service");
+const { calculateSurgeMultiplier } = require("../services/surge-pricing.service");
 const walletEscrow = require("../services/walletEscrow.service");
 
 // mixins (rating + proofs)
@@ -1205,6 +1207,56 @@ class RideController {
         promotionCode,
         routeCoordinates,
       } = req.body;
+
+      // ── Antifraude / KYC do cliente ──
+      // Bloqueia conta suspensa/bloqueada; (opcional) exige verificação de identidade.
+      const clientAccount = await User.findById(req.user.id).select("accountStatus clientVerification");
+      if (clientAccount) {
+        const acct = String(clientAccount.accountStatus || "active");
+        if (acct === "blocked" || acct === "suspended") {
+          return sendError(
+            res,
+            403,
+            acct === "blocked"
+              ? "Sua conta está bloqueada. Fale com o suporte."
+              : "Sua conta está suspensa temporariamente. Fale com o suporte.",
+            { accountStatus: acct },
+          );
+        }
+        const cfgKyc = await getRuntimeConfig().catch(() => null);
+        if (
+          cfgKyc?.requireClientVerification &&
+          String(clientAccount.clientVerification?.status || "none") !== "approved"
+        ) {
+          return sendError(res, 403, "Conclua a verificação de identidade no app antes de pedir.", {
+            needsVerification: true,
+          });
+        }
+
+        // ── Geofencing: pickup precisa estar dentro do raio de uma cidade ativa ──
+        if (cfgKyc?.geofencingEnabled) {
+          const pLat = Number(pickup?.latitude);
+          const pLng = Number(pickup?.longitude);
+          if (Number.isFinite(pLat) && Number.isFinite(pLng)) {
+            const activeCities = await City.find({ isActive: true })
+              .select("center radiusKm name")
+              .lean()
+              .catch(() => []);
+            const within = (activeCities || []).some((c) => {
+              const cLat = Number(c.center?.latitude);
+              const cLng = Number(c.center?.longitude);
+              if (!Number.isFinite(cLat) || !Number.isFinite(cLng)) return false;
+              const km = calculateHaversineDistance(pLat, pLng, cLat, cLng);
+              return km <= Number(c.radiusKm || 50);
+            });
+            if (activeCities.length > 0 && !within) {
+              return sendError(res, 403, "Ainda não atendemos nesta região. Em breve!", {
+                outOfServiceArea: true,
+              });
+            }
+          }
+        }
+      }
 
       // Sanitiza paradas (waypoints): mantém apenas coords válidas e normaliza a ordem
       const sanitizedStops = Array.isArray(stops)
@@ -4488,6 +4540,22 @@ class RideController {
         return sendError(res, 400, "Origem e destino são obrigatórios");
       }
 
+      // Surge pricing (gated por config). Multiplicador por demanda/oferta na região da coleta.
+      let surgeMultiplier = 1;
+      let surgeInfo = null;
+      try {
+        const cfgSurge = await getRuntimeConfig().catch(() => null);
+        if (cfgSurge?.surgeEnabled) {
+          const s = await calculateSurgeMultiplier(Number(pickup.latitude), Number(pickup.longitude));
+          if (s && s.multiplier > 1) {
+            surgeMultiplier = s.multiplier;
+            surgeInfo = { multiplier: s.multiplier, level: s.level };
+          }
+        }
+      } catch (surgeErr) {
+        console.warn("[calculateRideCategories] surge indisponível:", surgeErr?.message);
+      }
+
       const result = await calculateRideCategories({
         pickup,
         dropoff,
@@ -4495,7 +4563,9 @@ class RideController {
         cityId,
         distance,
         duration,
+        surgeMultiplier,
       });
+      result.surge = surgeInfo;
 
       // Disponibilidade por categoria: conta motoristas de CORRIDA próximos ao embarque.
       try {
@@ -5068,6 +5138,88 @@ class RideController {
     } catch (error) {
       console.error("Erro ao promover corrida para agendada:", error);
       return sendError(res, 500, "Erro ao promover corrida para agendada", { details: error.message });
+    }
+  }
+
+  async getRideNfse(req, res) {
+    try {
+      const { rideId } = req.params;
+      const ride = await Ride.findById(rideId)
+        .populate("clientId", "name cpf email phone")
+        .populate("driverId", "name cpf email phone");
+
+      if (!ride) {
+        return sendError(res, 404, "Corrida não encontrada.");
+      }
+
+      // NFS-e simula apenas para corridas completadas
+      if (ride.status !== "completed") {
+        return sendError(res, 400, "NFS-e simulada só pode ser gerada para corridas concluídas.");
+      }
+
+      const client = ride.clientId || {};
+      const driver = ride.driverId || {};
+
+      const formatCPF = (raw) => {
+        const cpf = String(raw || "").replace(/\D/g, "");
+        if (cpf.length !== 11) return "Não informado";
+        return cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+      };
+
+      const completedDate = ride.completedAt || ride.updatedAt || new Date();
+      const formattedDate = new Date(completedDate).toLocaleString("pt-BR", {
+        timeZone: "America/Sao_Paulo",
+      });
+
+      // Cálculo de ISS municipal simulado
+      const total = Number(ride.pricing?.total || 0);
+      const issRate = 5; // 5%
+      const issValue = Math.round(total * (issRate / 100) * 100) / 100;
+      
+      // Gera número e código verificador simulados a partir do ID
+      const hexId = String(ride._id).slice(-8).toUpperCase();
+      const nfseNumber = `${new Date(completedDate).getFullYear()}${String(new Date(completedDate).getMonth() + 1).padStart(2, "0")}${hexId}`;
+      const verificationCode = `VERI-${String(ride._id).slice(-4).toUpperCase()}-${String(ride.clientId?._id || "0").slice(-4).toUpperCase()}`;
+
+      const nfse = {
+        number: nfseNumber,
+        verificationCode,
+        issuedAt: formattedDate,
+        status: "Emitida e Homologada",
+        serviceDescription: `Serviço de transporte privado individual de passageiros prestado no trajeto de "${ride.pickup.address}" até "${ride.dropoff.address}".\nDistância total: ${ride.distance?.text || "N/A"}.\nDuração total: ${ride.duration?.text || "N/A"}.\nModalidade: ${ride.vehicleType === "motorcycle" ? "Moto" : "Carro"}.`,
+        provider: {
+          name: driver.name || "Prestador Leva+",
+          cpf: formatCPF(driver.cpf),
+          phone: driver.phone || "Não informado",
+          role: "Motorista Parceiro",
+        },
+        taker: {
+          name: client.name || "Cliente Leva+",
+          cpf: formatCPF(client.cpf),
+          email: client.email || "Não informado",
+        },
+        financial: {
+          totalValue: total,
+          deductions: 0.00,
+          calculationBase: total,
+          issRate: issRate,
+          issValue: issValue,
+          netValue: Math.round((total - issValue) * 100) / 100,
+        },
+        intermediary: {
+          name: "Leva+ Intermediação de Serviços Ltda.",
+          cnpj: "42.189.444/0001-99",
+          city: "São Paulo - SP",
+        }
+      };
+
+      return res.json({
+        success: true,
+        nfse,
+      });
+    } catch (error) {
+      console.error("Erro ao gerar NFS-e simulada:", error);
+      return sendError(res, 500, "Erro ao gerar NFS-e simulada", { details: error.message });
     }
   }
 }

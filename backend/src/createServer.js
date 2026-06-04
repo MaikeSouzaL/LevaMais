@@ -20,6 +20,8 @@ const shiftOfferRoutes = require("./routes/shiftOffer.routes");
 const purposeRoutes = require("./routes/purpose.routes");
 const pricingRoutes = require("./routes/pricing.routes");
 const disputeRoutes = require("./routes/dispute.routes");
+const operationsRoutes = require("./routes/operations.routes");
+const cityRoutes = require("./routes/city.routes");
 
 function parseAllowedOrigins() {
   const fromEnv = String(
@@ -142,6 +144,8 @@ function applyRoutes(app) {
   app.use("/api/purposes", purposeRoutes);
   app.use("/api/pricing", pricingRoutes);
   app.use("/api/disputes", disputeRoutes);
+  app.use("/api/operations", operationsRoutes);
+  app.use("/api/cities", cityRoutes);
 
   app.get("/api/health", (req, res) => {
     res.json({

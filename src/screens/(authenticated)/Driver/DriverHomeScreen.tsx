@@ -37,6 +37,7 @@ import { LocationLoadingScreen } from "../../../components/ui/LocationLoadingScr
 import MapMarker from "../../../components/MapMarker";
 import Toast from "react-native-toast-message";
 import { Modal } from "../../../components/Modal";
+import { useRegisterPushToken } from "@/hooks/useRegisterPushToken";
 
 // 🌌 High-End Components & Modules Upgrade
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -79,6 +80,8 @@ export default function DriverHomeScreen() {
   const insets = useSafeAreaInsets();
   const userData = useAuthStore((s) => s.userData);
   const isApproved = userData?.driverStatus === "approved";
+
+  useRegisterPushToken();
 
   const [online, setOnline] = useState(false);
   const [isSavingPrefs, setIsSavingPrefs] = useState(false);

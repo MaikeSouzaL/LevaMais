@@ -1,6 +1,8 @@
 const Ride = require("../models/Ride");
+const RideHistory = require("../models/RideHistory");
 const Withdrawal = require("../models/Withdrawal");
 const User = require("../models/User");
+const PaymentWebhookEvent = require("../models/PaymentWebhookEvent");
 const mongoose = require("mongoose");
 
 function sendError(res, status, message, extras = {}) {
@@ -228,6 +230,117 @@ class WalletController {
     } catch (error) {
       console.error("Erro ao buscar extrato:", error);
       return sendError(res, 500, "Erro ao buscar extrato");
+    }
+  }
+
+  /**
+   * Conciliação financeira da plataforma (ADMIN). Resumo de entradas, saídas,
+   * receita (comissões + parte de cancelamento), saldo retido e dívidas.
+   * Query: from, to (ISO). Padrão: últimos 30 dias.
+   */
+  async getFinancialReconciliation(req, res) {
+    try {
+      const to = req.query.to ? new Date(String(req.query.to)) : new Date();
+      const from = req.query.from
+        ? new Date(String(req.query.from))
+        : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
+        return sendError(res, 400, "Período inválido (use from/to ISO).");
+      }
+
+      const completedMatch = { status: "completed", completedAt: { $gte: from, $lte: to } };
+      const ridesAgg = [
+        {
+          $group: {
+            _id: null,
+            count: { $sum: 1 },
+            gmv: { $sum: { $ifNull: ["$pricing.total", 0] } },
+            platformFee: { $sum: { $ifNull: ["$pricing.platformFee", 0] } },
+            driverValue: { $sum: { $ifNull: ["$pricing.driverValue", 0] } },
+          },
+        },
+      ];
+
+      const cancelMatch = {
+        cancelledAt: { $gte: from, $lte: to },
+        "cancellationFee.amount": { $gt: 0 },
+      };
+      const cancelAgg = [
+        {
+          $group: {
+            _id: null,
+            count: { $sum: 1 },
+            feeTotal: { $sum: { $ifNull: ["$cancellationFee.amount", 0] } },
+            platformShare: { $sum: { $ifNull: ["$cancellationFee.platformShare", 0] } },
+            driverShare: { $sum: { $ifNull: ["$cancellationFee.driverShare", 0] } },
+          },
+        },
+      ];
+
+      const sumAgg = (rows) => (rows && rows[0]) || {};
+
+      const [ridesR, ridesH, cancelR, cancelH, deposits, withdrawalsByStatus, heldAgg, debtAgg] =
+        await Promise.all([
+          Ride.aggregate([{ $match: completedMatch }, ...ridesAgg]),
+          RideHistory.aggregate([{ $match: completedMatch }, ...ridesAgg]),
+          Ride.aggregate([{ $match: cancelMatch }, ...cancelAgg]),
+          RideHistory.aggregate([{ $match: cancelMatch }, ...cancelAgg]),
+          PaymentWebhookEvent.aggregate([
+            { $match: { event: "payment.confirmed", processedAt: { $gte: from, $lte: to } } },
+            { $group: { _id: null, count: { $sum: 1 }, total: { $sum: { $ifNull: ["$amount", 0] } } } },
+          ]),
+          Withdrawal.aggregate([
+            { $match: { createdAt: { $gte: from, $lte: to } } },
+            { $group: { _id: "$status", count: { $sum: 1 }, total: { $sum: { $ifNull: ["$amount", 0] } } } },
+          ]),
+          User.aggregate([{ $group: { _id: null, total: { $sum: { $ifNull: ["$wallet.held", 0] } } } }]),
+          User.aggregate([{ $group: { _id: null, total: { $sum: { $ifNull: ["$pendingDebt", 0] } } } }]),
+        ]);
+
+      const rc = sumAgg(ridesR);
+      const rh = sumAgg(ridesH);
+      const cc = sumAgg(cancelR);
+      const ch = sumAgg(cancelH);
+
+      const completed = {
+        count: (rc.count || 0) + (rh.count || 0),
+        gmv: toMoney((rc.gmv || 0) + (rh.gmv || 0)),
+        platformCommission: toMoney((rc.platformFee || 0) + (rh.platformFee || 0)),
+        driverEarnings: toMoney((rc.driverValue || 0) + (rh.driverValue || 0)),
+      };
+      const cancellations = {
+        count: (cc.count || 0) + (ch.count || 0),
+        feeTotal: toMoney((cc.feeTotal || 0) + (ch.feeTotal || 0)),
+        platformShare: toMoney((cc.platformShare || 0) + (ch.platformShare || 0)),
+        driverShare: toMoney((cc.driverShare || 0) + (ch.driverShare || 0)),
+      };
+      const depositsSummary = {
+        count: sumAgg(deposits).count || 0,
+        total: toMoney(sumAgg(deposits).total || 0),
+      };
+      const withdrawals = withdrawalsByStatus.map((w) => ({
+        status: w._id,
+        count: w.count,
+        total: toMoney(w.total),
+      }));
+      const platformRevenue = toMoney(completed.platformCommission + cancellations.platformShare);
+
+      return res.json({
+        success: true,
+        period: { from, to },
+        completed,
+        cancellations,
+        deposits: depositsSummary,
+        withdrawals,
+        platformRevenue,
+        snapshot: {
+          escrowHeld: toMoney(sumAgg(heldAgg).total || 0),
+          pendingClientDebt: toMoney(sumAgg(debtAgg).total || 0),
+        },
+      });
+    } catch (error) {
+      console.error("Erro na conciliação financeira:", error);
+      return sendError(res, 500, "Erro ao gerar conciliação financeira", { details: error.message });
     }
   }
 }

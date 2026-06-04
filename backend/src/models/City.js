@@ -11,6 +11,8 @@ const citySchema = new mongoose.Schema(
       latitude: { type: Number },
       longitude: { type: Number },
     },
+    // Raio de operação (km) a partir do centro — usado no geofencing.
+    radiusKm: { type: Number, default: 50 },
     defaultVehicleType: { type: String, enum: ["motorcycle", "car", "van", "truck"], default: "car" },
   },
   { timestamps: true }

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, ScrollView, Text, View, TouchableOpacity, StatusBar } from "react-native";
+import { ActivityIndicator, ScrollView, Text, View, TouchableOpacity, StatusBar, Modal, TextInput } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -21,9 +21,13 @@ import {
   CalendarClock,
   Hash,
   DollarSign,
+  FileText,
+  X,
 } from "lucide-react-native";
 
 import rideService, { Ride } from "@/services/ride.service";
+import disputeService, { DisputeCategory } from "@/services/dispute.service";
+import Toast from "react-native-toast-message";
 import { formatBRL } from "@/utils/mappers";
 import { ClientStackParamList } from "../../types/navigation";
 
@@ -115,6 +119,51 @@ export default function OrderDetailsScreen() {
   const insets = useSafeAreaInsets();
   const [ride, setRide] = useState<Ride | null>(null);
   const [loading, setLoading] = useState(true);
+  const [nfse, setNfse] = useState<any>(null);
+  const [showReceipt, setShowReceipt] = useState(false);
+  const [loadingNfse, setLoadingNfse] = useState(false);
+
+  const [showDispute, setShowDispute] = useState(false);
+  const [disputeCategory, setDisputeCategory] = useState<DisputeCategory>("payment");
+  const [disputeDesc, setDisputeDesc] = useState("");
+  const [submittingDispute, setSubmittingDispute] = useState(false);
+
+  const submitDispute = async () => {
+    if (!ride?._id || disputeDesc.trim().length < 5) {
+      Toast.show({ type: "error", text1: "Descreva o problema (mín. 5 caracteres)." });
+      return;
+    }
+    setSubmittingDispute(true);
+    try {
+      await disputeService.create({
+        rideId: String(ride._id),
+        category: disputeCategory,
+        description: disputeDesc.trim(),
+      });
+      setShowDispute(false);
+      setDisputeDesc("");
+      Toast.show({ type: "success", text1: "Disputa aberta", text2: "Nossa equipe vai analisar e responder." });
+    } catch (e: any) {
+      Toast.show({ type: "error", text1: "Não foi possível abrir", text2: e?.message || "Tente novamente" });
+    } finally {
+      setSubmittingDispute(false);
+    }
+  };
+
+  const openReceipt = async () => {
+    if (!ride?._id) return;
+    setShowReceipt(true);
+    if (nfse) return;
+    setLoadingNfse(true);
+    try {
+      const data = await rideService.getRideNfse(String(ride._id));
+      setNfse(data);
+    } catch {
+      // mantém modal aberto mostrando indisponível
+    } finally {
+      setLoadingNfse(false);
+    }
+  };
 
   const rideIdFromParams = useMemo(() => {
     const params = route.params || {};
@@ -453,6 +502,44 @@ export default function OrderDetailsScreen() {
             </TouchableOpacity>
           )}
 
+          {ride.status === "completed" && (
+            <TouchableOpacity
+              onPress={openReceipt}
+              activeOpacity={0.85}
+              style={{
+                height: 54, borderRadius: 18,
+                borderWidth: 1.5, borderColor: "rgba(255,255,255,0.15)",
+                backgroundColor: "rgba(255,255,255,0.04)",
+                alignItems: "center", justifyContent: "center",
+                flexDirection: "row", gap: 10,
+              }}
+            >
+              <FileText size={16} color="rgba(255,255,255,0.85)" />
+              <Text style={{ color: "rgba(255,255,255,0.85)", fontWeight: "800", fontSize: 14 }}>
+                Recibo / Nota fiscal
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {["completed", "cancelled", "cancelled_by_client", "cancelled_by_driver", "delivery_failed"].includes(String(ride.status)) && (
+            <TouchableOpacity
+              onPress={() => setShowDispute(true)}
+              activeOpacity={0.85}
+              style={{
+                height: 54, borderRadius: 18,
+                borderWidth: 1.5, borderColor: "rgba(239,68,68,0.30)",
+                backgroundColor: "rgba(239,68,68,0.06)",
+                alignItems: "center", justifyContent: "center",
+                flexDirection: "row", gap: 10,
+              }}
+            >
+              <AlertCircle size={16} color="#f87171" />
+              <Text style={{ color: "#f87171", fontWeight: "800", fontSize: 14 }}>
+                Contestar / Abrir disputa
+              </Text>
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity
             onPress={() => navigation.navigate("Home")}
             activeOpacity={0.85}
@@ -471,6 +558,123 @@ export default function OrderDetailsScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Modal Recibo / NFS-e (documento simulado por enquanto) */}
+      <Modal visible={showReceipt} transparent animationType="slide" onRequestClose={() => setShowReceipt(false)}>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" }}>
+          <View style={{ backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: "85%", paddingBottom: insets.bottom + 16 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" }}>
+              <Text style={{ fontSize: 16, fontWeight: "900", color: "#0F172A" }}>Recibo / Nota fiscal</Text>
+              <TouchableOpacity onPress={() => setShowReceipt(false)} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center" }}>
+                <X size={18} color="#0F172A" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={{ padding: 16, gap: 8 }}>
+              {loadingNfse ? (
+                <View style={{ padding: 24, alignItems: "center" }}>
+                  <ActivityIndicator color="#02de95" />
+                </View>
+              ) : nfse ? (
+                <>
+                  <View style={{ backgroundColor: "#FFFBEB", borderWidth: 1, borderColor: "#FDE68A", borderRadius: 12, padding: 10 }}>
+                    <Text style={{ color: "#B45309", fontSize: 11, fontWeight: "700" }}>
+                      Documento simulado (não fiscal). Emissão fiscal oficial será integrada.
+                    </Text>
+                  </View>
+                  <ReceiptRow label="Número" value={nfse.number} />
+                  <ReceiptRow label="Cód. verificação" value={nfse.verificationCode} />
+                  <ReceiptRow label="Emitido em" value={nfse.issuedAt} />
+                  <ReceiptRow label="Status" value={nfse.status} />
+                  <View style={{ height: 1, backgroundColor: "#F1F5F9", marginVertical: 6 }} />
+                  <ReceiptRow label="Prestador" value={nfse.provider?.name} />
+                  <ReceiptRow label="Tomador" value={nfse.taker?.name} />
+                  <View style={{ height: 1, backgroundColor: "#F1F5F9", marginVertical: 6 }} />
+                  <ReceiptRow label="Valor total" value={formatBRL(Number(nfse.financial?.totalValue || 0))} />
+                  <ReceiptRow label={`ISS (${nfse.financial?.issRate || 0}%)`} value={formatBRL(Number(nfse.financial?.issValue || 0))} />
+                  <ReceiptRow label="Valor líquido" value={formatBRL(Number(nfse.financial?.netValue || 0))} highlight />
+                  <Text style={{ color: "#64748B", fontSize: 12, marginTop: 10, lineHeight: 18 }}>{nfse.serviceDescription}</Text>
+                </>
+              ) : (
+                <Text style={{ color: "#64748B", padding: 12 }}>Recibo indisponível para esta corrida.</Text>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal Abrir Disputa / Contestar */}
+      <Modal visible={showDispute} transparent animationType="slide" onRequestClose={() => setShowDispute(false)}>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" }}>
+          <View style={{ backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: insets.bottom + 16 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" }}>
+              <Text style={{ fontSize: 16, fontWeight: "900", color: "#0F172A" }}>Abrir disputa</Text>
+              <TouchableOpacity onPress={() => setShowDispute(false)} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center" }}>
+                <X size={18} color="#0F172A" />
+              </TouchableOpacity>
+            </View>
+            <View style={{ padding: 16, gap: 12 }}>
+              <Text style={{ color: "#64748B", fontSize: 12, fontWeight: "700" }}>Motivo</Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                {([
+                  { id: "payment", label: "Cobrança" },
+                  { id: "cancellation_fee", label: "Taxa cancelamento" },
+                  { id: "safety", label: "Segurança" },
+                  { id: "delivery_problem", label: "Entrega" },
+                  { id: "route", label: "Rota" },
+                  { id: "behavior", label: "Conduta" },
+                  { id: "other", label: "Outro" },
+                ] as { id: DisputeCategory; label: string }[]).map((c) => {
+                  const sel = disputeCategory === c.id;
+                  return (
+                    <TouchableOpacity
+                      key={c.id}
+                      onPress={() => setDisputeCategory(c.id)}
+                      style={{
+                        paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999,
+                        backgroundColor: sel ? "#02de95" : "#F1F5F9",
+                      }}
+                    >
+                      <Text style={{ color: sel ? "#0F172A" : "#475569", fontWeight: "800", fontSize: 12 }}>{c.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              <Text style={{ color: "#64748B", fontSize: 12, fontWeight: "700", marginTop: 4 }}>Descrição</Text>
+              <TextInput
+                value={disputeDesc}
+                onChangeText={setDisputeDesc}
+                placeholder="Conte o que aconteceu..."
+                placeholderTextColor="#94A3B8"
+                multiline
+                style={{ minHeight: 96, borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 14, padding: 12, color: "#0F172A", textAlignVertical: "top" }}
+              />
+              <TouchableOpacity
+                onPress={submitDispute}
+                disabled={submittingDispute}
+                activeOpacity={0.9}
+                style={{ height: 52, borderRadius: 16, backgroundColor: "#02de95", alignItems: "center", justifyContent: "center", marginTop: 4 }}
+              >
+                {submittingDispute ? (
+                  <ActivityIndicator color="#0F172A" />
+                ) : (
+                  <Text style={{ color: "#0F172A", fontWeight: "900", fontSize: 14 }}>Enviar disputa</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+function ReceiptRow({ label, value, highlight }: { label: string; value?: string; highlight?: boolean }) {
+  return (
+    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 4 }}>
+      <Text style={{ color: "#64748B", fontSize: 13 }}>{label}</Text>
+      <Text style={{ color: highlight ? "#047857" : "#0F172A", fontSize: 13, fontWeight: highlight ? "900" : "700", maxWidth: "60%", textAlign: "right" }} numberOfLines={2}>
+        {value || "-"}
+      </Text>
     </View>
   );
 }

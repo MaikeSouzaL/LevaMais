@@ -48,3 +48,7 @@ yarn-error.*
 # Google OAuth credentials (sensitive)
 client_secret_*.json
 client_IOS.plist
+
+# Firebase Admin SDK Credentials (sensitive)
+backend/levamaispush-firebase-adminsdk-fbsvc-*.json
+

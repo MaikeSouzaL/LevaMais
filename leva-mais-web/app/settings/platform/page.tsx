@@ -6,11 +6,15 @@ import {
   platformConfigService,
   PlatformConfig,
 } from "@/services/platformConfigService";
+import { CityGeofencingPanel } from "@/components/settings/CityGeofencingPanel";
+import { FieldNumber, FieldText } from "@/components/settings/FormFields";
 
 type ConfigForm = Required<
   Pick<
     PlatformConfig,
     | "isDevelopmentMode"
+    | "surgeEnabled"
+    | "geofencingEnabled"
     | "appFeePercentage"
     | "rideSearchTimeoutSeconds"
     | "driverDailyGoalRides"
@@ -27,6 +31,8 @@ type ConfigForm = Required<
 
 const DEFAULT_FORM: ConfigForm = {
   isDevelopmentMode: true,
+  surgeEnabled: false,
+  geofencingEnabled: false,
   appFeePercentage: 15,
   rideSearchTimeoutSeconds: 60,
   driverDailyGoalRides: 10,
@@ -70,6 +76,8 @@ const DEFAULT_FORM: ConfigForm = {
 function toForm(config: PlatformConfig | null | undefined): ConfigForm {
   return {
     isDevelopmentMode: Boolean(config?.isDevelopmentMode ?? true),
+    surgeEnabled: Boolean(config?.surgeEnabled ?? false),
+    geofencingEnabled: Boolean(config?.geofencingEnabled ?? false),
     appFeePercentage: Number(config?.appFeePercentage ?? 15),
     rideSearchTimeoutSeconds: Number(config?.rideSearchTimeoutSeconds ?? 60),
     driverDailyGoalRides: Number(config?.driverDailyGoalRides ?? 10),
@@ -163,6 +171,8 @@ export default function PlatformSettingsPage() {
     try {
       await platformConfigService.update({
         isDevelopmentMode: form.isDevelopmentMode,
+        surgeEnabled: form.surgeEnabled,
+        geofencingEnabled: form.geofencingEnabled,
         appFeePercentage: Number(form.appFeePercentage),
         rideSearchTimeoutSeconds: Number(form.rideSearchTimeoutSeconds),
         driverDailyGoalRides: Number(form.driverDailyGoalRides),
@@ -227,6 +237,26 @@ export default function PlatformSettingsPage() {
                     }
                   />
                 </label>
+                <label className="flex items-center justify-between rounded-xl border border-slate-200 p-4">
+                  <span className="text-sm text-slate-700">Preço dinâmico por demanda</span>
+                  <input
+                    type="checkbox"
+                    checked={form.surgeEnabled}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, surgeEnabled: e.target.checked }))
+                    }
+                  />
+                </label>
+                <label className="flex items-center justify-between rounded-xl border border-slate-200 p-4">
+                  <span className="text-sm text-slate-700">Bloqueio por área atendida</span>
+                  <input
+                    type="checkbox"
+                    checked={form.geofencingEnabled}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, geofencingEnabled: e.target.checked }))
+                    }
+                  />
+                </label>
                 <label className="rounded-xl border border-slate-200 p-4">
                   <span className="text-sm text-slate-700 block mb-2">Timezone da aplicação</span>
                   <input
@@ -237,6 +267,8 @@ export default function PlatformSettingsPage() {
                 </label>
               </div>
             </section>
+
+            <CityGeofencingPanel />
 
             <section className="space-y-4">
               <h2 className="text-lg font-semibold text-slate-900">Operação</h2>
@@ -465,48 +497,5 @@ export default function PlatformSettingsPage() {
         )}
       </div>
     </div>
-  );
-}
-
-function FieldNumber({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  onChange: (value: number) => void;
-}) {
-  return (
-    <label className="rounded-xl border border-slate-200 p-4">
-      <span className="text-sm text-slate-700 block mb-2">{label}</span>
-      <input
-        type="number"
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full rounded-lg border border-slate-200 px-3 py-2"
-      />
-    </label>
-  );
-}
-
-function FieldText({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="rounded-xl border border-slate-200 p-4">
-      <span className="text-sm text-slate-700 block mb-2">{label}</span>
-      <input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-lg border border-slate-200 px-3 py-2"
-      />
-    </label>
   );
 }

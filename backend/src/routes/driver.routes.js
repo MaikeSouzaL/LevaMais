@@ -1,8 +1,13 @@
 const express = require("express");
 const router = express.Router();
 const driverController = require("../controllers/driver.controller");
-const { authenticateToken } = require("../middlewares/auth.middleware");
+const { authenticateToken, requireAdmin } = require("../middlewares/auth.middleware");
 const { uploadDriverBundle } = require("../middlewares/upload.middleware");
+
+// ── Payout ADMIN (manual): listar/processar saques (requireAdmin, antes do auth de motorista) ──
+router.get("/admin/withdrawals", requireAdmin, driverController.adminListWithdrawals.bind(driverController));
+router.post("/admin/withdrawals/:driverId/:withdrawalId/pay", requireAdmin, driverController.adminMarkWithdrawalPaid.bind(driverController));
+router.post("/admin/withdrawals/:driverId/:withdrawalId/reject", requireAdmin, driverController.adminRejectWithdrawal.bind(driverController));
 
 // Todas as rotas de motorista exigem token de autenticação
 router.use(authenticateToken);

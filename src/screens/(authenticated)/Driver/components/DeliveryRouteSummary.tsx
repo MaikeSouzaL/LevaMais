@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text } from "react-native";
-import { Banknote, CreditCard, QrCode } from "lucide-react-native";
+import { Banknote, CreditCard, QrCode, Wallet } from "lucide-react-native";
 
 type DeliveryRouteSummaryProps = {
   pickupAddress?: string;
@@ -22,7 +22,11 @@ export function DeliveryRouteSummary({
   let PaymentIcon = Banknote;
   let paymentColor = "#16a34a"; // readable green for light bg
 
-  if (rawPayment.includes("cash") || rawPayment.includes("dinheiro")) {
+  if (rawPayment.includes("wallet") || rawPayment.includes("levapay")) {
+    translatedPayment = "LevaPay";
+    PaymentIcon = Wallet;
+    paymentColor = "#b45309";
+  } else if (rawPayment.includes("cash") || rawPayment.includes("dinheiro")) {
     translatedPayment = "Dinheiro";
     PaymentIcon = Banknote;
     paymentColor = "#16a34a";

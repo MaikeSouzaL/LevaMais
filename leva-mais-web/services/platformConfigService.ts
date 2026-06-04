@@ -3,6 +3,9 @@ import axios from "axios";
 export interface PlatformConfig {
   _id?: string;
   isDevelopmentMode?: boolean;
+  requireClientVerification?: boolean;
+  surgeEnabled?: boolean;
+  geofencingEnabled?: boolean;
   appFeePercentage?: number;
   rideSearchTimeoutSeconds?: number;
   driverDailyGoalRides?: number;
@@ -49,6 +52,9 @@ const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || "dev-admin-key";
 
 const DEFAULT_CONFIG: PlatformConfig = {
   isDevelopmentMode: true,
+  requireClientVerification: false,
+  surgeEnabled: false,
+  geofencingEnabled: false,
   appFeePercentage: 15,
   rideSearchTimeoutSeconds: 60,
   driverDailyGoalRides: 10,

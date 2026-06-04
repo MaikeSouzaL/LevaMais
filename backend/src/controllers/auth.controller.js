@@ -3,6 +3,7 @@ const PasswordReset = require("../models/PasswordReset");
 const PhoneVerification = require("../models/PhoneVerification");
 const Ride = require("../models/Ride");
 const RideHistory = require("../models/RideHistory");
+const Withdrawal = require("../models/Withdrawal");
 const walletEscrow = require("../services/walletEscrow.service");
 const {
   DEFAULT_PLATFORM_CONFIG,
@@ -18,6 +19,8 @@ const path = require("path");
 const fs = require("fs");
 const { getIO } = require("../config/websocket");
 const pushNotificationService = require("../services/push-notification.service");
+const faceMatchService = require("../services/facematch.service");
+const backgroundCheckService = require("../services/background-check.service");
 
 
 const ACTIVE_RIDE_STATUSES = [
@@ -340,6 +343,102 @@ async function notifyDriverVerificationChange(user, status, reason) {
   });
 }
 
+async function processAutomatedVerifications(userId) {
+  try {
+    console.log(`[KYC Worker] Iniciando verificacoes automatizadas para o usuario: ${userId}`);
+    const user = await User.findById(userId);
+    if (!user) {
+      console.error(`[KYC Worker] Usuario nao encontrado: ${userId}`);
+      return;
+    }
+
+    const { selfie, cnhFront, cpf } = user.driverDocuments || {};
+    const driverName = user.name;
+
+    // 1. Executa as validacoes em paralelo
+    // Sem selfie/CNH não há o que comparar → fica PENDENTE para revisão manual no dashboard.
+    const facematchPromise = selfie && cnhFront
+      ? faceMatchService.performFaceMatch(selfie, cnhFront)
+      : Promise.resolve({ success: true, confidence: null, status: "pending" });
+
+    const backgroundPromise = backgroundCheckService.performBackgroundCheck(driverName, cpf || "");
+
+    const [faceMatchResult, backgroundResult] = await Promise.all([
+      facematchPromise,
+      backgroundPromise
+    ]);
+
+    console.log("[KYC Worker] Resultados das validacoes automatizadas:", { faceMatchResult, backgroundResult });
+
+    // Recarrega o usuario do DB para evitar race conditions
+    const freshUser = await User.findById(userId);
+    if (!freshUser) return;
+
+    freshUser.driverDocuments = freshUser.driverDocuments || {};
+    freshUser.driverDocuments.faceMatchStatus = faceMatchResult.status;
+    freshUser.driverDocuments.faceMatchConfidence = faceMatchResult.confidence;
+    freshUser.driverDocuments.backgroundCheckStatus = backgroundResult.status;
+
+    let hasFailed = false;
+    let rejectionReason = "";
+
+    if (faceMatchResult.status === "rejected") {
+      hasFailed = true;
+      rejectionReason = faceMatchResult.reason || "Reconhecimento facial com baixa similaridade.";
+      if (!freshUser.driverDocuments.riskFlags.includes("facematch_failed")) {
+        freshUser.driverDocuments.riskFlags.push("facematch_failed");
+      }
+    }
+
+    if (backgroundResult.status === "rejected") {
+      hasFailed = true;
+      rejectionReason = backgroundResult.reason || "Apontamentos identificados no historico judicial.";
+      if (!freshUser.driverDocuments.riskFlags.includes("background_check_failed")) {
+        freshUser.driverDocuments.riskFlags.push("background_check_failed");
+      }
+    }
+
+    if (hasFailed) {
+      freshUser.driverStatus = "rejected";
+      freshUser.driverDocuments.rejectionReason = rejectionReason;
+    } else {
+      freshUser.driverDocuments.rejectionReason = "";
+    }
+
+    freshUser.driverDocuments.reviewedAt = new Date();
+    await freshUser.save();
+
+    console.log(`[KYC Worker] Processamento de KYC finalizado. Status final: ${freshUser.driverStatus}`);
+
+    // Emite atualizacoes via Socket.io
+    try {
+      const io = getIO();
+      io.to(`driver-${freshUser._id}`).emit("driver-verification-updated", {
+        userId: String(freshUser._id),
+        driverStatus: freshUser.driverStatus,
+        driverDocuments: freshUser.driverDocuments || null,
+        approved: freshUser.driverStatus === "approved",
+      });
+    } catch (wsError) {
+      console.error("[KYC Worker] Falha ao emitir socket update:", wsError.message);
+    }
+
+    // Dispara a notificacao push
+    try {
+      await notifyDriverVerificationChange(
+        freshUser,
+        freshUser.driverStatus,
+        freshUser.driverDocuments.rejectionReason
+      );
+    } catch (pushError) {
+      console.error("[KYC Worker] Falha ao enviar notificacao push:", pushError.message);
+    }
+
+  } catch (error) {
+    console.error(`[KYC Worker] Erro no processamento assincrono de KYC do usuario ${userId}:`, error);
+  }
+}
+
 class AuthController {
   async getPlatformConfig(req, res) {
     try {
@@ -358,6 +457,9 @@ class AuthController {
 
       const allowedFields = [
         "isDevelopmentMode",
+        "requireClientVerification",
+        "surgeEnabled",
+        "geofencingEnabled",
         "appFeePercentage",
         "rideSearchTimeoutSeconds",
         "driverDailyGoalRides",
@@ -2183,6 +2285,44 @@ class AuthController {
     }
   }
 
+  // Antifraude: bloquear / suspender / reativar conta (cliente ou motorista) — ADMIN.
+  async updateAccountStatusByAdmin(req, res) {
+    try {
+      const { id } = req.params;
+      const { status, reason } = req.body || {};
+      const normalized = String(status || "");
+      if (!["active", "suspended", "blocked"].includes(normalized)) {
+        return sendError(res, 400, "Status inválido (use active | suspended | blocked)");
+      }
+      const user = await User.findById(id);
+      if (!user) return sendError(res, 404, "Usuário não encontrado");
+
+      user.accountStatus = normalized;
+      user.accountStatusReason = reason ? String(reason).trim() : undefined;
+      user.accountStatusUpdatedAt = new Date();
+      await user.save();
+
+      try {
+        const io = getIO();
+        const room = String(user.userType) === "driver" ? `driver-${user._id}` : `client-${user._id}`;
+        io.to(room).emit("account-status-updated", {
+          userId: String(user._id),
+          accountStatus: user.accountStatus,
+          reason: user.accountStatusReason || null,
+        });
+      } catch {}
+
+      return res.json({
+        success: true,
+        message: "Status da conta atualizado",
+        user: { _id: user._id, accountStatus: user.accountStatus, accountStatusReason: user.accountStatusReason },
+      });
+    } catch (error) {
+      console.error("Erro ao atualizar status da conta (admin):", error);
+      return sendError(res, 500, "Erro ao atualizar status da conta", { details: error.message });
+    }
+  }
+
   // Deletar usuario por ID (admin)
   async deleteUserById(req, res) {
     try {
@@ -2252,6 +2392,11 @@ class AuthController {
       user.userType = "driver";
 
       await user.save();
+
+      // Dispara a validação automatizada de KYC em background de forma assíncrona
+      processAutomatedVerifications(user._id).catch((err) => {
+        console.error("[BACKEND] Erro ao iniciar verificação automatizada de KYC:", err.message);
+      });
 
       return res.json({
         success: true,
@@ -2409,6 +2554,158 @@ class AuthController {
     } catch (error) {
       console.error("Erro ao atualizar localizacao do usuario:", error);
       return sendError(res, 500, "Erro ao atualizar localizacao", { details: error.message });
+    }
+  }
+
+  // Listar saques dos motoristas (para admin)
+  async listWithdrawals(req, res) {
+    try {
+      const { status, limit = 50, page = 1 } = req.query;
+      const query = {};
+      if (status) {
+        query.status = status;
+      }
+
+      const parsedLimit = parseInt(limit);
+      const parsedPage = parseInt(page);
+
+      const withdrawals = await Withdrawal.find(query)
+        .populate("userId", "name email phone cpf bankAccount")
+        .limit(parsedLimit)
+        .skip((parsedPage - 1) * parsedLimit)
+        .sort({ createdAt: -1 });
+
+      const total = await Withdrawal.countDocuments(query);
+
+      return res.json({
+        success: true,
+        withdrawals,
+        pagination: {
+          total,
+          page: parsedPage,
+          limit: parsedLimit,
+          pages: Math.ceil(total / parsedLimit),
+        },
+      });
+    } catch (error) {
+      console.error("Erro ao listar saques:", error);
+      return sendError(res, 500, "Erro ao listar saques", { details: error.message });
+    }
+  }
+
+  // Atualizar status do saque (Aprovar / Rejeitar) por admin
+  async updateWithdrawalStatus(req, res) {
+    try {
+      const { id } = req.params;
+      const { status, transactionId, reason } = req.body || {};
+
+      if (!["paid", "rejected"].includes(status)) {
+        return sendError(res, 400, "Status inválido. Use paid ou rejected.");
+      }
+
+      const withdrawal = await Withdrawal.findById(id);
+      if (!withdrawal) {
+        return sendError(res, 404, "Saque não encontrado.");
+      }
+
+      if (withdrawal.status !== "pending") {
+        return sendError(res, 400, "Este saque já foi processado anteriormente.");
+      }
+
+      const user = await User.findById(withdrawal.userId);
+      if (!user) {
+        return sendError(res, 404, "Motorista não encontrado.");
+      }
+
+      if (!user.driverBalance) {
+        user.driverBalance = {
+          balance: 0,
+          totalDeposits: 0,
+          totalDeductions: 0,
+          transactions: [],
+        };
+      }
+
+      withdrawal.status = status;
+      withdrawal.processedAt = new Date();
+
+      // Procurar a transação pendente correspondente no array do usuário
+      const txIndex = user.driverBalance.transactions.findIndex(
+        (t) =>
+          t.type === "withdrawal" &&
+          t.status === "pending" &&
+          t.amount === withdrawal.amount &&
+          t.pixKey === withdrawal.pixKey
+      );
+
+      if (status === "paid") {
+        withdrawal.transactionId = transactionId || `TX_MANUAL_${Date.now()}`;
+        if (txIndex !== -1) {
+          user.driverBalance.transactions[txIndex].status = "completed";
+          user.driverBalance.transactions[txIndex].description = `Saque Concluído (Ref: ${withdrawal.transactionId})`;
+        }
+        
+        // Enviar notificação push de sucesso
+        pushNotificationService.sendPushToUser(
+          user,
+          "💰 Saque Realizado com Sucesso!",
+          `Seu saque de R$ ${withdrawal.amount.toFixed(2)} foi transferido para a sua conta Pix.`,
+          { type: "withdrawal_paid", amount: withdrawal.amount }
+        ).catch(() => {});
+      } else {
+        // rejected
+        const rejectionReason = reason || "Chave Pix incorreta ou dados inválidos.";
+        withdrawal.rejectionReason = rejectionReason;
+        
+        if (txIndex !== -1) {
+          user.driverBalance.transactions[txIndex].status = "failed";
+          user.driverBalance.transactions[txIndex].description = `Saque Rejeitado: ${rejectionReason}`;
+        }
+
+        // Estornar saldo
+        user.driverBalance.balance = toMoney(user.driverBalance.balance + withdrawal.amount);
+        
+        // Adicionar transação de estorno no extrato
+        user.driverBalance.transactions.push({
+          type: "deposit",
+          amount: withdrawal.amount,
+          description: `Estorno de Saque Rejeitado (Ref: ${id.slice(-6)})`,
+          status: "completed",
+          createdAt: new Date(),
+        });
+
+        // Enviar notificação push de falha
+        pushNotificationService.sendPushToUser(
+          user,
+          "⚠️ Saque Recusado",
+          `Seu saque de R$ ${withdrawal.amount.toFixed(2)} foi recusado. Motivo: ${rejectionReason}`,
+          { type: "withdrawal_rejected", amount: withdrawal.amount, reason: rejectionReason }
+        ).catch(() => {});
+      }
+
+      await Promise.all([withdrawal.save(), user.save()]);
+
+      // Emitir WebSocket
+      try {
+        const io = getIO();
+        io.to(`driver-${user._id}`).emit("balance_updated", {
+          balance: user.driverBalance.balance,
+          totalDeposits: user.driverBalance.totalDeposits,
+          totalDeductions: user.driverBalance.totalDeductions,
+        });
+      } catch (wsErr) {
+        console.error("Erro ao emitir socket de atualização de saldo:", wsErr.message);
+      }
+
+      return res.json({
+        success: true,
+        message: status === "paid" ? "Saque aprovado e marcado como pago." : "Saque rejeitado e saldo estornado.",
+        withdrawal,
+        newBalance: user.driverBalance.balance,
+      });
+    } catch (error) {
+      console.error("Erro ao processar saque:", error);
+      return sendError(res, 500, "Erro ao processar saque", { details: error.message });
     }
   }
 }

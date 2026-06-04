@@ -43,7 +43,11 @@
       "Bash(awk 'NR>=1493 && NR<=1700 && \\(/status = \"accepted\"|\\\\.acceptedAt|await ride.save\\\\\\(\\\\\\)|await updatedRide.save\\\\\\(\\\\\\)|ride\\\\.payment|paymentMethod|findByIdAndUpdate|findOneAndUpdate\\\\\\(\\\\s*$|negotiation/\\) {print NR\": \"$0}' backend/src/controllers/ride.controller.js)",
       "Bash(awk 'NR>=1 && NR<=1200 && /async [a-zA-Z]+\\\\\\(req, res\\\\\\)|wallet\\\\.balance = toMoney\\\\\\(\\\\\\(user\\\\.wallet\\\\.balance/ {print NR\": \"$0}' backend/src/controllers/payment.controller.js)",
       "Bash(grep -vE \"console|//\")",
-      "Bash(xargs grep -lE \"express\\\\\\(\\\\\\)|app.listen|express.json\")"
+      "Bash(xargs grep -lE \"express\\\\\\(\\\\\\)|app.listen|express.json\")",
+      "Bash(grep -nA0 \"\")",
+      "Bash(awk '/driverBalance: \\\\{/,/^    \\\\},/' backend/src/models/User.js)",
+      "Bash(sed -n '40,90p' backend/src/services/background-check.service.js)",
+      "Bash(sed -n '160,180p' backend/src/routes/auth.routes.js)"
     ]
   },
   "disabledMcpjsonServers": [

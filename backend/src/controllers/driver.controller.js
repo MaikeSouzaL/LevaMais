@@ -486,6 +486,17 @@ const driverController = {
         return res.status(403).json({ error: "Usuário não é um motorista" });
       }
 
+      // 0. Antifraude: conta bloqueada/suspensa não pode trabalhar.
+      const acct = String(user.accountStatus || "active");
+      if (acct === "blocked" || acct === "suspended") {
+        return res.status(403).json({
+          error: acct === "blocked"
+            ? "Sua conta está bloqueada. Fale com o suporte."
+            : "Sua conta está suspensa temporariamente. Fale com o suporte.",
+          accountStatus: acct,
+        });
+      }
+
       // 1. Verificar driverStatus
       if (user.driverStatus !== "approved") {
         const statusMessages = {
@@ -989,6 +1000,128 @@ const driverController = {
       });
     } catch (error) {
       console.error("Erro ao enviar documentos do veículo:", error);
+      return res.status(500).json({ error: error.message });
+    }
+  },
+
+  // ───────────────────────── PAYOUT (ADMIN, manual) ─────────────────────────
+  // Lista saques (transações type "withdrawal") por status (padrão: pending).
+  adminListWithdrawals: async (req, res) => {
+    try {
+      const status = String(req.query.status || "pending");
+      const users = await User.find({
+        "driverBalance.transactions": { $elemMatch: { type: "withdrawal", status } },
+      })
+        .select("name phone driverBalance.transactions")
+        .lean();
+
+      const items = [];
+      for (const u of users) {
+        const txs = u.driverBalance?.transactions || [];
+        for (const t of txs) {
+          if (t.type === "withdrawal" && t.status === status) {
+            items.push({
+              withdrawalId: String(t._id),
+              driverId: String(u._id),
+              driverName: u.name,
+              driverPhone: u.phone,
+              amount: Number(t.amount || 0),
+              pixKey: t.pixKey || null,
+              status: t.status,
+              requestedAt: t.createdAt,
+              processedAt: t.processedAt || null,
+              receiptUrl: t.receiptUrl || null,
+              adminNote: t.adminNote || null,
+            });
+          }
+        }
+      }
+      items.sort((a, b) => new Date(a.requestedAt) - new Date(b.requestedAt));
+      return res.json({ success: true, count: items.length, withdrawals: items });
+    } catch (error) {
+      console.error("Erro ao listar saques (admin):", error);
+      return res.status(500).json({ error: error.message });
+    }
+  },
+
+  // Marca um saque como PAGO (status completed) com comprovante.
+  adminMarkWithdrawalPaid: async (req, res) => {
+    try {
+      const { driverId, withdrawalId } = req.params;
+      const { receiptUrl, note } = req.body || {};
+
+      const user = await User.findById(driverId);
+      if (!user) return res.status(404).json({ error: "Motorista não encontrado" });
+
+      const tx = (user.driverBalance?.transactions || []).id(withdrawalId);
+      if (!tx || tx.type !== "withdrawal") {
+        return res.status(404).json({ error: "Saque não encontrado" });
+      }
+      if (tx.status !== "pending") {
+        return res.status(400).json({ error: `Saque já está '${tx.status}'` });
+      }
+
+      tx.status = "completed";
+      tx.processedAt = new Date();
+      if (receiptUrl) tx.receiptUrl = String(receiptUrl);
+      if (note) tx.adminNote = String(note);
+      await user.save();
+
+      const io = req.app?.get("io");
+      if (io) {
+        io.to(`driver-${driverId}`).emit("withdrawal_paid", {
+          withdrawalId: String(tx._id),
+          amount: Number(tx.amount || 0),
+          receiptUrl: tx.receiptUrl || null,
+        });
+      }
+
+      return res.json({ success: true, withdrawalId: String(tx._id), status: tx.status });
+    } catch (error) {
+      console.error("Erro ao marcar saque como pago (admin):", error);
+      return res.status(500).json({ error: error.message });
+    }
+  },
+
+  // Rejeita um saque: estorna o valor ao saldo do motorista.
+  adminRejectWithdrawal: async (req, res) => {
+    try {
+      const { driverId, withdrawalId } = req.params;
+      const { reason } = req.body || {};
+
+      const user = await User.findById(driverId);
+      if (!user) return res.status(404).json({ error: "Motorista não encontrado" });
+
+      const tx = (user.driverBalance?.transactions || []).id(withdrawalId);
+      if (!tx || tx.type !== "withdrawal") {
+        return res.status(404).json({ error: "Saque não encontrado" });
+      }
+      if (tx.status !== "pending") {
+        return res.status(400).json({ error: `Saque já está '${tx.status}'` });
+      }
+
+      // Estorna o valor que havia sido deduzido na solicitação.
+      user.driverBalance.balance = Number((Number(user.driverBalance.balance || 0) + Number(tx.amount || 0)).toFixed(2));
+      tx.status = "failed";
+      tx.processedAt = new Date();
+      tx.adminNote = String(reason || "Rejeitado pelo administrador");
+      await user.save();
+
+      const io = req.app?.get("io");
+      if (io) {
+        io.to(`driver-${driverId}`).emit("balance_updated", {
+          balance: user.driverBalance.balance,
+        });
+        io.to(`driver-${driverId}`).emit("withdrawal_rejected", {
+          withdrawalId: String(tx._id),
+          amount: Number(tx.amount || 0),
+          reason: tx.adminNote,
+        });
+      }
+
+      return res.json({ success: true, withdrawalId: String(tx._id), status: tx.status, refunded: Number(tx.amount || 0) });
+    } catch (error) {
+      console.error("Erro ao rejeitar saque (admin):", error);
       return res.status(500).json({ error: error.message });
     }
   },

@@ -1,0 +1,12 @@
+⚠️ Um pré-requisito ainda pendente
+O token só é salvo se o usuário passar pela tela de permissão de notificações (NotificationPermissionScreen). Enquanto o app estiver rodando via expo run:android (desenvolvimento), o token gerado é um Expo Development Token, não o token FCM nativo.
+
+Para testar notificações com app fechado, o app precisa ser uma build EAS (não expo run:android). Com o Keystore e FCM já configurados, você pode rodar:
+
+bash
+eas build --platform android --profile production
+Ou para testar antes de produção:
+
+bash
+eas build --platform android --profile preview
+Em desenvolvimento (expo run:android), notificações funcionam somente com o app em primeiro plano ou segundo plano, mas NÃO com o app completamente fechado.

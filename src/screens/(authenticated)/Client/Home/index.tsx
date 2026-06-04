@@ -20,6 +20,7 @@ import { useMapLocation } from "../Shared/hooks/useMapLocation";
 import { useFavorites } from "../Shared/hooks/useFavorites";
 import { useAvailability } from "../Shared/hooks/useAvailability";
 import { useActiveRideMonitor } from "../Shared/hooks/useActiveRideMonitor";
+import { useRegisterPushToken } from "@/hooks/useRegisterPushToken";
 
 // 🎨 Premium Visual Shell Components
 import { ClientRealtimeMap } from "@/components/client/home/ClientRealtimeMap";
@@ -33,6 +34,8 @@ export default function HomeScreen() {
   const route = useRoute<RouteProp<ClientStackParamList, "Home">>();
   const { userData: user } = useAuthStore();
   const insets = useSafeAreaInsets();
+
+  useRegisterPushToken();
 
   const [showHomeSuccessModal, setShowHomeSuccessModal] = useState(false);
   const [showNoDriversModal, setShowNoDriversModal] = useState(false);

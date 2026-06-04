@@ -2,6 +2,13 @@ const PlatformConfig = require("../models/PlatformConfig");
 
 const DEFAULT_PLATFORM_CONFIG = {
   isDevelopmentMode: true,
+  // Exige verificação de identidade do cliente (KYC) antes de pedir corrida.
+  // Default false: sem fricção. Admin liga quando quiser.
+  requireClientVerification: false,
+  // Surge pricing (preço dinâmico por demanda). Default false (preço estável).
+  surgeEnabled: false,
+  // Geofencing: bloquear pedidos fora do raio das cidades ativas. Default false.
+  geofencingEnabled: false,
   appFeePercentage: 15,
   feePerStop: 2, // Adicional por parada
   rideSearchTimeoutSeconds: 300,
@@ -77,6 +84,18 @@ function mergeConfig(raw = {}) {
       raw.isDevelopmentMode !== undefined
         ? Boolean(raw.isDevelopmentMode)
         : DEFAULT_PLATFORM_CONFIG.isDevelopmentMode,
+    requireClientVerification:
+      raw.requireClientVerification !== undefined
+        ? Boolean(raw.requireClientVerification)
+        : DEFAULT_PLATFORM_CONFIG.requireClientVerification,
+    surgeEnabled:
+      raw.surgeEnabled !== undefined
+        ? Boolean(raw.surgeEnabled)
+        : DEFAULT_PLATFORM_CONFIG.surgeEnabled,
+    geofencingEnabled:
+      raw.geofencingEnabled !== undefined
+        ? Boolean(raw.geofencingEnabled)
+        : DEFAULT_PLATFORM_CONFIG.geofencingEnabled,
     appFeePercentage: sanitizeNumber(
       raw.appFeePercentage,
       DEFAULT_PLATFORM_CONFIG.appFeePercentage,

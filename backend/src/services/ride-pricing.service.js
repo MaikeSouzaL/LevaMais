@@ -72,7 +72,7 @@ async function resolveRouteWithStops(pickup, dropoff, stops = []) {
 // Pode ser sobrescrito por categoria via pricing.bidRangeFactor.
 const DEFAULT_BID_RANGE_FACTOR = 0.25; // ±25%
 
-function priceForCategory(cat, { distanceKm, durationMin, stopsCount }) {
+function priceForCategory(cat, { distanceKm, durationMin, stopsCount, surgeMultiplier = 1 }) {
   const p = cat.pricing || {};
   const minimumKm = Number(p.minimumKm ?? 2);
   const minimumFee = Number(p.minimumFee ?? 5);
@@ -80,13 +80,15 @@ function priceForCategory(cat, { distanceKm, durationMin, stopsCount }) {
   const pricePerMinute = Number(p.pricePerMinute ?? 0);
   const multiplier = Number(p.multiplier ?? 1.0);
   const feePerStop = Number(p.feePerStop ?? 2);
+  const surge = Number.isFinite(surgeMultiplier) && surgeMultiplier >= 1 ? surgeMultiplier : 1;
 
   const overflowKm = Math.max(0, distanceKm - minimumKm);
   const distancePrice = overflowKm * pricePerKm;
   const timePrice = (durationMin || 0) * pricePerMinute;
   const stopsFee = (stopsCount || 0) * feePerStop;
 
-  const base = (minimumFee + distancePrice + timePrice) * multiplier;
+  // Surge multiplica a corrida (tarifa+distância+tempo); a taxa por parada não sofre surge.
+  const base = (minimumFee + distancePrice + timePrice) * multiplier * surge;
   const total = toMoney(base + stopsFee);
 
   // Faixa simétrica de lance (±fator) calculada no backend = fonte da verdade.
@@ -104,9 +106,9 @@ function priceForCategory(cat, { distanceKm, durationMin, stopsCount }) {
     maxPassengers: cat.maxPassengers ?? (cat.vehicleType === "motorcycle" ? 1 : 4),
     order: cat.order ?? 0,
     pricing: {
-      basePrice: toMoney(minimumFee * multiplier),
-      distancePrice: toMoney(distancePrice * multiplier),
-      timePrice: toMoney(timePrice * multiplier),
+      basePrice: toMoney(minimumFee * multiplier * surge),
+      distancePrice: toMoney(distancePrice * multiplier * surge),
+      timePrice: toMoney(timePrice * multiplier * surge),
       stopsFee: toMoney(stopsFee),
       total,
       // Faixa de lance permitida (simétrica ±bidRangeFactor em torno do total).
@@ -115,6 +117,7 @@ function priceForCategory(cat, { distanceKm, durationMin, stopsCount }) {
       bidRangeFactor,
       currency: "BRL",
       multiplier,
+      surgeMultiplier: surge,
       feePerStop,
     },
   };
@@ -123,7 +126,7 @@ function priceForCategory(cat, { distanceKm, durationMin, stopsCount }) {
 /**
  * Lista categorias ativas (do banco, fallback nos defaults) já com preço calculado.
  */
-async function calculateRideCategories({ pickup, dropoff, stops = [], cityId, distance, duration } = {}) {
+async function calculateRideCategories({ pickup, dropoff, stops = [], cityId, distance, duration, surgeMultiplier = 1 } = {}) {
   if (!pickup || !dropoff) {
     throw createPricingError("Origem e destino são obrigatórios", 400);
   }
@@ -160,8 +163,9 @@ async function calculateRideCategories({ pickup, dropoff, stops = [], cityId, di
     );
   }
 
+  const surge = Number.isFinite(surgeMultiplier) && surgeMultiplier >= 1 ? surgeMultiplier : 1;
   const categories = cats
-    .map((c) => priceForCategory(c, { distanceKm, durationMin, stopsCount }))
+    .map((c) => priceForCategory(c, { distanceKm, durationMin, stopsCount, surgeMultiplier: surge }))
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
   return {
@@ -175,6 +179,7 @@ async function calculateRideCategories({ pickup, dropoff, stops = [], cityId, di
       text: `${durationMin} min`,
     },
     stopsCount,
+    surgeMultiplier: surge,
   };
 }
 

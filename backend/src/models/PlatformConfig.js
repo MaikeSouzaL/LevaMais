@@ -3,6 +3,9 @@ const mongoose = require("mongoose");
 const PlatformConfigSchema = new mongoose.Schema(
   {
     isDevelopmentMode: { type: Boolean, default: true },
+    requireClientVerification: { type: Boolean, default: false },
+    surgeEnabled: { type: Boolean, default: false },
+    geofencingEnabled: { type: Boolean, default: false },
     appFeePercentage: { type: Number, default: 15 },
     feePerStop: { type: Number, default: 2 }, // Adicional de R$2 por parada
     rideSearchTimeoutSeconds: { type: Number, default: 300 },

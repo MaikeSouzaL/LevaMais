@@ -146,6 +146,14 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // Status da conta (antifraude/abuso) — vale para cliente e motorista.
+    accountStatus: {
+      type: String,
+      enum: ["active", "suspended", "blocked"],
+      default: "active",
+    },
+    accountStatusReason: { type: String, trim: true },
+    accountStatusUpdatedAt: { type: Date },
     // Documentos
     cpf: {
       type: String,
@@ -349,6 +357,9 @@ const userSchema = new mongoose.Schema(
           createdAt: { type: Date, default: Date.now },
           referenceId: { type: String, trim: true },
           receiptUrl: { type: String, trim: true },
+          // Processamento de saque pelo admin (payout manual).
+          processedAt: { type: Date },
+          adminNote: { type: String, trim: true },
         },
       ],
     },
@@ -516,6 +527,7 @@ const userSchema = new mongoose.Schema(
       bankAccountStatus: { type: String, enum: ["none", "pending", "approved", "rejected"], default: "pending" },
       faceMatchStatus: { type: String, enum: ["none", "pending", "approved", "rejected"], default: "pending" },
       backgroundCheckStatus: { type: String, enum: ["none", "pending", "approved", "rejected"], default: "pending" },
+      faceMatchConfidence: { type: Number },
       riskFlags: [{ type: String, trim: true }],
       reviewedAt: { type: Date },
       reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },

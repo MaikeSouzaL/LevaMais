@@ -207,9 +207,19 @@ export function PaymentMethodsSheet({
           }}
           iconBg="#02de95"
           iconEl={<Wallet size={20} color="#fff" />}
-          title="Cash"
+          title="Saldo LevaPay"
           subtitle={insufficient ? "Adicione saldo para pagar" : `${formatBRL(balance)} disponível`}
-          badge={insufficient ? undefined : "Cash"}
+          badge={insufficient ? undefined : "LevaPay"}
+        />
+        <View style={{ height: 10 }} />
+
+        <PayOption
+          selected={value === "pix"}
+          onPress={() => onChange("pix")}
+          iconBg="#02de95"
+          iconEl={<QrCode size={20} color="#fff" />}
+          title="Pix"
+          subtitle="Pague via Pix direto ao motorista no fim"
         />
         <View style={{ height: 10 }} />
 

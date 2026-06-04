@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { platformConfigService } from "@/services/platformConfigService";
 import { verificationAdminService } from "@/services/verificationAdminService";
 import { disputeAdminService } from "@/services/disputeAdminService";
+import { withdrawalsService } from "@/services/withdrawalsService";
 import {
   LayoutDashboard,
   Users,
@@ -16,6 +17,7 @@ import {
   UserCheck,
   Settings,
   ShieldAlert,
+  Landmark,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -31,6 +33,12 @@ const MENU_ITEMS = [
     label: "Validação de Contas",
     icon: UserCheck,
     href: "/verification/drivers",
+    active: true,
+  },
+  {
+    label: "Saques",
+    icon: Landmark,
+    href: "/withdrawals",
     active: true,
   },
   {
@@ -77,6 +85,7 @@ export function Sidebar({
   const [isDevMode, setIsDevMode] = useState(true);
   const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
   const [openDisputeCount, setOpenDisputeCount] = useState(0);
+  const [pendingWithdrawalCount, setPendingWithdrawalCount] = useState(0);
 
   useEffect(() => {
     let mounted = true;
@@ -111,10 +120,11 @@ export function Sidebar({
 
     const loadPendingApprovalCount = async () => {
       try {
-        const [drivers, clients, disputes] = await Promise.all([
+        const [drivers, clients, disputes, withdrawals] = await Promise.all([
           verificationAdminService.listUsers("driver"),
           verificationAdminService.listUsers("client"),
           disputeAdminService.list("open"),
+          withdrawalsService.getAll("pending"),
         ]);
 
         const driversPending = ((drivers || []) as ApprovalDriver[]).filter((d) => {
@@ -142,11 +152,13 @@ export function Sidebar({
         if (mounted) {
           setPendingApprovalCount(driversPending + clientsPending);
           setOpenDisputeCount((disputes || []).length);
+          setPendingWithdrawalCount((withdrawals || []).length);
         }
       } catch {
         if (mounted) {
           setPendingApprovalCount(0);
           setOpenDisputeCount(0);
+          setPendingWithdrawalCount(0);
         }
       }
     };
@@ -259,6 +271,8 @@ export function Sidebar({
                       ? { ...item, badge: pendingApprovalCount > 0 ? pendingApprovalCount : undefined }
                       : item.href === "/disputes"
                       ? { ...item, badge: openDisputeCount > 0 ? openDisputeCount : undefined }
+                      : item.href === "/withdrawals"
+                      ? { ...item, badge: pendingWithdrawalCount > 0 ? pendingWithdrawalCount : undefined }
                       : item
                   }
                   currentPath={pathname}

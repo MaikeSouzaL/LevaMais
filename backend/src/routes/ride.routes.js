@@ -116,6 +116,9 @@ router.get("/heatmap/:lat/:lng", async (req, res) => {
 router.post("/:rideId/pix-payment", rideController.createRidePixPayment);
 router.post("/:rideId/pix-payment/confirm-mock", rideController.confirmRidePixPaymentMock);
 
+// NFS-e Recibo Fiscal Simulado
+router.get("/:rideId/nfse", rideController.getRideNfse);
+
 // Buscar corrida por ID
 router.get("/:rideId", rideController.getById);
 

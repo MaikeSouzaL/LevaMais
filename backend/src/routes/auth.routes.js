@@ -173,10 +173,27 @@ router.patch(
   requireAdmin,
   authController.updateDriverVerificationByAdmin.bind(authController),
 );
+router.patch(
+  "/users/:id/account-status",
+  requireAdmin,
+  authController.updateAccountStatusByAdmin.bind(authController),
+);
 router.delete(
   "/users/:id",
   requireAdmin,
   authController.deleteUserById.bind(authController),
+);
+
+// Gerenciamento de saques por admin
+router.get(
+  "/withdrawals",
+  requireAdmin,
+  authController.listWithdrawals.bind(authController),
+);
+router.patch(
+  "/withdrawals/:id",
+  requireAdmin,
+  authController.updateWithdrawalStatus.bind(authController),
 );
 
 // ── Motoristas Favoritos ──

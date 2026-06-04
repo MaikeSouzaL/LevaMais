@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Mappers usados pelo modulo Client.
  * Mantem as traducoes alinhadas com os status e tipos reais do backend.
  */
@@ -110,7 +110,7 @@ export function mapPaymentMethodToName(method: string): string {
     credit_card: 'Cartao de credito',
     debit: 'Cartao de debito',
     debit_card: 'Cartao de debito',
-    wallet: 'Carteira',
+    wallet: 'Saldo LevaPay',
   };
 
   return mapping[method] || method;
