@@ -284,19 +284,37 @@ const userSchema = new mongoose.Schema(
     ],
     wallet: {
       balance: { type: Number, default: 0 },
+      // Valor retido em escrow (corridas wallet em andamento). Não é gastável.
+      held: { type: Number, default: 0 },
       transactions: [
         {
           type: {
             type: String,
-            enum: ["topup", "ride_payment", "refund", "adjustment"],
+            enum: [
+              "topup",
+              "ride_payment",
+              "refund",
+              "adjustment",
+              "hold",
+              "release",
+              "refund_hold",
+              "cancellation_fee",
+              "debt_settlement",
+              "delivery_failed_charge",
+            ],
           },
           amount: { type: Number, required: true },
           description: { type: String, trim: true },
+          rideId: { type: String, trim: true },
           createdAt: { type: Date, default: Date.now },
           referenceId: { type: String, trim: true },
+          receiptUrl: { type: String, trim: true },
         },
       ],
     },
+    // Dívida pendente do cliente (ex.: taxa de cancelamento em corrida cash/maquininha).
+    // Quitada via depósito LevaPay ou somada à próxima corrida. (usado na Fase 2)
+    pendingDebt: { type: Number, default: 0 },
     driverBalance: {
       balance: { type: Number, default: 0 },
       totalDeposits: { type: Number, default: 0 },
@@ -318,6 +336,9 @@ const userSchema = new mongoose.Schema(
               "fee_release",
               "deposit",
               "deduction",
+              "cancellation_fee",
+              "cancellation_penalty",
+              "delivery_failed_payout",
             ],
           },
           amount: { type: Number, required: true },
@@ -326,9 +347,13 @@ const userSchema = new mongoose.Schema(
           pixKey: { type: String, trim: true },
           status: { type: String, enum: ["pending", "completed", "failed"], default: "completed" },
           createdAt: { type: Date, default: Date.now },
+          referenceId: { type: String, trim: true },
+          receiptUrl: { type: String, trim: true },
         },
       ],
     },
+    // Total de corridas que o motorista aceitou e depois cancelou (métrica cancellationRate).
+    cancelledRidesCount: { type: Number, default: 0 },
     driverPreferences: {
       serviceTypes: {
         type: [String],
@@ -472,7 +497,7 @@ const userSchema = new mongoose.Schema(
     },
     driverStatus: {
       type: String,
-      enum: ["none", "pending", "approved", "rejected"],
+      enum: ["none", "pending", "approved", "rejected", "blocked", "suspended"],
       default: "none",
     },
     driverDocuments: {
@@ -489,11 +514,14 @@ const userSchema = new mongoose.Schema(
       selfieStatus: { type: String, enum: ["none", "pending", "approved", "rejected"], default: "pending" },
       cpfStatus: { type: String, enum: ["none", "pending", "approved", "rejected"], default: "pending" },
       bankAccountStatus: { type: String, enum: ["none", "pending", "approved", "rejected"], default: "pending" },
+      faceMatchStatus: { type: String, enum: ["none", "pending", "approved", "rejected"], default: "pending" },
+      backgroundCheckStatus: { type: String, enum: ["none", "pending", "approved", "rejected"], default: "pending" },
+      riskFlags: [{ type: String, trim: true }],
       reviewedAt: { type: Date },
       reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
       reviewHistory: [{
         documentType: { type: String },
-        action: { type: String, enum: ["approved", "rejected"] },
+        action: { type: String, enum: ["approved", "rejected", "pending", "blocked", "suspended"] },
         reason: { type: String, trim: true },
         reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
         reviewedAt: { type: Date, default: Date.now },

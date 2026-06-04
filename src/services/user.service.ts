@@ -36,7 +36,7 @@ export type UserProfile = {
     searchRadiusKm?: number;
     autoAccept?: boolean;
   };
-  driverStatus?: "pending" | "approved" | "rejected";
+  driverStatus?: "none" | "pending" | "approved" | "rejected" | "blocked" | "suspended";
   tourSeen?: boolean;
   driverDocuments?: {
     cnhFront?: string;
@@ -47,6 +47,9 @@ export type UserProfile = {
     selfie?: string;
     submittedAt?: string;
     rejectionReason?: string;
+    faceMatchStatus?: "none" | "pending" | "approved" | "rejected";
+    backgroundCheckStatus?: "none" | "pending" | "approved" | "rejected";
+    riskFlags?: string[];
   };
   clientVerification?: {
     status?: "none" | "pending" | "approved" | "rejected";
@@ -62,6 +65,10 @@ export type UserProfile = {
   };
   acceptedTerms?: boolean;
   paymentMethods?: Array<any>;
+  wallet?: {
+    balance: number;
+    transactions: Array<any>;
+  };
 };
 
 export type GetProfileResponse = { success: boolean; data: { user: UserProfile } };

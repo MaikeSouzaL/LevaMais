@@ -6,8 +6,9 @@ const Promotion = require("../models/Promotion");
 const ShiftOffer = require("../models/ShiftOffer");
 
 const { getRuntimeConfig } = require("../services/platformConfig.service");
-const { calculateDeliveryPricingSnapshot, fetchRouteMetricsWithGoogleMaps } = require("../services/delivery-pricing.service");
+const { calculateDeliveryPricingSnapshot, fetchRouteMetricsWithGoogleMaps, fetchRouteMetricsBatch } = require("../services/delivery-pricing.service");
 const { calculateRideCategories } = require("../services/ride-pricing.service");
+const walletEscrow = require("../services/walletEscrow.service");
 
 // mixins (rating + proofs)
 const ratingProofMixin = require("./ride.ratingProof.mixin");
@@ -30,6 +31,21 @@ const DRIVER_DAILY_BONUS_AMOUNT = Number(process.env.DRIVER_DAILY_BONUS_AMOUNT |
 
 async function moveToHistory(ride) {
   try {
+    // Rede de segurança do escrow: se a corrida termina CANCELADA com um hold ainda
+    // reservado (caminhos que não passam pelo cancel principal — timeout, re-dispatch,
+    // falha no estorno), devolve o valor retido ao cliente para não prender o saldo.
+    if (
+      ride?.payment?.escrow?.status === "reserved" &&
+      String(ride.status || "").startsWith("cancelled")
+    ) {
+      try {
+        await walletEscrow.refund(ride, { feeAmount: 0 });
+        await ride.save();
+      } catch (escrowSafetyErr) {
+        console.error(`[RideHistory] Falha ao estornar hold preso da corrida ${ride._id}:`, escrowSafetyErr);
+      }
+    }
+
     const historyRide = new RideHistory(ride.toObject());
     await historyRide.save();
     // Keep in main Ride collection - do not delete!
@@ -1216,6 +1232,17 @@ class RideController {
 
       const clientId = req.user.id; // Do middleware de autenticaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o
 
+      // Verifica se possui saldo na carteira digital (wallet)
+      const normPaymentMethod = normalizePaymentMethod(payment?.method?.type || payment?.method || payment);
+      if (normPaymentMethod === "wallet") {
+        const clientUser = await User.findById(clientId);
+        const walletBalance = clientUser?.wallet?.balance || 0;
+        const requestedOffer = Number(negotiation?.clientOffer) || Number(pricing?.total) || 0;
+        if (walletBalance < requestedOffer) {
+          return sendError(res, 400, "Saldo insuficiente na carteira LevaPay. Por favor, adicione saldo para continuar.");
+        }
+      }
+
       // ValidaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Âµes bÃƒÆ’Ã‚Â¡sicas
       if (!pickup || !dropoff) {
         return sendError(res, 400, "Origem e destino sao obrigatorios");
@@ -1435,11 +1462,8 @@ class RideController {
 
       const paymentMethod = normalizePaymentMethod(payment?.method?.type || payment?.method || payment);
       if (paymentMethod) {
-        ride.payment = {
-          ...(ride.payment || {}),
-          method: paymentMethod,
-          status: "pre_selected", // Client chose payment before publishing â€” drivers will see the method
-        };
+        ride.payment.method = paymentMethod;
+        ride.payment.status = "pre_selected";
       }
 
       await ride.save();
@@ -1617,6 +1641,18 @@ class RideController {
           400,
           "Aguardando cliente selecionar a oferta antes do aceite final",
         );
+      }
+
+      // Escrow LevaPay no aceite direto (fluxo sem negociação). Idempotente: no fluxo
+      // de lance o valor já foi retido no confirmNegotiationPayment. Não bloqueia o
+      // aceite se o hold falhar (degrada ao comportamento atual, sem retenção).
+      if (ride?.payment?.method === "wallet" && ride?.payment?.escrow?.status !== "reserved") {
+        try {
+          await walletEscrow.reserve(ride);
+          await ride.save();
+        } catch (escrowErr) {
+          console.error("Falha ao reter saldo LevaPay no aceite direto:", escrowErr.code || escrowErr.message);
+        }
       }
 
       // Popular dados
@@ -1823,7 +1859,138 @@ class RideController {
       const negotiation = ride.negotiation || {};
       const offers = Array.isArray(negotiation.offers) ? negotiation.offers : [];
 
-      const responseOffers = [...offers].sort(
+      // =================================================================
+      // Enriquece cada oferta com dados do motorista e rota real:
+      //  - vehicleType: veiculo em uso agora (DriverLocation)
+      //  - distanceToPickupKm/etaMinutes: rota real via Google Distance Matrix
+      //  - rating: media real de estrelas (User.ratingStats)
+      //  - completedRides: total real de corridas/entregas concluidas
+      // =================================================================
+      const VEHICLE_LABEL = {
+        bicycle: "Bicicleta",
+        motorcycle: "Moto",
+        car: "Carro",
+        van: "Van",
+        truck: "Caminhao",
+      };
+
+      const driverIds = offers
+        .map((o) => String(o.driverId?._id || o.driverId))
+        .filter(Boolean);
+
+      const [driverLocs, drivers] = await Promise.all([
+        driverIds.length
+          ? DriverLocation.find({
+              driverId: { $in: driverIds.map((id) => new mongoose.Types.ObjectId(id)) },
+            }).lean()
+          : Promise.resolve([]),
+        driverIds.length
+          ? User.find({ _id: { $in: driverIds.map((id) => new mongoose.Types.ObjectId(id)) } })
+              .select("name profilePhoto ratingStats cancelledRidesCount")
+              .lean()
+          : Promise.resolve([]),
+      ]);
+
+      const locByDriver = new Map(
+        driverLocs.map((d) => [String(d.driverId), d]),
+      );
+      const userById = new Map(
+        drivers.map((u) => [String(u._id), u]),
+      );
+
+      // Contagem de concluidos: 1 query agregada para todos (evita N+1)
+      const completedCount = driverIds.length
+        ? await Ride.aggregate([
+            {
+              $match: {
+                driverId: { $in: driverIds.map((id) => new mongoose.Types.ObjectId(id)) },
+                status: "completed",
+              },
+            },
+            { $group: { _id: "$driverId", count: { $sum: 1 } } },
+          ])
+        : [];
+      const completedByDriver = new Map(
+        completedCount.map((c) => [String(c._id), c.count]),
+      );
+
+      const pickupLat = Number(ride.pickup?.latitude);
+      const pickupLng = Number(ride.pickup?.longitude);
+
+      const enrichedOffers = await Promise.all(offers.map(async (o) => {
+        const offerDoc =
+          o && typeof o.toObject === "function"
+            ? o.toObject({ depopulate: false })
+            : { ...(o || {}) };
+        const id = String(offerDoc.driverId?._id || offerDoc.driverId);
+        const loc = locByDriver.get(id);
+        const u = userById.get(id);
+
+        const vt = (loc?.vehicleType || offerDoc.vehicleType || ride.vehicleType || "motorcycle").toLowerCase();
+        const label = VEHICLE_LABEL[vt] || "Moto";
+
+        // ── Métricas = SNAPSHOT salvo no envio da oferta (sem chamar o Google no poll) ──
+        // O ETA/km foi calculado uma vez quando o motorista enviou a oferta (estimativa
+        // de chegada). Aqui só lemos o que está salvo, economizando requisições.
+        let distanceKm = Number.isFinite(Number(offerDoc.distanceToPickupKm))
+          ? Number(offerDoc.distanceToPickupKm)
+          : null;
+        let etaMinutes = Number.isFinite(Number(offerDoc.etaMinutes))
+          ? Number(offerDoc.etaMinutes)
+          : null;
+        let routeSource = offerDoc.distanceSource || (distanceKm != null ? "snapshot" : null);
+        const coords = loc?.location?.coordinates;
+
+        // Fallback LOCAL (sem Google) só para ofertas antigas sem snapshot.
+        if (distanceKm == null && Array.isArray(coords) && coords.length >= 2 &&
+          Number.isFinite(pickupLat) && Number.isFinite(pickupLng)) {
+          const dLng2 = Number(coords[0]);
+          const dLat2 = Number(coords[1]);
+          if (Number.isFinite(dLat2) && Number.isFinite(dLng2)) {
+            const roadKm = calculateHaversineDistance(dLat2, dLng2, pickupLat, pickupLng) * 1.3;
+            distanceKm = Math.round(roadKm * 100) / 100;
+            etaMinutes = Math.max(1, Math.round(roadKm / 0.5)); // ~30 km/h
+            routeSource = "estimate";
+          }
+        }
+
+        const ratingStats = u?.ratingStats;
+        const rating =
+          ratingStats && ratingStats.totalRatings > 0
+            ? Number(Number(ratingStats.averageStars).toFixed(1))
+            : 5.0;
+        const completedRides = completedByDriver.get(id) || 0;
+        // Confiança = % de corridas concluídas sem cancelar (completed / (completed + canceladas)).
+        const cancelledByDriver = Number(u?.cancelledRidesCount || 0);
+        const reliabilityDenom = completedRides + cancelledByDriver;
+        const reliabilityPct =
+          reliabilityDenom >= 3 ? Math.round((completedRides / reliabilityDenom) * 100) : null;
+
+        return {
+          ...offerDoc,
+          amount: toMoney(offerDoc.amount),
+          driverAmount:
+            offerDoc.driverAmount === null || offerDoc.driverAmount === undefined
+              ? null
+              : toMoney(offerDoc.driverAmount),
+          driverId: {
+            _id: id,
+            name: offerDoc.driverId?.name || u?.name || "Entregador",
+            profilePhoto: offerDoc.driverId?.profilePhoto || u?.profilePhoto || null,
+            rating,
+            completedRides,
+            reliabilityPct,
+          },
+          vehicleType: vt,
+          vehicleLabel: label,
+          distanceToPickupKm: distanceKm,
+          etaMinutes,
+          routeSource,
+          reliabilityPct,
+        };
+      }));
+
+      const responseOffers = enrichedOffers.sort(
         (a, b) => Number(a.amount || 0) - Number(b.amount || 0),
       );
 
@@ -1915,7 +2082,7 @@ class RideController {
       }
 
       const driverLocation = await DriverLocation.findOne({ driverId }).select(
-        "vehicleType rideCategory serviceTypes currentRideId",
+        "vehicleType rideCategory serviceTypes currentRideId location",
       );
       if (!driverLocation) {
         return sendError(res, 400, "Atualize sua localizacao antes de responder negociacoes");
@@ -2006,11 +2173,70 @@ class RideController {
         return sendError(res, 400, "Acao invalida");
       }
 
+      // Métricas calculadas UMA VEZ aqui (no envio da oferta) e salvas no banco.
+      // O cliente vê esse snapshot (estimativa de chegada) sem novas chamadas ao Google.
+      // O motorista pode enviar a localização atual no corpo (latitude/longitude);
+      // caso contrário usamos a última posição salva em DriverLocation.
+      let etaMinutes = null;
+      let distanceToPickupKm = null;
+      let distanceSource = null;
+      if (status !== "rejected") {
+        try {
+          const bodyLat = Number(req.body?.latitude);
+          const bodyLng = Number(req.body?.longitude);
+          const hasBodyCoords = Number.isFinite(bodyLat) && Number.isFinite(bodyLng);
+          const coords = driverLocation.location?.coordinates || [];
+          const dLat = hasBodyCoords ? bodyLat : Number(coords[1]);
+          const dLng = hasBodyCoords ? bodyLng : Number(coords[0]);
+          const pLat = Number(ride.pickup?.latitude);
+          const pLng = Number(ride.pickup?.longitude);
+
+          // Persiste a localização enviada pelo motorista (mantém DriverLocation atual).
+          if (hasBodyCoords) {
+            await DriverLocation.updateOne(
+              { driverId },
+              { $set: { "location.coordinates": [bodyLng, bodyLat] } },
+            ).catch(() => {});
+          }
+
+          if ([dLat, dLng, pLat, pLng].every((n) => Number.isFinite(n))) {
+            const metrics = await fetchRouteMetricsWithGoogleMaps(
+              { latitude: dLat, longitude: dLng },
+              { latitude: pLat, longitude: pLng },
+            );
+            if (metrics && metrics.distanceInMeters > 0) {
+              distanceToPickupKm = Math.round((metrics.distanceInMeters / 1000) * 10) / 10;
+              etaMinutes = metrics.durationInSeconds
+                ? Math.max(1, Math.ceil(metrics.durationInSeconds / 60))
+                : null;
+              distanceSource = "route_api";
+            } else {
+              // Fallback: haversine × 1.3 (fator de via) ~30 km/h, só se o Google falhar.
+              const straightKm = calculateHaversineDistance(dLat, dLng, pLat, pLng);
+              const roadKm = straightKm * 1.3;
+              distanceToPickupKm = Math.round(roadKm * 10) / 10;
+              etaMinutes = Math.max(1, Math.round(roadKm / 0.5));
+              distanceSource = "estimate";
+            }
+          }
+        } catch (metricsErr) {
+          console.error("Erro ao calcular ETA/distância da oferta:", metricsErr?.message || metricsErr);
+        }
+      }
+
+      const VEHICLE_LABELS = { motorcycle: "Moto", car: "Carro", van: "Van", truck: "Caminhão", bicycle: "Bike" };
+      const offerVehicleType = String(driverLocation.vehicleType || ride.vehicleType || "motorcycle");
+
       const payload = {
         driverId,
         amount,
         status,
         message,
+        etaMinutes,
+        distanceToPickupKm,
+        distanceSource,
+        vehicleType: offerVehicleType,
+        vehicleLabel: VEHICLE_LABELS[offerVehicleType] || "Moto",
         createdAt: existingOffer ? existingOffer.createdAt || now : now,
         updatedAt: now,
       };
@@ -2318,11 +2544,44 @@ class RideController {
         return sendError(res, 400, "Nao existe motorista selecionado para esta corrida");
       }
 
+      // Taxa de cancelamento pendente: tenta quitar com o saldo LevaPay; se não cobrir,
+      // bloqueia até o cliente quitar (depósito) ou pagar a pendência.
+      const clientUser = await User.findById(clientId);
+      if (clientUser && Number(clientUser.pendingDebt || 0) > 0) {
+        await walletEscrow.settlePendingDebt(clientUser);
+        if (Number(clientUser.pendingDebt || 0) > 0) {
+          await clientUser.save();
+          return sendError(
+            res,
+            402,
+            `Você tem uma taxa de cancelamento pendente de R$ ${Number(clientUser.pendingDebt).toFixed(2)}. Deposite no LevaPay para continuar.`,
+            { pendingDebt: Number(clientUser.pendingDebt) },
+          );
+        }
+        await clientUser.save();
+      }
+
       ride.payment = ride.payment || {};
       ride.payment.method = method;
       ride.payment.status = method === "cash" ? "pending" : "completed";
       ride.payment.paidAt = new Date();
       ride.status = "driver_assigned";
+
+      // Escrow LevaPay: retém o valor da corrida da carteira do cliente neste momento.
+      if (method === "wallet") {
+        try {
+          await walletEscrow.reserve(ride);
+        } catch (escrowErr) {
+          if (escrowErr.code === "INSUFFICIENT_BALANCE") {
+            return sendError(res, 400, "Saldo LevaPay insuficiente para esta corrida.", {
+              required: escrowErr.required,
+              available: escrowErr.available,
+            });
+          }
+          console.error("Erro ao reter saldo LevaPay (escrow):", escrowErr);
+          return sendError(res, 500, "Erro ao reter o saldo para a corrida", { details: escrowErr.message });
+        }
+      }
 
       await ride.save();
       await ride.populate("driverId", "name phone profilePhoto ratingStats vehicleInfo createdAt");
@@ -2493,15 +2752,134 @@ class RideController {
         return sendError(res, 403, "Voce nao tem permissao para cancelar esta corrida");
       }
 
-      // Calcular taxa de cancelamento
-      const cancellationFee = ride.calculateCancellationFee();
+      // Registra o cancelamento do motorista (métrica cancellationRate), sem multa.
+      if (isDriver && ride.driverId) {
+        await User.findByIdAndUpdate(ride.driverId, { $inc: { cancelledRidesCount: 1 } }).catch(() => {});
+      }
+
+      // ── FASE 2: motorista cancela ANTES de iniciar → re-despacho automático ──
+      // O cliente é estornado 100% e a corrida volta para a fila (sem encerrar).
+      const REDISPATCHABLE = ["driver_assigned", "accepted", "driver_arriving", "arrived"];
+      if (isDriver && REDISPATCHABLE.includes(String(ride.status || ""))) {
+        const prevDriverId = ride.driverId;
+
+        // Libera o valor retido (cliente recebe de volta; novo motorista re-reserva ao confirmar).
+        if (ride.payment?.escrow?.status === "reserved") {
+          try {
+            await walletEscrow.refund(ride, { feeAmount: 0 });
+          } catch (refundErr) {
+            console.error("Erro ao estornar hold no re-despacho:", refundErr);
+          }
+        }
+
+        // Não oferecer novamente a este motorista; reabre a corrida para busca.
+        ride.rejectedBy = ride.rejectedBy || [];
+        ride.rejectedBy.push({ driverId: prevDriverId, rejectedAt: new Date(), reason: "driver_cancelled" });
+        if (ride.negotiation) {
+          ride.negotiation.selectedDriverId = null;
+          ride.negotiation.selectedAt = null;
+          ride.negotiation.finalAgreedPrice = null;
+        }
+        if (ride.payment) {
+          // mantém o método escolhido pelo cliente; só reabre o status p/ re-confirmação.
+          ride.payment.status = "not_selected";
+        }
+        ride.driverId = null;
+        ride.status = "requesting";
+        ride.requestedAt = new Date();
+        ride.isWaitingInQueue = false;
+        await ride.save();
+
+        if (prevDriverId) {
+          await DriverLocation.findOneAndUpdate(
+            { driverId: prevDriverId },
+            { status: "available", currentRideId: null },
+          );
+        }
+
+        const io = req.app.get("io");
+        if (io) {
+          io.to(`client-${ride.clientId}`).emit("ride-status-updated", {
+            rideId: ride._id,
+            status: "requesting",
+            driverCancelled: true,
+            message: "Seu motorista cancelou. Já estamos buscando um novo motorista para você.",
+            timestamp: new Date().toISOString(),
+          });
+          if (prevDriverId) {
+            io.to(`driver-${prevDriverId}`).emit("ride-cancelled", {
+              rideId: ride._id,
+              cancelledBy: "driver_self",
+              reason,
+            });
+          }
+        }
+
+        try {
+          await ride.populate("clientId", "name phone profilePhoto");
+          await module.exports.dispatchRideToNearbyDrivers(ride, io);
+        } catch (dispatchErr) {
+          console.error("Erro no re-despacho após cancelamento do motorista:", dispatchErr);
+        }
+
+        return res.json({
+          success: true,
+          redispatched: true,
+          message:
+            "Você saiu desta corrida. O cliente foi reembolsado integralmente e a corrida voltou para a fila de busca.",
+          ride,
+        });
+      }
+
+      // Taxa de cancelamento (Fase 2): janela grátis 2 min, 20% do lance, split 80/20.
+      // Valores configuráveis via platformConfig.cancellation (fallback nos defaults).
+      const runtimeCfg = await getRuntimeConfig().catch(() => null);
+      const cancelCfg = runtimeCfg?.cancellation || {};
+      const feeInfo = ride.computeBidCancellationFee({
+        byClient: isClient,
+        freeWindowSec: cancelCfg.freeWindowSec,
+        feePct: cancelCfg.feePct,
+        collectedFeePct: cancelCfg.collectedFeePct,
+        driverSharePct: cancelCfg.driverSharePct,
+      });
+      const cancellationFee = feeInfo.fee;
+      const escrowReserved = ride.payment?.escrow?.status === "reserved";
+      const preCancelStatus = String(ride.status || "");
 
       ride.status = isClient ? "cancelled_by_client" : "cancelled_by_driver";
       ride.cancelledAt = new Date();
       ride.cancellationFee = {
-        amount: cancellationFee,
+        amount: feeInfo.fee,
         reason,
+        by: isClient ? "client" : isDriver ? "driver" : "system",
+        driverShare: feeInfo.driverShare,
+        platformShare: feeInfo.platformShare,
+        freeWindow: feeInfo.free,
+        chargedVia: "none",
       };
+
+      // Liquidação financeira do cancelamento.
+      try {
+        if (escrowReserved) {
+          // wallet: a taxa sai do valor retido; o restante volta ao cliente.
+          await walletEscrow.refund(ride, { feeAmount: feeInfo.fee });
+          ride.cancellationFee.chargedVia = feeInfo.fee > 0 ? "wallet_hold" : "none";
+        } else if (feeInfo.fee > 0 && isClient) {
+          // cash / maquininha (sem valor in-app): vira dívida cobrada na próxima corrida.
+          await walletEscrow.addPendingDebt(ride.clientId, feeInfo.fee, ride._id);
+          ride.cancellationFee.chargedVia = "pending_debt";
+        }
+        // Credita a parte do motorista pela taxa (quando aplicável).
+        if (feeInfo.fee > 0 && isClient && ride.driverId && feeInfo.driverShare > 0) {
+          await walletEscrow.creditDriver(ride.driverId, ride._id, feeInfo.driverShare, {
+            type: "cancellation_fee",
+            description: `Taxa de cancelamento da corrida ${ride._id}`,
+          });
+        }
+        // Sem multa ao motorista por cancelar: apenas a métrica de cancelamento é registrada.
+      } catch (settleErr) {
+        console.error("Erro na liquidação financeira do cancelamento:", settleErr);
+      }
 
       await ride.save();
       await moveToHistory(ride);
@@ -2570,6 +2948,81 @@ class RideController {
     } catch (error) {
       console.error("Erro ao cancelar corrida:", error);
       return sendError(res, 500, "Erro ao cancelar corrida", { details: error.message });
+    }
+  }
+
+  // Entrega com problema no destino: destinatário ausente / endereço errado / recusou.
+  // Aciona a devolução do pacote e a liquidação (cliente 100%, motorista total×1,15).
+  async reportDeliveryFailure(req, res) {
+    try {
+      const { rideId } = req.params;
+      const driverId = String(req.user.id);
+      const { reason, photoUrl, note } = req.body || {};
+
+      const ride = await Ride.findById(rideId);
+      if (!ride) return sendError(res, 404, "Corrida nao encontrada");
+      if (String(ride.driverId || "") !== driverId) {
+        return sendError(res, 403, "Apenas o motorista da entrega pode relatar o problema");
+      }
+      const isDelivery = ride.serviceType === "delivery" || ride.serviceType === "frete";
+      if (!isDelivery) return sendError(res, 400, "Acao exclusiva para entregas");
+      if (!["arrived", "in_progress"].includes(String(ride.status || ""))) {
+        return sendError(res, 400, "So e possivel relatar problema com a entrega em andamento no destino");
+      }
+
+      const validReasons = ["recipient_absent", "wrong_address", "refused", "inaccessible", "other"];
+      const safeReason = validReasons.includes(String(reason)) ? String(reason) : "other";
+
+      ride.deliveryFailure = {
+        ...(ride.deliveryFailure ? ride.deliveryFailure.toObject?.() || ride.deliveryFailure : {}),
+        reason: safeReason,
+        reportedAt: new Date(),
+        photoUrl: photoUrl || ride.deliveryFailure?.photoUrl,
+        note: note || ride.deliveryFailure?.note,
+      };
+      ride.status = "delivery_failed";
+      ride.cancelledAt = new Date();
+
+      // Liquidação: cliente paga 100%; motorista recebe total×(1+bonus). Plataforma absorve.
+      try {
+        const runtimeCfg = await getRuntimeConfig().catch(() => null);
+        const bonusPct = Number(runtimeCfg?.delivery?.failedReturnBonusPct ?? 0.15);
+        await walletEscrow.settleFailedDelivery(ride, { driverId: ride.driverId, bonusPct });
+      } catch (settleErr) {
+        console.error("Erro na liquidacao de entrega falha:", settleErr);
+      }
+
+      await ride.save();
+      await moveToHistory(ride);
+
+      if (ride.driverId) {
+        await DriverLocation.findOneAndUpdate(
+          { driverId: ride.driverId },
+          { status: "available", currentRideId: null },
+        );
+      }
+
+      const io = req.app.get("io");
+      if (io) {
+        io.to(`client-${ride.clientId}`).emit("ride-status-updated", {
+          rideId: ride._id,
+          status: "delivery_failed",
+          reason: safeReason,
+          message: "Sua entrega não pôde ser concluída no destino. O entregador devolverá o item ao endereço de origem.",
+          timestamp: new Date().toISOString(),
+        });
+        io.to(`client-${ride.clientId}`).emit("delivery-failed", { rideId: ride._id, reason: safeReason });
+      }
+
+      return res.json({
+        success: true,
+        message: "Problema de entrega registrado. Devolução do pacote acionada.",
+        deliveryFailure: ride.deliveryFailure,
+        ride,
+      });
+    } catch (error) {
+      console.error("Erro ao relatar falha de entrega:", error);
+      return sendError(res, 500, "Erro ao relatar falha de entrega", { details: error.message });
     }
   }
 
@@ -2930,6 +3383,19 @@ class RideController {
             ride?.pricing?.driverValue ?? Math.max(0, pricingTotal - platformFee)
           );
 
+          // Escrow LevaPay: se há valor retido, ele paga o motorista (e a taxa já está
+          // embutida em driverValue). Evita o duplo crédito/débito do caminho legado abaixo.
+          const useEscrow = paymentMethod === "wallet" && ride?.payment?.escrow?.status === "reserved";
+          let escrowCredit = 0;
+          if (useEscrow) {
+            try {
+              const rel = await walletEscrow.release(ride, { driverId, driverValue, platformFee });
+              escrowCredit = toMoney(rel?.credit || 0);
+            } catch (relErr) {
+              console.error("Erro ao liberar escrow LevaPay na conclusão:", relErr);
+            }
+          }
+
           const driver = await User.findById(driverId);
           if (driver && driver.userType === "driver") {
             if (!driver.driverBalance) {
@@ -2952,9 +3418,10 @@ class RideController {
               (tx) => tx?.rideId === rideIdStr && tx?.type === "app_fee_debit"
             );
 
-            let creditedAmount = 0;
+            // No fluxo de escrow o crédito já foi feito pelo release; reflete no realtime.
+            let creditedAmount = useEscrow ? escrowCredit : 0;
             let deductedAmount = 0;
-            const isInAppPayment = paymentMethod && paymentMethod !== "cash" && paymentMethod !== "card_machine";
+            const isInAppPayment = paymentMethod && paymentMethod !== "cash" && paymentMethod !== "card_machine" && !useEscrow;
 
             if (isInAppPayment && driverValue > 0 && !alreadyCredited) {
               creditedAmount = driverValue;
@@ -2974,7 +3441,7 @@ class RideController {
               });
             }
 
-            if (platformFee > 0 && !alreadyDebited) {
+            if (platformFee > 0 && !alreadyDebited && !useEscrow) {
               deductedAmount = toMoney(platformFee);
               driver.driverBalance.balance = toMoney(
                 (driver.driverBalance.balance || 0) - deductedAmount
@@ -3107,6 +3574,191 @@ class RideController {
     }
   }
 
+  // Gerar Pix de Pagamento da Corrida
+  async createRidePixPayment(req, res) {
+    try {
+      const { rideId } = req.params;
+      const ride = await Ride.findById(rideId);
+      if (!ride) {
+        return sendError(res, 404, "Corrida nao encontrada");
+      }
+
+      if (ride.payment && ride.payment.status === "completed") {
+        return res.json({
+          success: true,
+          transactionId: ride.payment.transactionId,
+          amount: ride.pricing.total,
+          pixCode: ride.payment.pixCode,
+          qrCodeData: ride.payment.qrCodeData,
+          status: "completed",
+          message: "Pagamento ja finalizado"
+        });
+      }
+
+      // Se ja gerou e tem os dados, reutilizar para evitar criar multiplas intents
+      if (ride.payment && ride.payment.pixCode && ride.payment.qrCodeData) {
+        return res.json({
+          success: true,
+          transactionId: ride.payment.transactionId,
+          amount: ride.pricing.total,
+          pixCode: ride.payment.pixCode,
+          qrCodeData: ride.payment.qrCodeData,
+          status: ride.payment.status || "pending"
+        });
+      }
+
+      const amountValue = ride.pricing.total;
+      let transactionId = "";
+      let pixCode = "";
+      let qrCodeData = "";
+
+      const stripeSecret = process.env.STRIPE_SECRET_KEY;
+      const stripeInstance = stripeSecret ? require("stripe")(stripeSecret) : null;
+
+      if (stripeInstance) {
+        try {
+          const amountInCents = Math.round(amountValue * 100);
+          const paymentIntent = await stripeInstance.paymentIntents.create({
+            amount: amountInCents,
+            currency: "brl",
+            payment_method_types: ["pix"],
+            payment_method_data: {
+              type: "pix",
+            },
+            confirm: true,
+            return_url: "https://example.com",
+            metadata: {
+              kind: "ride_payment",
+              rideId: String(ride._id),
+              driverId: String(ride.driverId),
+              clientId: String(ride.clientId)
+            },
+          });
+
+          transactionId = paymentIntent.id;
+
+          if (paymentIntent.next_action && paymentIntent.next_action.pix_display_qr_code) {
+            pixCode = paymentIntent.next_action.pix_display_qr_code.data;
+            qrCodeData = paymentIntent.next_action.pix_display_qr_code.image_url_png || pixCode;
+          }
+        } catch (stripeError) {
+          console.error("[Stripe Ride PIX] Erro ao criar intent no Stripe:", stripeError.message);
+        }
+      }
+
+      // Fallback/Simulacao se o Stripe nao estiver configurado ou falhar em desenvolvimento
+      if (!pixCode || !qrCodeData) {
+        const crypto = require("crypto");
+        const randomId = crypto.randomBytes(12).toString("hex");
+        pixCode = `00020101021226870014br.gov.bcb.pix2565pix.leva-mais.com.br/qr/${randomId}5204000053039865405${amountValue.toFixed(2)}5802BR5913LEVA MAIS APP6009SAO PAULO62070503***6304`;
+        qrCodeData = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(pixCode)}`;
+        transactionId = `pi_mock_${randomId}`;
+      }
+
+      if (!ride.payment) {
+        ride.payment = { method: "pix", status: "pending" };
+      }
+      ride.payment.transactionId = transactionId;
+      ride.payment.pixCode = pixCode;
+      ride.payment.qrCodeData = qrCodeData;
+      ride.payment.status = "pending";
+      await ride.save();
+
+      // Emitir evento Socket informando que o PIX foi gerado
+      const io = req.app.get("io");
+      if (io) {
+        io.to(String(rideId)).emit("ride-pix-generated", {
+          rideId: String(rideId),
+          pixCode,
+          qrCodeData,
+          amount: amountValue
+        });
+      }
+
+      return res.json({
+        success: true,
+        transactionId,
+        amount: amountValue,
+        pixCode,
+        qrCodeData,
+        expiresIn: 3600,
+        status: "pending",
+        instructions: [
+          "Abra o app do seu banco",
+          "Escolha pagar com PIX",
+          "Escaneie o QR Code ou cole o código",
+          "Confirme o pagamento",
+        ],
+      });
+    } catch (error) {
+      console.error("Erro ao gerar pagamento PIX da corrida:", error);
+      return sendError(res, 500, "Erro ao gerar pagamento PIX", { details: error.message });
+    }
+  }
+
+  // Simular confirmacao de pagamento PIX de corrida (apenas para teste/dev)
+  async confirmRidePixPaymentMock(req, res) {
+    try {
+      const { rideId } = req.params;
+      const ride = await Ride.findById(rideId);
+      if (!ride) {
+        return sendError(res, 404, "Corrida nao encontrada");
+      }
+
+      if (ride.payment && ride.payment.status === "completed") {
+        return res.json({ success: true, message: "Pagamento ja confirmado" });
+      }
+
+      if (!ride.payment) {
+        ride.payment = { method: "pix" };
+      }
+      ride.payment.status = "completed";
+      ride.payment.paidAt = new Date();
+      await ride.save();
+
+      const amountValue = ride.pricing.total;
+      const driverId = ride.driverId;
+
+      if (driverId) {
+        const driver = await User.findById(driverId);
+        if (driver) {
+          driver.driverBalance = driver.driverBalance || { balance: 0, totalDeposits: 0, totalDeductions: 0, transactions: [] };
+          driver.driverBalance.balance = Number((Number(driver.driverBalance.balance || 0) + amountValue).toFixed(2));
+          driver.driverBalance.totalDeposits = Number((Number(driver.driverBalance.totalDeposits || 0) + amountValue).toFixed(2));
+          driver.driverBalance.transactions.push({
+            type: "client_in_app_payment",
+            amount: amountValue,
+            description: `Pagamento da corrida/entrega ${rideId} via PIX (Simulado)`,
+            referenceId: ride.payment.transactionId || `pi_mock_${require("crypto").randomBytes(8).toString("hex")}`,
+            status: "completed",
+            createdAt: new Date(),
+          });
+          await driver.save();
+        }
+      }
+
+      const io = req.app.get("io");
+      if (io) {
+        io.to(String(rideId)).emit("ride-status-updated", {
+          rideId: String(rideId),
+          status: ride.status,
+          paymentStatus: "completed",
+          ride
+        });
+        io.to(String(rideId)).emit("ride-payment-confirmed", {
+          rideId: String(rideId),
+          paymentStatus: "completed",
+          amount: amountValue
+        });
+      }
+
+      return res.json({ success: true, message: "Pagamento simulado com sucesso" });
+    } catch (error) {
+      console.error("Erro ao simular confirmacao PIX:", error);
+      return sendError(res, 500, "Erro ao simular confirmacao PIX", { details: error.message });
+    }
+  }
+
   // Histórico de corridas
   async getHistory(req, res) {
     try {
@@ -3230,6 +3882,7 @@ class RideController {
 
       let rating = 5.0;
       let acceptanceRate = 100;
+      let cancellationRate = 0;
       let onlineTime = 0;
 
       try {
@@ -3275,8 +3928,26 @@ class RideController {
           acceptanceRate = Math.round((acceptedCount / totalOffers) * 100);
         }
 
+        // 2b. Taxa de cancelamento do motorista.
+        // Usa o contador persistente (cancelledRidesCount), que sobrevive ao re-despacho
+        // (quando a corrida cancelada pelo motorista volta para a fila e perde o driverId).
+        // Denominador = cancelamentos + corridas concluídas pelo motorista.
+        const driverCancelDoc = await User.findById(driverId).select("cancelledRidesCount");
+        const cancelledByDriverCount = Number(driverCancelDoc?.cancelledRidesCount || 0);
+        const completedByDriverCount = (await Ride.countDocuments({
+          driverId: new mongoose.Types.ObjectId(driverId),
+          status: "completed",
+        })) + (await RideHistory.countDocuments({
+          driverId: new mongoose.Types.ObjectId(driverId),
+          status: "completed",
+        }));
+        const cancelDenom = cancelledByDriverCount + completedByDriverCount;
+        if (cancelDenom > 0) {
+          cancellationRate = Math.round((cancelledByDriverCount / cancelDenom) * 100);
+        }
+
         // 3. Obter Tempo Online Acumulado Real do Banco (com InterpolaÃƒÂ§ÃƒÂ£o em Tempo Real ao Segundo)
-        const user = await User.findById(driverId).select("onlineStats");
+        const user = await User.findById(driverId).select("onlineStats cancelledRidesCount");
         if (user && user.onlineStats) {
           const todayStr = getDateKeyInTimezone(new Date());
           if (user.onlineStats.activeDateStr === todayStr) {
@@ -3309,6 +3980,7 @@ class RideController {
         bonus: bonusAmount,
         rating,
         acceptanceRate,
+        cancellationRate,
         onlineTime,
       });
     } catch (error) {
@@ -4424,6 +5096,7 @@ function buildRideRequestPayload(ride, extras = {}) {
 
   return {
     rideId: ride._id,
+    status: ride.status,
     pickup: ride.pickup,
     dropoff: ride.dropoff,
     pricing: ride.pricing,

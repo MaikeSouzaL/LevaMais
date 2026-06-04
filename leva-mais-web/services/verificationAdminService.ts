@@ -77,14 +77,23 @@ export const verificationAdminService = {
 
   async updateDriverVerification(
     userId: string,
-    field: "cnhFrontStatus" | "cnhBackStatus" | "selfieStatus",
+    field:
+      | "cnhFrontStatus"
+      | "cnhBackStatus"
+      | "selfieStatus"
+      | "cpfStatus"
+      | "bankAccountStatus"
+      | "faceMatchStatus"
+      | "backgroundCheckStatus"
+      | "driverStatus",
     status: string,
-    reason?: string
+    reason?: string,
+    riskFlags?: string[]
   ) {
     return withApiFallback(async (apiBase) => {
       const response = await axios.patch(
         `${apiBase}/auth/users/${userId}/driver-verification`,
-        { field, status, reason },
+        { field, status, reason, riskFlags },
         { headers: getAdminHeaders() }
       );
       return response?.data?.user || null;

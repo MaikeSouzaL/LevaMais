@@ -24,7 +24,7 @@ export interface User {
 
   // Driver-specific fields
   userType?: UserType;
-  driverStatus?: 'none' | 'pending' | 'approved' | 'rejected';
+  driverStatus?: 'none' | 'pending' | 'approved' | 'rejected' | 'blocked' | 'suspended';
   vehicleType?: 'motorcycle' | 'car' | 'van' | 'truck';
   vehicleInfo?: {
     plate?: string;

@@ -17,6 +17,7 @@ import GlassCard from '@/components/driver/cards/GlassCard';
 import MetricCard from '@/components/driver/cards/MetricCard';
 import ProgressBar from '@/components/driver/feedback/ProgressBar';
 import { driverColors, driverTypography, driverRadius, driverSpacing } from '@/theme/driverTheme';
+import { resolveAssetURL } from '../../../utils/mappers';
 
 export default function DriverProfileScreen() {
   const navigation = useNavigation<any>();
@@ -121,7 +122,7 @@ export default function DriverProfileScreen() {
           {uploadingPhoto ? (
             <ActivityIndicator color={driverColors.accent} size="large" />
           ) : profilePhoto ? (
-            <Image source={{ uri: profilePhoto }} style={styles.avatarImage} />
+            <Image source={{ uri: resolveAssetURL(profilePhoto) }} style={styles.avatarImage} />
           ) : (
             <Icon name="person" size={56} color={driverColors.textMuted} />
           )}

@@ -39,6 +39,7 @@ import DeliveryPickupConfirmScreen from "../screens/(authenticated)/Driver/Deliv
 import DeliveryDropoffConfirmScreen from "../screens/(authenticated)/Driver/DeliveryDropoffConfirm";
 
 import { useAuthStore } from "../context/authStore";
+import { resolveAssetURL } from "@/utils/mappers";
 
 const Drawer = createDrawerNavigator();
 const Stack = createNativeStackNavigator();
@@ -94,7 +95,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
     return allowed.includes(item.name);
   });
 
-  const profileImageUrl = userData?.fotoPerfil || userData?.profilePhoto;
+  const profileImageUrl = resolveAssetURL(userData?.fotoPerfil || userData?.profilePhoto);
   const displayName = userData?.name || userData?.nome || "Motorista";
   const initials = displayName.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase();
 

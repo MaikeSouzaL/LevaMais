@@ -1,4 +1,4 @@
-﻿import api from "./api";
+import api from "./api";
 import { logger } from "@/utils/logger";
 
 /**
@@ -12,7 +12,25 @@ import { logger } from "@/utils/logger";
  *    a UI possa ser testada ponta-a-ponta ate a publicacao do endpoint real.
  */
 
-export type DepositProvider = "pix" | "stripe";
+export type DepositProvider = "pix" | "stripe" | "boleto";
+
+/** Para onde o saldo vai: carteira do cliente ou saldo operacional do motorista. */
+export type DepositAccount = "wallet" | "driver_balance";
+
+export interface BoletoDepositResult {
+  provider: "boleto";
+  transactionId: string;
+  amount: number;
+  status: "pending" | "paid" | "expired";
+  /** Link do PDF do boleto. */
+  pdf: string | null;
+  /** Linha digitável / número do boleto. */
+  number: string | null;
+  /** Data de expiração (timestamp). */
+  expiresAt: number | null;
+  /** Página hospedada do boleto (Stripe). */
+  hostedVoucherUrl: string | null;
+}
 
 export interface PixDepositResult {
   provider: "pix";
@@ -56,6 +74,7 @@ export interface StripeConfirmResult {
   paymentIntentId: string;
   status: "succeeded" | "processing" | "failed";
   message?: string;
+  receiptUrl?: string;
 }
 
 export interface DepositStatusResult {
@@ -64,6 +83,7 @@ export interface DepositStatusResult {
   amount: number;
   provider: DepositProvider;
   paidAt?: string;
+  receiptUrl?: string;
 }
 
 class DepositService {
@@ -75,10 +95,10 @@ class DepositService {
    * Cria um deposito via Pix. O backend deve gerar o QR Code e devolver o
    * codigo copia-e-cola. O cliente fica em polling ate `status = paid`.
    */
-  async createPixDeposit(amount: number): Promise<PixDepositResult> {
+  async createPixDeposit(amount: number, account: DepositAccount = "wallet"): Promise<PixDepositResult> {
     try {
-      logger.info("DepositService", `Criando deposito PIX de R$ ${amount.toFixed(2)}`);
-      const { data } = await api.post("/payments/deposit/pix", { amount });
+      logger.info("DepositService", `Criando deposito PIX de R$ ${amount.toFixed(2)} (${account})`);
+      const { data } = await api.post("/payments/deposit/pix", { amount, account });
       return {
         provider: "pix",
         transactionId: data.transactionId,
@@ -94,6 +114,38 @@ class DepositService {
     }
   }
 
+  /**
+   * Cria um deposito via BOLETO (Stripe). Requer CPF do pagador.
+   * account: "wallet" (cliente) ou "driver_balance" (motorista).
+   */
+  async createBoletoDeposit(
+    amount: number,
+    opts: { account?: DepositAccount; taxId?: string } = {},
+  ): Promise<BoletoDepositResult> {
+    try {
+      const account = opts.account ?? "wallet";
+      logger.info("DepositService", `Criando deposito BOLETO de R$ ${amount.toFixed(2)} (${account})`);
+      const { data } = await api.post("/payments/deposit/boleto", {
+        amount,
+        account,
+        taxId: opts.taxId,
+      });
+      return {
+        provider: "boleto",
+        transactionId: data.transactionId,
+        amount: data.amount,
+        status: data.status ?? "pending",
+        pdf: data.boleto?.pdf ?? null,
+        number: data.boleto?.number ?? null,
+        expiresAt: data.boleto?.expiresAt ?? null,
+        hostedVoucherUrl: data.boleto?.hostedVoucherUrl ?? null,
+      };
+    } catch (error) {
+      logger.error("DepositService", "Erro ao criar deposito boleto", error as Error);
+      throw error;
+    }
+  }
+
   /** Consulta o status atual de um deposito Pix. */
   async getPixDepositStatus(transactionId: string): Promise<DepositStatusResult> {
     try {
@@ -104,6 +156,7 @@ class DepositService {
         amount: data.amount,
         provider: "pix",
         paidAt: data.paidAt,
+        receiptUrl: data.receiptUrl,
       };
     } catch (error) {
       logger.error("DepositService", "Erro ao consultar status PIX", error as Error);
@@ -163,6 +216,7 @@ class DepositService {
         paymentIntentId: data.paymentIntentId ?? paymentIntentId,
         status: data.status,
         message: data.message,
+        receiptUrl: data.receiptUrl,
       };
     } catch (error: any) {
       const status = error?.response?.status;

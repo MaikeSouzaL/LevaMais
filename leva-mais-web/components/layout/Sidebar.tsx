@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { platformConfigService } from "@/services/platformConfigService";
 import { verificationAdminService } from "@/services/verificationAdminService";
+import { disputeAdminService } from "@/services/disputeAdminService";
 import {
   LayoutDashboard,
   Users,
@@ -14,6 +15,7 @@ import {
   ChevronLeft,
   UserCheck,
   Settings,
+  ShieldAlert,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -32,6 +34,12 @@ const MENU_ITEMS = [
     active: true,
   },
   {
+    label: "Disputas",
+    icon: ShieldAlert,
+    href: "/disputes",
+    active: true,
+  },
+  {
     label: "Configurações",
     icon: Settings,
     href: "/settings/platform",
@@ -46,6 +54,19 @@ interface SidebarProps {
   onToggleCollapse: () => void;
 }
 
+type ApprovalDriver = {
+  driverStatus?: string;
+};
+
+type ApprovalClient = {
+  isActive?: boolean;
+  clientVerification?: {
+    status?: string;
+    cpfStatus?: string;
+    selfieStatus?: string;
+  };
+};
+
 export function Sidebar({
   isOpen,
   onClose,
@@ -55,6 +76,7 @@ export function Sidebar({
   const pathname = usePathname();
   const [isDevMode, setIsDevMode] = useState(true);
   const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
+  const [openDisputeCount, setOpenDisputeCount] = useState(0);
 
   useEffect(() => {
     let mounted = true;
@@ -89,17 +111,18 @@ export function Sidebar({
 
     const loadPendingApprovalCount = async () => {
       try {
-        const [drivers, clients] = await Promise.all([
+        const [drivers, clients, disputes] = await Promise.all([
           verificationAdminService.listUsers("driver"),
           verificationAdminService.listUsers("client"),
+          disputeAdminService.list("open"),
         ]);
 
-        const driversPending = (drivers || []).filter((d: any) => {
+        const driversPending = ((drivers || []) as ApprovalDriver[]).filter((d) => {
           const status = String(d?.driverStatus || "none");
           return status === "pending" || status === "none";
         }).length;
 
-        const clientsPending = (clients || []).filter((c: any) => {
+        const clientsPending = ((clients || []) as ApprovalClient[]).filter((c) => {
           const status = String(c?.clientVerification?.status || "none");
           const cpfStatus = String(c?.clientVerification?.cpfStatus || "unchecked");
           const selfieStatus = String(c?.clientVerification?.selfieStatus || "none");
@@ -118,9 +141,13 @@ export function Sidebar({
 
         if (mounted) {
           setPendingApprovalCount(driversPending + clientsPending);
+          setOpenDisputeCount((disputes || []).length);
         }
       } catch {
-        if (mounted) setPendingApprovalCount(0);
+        if (mounted) {
+          setPendingApprovalCount(0);
+          setOpenDisputeCount(0);
+        }
       }
     };
 
@@ -230,6 +257,8 @@ export function Sidebar({
                   item={
                     item.href === "/verification/drivers"
                       ? { ...item, badge: pendingApprovalCount > 0 ? pendingApprovalCount : undefined }
+                      : item.href === "/disputes"
+                      ? { ...item, badge: openDisputeCount > 0 ? openDisputeCount : undefined }
                       : item
                   }
                   currentPath={pathname}

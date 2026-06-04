@@ -195,6 +195,7 @@ const rideSchema = new mongoose.Schema(
         "cancelled_by_client", // Cancelada pelo cliente
         "cancelled_by_driver", // Cancelada pelo motorista
         "cancelled_no_driver", // Cancelada - nenhum motorista encontrado
+        "delivery_failed", // Entrega falhou no destino (ausente/endereço errado) → devolução
       ],
       default: "requesting",
     },
@@ -220,6 +221,20 @@ const rideSchema = new mongoose.Schema(
     startedAt: Date,
     completedAt: Date,
     cancelledAt: Date,
+    // Falha de entrega no destino (destinatário ausente / endereço errado / recusou).
+    deliveryFailure: {
+      reason: {
+        type: String,
+        enum: ["recipient_absent", "wrong_address", "refused", "inaccessible", "other"],
+      },
+      reportedAt: Date,
+      photoUrl: String,
+      note: String,
+      // Liquidação: cliente paga 100%; motorista recebe total×(1+bonus); plataforma absorve.
+      clientCharged: { type: Number, default: 0 },
+      driverPaid: { type: Number, default: 0 },
+      chargedVia: { type: String, enum: ["wallet_hold", "pending_debt", "none"], default: "none" },
+    },
     // Agendamento (futuro)
     scheduledFor: Date,
     // Negociacao de preco
@@ -250,6 +265,12 @@ const rideSchema = new mongoose.Schema(
             default: "countered",
           },
           message: String,
+          // Métricas reais do motorista → ponto de coleta (Google driving, não linha reta).
+          etaMinutes: { type: Number, default: null },
+          distanceToPickupKm: { type: Number, default: null },
+          distanceSource: { type: String, default: null }, // route_api | estimate
+          vehicleType: { type: String, default: null },
+          vehicleLabel: { type: String, default: null },
           createdAt: { type: Date, default: Date.now },
           updatedAt: Date,
         },
@@ -321,11 +342,28 @@ const rideSchema = new mongoose.Schema(
         default: "not_selected",
       },
       transactionId: String,
+      pixCode: String,
+      qrCodeData: String,
       paidAt: Date,
       confirmedAt: Date,
       selectedAt: Date,
       provider: { type: String, trim: true },
       failureReason: { type: String, trim: true },
+      // Escrow do Saldo LevaPay (wallet): valor retido da carteira do cliente
+      // no aceite e liberado ao motorista na conclusão (ou estornado no cancelamento).
+      escrow: {
+        status: {
+          type: String,
+          enum: ["none", "reserved", "released", "refunded", "failed"],
+          default: "none",
+        },
+        amount: { type: Number, default: 0 },
+        reservedAt: Date,
+        releasedAt: Date,
+        refundedAt: Date,
+        reserveTxId: String,
+        releaseTxId: String,
+      },
     },
     // Taxa de cancelamento
     cancellationFee: {
@@ -334,6 +372,15 @@ const rideSchema = new mongoose.Schema(
         default: 0,
       },
       reason: String,
+      by: { type: String, enum: ["client", "driver", "system"] },
+      driverShare: { type: Number, default: 0 },
+      platformShare: { type: Number, default: 0 },
+      freeWindow: { type: Boolean, default: false },
+      chargedVia: {
+        type: String,
+        enum: ["wallet_hold", "pending_debt", "none"],
+        default: "none",
+      },
     },
     // Motoristas que rejeitaram (para não oferecer de novo)
     rejectedBy: [
@@ -451,6 +498,55 @@ rideSchema.methods.calculateCancellationFee = function (platformConfig) {
   fee = Math.min(fee, maxFee);
 
   return Math.round(fee * 100) / 100;
+};
+
+// Taxa de cancelamento do fluxo de LANCE.
+// Regra POR SERVIÇO:
+//  • Corrida: grátis se cancelado por motorista/sistema, sem motorista comprometido,
+//    ou dentro da janela grátis (2 min após o aceite); senão feePct% do total (20%).
+//  • Entrega: igual antes da coleta; APÓS a coleta (status in_progress) NÃO há janela
+//    grátis e cobra collectedFeePct% (50%) — o entregador devolve o pacote à origem.
+// Split motorista/plataforma padrão 80/20.
+rideSchema.methods.computeBidCancellationFee = function (opts = {}) {
+  const freeWindowSec = Number(opts.freeWindowSec ?? 120);
+  const feePct = Number(opts.feePct ?? 20);
+  const collectedFeePct = Number(opts.collectedFeePct ?? 50);
+  const driverSharePct = Number(opts.driverSharePct ?? 80);
+  const byClient = opts.byClient !== false;
+
+  const round = (n) => Math.round(Number(n || 0) * 100) / 100;
+  const total = Number(this.pricing?.total || 0);
+  const none = { fee: 0, driverShare: 0, platformShare: 0, free: true };
+
+  if (!byClient) return { ...none, reason: "not_client" };
+
+  // Só há taxa se um motorista já estava comprometido.
+  const committed = ["driver_assigned", "accepted", "driver_arriving", "arrived", "in_progress"];
+  if (!committed.includes(this.status)) return { ...none, reason: "no_committed_driver" };
+
+  const isDelivery = this.serviceType === "delivery" || this.serviceType === "frete";
+  const collected = isDelivery && this.status === "in_progress";
+
+  const buildFee = (pct, reason) => {
+    const fee = round(total * (pct / 100));
+    if (fee <= 0) return { ...none, reason: "zero_fee" };
+    const driverShare = round(fee * (driverSharePct / 100));
+    return { fee, driverShare, platformShare: round(fee - driverShare), free: false, reason };
+  };
+
+  // Entrega pós-coleta: sem janela grátis, taxa de retorno (collectedFeePct).
+  if (collected) return buildFee(collectedFeePct, "delivery_collected");
+
+  // Antes da coleta (corrida ou entrega): janela grátis + feePct.
+  const ref =
+    this.acceptedAt ||
+    this.payment?.escrow?.reservedAt ||
+    this.negotiation?.selectedAt ||
+    this.updatedAt;
+  const elapsedSec = ref ? (Date.now() - new Date(ref).getTime()) / 1000 : Infinity;
+  if (elapsedSec <= freeWindowSec) return { ...none, reason: "within_free_window" };
+
+  return buildFee(feePct, "charged");
 };
 
 // Verifica se cancelamento nesta fase exige suporte (devolução do pacote)

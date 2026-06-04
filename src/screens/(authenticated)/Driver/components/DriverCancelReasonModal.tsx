@@ -10,6 +10,8 @@ export type DriverCancelReasonModalProps = {
   visible: boolean;
   title?: string;
   subtitle?: string;
+  /** Aviso destacado sobre as consequências da ação (ex.: estorno ao cliente / re-despacho). */
+  infoNote?: string;
   reasons: CancelReason[];
   selectedReasonId: string | null;
   onSelectReason: (id: string) => void;
@@ -23,6 +25,7 @@ export function DriverCancelReasonModal({
   visible,
   title = "Cancelar entrega",
   subtitle = "Selecione um motivo. O cliente será notificado.",
+  infoNote,
   reasons,
   selectedReasonId,
   onSelectReason,
@@ -73,6 +76,23 @@ export function DriverCancelReasonModal({
           >
             {subtitle}
           </Text>
+
+          {!!infoNote && (
+            <View
+              style={{
+                marginTop: 12,
+                backgroundColor: "rgba(251,191,36,0.12)",
+                borderWidth: 1,
+                borderColor: "rgba(251,191,36,0.35)",
+                borderRadius: 12,
+                padding: 12,
+              }}
+            >
+              <Text style={{ color: "#fbbf24", fontWeight: "700", fontSize: 12.5, lineHeight: 18 }}>
+                {infoNote}
+              </Text>
+            </View>
+          )}
 
           <View style={{ marginTop: 12, gap: 10 }}>
             {reasons.map((r) => {

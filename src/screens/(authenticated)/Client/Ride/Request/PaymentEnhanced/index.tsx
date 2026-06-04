@@ -54,6 +54,10 @@ export default function PaymentScreenEnhanced() {
   const paymentForm = usePaymentForm(amount);
 
   useEffect(() => {
+    paymentForm.updateMethod("pix");
+  }, []);
+
+  useEffect(() => {
     if (!order) {
       Toast.show({
         type: "info",
@@ -340,7 +344,7 @@ export default function PaymentScreenEnhanced() {
             <PaymentMethodSelector
               selected={paymentForm.method}
               onSelect={paymentForm.updateMethod}
-              methods={["credit_card", "pix", "wallet", "cash"]}
+              methods={["pix", "wallet", "cash"]}
             />
           </View>
 

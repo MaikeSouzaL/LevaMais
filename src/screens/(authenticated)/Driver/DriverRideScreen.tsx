@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, TouchableOpacity, AppState, Alert, Modal, TextInput, StyleSheet, Animated } from "react-native";
+import { View, Text, TouchableOpacity, AppState, Alert, Modal, TextInput, StyleSheet, Animated, Image, ActivityIndicator, Clipboard } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { createAudioPlayer } from "expo-audio";
 import { MessageCircle } from "lucide-react-native";
@@ -100,6 +100,65 @@ export default function DriverRideScreen() {
   const [onPinSubmit, setOnPinSubmit] = useState<((pin: string) => void) | null>(null);
   const [onPinCancel, setOnPinCancel] = useState<(() => void) | null>(null);
 
+  // PIX QR Code States 📱
+  const [pixModalVisible, setPixModalVisible] = useState(false);
+  const [pixData, setPixData] = useState<{
+    pixCode: string;
+    qrCodeData: string;
+    amount: number;
+    transactionId?: string;
+  } | null>(null);
+  const [pixGenerating, setPixGenerating] = useState(false);
+  const [pixConfirming, setPixConfirming] = useState(false);
+
+  const handleShowPixModal = async () => {
+    if (!rideId) return;
+    setPixGenerating(true);
+    setPixModalVisible(true);
+    try {
+      const data = await rideService.createRidePixPayment(rideId);
+      if (data?.success) {
+        setPixData({
+          pixCode: data.pixCode,
+          qrCodeData: data.qrCodeData,
+          amount: data.amount,
+          transactionId: data.transactionId,
+        });
+      } else {
+        Toast.show({ type: "error", text1: "Erro ao gerar PIX", text2: "Resposta inválida do servidor" });
+        setPixModalVisible(false);
+      }
+    } catch (e: any) {
+      Toast.show({ type: "error", text1: "Erro ao gerar PIX", text2: e?.message || "Tente novamente" });
+      setPixModalVisible(false);
+    } finally {
+      setPixGenerating(false);
+    }
+  };
+
+  const handleConfirmPixMock = async () => {
+    if (!rideId) return;
+    setPixConfirming(true);
+    try {
+      const res = await rideService.confirmRidePixPaymentMock(rideId);
+      if (res?.success) {
+        Toast.show({ type: "success", text1: "PIX Simulado com sucesso!" });
+        setPixModalVisible(false);
+        // Avançar corrida após simulação de pagamento bem-sucedida
+        setTimeout(() => {
+          update("completed");
+        }, 800);
+      } else {
+        Toast.show({ type: "error", text1: "Erro ao simular", text2: res?.message });
+      }
+    } catch (e: any) {
+      Toast.show({ type: "error", text1: "Erro ao simular", text2: e?.message });
+    } finally {
+      setPixConfirming(false);
+    }
+  };
+
+
   const promptForPin = (type: "pickup" | "delivery"): Promise<string> => {
     return new Promise((resolve, reject) => {
       setPinType(type);
@@ -195,6 +254,20 @@ export default function DriverRideScreen() {
       { id: "safety", label: "Problema de seguranca" },
       { id: "accident", label: "Acidente / imprevisto" },
       { id: "other", label: "Outro" },
+    ],
+    [],
+  );
+
+  // Problema na ENTREGA no destino (destinatário ausente / endereço errado).
+  const [deliveryProblemOpen, setDeliveryProblemOpen] = useState(false);
+  const [selectedProblemReason, setSelectedProblemReason] = useState<string | null>(null);
+  const deliveryProblemReasons = useMemo<CancelReason[]>(
+    () => [
+      { id: "recipient_absent", label: "Destinatário ausente" },
+      { id: "wrong_address", label: "Endereço incorreto" },
+      { id: "refused", label: "Destinatário recusou receber" },
+      { id: "inaccessible", label: "Local inacessível" },
+      { id: "other", label: "Outro motivo" },
     ],
     [],
   );
@@ -550,6 +623,20 @@ export default function DriverRideScreen() {
       }
     };
 
+    const onPaymentConfirmed = (payload: any) => {
+      if (!mounted) return;
+      if (payload?.rideId !== rideId) return;
+      Toast.show({
+        type: "success",
+        text1: "Pagamento recebido!",
+        text2: "O cliente efetuou o pagamento via PIX.",
+      });
+      setPixModalVisible(false);
+      setTimeout(() => {
+        update("completed");
+      }, 500);
+    };
+
     (async () => {
       try {
         await webSocketService.connect();
@@ -559,6 +646,7 @@ export default function DriverRideScreen() {
         webSocketService.on("new-message", onNewMsg);
         webSocketService.on("client-location-update", onClientLocationUpdate);
         webSocketService.on("ride-stops-updated", onStopsUpdated);
+        webSocketService.on("ride-payment-confirmed", onPaymentConfirmed);
       } catch {}
     })();
 
@@ -570,6 +658,7 @@ export default function DriverRideScreen() {
       webSocketService.off("new-message", onNewMsg);
       webSocketService.off("client-location-update", onClientLocationUpdate);
       webSocketService.off("ride-stops-updated", onStopsUpdated);
+      webSocketService.off("ride-payment-confirmed", onPaymentConfirmed);
       if (notificationTimeoutRef.current) {
         clearTimeout(notificationTimeoutRef.current);
       }
@@ -881,6 +970,35 @@ export default function DriverRideScreen() {
       Toast.show({
         type: "error",
         text1: "Nao foi possivel cancelar",
+        text2: e?.message || "Tente novamente",
+      });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Relatar problema na ENTREGA (destinatário ausente / endereço errado) → devolução.
+  const reportDeliveryProblem = async (reasonId: string) => {
+    if (!rideId) return;
+    setActionLoading("cancel");
+    try {
+      await rideService.reportDeliveryProblem(rideId, { reason: reasonId });
+      Toast.show({
+        type: "success",
+        text1: "Problema registrado",
+        text2: "Devolução acionada. Você foi remunerado pela entrega + retorno.",
+      });
+      setDeliveryProblemOpen(false);
+      setSelectedProblemReason(null);
+      try {
+        (navigation as any).navigate("DriverHome");
+      } catch {
+        navigation.goBack();
+      }
+    } catch (e: any) {
+      Toast.show({
+        type: "error",
+        text1: "Não foi possível registrar",
         text2: e?.message || "Tente novamente",
       });
     } finally {
@@ -1208,6 +1326,11 @@ export default function DriverRideScreen() {
               });
             }}
             onReportProblem={() => {
+              // Entrega em andamento no destino → fluxo de problema/devolução.
+              if (isDelivery && status === "in_progress") {
+                setDeliveryProblemOpen(true);
+                return;
+              }
               try {
                 (navigation as any).navigate("DriverCancelRide", { rideId });
               } catch {
@@ -1220,7 +1343,11 @@ export default function DriverRideScreen() {
               } else if (canStart) {
                 update("in_progress");
               } else if (canComplete) {
-                update("completed");
+                if (ride?.payment?.method?.toLowerCase() === "pix") {
+                  handleShowPixModal();
+                } else {
+                  update("completed");
+                }
               }
             }}
             actionLoading={actionLoading != null}
@@ -1230,6 +1357,7 @@ export default function DriverRideScreen() {
             isDelivery={isDelivery}
             canArriveDropoff={canArriveDropoff}
             onArriveDropoff={handleArriveDropoff}
+            onShowPix={handleShowPixModal}
           />
         </View>
       </View>
@@ -1248,6 +1376,25 @@ export default function DriverRideScreen() {
         confirmLabel={
           actionLoading === "cancel" ? "Cancelando..." : "Confirmar"
         }
+      />
+
+      <DriverCancelReasonModal
+        visible={deliveryProblemOpen}
+        title="Problema na entrega"
+        subtitle="O que aconteceu no destino?"
+        infoNote={
+          "Confirme apenas após tentar contato com o cliente. Você devolverá o pacote à origem e será remunerado pela entrega + retorno (com acréscimo). O cliente é cobrado pela tentativa."
+        }
+        reasons={deliveryProblemReasons}
+        selectedReasonId={selectedProblemReason}
+        onSelectReason={setSelectedProblemReason}
+        onClose={() => setDeliveryProblemOpen(false)}
+        onConfirm={() => {
+          if (!selectedProblemReason) return;
+          reportDeliveryProblem(selectedProblemReason);
+        }}
+        confirmDisabled={!selectedProblemReason || actionLoading != null}
+        confirmLabel={actionLoading === "cancel" ? "Registrando..." : "Confirmar devolução"}
       />
 
       <Modal
@@ -1372,6 +1519,178 @@ export default function DriverRideScreen() {
       </Modal>
 
       {/* Floating Chat Notification Banner */}
+      {/* Modal do QR Code PIX para o motorista */}
+      <Modal
+        visible={pixModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setPixModalVisible(false)}
+      >
+        <View style={{
+          flex: 1,
+          backgroundColor: "rgba(9, 26, 47, 0.9)",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 24,
+        }}>
+          <View style={{
+            width: "100%",
+            maxWidth: 345,
+            backgroundColor: "#0c1927",
+            borderRadius: 24,
+            borderWidth: 1,
+            borderColor: "rgba(50, 188, 173, 0.25)",
+            padding: 24,
+            alignItems: "center",
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 6 },
+            shadowOpacity: 0.4,
+            shadowRadius: 12,
+            elevation: 10,
+          }}>
+            <Text style={{
+              color: "#fff",
+              fontSize: 20,
+              fontWeight: "900",
+              textAlign: "center",
+              marginBottom: 4,
+            }}>
+              Pagamento via PIX
+            </Text>
+            
+            <Text style={{
+              color: "#32BCAD",
+              fontSize: 13,
+              fontWeight: "700",
+              textAlign: "center",
+              marginBottom: 20,
+            }}>
+              Mostre o QR Code ao cliente para pagar
+            </Text>
+
+            {pixGenerating ? (
+              <View style={{ height: 200, justifyContent: "center", alignItems: "center" }}>
+                <ActivityIndicator size="large" color="#32BCAD" />
+                <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 13, marginTop: 12, fontWeight: "600" }}>
+                  Gerando QR Code PIX...
+                </Text>
+              </View>
+            ) : pixData ? (
+              <View style={{ alignItems: "center", width: "100%" }}>
+                {/* QR Code Container */}
+                <View style={{
+                  backgroundColor: "#fff",
+                  padding: 12,
+                  borderRadius: 16,
+                  marginBottom: 16,
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.15,
+                  shadowRadius: 8,
+                }}>
+                  {pixData.qrCodeData ? (
+                    <Image
+                      source={{ uri: pixData.qrCodeData }}
+                      style={{ width: 180, height: 180 }}
+                      resizeMode="contain"
+                    />
+                  ) : (
+                    <View style={{ width: 180, height: 180, justifyContent: "center", alignItems: "center" }}>
+                      <ActivityIndicator size="small" color="#091A2F" />
+                    </View>
+                  )}
+                </View>
+
+                {/* Valor */}
+                <Text style={{ color: "#fff", fontSize: 24, fontWeight: "900", marginBottom: 16 }}>
+                  R$ {pixData.amount ? Number(pixData.amount).toFixed(2).replace(".", ",") : "0,00"}
+                </Text>
+
+                {/* Copia e Cola */}
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  style={{
+                    backgroundColor: "rgba(255,255,255,0.05)",
+                    borderWidth: 1.2,
+                    borderColor: "rgba(255,255,255,0.12)",
+                    borderRadius: 12,
+                    paddingVertical: 12,
+                    paddingHorizontal: 16,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    width: "100%",
+                    marginBottom: 24,
+                  }}
+                  onPress={() => {
+                    Clipboard.setString(pixData.pixCode || "");
+                    Toast.show({ type: "success", text1: "PIX Copia e Cola copiado!" });
+                  }}
+                >
+                  <Text
+                    style={{ color: "rgba(255,255,255,0.7)", fontSize: 13, fontWeight: "600", flex: 1, marginRight: 8 }}
+                    numberOfLines={1}
+                  >
+                    {pixData.pixCode || "Código PIX"}
+                  </Text>
+                  <Text style={{ color: "#32BCAD", fontSize: 12, fontWeight: "900" }}>
+                    COPIAR
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Actions */}
+                <View style={{ flexDirection: "row", width: "100%", gap: 12 }}>
+                  <TouchableOpacity
+                    style={{
+                      flex: 1,
+                      height: 48,
+                      borderRadius: 12,
+                      backgroundColor: "rgba(239, 68, 68, 0.12)",
+                      borderWidth: 1,
+                      borderColor: "rgba(239, 68, 68, 0.3)",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                    onPress={() => setPixModalVisible(false)}
+                  >
+                    <Text style={{ color: "#ef4444", fontWeight: "700", fontSize: 14 }}>
+                      Fechar
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={{
+                      flex: 1,
+                      height: 48,
+                      borderRadius: 12,
+                      backgroundColor: "#32BCAD",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexDirection: "row",
+                      gap: 8,
+                    }}
+                    disabled={pixConfirming}
+                    onPress={handleConfirmPixMock}
+                  >
+                    {pixConfirming ? (
+                      <ActivityIndicator size="small" color="#091A2F" />
+                    ) : (
+                      <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 14 }}>
+                        Confirmar PIX
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <View style={{ height: 100, justifyContent: "center", alignItems: "center" }}>
+                <Text style={{ color: "#ef4444", fontWeight: "700" }}>Erro ao carregar dados do PIX</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
+
       {chatNotification && (
         <Animated.View
           style={{

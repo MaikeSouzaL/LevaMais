@@ -53,6 +53,7 @@ import { ClientStackParamList, DeliveryAddressProfile, DeliveryVehicleType } fro
 import rideService, { CalculatePriceResponse, CreateRideRequest } from "@/services/ride.service";
 import paymentService from "@/services/payment.service";
 import { PaymentMethodsSheet, type PaymentMethod } from "@/components/payment/PaymentMethodsSheet";
+import userService from "@/services/user.service";
 
 /**
  * Converte string de data em português para ISO 8601
@@ -236,7 +237,24 @@ export default function DeliveryDetailsScreen() {
   const [showDepositPix, setShowDepositPix] = useState(false);
   const [showVerificationBenefits, setShowVerificationBenefits] = useState(false);
   const [showExitReason, setShowExitReason] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("wallet");
+  const [balance, setBalance] = useState(0);
+  const [held, setHeld] = useState(0);
+  const [pendingDebt, setPendingDebt] = useState(0);
+
+  const loadBalance = async () => {
+    try {
+      const profile = await userService.getProfile();
+      if (profile && (profile as any).wallet) {
+        setBalance((profile as any).wallet.balance || 0);
+        setHeld((profile as any).wallet.held || 0);
+      }
+      setPendingDebt((profile as any)?.pendingDebt || 0);
+    } catch (err) {
+      console.warn("Erro ao buscar saldo:", err);
+    }
+  };
+
   const [exitReason, setExitReason] = useState<string | null>(null);
   const [priceData, setPriceData] = useState<CalculatePriceResponse | null>(null);
   const [loadingPricing, setLoadingPricing] = useState(false);
@@ -416,6 +434,20 @@ export default function DeliveryDetailsScreen() {
   };
 
   useEffect(() => {
+    loadBalance();
+    const unsubscribe = navigation.addListener("focus", () => {
+      loadBalance();
+    });
+    return unsubscribe;
+  }, [navigation]);
+
+  useEffect(() => {
+    if (showPaymentMethods) {
+      loadBalance();
+    }
+  }, [showPaymentMethods]);
+
+  useEffect(() => {
     if (routeCoords.length === 0) return;
     
     let index = 0;
@@ -540,6 +572,17 @@ export default function DeliveryDetailsScreen() {
     }
     if (!priceData?.pricing || !priceData?.distance || !priceData?.duration) {
       Toast.show({ type: "error", text1: "Preco indisponivel", text2: "Aguarde o calculo da entrega antes de confirmar." });
+      return;
+    }
+
+    const totalCost = priceData.pricing.total + customOfferAdjustment;
+    if (paymentMethod === "wallet" && balance < totalCost) {
+      Toast.show({
+        type: "error",
+        text1: "Saldo insuficiente",
+        text2: "Deposite saldo LevaPay ou escolha outro método de pagamento.",
+      });
+      setShowPaymentMethods(true);
       return;
     }
 
@@ -1093,7 +1136,7 @@ export default function DeliveryDetailsScreen() {
             {paymentMethod === "pix" ? "Pix" : paymentMethod === "card_machine" ? "Maquininha de cartão" : paymentMethod === "wallet" ? "Saldo LevaPay" : "Dinheiro"}
           </Text>
           <View style={styles.paymentSpacer} />
-          <Text style={styles.discountText}>Use saldo e poupe R$4,00</Text>
+          <Text style={styles.discountText}>Método de pagamento</Text>
           <ChevronRight size={18} color="#9ca3af" />
         </TouchableOpacity>
 
@@ -1256,9 +1299,13 @@ export default function DeliveryDetailsScreen() {
         onChange={setPaymentMethod}
         onClose={() => setShowPaymentMethods(false)}
         subtitle="Escolha como pagar sua entrega"
+        balance={balance}
+        held={held}
+        pendingDebt={pendingDebt}
+        totalPrice={priceData?.pricing?.total ? priceData.pricing.total + customOfferAdjustment : 0}
         onDeposit={() => {
           setShowPaymentMethods(false);
-          (navigation as any).navigate("Deposit", { onSuccess: () => { /* refresh on return */ } });
+          (navigation as any).navigate("Deposit", { onSuccess: () => { loadBalance(); } });
         }}
         onAddCard={() => setShowAddCard(true)}
       />

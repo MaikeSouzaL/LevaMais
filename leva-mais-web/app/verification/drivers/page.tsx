@@ -23,7 +23,10 @@ import {
   Image as ImageIcon,
   Check,
   X,
-  CreditCard
+  CreditCard,
+  ShieldAlert,
+  Ban,
+  PauseCircle
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { format } from "date-fns";
@@ -39,7 +42,7 @@ interface PendingDriver {
   cpf?: string;
   city?: string;
   userType: "driver";
-  driverStatus: "pending" | "approved" | "rejected" | "none";
+  driverStatus: "pending" | "approved" | "rejected" | "blocked" | "suspended" | "none";
   isActive: boolean;
   createdAt: string;
   driverDocuments?: {
@@ -56,6 +59,9 @@ interface PendingDriver {
     selfieStatus?: string;
     cpfStatus?: string;
     bankAccountStatus?: string;
+    faceMatchStatus?: string;
+    backgroundCheckStatus?: string;
+    riskFlags?: string[];
     reviewedAt?: string;
     reviewedBy?: string;
   };
@@ -144,6 +150,7 @@ interface PendingClient {
   email: string;
   phone: string;
   cpf?: string;
+  cnpj?: string;
   city?: string;
   userType: "client";
   isActive: boolean;
@@ -163,6 +170,16 @@ interface PendingClient {
     reviewedAt?: string;
   };
 }
+
+type AdminUserPatchPayload = {
+  isActive?: boolean;
+  driverStatus?: PendingDriver["driverStatus"];
+  driverDocuments?: PendingDriver["driverDocuments"];
+  clientVerification?: PendingClient["clientVerification"];
+  activeVehicleId?: string;
+  vehicleType?: PendingDriver["vehicleType"];
+  vehicleInfo?: PendingDriver["vehicleInfo"];
+};
 
 export default function UnifiedVerificationPage() {
   const [activeTab, setActiveTab] = useState<"drivers" | "clients">("drivers");
@@ -272,7 +289,7 @@ export default function UnifiedVerificationPage() {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
       const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || '';
 
-      const payload: any = {
+      const payload: AdminUserPatchPayload = {
         isActive: true
       };
 
@@ -280,6 +297,14 @@ export default function UnifiedVerificationPage() {
         payload.driverStatus = "approved";
         payload.driverDocuments = {
           ...(user as PendingDriver).driverDocuments,
+          cnhFrontStatus: "approved",
+          cnhBackStatus: "approved",
+          selfieStatus: "approved",
+          cpfStatus: "approved",
+          bankAccountStatus: "approved",
+          faceMatchStatus: "approved",
+          backgroundCheckStatus: "approved",
+          riskFlags: [],
           rejectionReason: ""
         };
 
@@ -324,7 +349,7 @@ export default function UnifiedVerificationPage() {
     }
   };
 
-  // Update individual driver compliance aspects (CNH Front, CNH Back, Selfie, CPF, Bank Account)
+  // Update individual driver compliance aspects (CNH, Selfie, CPF, Bank Account, Face Match, Background Check)
   const handleDriverVerificationUpdate = async (userId: string, field: string, newStatus: "approved" | "rejected", reason?: string) => {
     setProcessing(true);
     try {
@@ -343,7 +368,9 @@ export default function UnifiedVerificationPage() {
         .replace("cnhBack", "CNH Verso")
         .replace("selfie", "Selfie")
         .replace("cpf", "CPF")
-        .replace("bankAccount", "Dados de Repasse");
+        .replace("bankAccount", "Dados de Repasse")
+        .replace("faceMatch", "Face Match")
+        .replace("backgroundCheck", "Antecedentes");
 
       showToast(`${fieldLabel} ${newStatus === "approved" ? "aprovado" : "reprovado"} com sucesso!`, "success");
       
@@ -359,13 +386,66 @@ export default function UnifiedVerificationPage() {
               [field]: newStatus,
               rejectionReason: newStatus === "rejected" ? (reason || "") : (driver.driverDocuments?.rejectionReason || "")
             }
-          } as any;
+          } as PendingDriver;
         });
       }
 
       loadData();
-    } catch (err: any) {
-      const errMsg = err.response?.data?.message || "Erro ao atualizar status do documento";
+    } catch (err: unknown) {
+      const errMsg = axios.isAxiosError(err)
+        ? err.response?.data?.message || "Erro ao atualizar status do documento"
+        : "Erro ao atualizar status do documento";
+      showToast(errMsg, "error");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleDriverAccountStatusUpdate = async (
+    userId: string,
+    newStatus: "blocked" | "suspended" | "pending",
+    reason: string
+  ) => {
+    setProcessing(true);
+    try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+      const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || '';
+
+      await axios.patch(`${API_URL}/auth/users/${userId}/driver-verification`, {
+        field: "driverStatus",
+        status: newStatus,
+        reason,
+        riskFlags: reason ? [reason] : []
+      }, { headers: { "x-admin-key": ADMIN_API_KEY } });
+
+      const labels = {
+        blocked: "bloqueada",
+        suspended: "suspensa",
+        pending: "reenviada para análise",
+      };
+      showToast(`Conta ${labels[newStatus]} com sucesso.`, "success");
+
+      if (selectedUser && selectedUser._id === userId) {
+        setSelectedUser(prev => {
+          if (!prev) return null;
+          const driver = prev as PendingDriver;
+          return {
+            ...driver,
+            driverStatus: newStatus,
+            driverDocuments: {
+              ...(driver.driverDocuments || {}),
+              rejectionReason: reason,
+              riskFlags: reason ? [reason] : driver.driverDocuments?.riskFlags || []
+            }
+          } as PendingDriver;
+        });
+      }
+
+      loadData();
+    } catch (err: unknown) {
+      const errMsg = axios.isAxiosError(err)
+        ? err.response?.data?.message || "Erro ao atualizar status da conta"
+        : "Erro ao atualizar status da conta";
       showToast(errMsg, "error");
     } finally {
       setProcessing(false);
@@ -445,7 +525,7 @@ export default function UnifiedVerificationPage() {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
       const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || '';
 
-      const payload: any = {};
+      const payload: AdminUserPatchPayload = {};
 
       if (selectedUser?.userType === "driver") {
         payload.isActive = false;
@@ -481,6 +561,7 @@ export default function UnifiedVerificationPage() {
     return {
       pendingDrivers: drivers.filter((d) => d.driverStatus === "pending").length,
       approvedDrivers: drivers.filter((d) => d.driverStatus === "approved").length,
+      blockedDrivers: drivers.filter((d) => d.driverStatus === "blocked" || d.driverStatus === "suspended").length,
       pendingClients: clients.filter(
         (c) =>
           c.clientVerification?.status === "pending" ||
@@ -514,7 +595,7 @@ export default function UnifiedVerificationPage() {
           selectedUser.name &&
             selectedUser.phone &&
             selectedUser.city &&
-            (selectedUser.cpf || (selectedUser as any).cnpj),
+            (selectedUser.cpf || selectedUser.cnpj),
         )
       : false;
 
@@ -558,7 +639,7 @@ export default function UnifiedVerificationPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
         <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-2xl flex items-center justify-between shadow-sm">
           <div>
             <p className="text-[10px] font-black text-yellow-800 uppercase tracking-wider">Motoristas Pendentes</p>
@@ -576,6 +657,16 @@ export default function UnifiedVerificationPage() {
           </div>
           <div className="w-10 h-10 bg-emerald-600 text-white rounded-xl flex items-center justify-center font-bold">
             OK
+          </div>
+        </div>
+
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-center justify-between shadow-sm">
+          <div>
+            <p className="text-[10px] font-black text-rose-800 uppercase tracking-wider">Bloqueados</p>
+            <p className="text-2xl font-black text-rose-950 mt-1">{stats.blockedDrivers}</p>
+          </div>
+          <div className="w-10 h-10 bg-rose-600 text-white rounded-xl flex items-center justify-center font-bold">
+            <ShieldAlert className="w-5 h-5" />
           </div>
         </div>
 
@@ -640,6 +731,8 @@ export default function UnifiedVerificationPage() {
                 <option value="pending">Aguardando Auditoria</option>
                 <option value="approved">Aprovados</option>
                 <option value="rejected">Reprovados</option>
+                <option value="blocked">Bloqueados</option>
+                <option value="suspended">Suspensos</option>
                 <option value="all">Todos os Status</option>
               </>
             ) : (
@@ -680,12 +773,16 @@ export default function UnifiedVerificationPage() {
                       pending: "bg-amber-50 text-amber-700 border-amber-200",
                       approved: "bg-emerald-50 text-emerald-700 border-emerald-200",
                       rejected: "bg-rose-50 text-rose-700 border-rose-200",
+                      blocked: "bg-red-50 text-red-700 border-red-200",
+                      suspended: "bg-orange-50 text-orange-700 border-orange-200",
                       none: "bg-slate-50 text-slate-700 border-slate-200"
                     };
                     const statusLabels = {
                       pending: "Aguardando",
                       approved: "Aprovado",
                       rejected: "Reprovado",
+                      blocked: "Bloqueado",
+                      suspended: "Suspenso",
                       none: "N/A"
                     };
 
@@ -880,7 +977,7 @@ export default function UnifiedVerificationPage() {
                       </div>
                       <div>
                         <p className="text-[9px] font-bold text-gray-400 uppercase mb-1">Documento Identificador</p>
-                        <p className="text-gray-950 font-mono font-bold">{selectedUser.cpf || (selectedUser as any).cnpj || "N?o informado"}</p>
+                        <p className="text-gray-950 font-mono font-bold">{selectedUser.cpf || selectedUser.cnpj || "N?o informado"}</p>
                       </div>
                       <div>
                         <p className="text-[9px] font-bold text-gray-400 uppercase mb-1">Cidade / Regi?o</p>
@@ -1078,6 +1175,120 @@ export default function UnifiedVerificationPage() {
                         className="px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-[10px] font-bold transition-all disabled:opacity-50"
                       >
                         Aprovar Repasse
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Segurança operacional: face match, antecedentes e bloqueios */}
+                  <div className="bg-slate-950 text-white rounded-2xl p-4 border border-slate-800 shadow-sm space-y-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <ShieldAlert className="w-4 h-4 text-amber-300" />
+                        <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-300">
+                          Confiança e Segurança
+                        </h4>
+                      </div>
+                      <span className={`px-2.5 py-1 rounded-full border text-[9px] font-black uppercase ${
+                        (selectedUser as PendingDriver).driverStatus === "approved"
+                          ? "bg-emerald-400/10 text-emerald-300 border-emerald-400/30"
+                          : (selectedUser as PendingDriver).driverStatus === "blocked"
+                          ? "bg-red-400/10 text-red-300 border-red-400/30"
+                          : (selectedUser as PendingDriver).driverStatus === "suspended"
+                          ? "bg-orange-400/10 text-orange-300 border-orange-400/30"
+                          : (selectedUser as PendingDriver).driverStatus === "rejected"
+                          ? "bg-rose-400/10 text-rose-300 border-rose-400/30"
+                          : "bg-amber-400/10 text-amber-300 border-amber-400/30"
+                      }`}>
+                        {(selectedUser as PendingDriver).driverStatus === "blocked"
+                          ? "Bloqueado"
+                          : (selectedUser as PendingDriver).driverStatus === "suspended"
+                          ? "Suspenso"
+                          : (selectedUser as PendingDriver).driverStatus === "approved"
+                          ? "Aprovado"
+                          : (selectedUser as PendingDriver).driverStatus === "rejected"
+                          ? "Reprovado"
+                          : "Em análise"}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {[
+                        { field: "faceMatchStatus", label: "Face match", rejectReason: "Face match incompatível com CNH/selfie" },
+                        { field: "backgroundCheckStatus", label: "Antecedentes", rejectReason: "Antecedentes ou sinais de risco pendentes de revisão" },
+                      ].map((item) => {
+                        const status = String((selectedUser as PendingDriver).driverDocuments?.[item.field as "faceMatchStatus" | "backgroundCheckStatus"] || "pending");
+                        const statusKey = status === "approved" || status === "rejected" ? status : "pending";
+                        const colors = {
+                          approved: "bg-emerald-400/10 text-emerald-300 border-emerald-400/30",
+                          rejected: "bg-red-400/10 text-red-300 border-red-400/30",
+                          pending: "bg-amber-400/10 text-amber-300 border-amber-400/30",
+                        };
+                        const labels = { approved: "Aprovado", rejected: "Reprovado", pending: "Pendente" };
+                        return (
+                          <div key={item.field} className="rounded-xl border border-slate-800 bg-white/5 p-3">
+                            <div className="flex items-center justify-between gap-2 mb-3">
+                              <p className="text-[10px] font-black uppercase tracking-wider text-slate-300">{item.label}</p>
+                              <span className={`px-2 py-0.5 rounded-full border text-[8px] font-black uppercase ${colors[statusKey]}`}>
+                                {labels[statusKey]}
+                              </span>
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleDriverVerificationUpdate(selectedUser._id, item.field, "rejected", item.rejectReason)}
+                                disabled={processing}
+                                className="flex-1 px-2 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-400/20 text-red-200 text-[9px] font-black disabled:opacity-50"
+                              >
+                                Reprovar
+                              </button>
+                              <button
+                                onClick={() => handleDriverVerificationUpdate(selectedUser._id, item.field, "approved")}
+                                disabled={processing}
+                                className="flex-1 px-2 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-400/20 text-emerald-200 text-[9px] font-black disabled:opacity-50"
+                              >
+                                Aprovar
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {((selectedUser as PendingDriver).driverDocuments?.riskFlags || []).length > 0 && (
+                      <div className="rounded-xl border border-red-400/20 bg-red-500/10 p-3">
+                        <p className="text-[9px] font-black uppercase tracking-wider text-red-200 mb-2">Flags de risco</p>
+                        <div className="flex flex-wrap gap-2">
+                          {((selectedUser as PendingDriver).driverDocuments?.riskFlags || []).map((flag, index) => (
+                            <span key={`${flag}-${index}`} className="px-2 py-1 rounded-lg bg-red-400/10 border border-red-300/20 text-[10px] font-bold text-red-100">
+                              {flag}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-1">
+                      <button
+                        onClick={() => handleDriverAccountStatusUpdate(selectedUser._id, "blocked", "Bloqueio manual por risco operacional")}
+                        disabled={processing}
+                        className="px-3 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-400/20 text-red-200 text-[10px] font-black flex items-center justify-center gap-1.5 disabled:opacity-50"
+                      >
+                        <Ban className="w-3.5 h-3.5" />
+                        Bloquear
+                      </button>
+                      <button
+                        onClick={() => handleDriverAccountStatusUpdate(selectedUser._id, "suspended", "Suspensão preventiva para revisão de segurança")}
+                        disabled={processing}
+                        className="px-3 py-2 rounded-xl bg-orange-500/10 hover:bg-orange-500/20 border border-orange-400/20 text-orange-200 text-[10px] font-black flex items-center justify-center gap-1.5 disabled:opacity-50"
+                      >
+                        <PauseCircle className="w-3.5 h-3.5" />
+                        Suspender
+                      </button>
+                      <button
+                        onClick={() => handleDriverAccountStatusUpdate(selectedUser._id, "pending", "Conta reaberta para nova análise")}
+                        disabled={processing}
+                        className="px-3 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-400/20 text-amber-200 text-[10px] font-black disabled:opacity-50"
+                      >
+                        Reabrir análise
                       </button>
                     </div>
                   </div>

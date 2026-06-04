@@ -14,6 +14,7 @@ import {
   CreditCard,
   CheckCircle2,
   Circle,
+  AlertTriangle,
 } from "lucide-react-native";
 
 export type PaymentMethod = "cash" | "pix" | "card_machine" | "wallet";
@@ -39,6 +40,12 @@ export interface PaymentMethodsSheetProps {
   onDeposit?: () => void;
   /** Ação do card "Adicionar cartão". Padrão: Toast informativo. */
   onAddCard?: () => void;
+  /** Preço total da corrida/entrega para verificar suficiência do saldo. */
+  totalPrice?: number;
+  /** Valor retido em escrow (corridas em andamento). Mostrado como informação. */
+  held?: number;
+  /** Taxa de cancelamento pendente do cliente. Exibe um aviso quando > 0. */
+  pendingDebt?: number;
 }
 
 function formatBRL(value: number) {
@@ -61,12 +68,15 @@ export function PaymentMethodsSheet({
   discountAmount = 4,
   onDeposit,
   onAddCard,
+  totalPrice = 0,
+  held = 0,
+  pendingDebt = 0,
 }: PaymentMethodsSheetProps) {
   const insets = useSafeAreaInsets();
 
   if (!visible) return null;
 
-  const insufficient = balance <= 0;
+  const insufficient = balance < totalPrice || balance <= 0;
 
   const handleDeposit =
     onDeposit ||
@@ -104,6 +114,21 @@ export function PaymentMethodsSheet({
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 20, paddingBottom: 24 }}>
+        {/* ───── Aviso de taxa de cancelamento pendente ───── */}
+        {pendingDebt > 0 && (
+          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 16, backgroundColor: "#FFF1F2", borderRadius: 16, padding: 14, borderWidth: 1, borderColor: "#FECDD3" }}>
+            <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: "#f43f5e", alignItems: "center", justifyContent: "center", marginRight: 10 }}>
+              <AlertTriangle size={16} color="#fff" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 13, fontWeight: "900", color: "#be123c" }}>Taxa de cancelamento pendente</Text>
+              <Text style={{ fontSize: 12, fontWeight: "600", color: "#9f1239", marginTop: 1 }}>
+                {formatBRL(pendingDebt)} — será cobrada no seu próximo pedido ou quitada com seu saldo LevaPay.
+              </Text>
+            </View>
+          </View>
+        )}
+
         {/* ───── Card LevaPay ───── */}
         <View style={{ borderRadius: 24, overflow: "hidden", marginBottom: 20, backgroundColor: "#fff", shadowColor: "#0f172a", shadowOpacity: 0.07, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 4 }}>
           {/* Faixa verde do topo */}
@@ -135,6 +160,11 @@ export function PaymentMethodsSheet({
                       <Text style={{ fontSize: 12, fontWeight: "600", color: "#f43f5e", marginLeft: 4 }}>Saldo insuficiente</Text>
                     </View>
                   )}
+                  {held > 0 && (
+                    <Text style={{ fontSize: 11, fontWeight: "600", color: "#94a3b8", marginTop: 4 }}>
+                      {formatBRL(held)} retido em corridas em andamento
+                    </Text>
+                  )}
                 </View>
                 <TouchableOpacity
                   onPress={handleDeposit}
@@ -163,9 +193,17 @@ export function PaymentMethodsSheet({
 
         <PayOption
           selected={value === "wallet"}
+          disabled={insufficient}
           onPress={() => {
-            if (insufficient) handleDeposit();
-            else onChange("wallet");
+            if (insufficient) {
+              Toast.show({
+                type: "error",
+                text1: "Saldo insuficiente",
+                text2: "Você precisa depositar saldo primeiro antes de continuar.",
+              });
+            } else {
+              onChange("wallet");
+            }
           }}
           iconBg="#02de95"
           iconEl={<Wallet size={20} color="#fff" />}
@@ -197,7 +235,18 @@ export function PaymentMethodsSheet({
       {/* ───── Rodapé ───── */}
       <View style={{ backgroundColor: "#fff", paddingHorizontal: 16, paddingTop: 12, paddingBottom: Math.max(insets.bottom, 16), borderTopWidth: 1, borderTopColor: "#F1F3F5" }}>
         <TouchableOpacity
-          onPress={onConfirm || onClose}
+          onPress={() => {
+            if (value === "wallet" && insufficient) {
+              Toast.show({
+                type: "error",
+                text1: "Saldo insuficiente",
+                text2: "Você precisa depositar saldo primeiro antes de continuar.",
+              });
+              return;
+            }
+            if (onConfirm) onConfirm();
+            else onClose();
+          }}
           activeOpacity={0.9}
           style={{ backgroundColor: "#02de95", borderRadius: 18, height: 54, flexDirection: "row", alignItems: "center", justifyContent: "center", shadowColor: "#02de95", shadowOpacity: 0.4, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 4 }}
         >
@@ -218,6 +267,7 @@ function PayOption({
   title,
   subtitle,
   badge,
+  disabled,
 }: {
   selected: boolean;
   onPress: () => void;
@@ -226,11 +276,12 @@ function PayOption({
   title: string;
   subtitle: string;
   badge?: string;
+  disabled?: boolean;
 }) {
   return (
     <TouchableOpacity
       onPress={onPress}
-      activeOpacity={0.85}
+      activeOpacity={disabled ? 1 : 0.85}
       style={{
         flexDirection: "row",
         alignItems: "center",
@@ -245,6 +296,7 @@ function PayOption({
         shadowRadius: 6,
         shadowOffset: { width: 0, height: 2 },
         elevation: selected ? 0 : 1,
+        opacity: disabled ? 0.5 : 1,
       }}
     >
       <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: iconBg, alignItems: "center", justifyContent: "center", marginRight: 14 }}>
@@ -264,9 +316,9 @@ function PayOption({
       </View>
 
       {selected ? (
-        <CheckCircle2 size={26} color="#02de95" />
+        <CheckCircle2 size={26} color="#02de95" style={{ opacity: disabled ? 0.4 : 1 }} />
       ) : (
-        <Circle size={26} color="#d1d5db" />
+        <Circle size={26} color="#d1d5db" style={{ opacity: disabled ? 0.4 : 1 }} />
       )}
     </TouchableOpacity>
   );

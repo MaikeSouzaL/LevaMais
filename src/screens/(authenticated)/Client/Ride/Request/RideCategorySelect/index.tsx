@@ -16,7 +16,7 @@ import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import { Icon } from "@/components/ui/Icon";
-import { ChevronLeft, Users, Check, Plus, X, ArrowUp, ArrowDown } from "lucide-react-native";
+import { ChevronLeft, ChevronRight, Users, Check, Plus, X, ArrowUp, ArrowDown } from "lucide-react-native";
 import Toast from "react-native-toast-message";
 
 import { GlobalMap } from "@/components/GlobalMap";
@@ -249,6 +249,8 @@ export default function RideCategorySelectScreen() {
         key: selected.category,
         label: selected.label,
         total: selected.pricing.total,
+        minPrice: selected.pricing.minPrice,
+        maxPrice: selected.pricing.maxPrice,
         basePrice: selected.pricing.basePrice,
         distancePrice: selected.pricing.distancePrice,
         distanceKm: routeMeta.distanceKm,
@@ -268,8 +270,7 @@ export default function RideCategorySelectScreen() {
         <TouchableOpacity onPress={() => navigation.navigate("DestinationSearch", { clearRoute: true })} style={styles.headerBackBtn} activeOpacity={0.7}>
           <ChevronLeft size={24} color="#0F172A" strokeWidth={2.5} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Confirmar Viagem</Text>
-        <View style={{ width: 40 }} />
+        <Text style={styles.headerTitle}>Sua Viagem</Text>
       </View>
 
       {/* Mapa no topo */}
@@ -475,7 +476,11 @@ export default function RideCategorySelectScreen() {
           <Text style={styles.confirmText}>
             {selected ? `Continuar • ${formatBRL(selected.pricing.total)}` : "Selecione uma categoria"}
           </Text>
-          <Icon name="arrow-forward" size={20} color="#FFFFFF" />
+          {selected && (
+            <View style={{ position: "absolute", right: 18 }}>
+              <ChevronRight size={20} color="#FFFFFF" strokeWidth={3} />
+            </View>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -515,7 +520,8 @@ const styles = StyleSheet.create({
     height: 56,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "flex-start",
+    gap: 4,
     backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
     borderBottomColor: "#E2E8F0",

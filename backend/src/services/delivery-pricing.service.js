@@ -91,6 +91,52 @@ async function fetchRouteMetricsWithGoogleMaps(pickup, dropoff) {
   }
 }
 
+/**
+ * Distância/tempo de VÁRIAS origens para UM destino numa única chamada (Distance Matrix).
+ * Usado para enriquecer ofertas (todos os motoristas → ponto de coleta) sem N chamadas.
+ * Retorna um array alinhado a `origins`: [{distanceInMeters, durationInSeconds} | null].
+ */
+async function fetchRouteMetricsBatch(origins, destination) {
+  const list = Array.isArray(origins) ? origins.slice(0, 25) : []; // limite Distance Matrix
+  if (list.length === 0 || !destination) return [];
+
+  const apiKey =
+    process.env.GOOGLE_MAPS_API_KEY ||
+    process.env.GOOGLE_MAPS_DISTANCE_MATRIX_KEY ||
+    process.env.MAPS_API_KEY;
+  if (!apiKey || typeof fetch !== "function") return list.map(() => null);
+
+  const url = new URL("https://maps.googleapis.com/maps/api/distancematrix/json");
+  url.searchParams.set("origins", list.map((o) => `${o.latitude},${o.longitude}`).join("|"));
+  url.searchParams.set("destinations", `${destination.latitude},${destination.longitude}`);
+  url.searchParams.set("mode", "driving");
+  url.searchParams.set("units", "metric");
+  url.searchParams.set("key", apiKey);
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return list.map(() => null);
+    const data = await response.json();
+    const rows = Array.isArray(data?.rows) ? data.rows : [];
+    return list.map((_, i) => {
+      const element = rows[i]?.elements?.[0];
+      if (element?.status !== "OK") return null;
+      const distanceInMeters = Number(element?.distance?.value);
+      const durationInSeconds = Number(element?.duration?.value);
+      if (!Number.isFinite(distanceInMeters) || distanceInMeters <= 0) return null;
+      return {
+        distanceInMeters,
+        durationInSeconds:
+          Number.isFinite(durationInSeconds) && durationInSeconds > 0 ? durationInSeconds : null,
+        distanceSource: "route_api",
+      };
+    });
+  } catch (error) {
+    console.error("[deliveryPricing] Falha no Distance Matrix em lote:", error?.message || error);
+    return list.map(() => null);
+  }
+}
+
 async function resolveRouteMetrics(pickup, dropoff) {
   const routeMetrics = await fetchRouteMetricsWithGoogleMaps(pickup, dropoff);
   if (routeMetrics) return routeMetrics;
@@ -240,4 +286,5 @@ async function calculateDeliveryPricingSnapshot(payload = {}) {
 module.exports = {
   calculateDeliveryPricingSnapshot,
   fetchRouteMetricsWithGoogleMaps,
+  fetchRouteMetricsBatch,
 };

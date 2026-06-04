@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from "react";
+﻿import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  BackHandler,
 } from "react-native";
 import { useRoute, useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -80,8 +81,8 @@ function TripSummaryCard({ offer }: TripSummaryCardProps) {
 
   const clientName = offer.client?.name || "Cliente Leva Mais";
   const rating = offer.client?.rating || "5.0";
-  const pickupAddress = offer.pickup?.address || "Endereço de Coleta";
-  const destAddress = offer.destination?.address || offer.dropoff?.address || "Endereço de Entrega";
+  const pickupAddress = offer.pickup?.address || "EndereÃ§o de Coleta";
+  const destAddress = offer.destination?.address || offer.dropoff?.address || "EndereÃ§o de Entrega";
   
   const distanceText = offer.distanceKm || offer.distance?.text || "-- km";
   const durationText = offer.estimatedDuration || offer.duration?.text || "-- min";
@@ -119,7 +120,7 @@ function TripSummaryCard({ offer }: TripSummaryCardProps) {
                   const badgeColor = isDelivery ? '#10B981' : '#3B82F6';
                   const badgeBg = isDelivery ? 'rgba(16, 185, 129, 0.1)' : 'rgba(59, 130, 246, 0.1)';
                   const badgeBorder = isDelivery ? 'rgba(16, 185, 129, 0.3)' : 'rgba(59, 130, 246, 0.3)';
-                  const label = isDelivery ? 'Entrega 📦' : 'Corrida 🚗';
+                  const label = isDelivery ? 'Entrega ðŸ“¦' : 'Corrida ðŸš—';
                   return (
                     <View
                       style={{
@@ -308,13 +309,13 @@ function SmartSuggestionCard({ value, currentValue, onAutoApply }: SmartSuggesti
         </View>
         <View className="flex-1">
           <View className="flex-row justify-between items-center mb-1.5">
-            <Text className="text-white font-extrabold text-sm">Sugestão Inteligente IA</Text>
+            <Text className="text-white font-extrabold text-sm">SugestÃ£o Inteligente IA</Text>
             <View className="bg-[#02de95]/20 px-2 py-0.5 rounded-full">
               <Text className="text-[#02de95] font-black text-[10px]">{acceptanceChance}% Chance</Text>
             </View>
           </View>
           <Text className="text-white/60 text-xs font-medium leading-5">
-            Com a proposta de <Text className="text-white font-bold">{formatBRL(value)}</Text>, suas chances de aceitação imediata são estimadas em <Text className="text-[#02de95] font-extrabold">{acceptanceChance}%</Text> na região atual.
+            Com a proposta de <Text className="text-white font-bold">{formatBRL(value)}</Text>, suas chances de aceitaÃ§Ã£o imediata sÃ£o estimadas em <Text className="text-[#02de95] font-extrabold">{acceptanceChance}%</Text> na regiÃ£o atual.
           </Text>
           
           {value !== suggestionVal && (
@@ -367,7 +368,7 @@ function ProfitCard({ value, distanceKm }: ProfitCardProps) {
 }
 
 // ========================================================
-// 📡 TACTICAL WAITING SUB-COMPONENTS FOR DRIVER SIDE
+// ðŸ“¡ TACTICAL WAITING SUB-COMPONENTS FOR DRIVER SIDE
 // ========================================================
 
 interface LiveNegotiationRadarProps {
@@ -452,17 +453,10 @@ function RealtimeStatusBadge({ message }: RealtimeStatusBadgeProps) {
 interface ProposalStatusCardProps {
   counterValue: number;
   baseValue: number;
-  distanceKm: string;
+  distanceText: string;
   durationText: string;
-  acceptanceChance: number;
 }
-function ProposalStatusCard({ counterValue, baseValue, distanceKm, durationText, acceptanceChance }: ProposalStatusCardProps) {
-  const profitPerKm = useMemo(() => {
-    const distNum = parseFloat(distanceKm.replace(/[^0-9.]/g, ""));
-    const safeDist = isNaN(distNum) || distNum === 0 ? 1 : distNum;
-    return counterValue / safeDist;
-  }, [counterValue, distanceKm]);
-
+function ProposalStatusCard({ counterValue, baseValue, distanceText, durationText }: ProposalStatusCardProps) {
   const diff = counterValue - baseValue;
 
   return (
@@ -470,60 +464,35 @@ function ProposalStatusCard({ counterValue, baseValue, distanceKm, durationText,
       from={{ opacity: 0, translateY: 30 }}
       animate={{ opacity: 1, translateY: 0 }}
       transition={{ type: "spring", damping: 20 }}
-      className="w-full bg-white/[0.02] border border-white/10 rounded-[36px] overflow-hidden mb-6"
+      className="w-full bg-white/[0.02] border border-white/10 rounded-[28px] overflow-hidden mb-6"
     >
-      <BlurView intensity={30} className="p-6">
+      <BlurView intensity={30} className="p-5">
         <View className="flex-row justify-between items-center mb-5 border-b border-white/5 pb-5">
           <View>
             <Text className="text-white/40 text-[10px] font-black uppercase tracking-widest mb-1">PROPOSTA ENVIADA</Text>
             <Text className="text-white font-black text-4xl tracking-tighter">{formatBRL(counterValue)}</Text>
           </View>
           <View className="bg-[#02de95]/10 border border-[#02de95]/30 px-3 py-1.5 rounded-2xl items-center">
-            <Text className="text-[#02de95] font-black text-xs">+{formatBRL(diff)}</Text>
+            <Text className="text-[#02de95] font-black text-xs">{diff >= 0 ? "+" : "-"}{formatBRL(Math.abs(diff))}</Text>
             <Text className="text-white/50 font-bold text-[8px] uppercase mt-0.5">vs Base</Text>
           </View>
         </View>
 
-        <View className="flex-row justify-between gap-3 mb-5">
+        <View className="flex-row justify-between gap-3">
           <View className="flex-1 bg-white/[0.02] border border-white/5 p-3 rounded-2xl items-center justify-center">
-            <Text className="text-white/30 text-[8px] font-black uppercase tracking-widest mb-1">LUCRO / KM</Text>
-            <Text className="text-white font-black text-sm">{formatBRL(profitPerKm)}</Text>
-          </View>
-          
-          <View className="flex-1 bg-white/[0.02] border border-white/5 p-3 rounded-2xl items-center justify-center">
-            <Text className="text-white/30 text-[8px] font-black uppercase tracking-widest mb-1">DISTÂNCIA</Text>
-            <Text className="text-white font-black text-sm">{distanceKm}</Text>
+            <Text className="text-white/30 text-[8px] font-black uppercase tracking-widest mb-1">ROTA</Text>
+            <Text className="text-white font-black text-sm">{distanceText}</Text>
           </View>
 
           <View className="flex-1 bg-white/[0.02] border border-white/5 p-3 rounded-2xl items-center justify-center">
-            <Text className="text-white/30 text-[8px] font-black uppercase tracking-widest mb-1">DURAÇÃO</Text>
+            <Text className="text-white/30 text-[8px] font-black uppercase tracking-widest mb-1">TEMPO</Text>
             <Text className="text-white font-black text-sm">{durationText}</Text>
-          </View>
-        </View>
-
-        <View>
-          <View className="flex-row justify-between items-center mb-2">
-            <View className="flex-row items-center">
-              <Sparkles size={10} color="#02de95" fill="#02de95" className="mr-1.5" />
-              <Text className="text-white/60 font-extrabold text-[10px] uppercase tracking-wider">CHANCE DE ACEITE POR IA</Text>
-            </View>
-            <Text className="text-[#02de95] font-black text-xs">{acceptanceChance}%</Text>
-          </View>
-          
-          <View className="w-full h-2.5 bg-white/[0.05] border border-white/10 rounded-full overflow-hidden relative">
-             <MotiView
-                from={{ width: "0%" }}
-                animate={{ width: `${acceptanceChance}%` }}
-                transition={{ duration: 1000, type: "timing" }}
-                className="h-full bg-[#02de95] rounded-full"
-             />
           </View>
         </View>
       </BlurView>
     </MotiView>
   );
 }
-
 import { GlobalMap } from "@/components/GlobalMap";
 
 interface TacticalBackgroundProps {
@@ -563,80 +532,61 @@ export default function DriverNegotiationScreen() {
   const { offer } = route.params || {};
 
   const baseValue = offer?.offeredValue || offer?.pricing?.total || 0;
+  const myOffer = offer?.negotiation?.myOffer;
 
-  const [counterValue, setCounterValue] = useState(baseValue + 2); // Default boost
+  const initialLoadingState = useMemo(() => {
+    if (myOffer) {
+      if (myOffer.status === "countered" || myOffer.status === "pending" || myOffer.status === "accepted") {
+        return "waiting";
+      }
+      if (myOffer.status === "client_countered") {
+        return "client_countered";
+      }
+    }
+    return "idle";
+  }, [myOffer]);
+
+  const initialCounterValue = useMemo(() => {
+    if (myOffer && myOffer.amount) {
+      return myOffer.amount;
+    }
+    return baseValue + 2;
+  }, [myOffer, baseValue]);
+
+  const [counterValue, setCounterValue] = useState(initialCounterValue);
   const [message, setMessage] = useState("");
-  const [loadingState, setLoadingState] = useState<"idle" | "sending" | "waiting" | "accepted" | "rejected" | "client_countered">("idle");
-  const [clientCounterVal, setClientCounterVal] = useState<number>(0);
+  const [loadingState, setLoadingState] = useState<"idle" | "sending" | "waiting" | "accepted" | "rejected" | "client_countered">(initialLoadingState);
+  const [clientCounterVal, setClientCounterVal] = useState<number>(myOffer?.status === "client_countered" ? myOffer.amount : 0);
 
-  // 🚨 Premium Real-time Wait Screen State
-  const [negotiationTimeLeft, setNegotiationTimeLeft] = useState(35);
-  const [liveStatusMessage, setLiveStatusMessage] = useState("Transmitindo Proposta...");
+  // ðŸš¨ Premium Real-time Wait Screen State
+  const [liveStatusMessage, setLiveStatusMessage] = useState("Aguardando resposta do cliente");
 
-  const diff = counterValue - baseValue;
-  const iaAcceptanceChance = useMemo(() => {
-    if (diff <= 0) return 100;
-    if (diff <= 2) return 94;
-    if (diff <= 5) return 81;
-    if (diff <= 10) return 63;
-    return 35;
-  }, [diff]);
-
-  // 🤖 Animated Status Message Cycler for Tactical Vibe
+  // ðŸš« Bloquear botÃ£o voltar fÃ­sico do Android durante envio/espera
   useEffect(() => {
-    if (loadingState !== "waiting") return;
-    
-    const messages = [
-      "Cliente analisando proposta...",
-      "Cliente online agora",
-      "Analisando trânsito na rota...",
-      "Chance de aceite favorável",
-      "Cliente visualizando contraproposta...",
-      "Aguardando decisão final..."
-    ];
-    let index = 0;
-    setLiveStatusMessage(messages[0]);
-    
-    const interval = setInterval(() => {
-      index = (index + 1) % messages.length;
-      setLiveStatusMessage(messages[index]);
-    }, 5000);
-    
-    return () => clearInterval(interval);
+    const onBackPress = () => {
+      if (loadingState === "waiting" || loadingState === "sending") {
+        return true;
+      }
+      return false;
+    };
+
+    const subscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      onBackPress
+    );
+
+    return () => subscription.remove();
   }, [loadingState]);
 
-  // ⏱️ Custom Countdown Timer for Urgency
-  useEffect(() => {
-    if (loadingState !== "waiting") return;
-    
-    setNegotiationTimeLeft(35);
-    
-    const timer = setInterval(() => {
-      setNegotiationTimeLeft(prev => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    
-    return () => clearInterval(timer);
-  }, [loadingState]);
-
-  // Safe numeric parse for Dynamic stats 📊
-  const distanceKm = useMemo(() => {
-    const rawText = offer?.distanceKm || offer?.distance?.text || "1";
-    const parsed = parseFloat(rawText.replace(/,/g, ".").replace(/[^0-9.]/g, ""));
-    return isNaN(parsed) ? 1 : parsed;
-  }, [offer]);
+  const routeDistanceText = offer?.distanceKm || offer?.distance?.text || "-- km";
+  const routeDurationText = offer?.estimatedDuration || offer?.duration?.text || "-- min";
 
   const isOfferTooHigh = useMemo(() => {
     return counterValue >= baseValue * 1.8;
   }, [counterValue, baseValue]);
 
   // =========================================================
-  // 🔄 REAL-TIME ACTIVE SYNC LOOP: WAITING CLIENT APPROVAL
+  // ðŸ”„ REAL-TIME ACTIVE SYNC LOOP: WAITING CLIENT APPROVAL
   // =========================================================
   useEffect(() => {
     if (!offer?._id) return;
@@ -649,7 +599,7 @@ export default function DriverNegotiationScreen() {
       active = false;
       Toast.show({
         type: "success",
-        text1: "Proposta Aceita! 🎉",
+        text1: "Proposta Aceita! ðŸŽ‰",
         text2: "Prepare-se para realizar a coleta."
       });
       navigation.reset({
@@ -677,12 +627,12 @@ export default function DriverNegotiationScreen() {
       Toast.show({
         type: "error",
         text1: "Corrida Cancelada",
-        text2: "Esta solicitação foi cancelada pelo solicitante."
+        text2: "Esta solicitaÃ§Ã£o foi cancelada pelo solicitante."
       });
       navigation.popToTop();
     };
 
-    // 🛰️ Socket Event Listeners
+    // ðŸ›°ï¸ Socket Event Listeners
     const onNewRideReqSocket = (payload: any) => {
       if (payload?.rideId === offer._id) {
         navigateToActiveRide(offer._id);
@@ -708,8 +658,8 @@ export default function DriverNegotiationScreen() {
         setLoadingState("idle");
         Toast.show({
           type: "info",
-          text1: "Oferta Aumentada pelo Cliente! 📈",
-          text2: "O cliente aumentou o valor sugerido. Faça uma nova proposta!"
+          text1: "Oferta Aumentada pelo Cliente! ðŸ“ˆ",
+          text2: "O cliente aumentou o valor sugerido. FaÃ§a uma nova proposta!"
         });
         navigation.popToTop();
       }
@@ -720,7 +670,7 @@ export default function DriverNegotiationScreen() {
     webSocketService.on("ride-cancelled", onCancelledSocket);
     webSocketService.on("queue-ride-offer-increased", onOfferIncreasedSocket);
 
-    // 🔁 High-Availability Rest Polling (Every 3.5 seconds)
+    // ðŸ” High-Availability Rest Polling (Every 3.5 seconds)
     const syncStatusRest = async () => {
       try {
         const ride = await rideService.getById(offer._id);
@@ -729,7 +679,7 @@ export default function DriverNegotiationScreen() {
         const assignedDriver = typeof ride.driverId === "string" ? ride.driverId : ride.driverId?._id;
         const rideStatus = String(ride.status || "");
 
-        // 🎯 Client accepted this specific driver
+        // ðŸŽ¯ Client accepted this specific driver
         if (assignedDriver && driverId && assignedDriver === driverId) {
            if (rideStatus === "payment_pending") {
               setLoadingState("waiting");
@@ -742,7 +692,7 @@ export default function DriverNegotiationScreen() {
            }
         }
 
-        // ❌ Assigned to someone else OR explicitly rejected
+        // âŒ Assigned to someone else OR explicitly rejected
         if (assignedDriver && assignedDriver !== driverId) {
            handleOfferRejected();
            return;
@@ -763,7 +713,7 @@ export default function DriverNegotiationScreen() {
            return;
         }
 
-        // 🛑 Ride got terminal cancelled
+        // ðŸ›‘ Ride got terminal cancelled
         if (["cancelled", "cancelled_by_client", "expired"].includes(rideStatus)) {
            handleRideCancelled();
            return;
@@ -796,7 +746,7 @@ export default function DriverNegotiationScreen() {
           await rideService.respondToOffer(offer._id, {
             action: "counter",
             amount: counterValue,
-            message: message || "Negociação justa",
+            message: message || "NegociaÃ§Ã£o justa",
           });
 
           // Transit to persistent waiting state. Sync engine does the rest!
@@ -804,7 +754,7 @@ export default function DriverNegotiationScreen() {
           
           Toast.show({ 
             type: "success", 
-            text1: "Proposta Enviada! 🚀", 
+            text1: "Proposta Enviada! ðŸš€", 
             text2: `Sua oferta de ${formatBRL(counterValue)} foi enviada ao cliente.` 
           });
 
@@ -842,7 +792,7 @@ export default function DriverNegotiationScreen() {
           </View>
 
           <Text className="text-white font-black text-2xl text-center mb-2">
-            Contraproposta do Cliente! ⚡
+            Contraproposta do Cliente! âš¡
           </Text>
           
           <Text className="text-white/50 text-center text-sm leading-5 mb-6">
@@ -890,7 +840,7 @@ export default function DriverNegotiationScreen() {
                     await rideService.respondToOffer(offer._id, {
                       action: "reject"
                     });
-                    Toast.show({ type: "info", text1: "Oferta recusada", text2: "Você rejeitou a contraproposta do cliente." });
+                    Toast.show({ type: "info", text1: "Oferta recusada", text2: "VocÃª rejeitou a contraproposta do cliente." });
                     navigation.popToTop();
                   } catch (e: any) {
                     setLoadingState("client_countered");
@@ -942,7 +892,7 @@ export default function DriverNegotiationScreen() {
             </Text>
             
             <Text className="text-white/50 text-center text-sm leading-6 mb-8 max-w-[280px]">
-              Alinhando sua oferta com nossa central logística inteligente.
+              Alinhando sua oferta com nossa central logÃ­stica inteligente.
             </Text>
 
             <View className="w-full bg-white/[0.03] border border-white/10 rounded-3xl p-5 flex-row items-center justify-between">
@@ -958,7 +908,7 @@ export default function DriverNegotiationScreen() {
     }
 
     // ========================================================
-    // 📱 EXTREME PREMIUM TACTICAL WAITING SCREEN!
+    // ðŸ“± EXTREME PREMIUM TACTICAL WAITING SCREEN!
     // ========================================================
     return (
       <View className="flex-1 bg-[#091A2F] relative">
@@ -974,19 +924,13 @@ export default function DriverNegotiationScreen() {
               animate={{ opacity: 1, translateY: 0 }}
               className="flex-row items-center bg-black/40 border border-white/10 px-4 py-2 rounded-2xl mb-2"
             >
-              <View className="w-2 h-2 bg-[#02de95] rounded-full mr-2" />
-              <Text className="text-white font-black text-[10px] tracking-widest uppercase">Radar de Negociação Ativo</Text>
+              <ActivityIndicator size="small" color="#02de95" className="mr-2" />
+              <Text className="text-white font-black text-[10px] tracking-widest uppercase">Negociação em tempo real</Text>
             </MotiView>
-            <Text className="text-white/50 font-extrabold text-xs">
-              Expira em: <Text className="text-[#ef4444] font-black text-base">{negotiationTimeLeft}s</Text>
-            </Text>
           </View>
 
-          {/* Central Tactical Hub */}
-          <View className="flex-1 items-center justify-center w-full">
-            <LiveNegotiationRadar clientName={offer?.client?.name || "C"} />
-            
-            <Text className="text-white font-black text-2xl tracking-tight text-center mb-2">
+          {/* Central status */}
+          <View className="flex-1 items-center justify-center w-full"><Text className="text-white font-black text-2xl tracking-tight text-center mb-2">
               Aguardando o Cliente
             </Text>
             
@@ -995,7 +939,7 @@ export default function DriverNegotiationScreen() {
             </AnimatePresence>
             
             <Text className="text-white/40 text-center text-xs font-medium leading-5 max-w-[280px] mb-6">
-              Sua contraproposta foi enviada e está sendo analisada no app do cliente.
+              Sua contraproposta foi enviada e estÃ¡ sendo analisada no app do cliente.
             </Text>
           </View>
 
@@ -1004,9 +948,8 @@ export default function DriverNegotiationScreen() {
             <ProposalStatusCard
               counterValue={counterValue}
               baseValue={baseValue}
-              distanceKm={offer?.distanceKm || offer?.distance?.text || "-- km"}
-              durationText={offer?.estimatedDuration || offer?.duration?.text || "-- min"}
-              acceptanceChance={iaAcceptanceChance}
+              distanceText={routeDistanceText}
+              durationText={routeDurationText}
             />
             
             <TouchableOpacity
@@ -1050,14 +993,6 @@ export default function DriverNegotiationScreen() {
 
           <QuickIncreaseButtons onSelect={(inc) => setCounterValue(baseValue + inc)} />
 
-          <SmartSuggestionCard
-            value={counterValue}
-            currentValue={baseValue}
-            onAutoApply={setCounterValue}
-          />
-
-          <ProfitCard value={counterValue} distanceKm={distanceKm} />
-
           {/* Alert Visual for extremely high pricing thresholds */}
           <AnimatePresence>
             {isOfferTooHigh && (
@@ -1072,7 +1007,7 @@ export default function DriverNegotiationScreen() {
                   <View className="flex-1">
                     <Text className="text-red-400 font-extrabold text-xs mb-0.5">Cuidado com a taxa de recusa</Text>
                     <Text className="text-white/60 text-[10px] leading-4">
-                      Valores muito altos reduzem drasticamente suas chances de aceitação imediata pelo cliente.
+                      Valores muito altos reduzem drasticamente suas chances de aceitaÃ§Ã£o imediata pelo cliente.
                     </Text>
                   </View>
                 </View>
@@ -1084,10 +1019,10 @@ export default function DriverNegotiationScreen() {
           <View className="mx-6 mb-8 bg-white/[0.02] border border-white/5 rounded-2xl p-4">
             <View className="flex-row items-center mb-2">
               <MessageSquare size={14} color="rgba(255,255,255,0.4)" className="mr-2" />
-              <Text className="text-white/30 text-[10px] font-black uppercase tracking-widest">Observação para o cliente</Text>
+              <Text className="text-white/30 text-[10px] font-black uppercase tracking-widest">ObservaÃ§Ã£o para o cliente</Text>
             </View>
             <TextInput
-              placeholder="Ex: Trânsito lento / Alta demanda"
+              placeholder="Ex: TrÃ¢nsito lento / Alta demanda"
               placeholderTextColor="rgba(255,255,255,0.15)"
               className="text-white font-medium text-sm p-0 py-1"
               value={message}
@@ -1128,3 +1063,5 @@ export default function DriverNegotiationScreen() {
     </SafeAreaView>
   );
 }
+
+

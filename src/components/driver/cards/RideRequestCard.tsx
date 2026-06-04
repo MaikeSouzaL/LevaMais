@@ -250,8 +250,30 @@ export function RideRequestCard({
             <Text style={infoBarText}>Cancelado pelo cliente</Text>
           </View>
         ) : isRejected ? (
-          <View style={[infoBar, { borderColor: driverColors.dangerBorder, backgroundColor: driverColors.dangerBg }]}>
-            <Text style={[infoBarText, { color: driverColors.danger }]}>Você recusou esta oferta</Text>
+          <View style={{ gap: 8 }}>
+            <View style={[infoBar, { borderColor: driverColors.dangerBorder, backgroundColor: driverColors.dangerBg, marginBottom: 4 }]}>
+              <Text style={[infoBarText, { color: driverColors.danger }]}>Sua proposta foi recusada pelo cliente</Text>
+            </View>
+            <View style={buttonRow}>
+              <TouchableOpacity style={rejectBtn} onPress={() => onReject(item.rideId)} activeOpacity={0.7}>
+                <X size={14} color={driverColors.danger} />
+                <Text style={rejectText}>Descartar</Text>
+              </TouchableOpacity>
+              {item.negotiation?.enabled && (
+                <TouchableOpacity
+                  style={counterBtn}
+                  onPress={() => onCounterOffer?.(item.rideId)}
+                  activeOpacity={0.85}
+                >
+                  <MessageCircle size={13} color={driverColors.accent} />
+                  <Text style={counterText}>Propor Novo</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={acceptBtn} onPress={() => onAccept(item.rideId)} activeOpacity={0.85}>
+                <Check size={16} color={driverColors.bg} strokeWidth={3} />
+                <Text style={acceptText}>Aceitar Base</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         ) : isClientCountered ? (
           <View style={buttonRow}>

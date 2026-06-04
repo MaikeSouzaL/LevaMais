@@ -1,7 +1,27 @@
 const { Expo } = require("expo-server-sdk");
+const User = require("../models/User");
 
 // Criar uma instância do cliente Expo
 const expo = new Expo();
+
+function maskToken(token) {
+  const value = String(token || "");
+  if (value.length <= 16) return "[push-token]";
+  return `${value.slice(0, 12)}...${value.slice(-4)}`;
+}
+
+async function clearInvalidPushToken(pushToken) {
+  if (!pushToken) return;
+  await User.updateMany(
+    { pushToken },
+    {
+      $unset: { pushToken: "" },
+      $set: { pushTokenUpdatedAt: new Date() },
+    },
+  ).catch((error) => {
+    console.error("Erro ao limpar push token invalido:", error.message);
+  });
+}
 
 /**
  * Enviar notificação push para um único usuário
@@ -26,7 +46,7 @@ async function sendPushNotification(
   try {
     // Verificar se o token é válido
     if (!Expo.isExpoPushToken(pushToken)) {
-      console.error(`Push token ${pushToken} não é um token Expo válido`);
+      console.error(`Push token ${maskToken(pushToken)} não é um token Expo válido`);
       return {
         success: false,
         error: "Invalid push token",
@@ -52,6 +72,9 @@ async function sendPushNotification(
     // Verificar se houve erro
     if (ticket.status === "error") {
       console.error(`Erro ao enviar notificação: ${ticket.message}`);
+      if (ticket.details?.error === "DeviceNotRegistered") {
+        await clearInvalidPushToken(pushToken);
+      }
       return {
         success: false,
         error: ticket.message,
@@ -59,7 +82,7 @@ async function sendPushNotification(
       };
     }
 
-    console.log(`Notificação enviada com sucesso para ${pushToken}`);
+    console.log(`Notificação enviada com sucesso para ${maskToken(pushToken)}`);
     return {
       success: true,
       ticketId: ticket.id,
@@ -71,6 +94,22 @@ async function sendPushNotification(
       error: error.message,
     };
   }
+}
+
+async function sendPushToUser(user, title, body, data = {}, channelId = "default") {
+  if (!user || user.notificationsEnabled === false || !user.pushToken) {
+    return { success: false, skipped: true, reason: "push_disabled_or_missing" };
+  }
+
+  return sendPushNotification(
+    user.pushToken,
+    title,
+    body,
+    data,
+    channelId,
+    "default",
+    "high",
+  );
 }
 
 /**
@@ -271,6 +310,7 @@ async function sendDriverNearbyNotification(clientPushToken, driverData) {
 
 module.exports = {
   sendPushNotification,
+  sendPushToUser,
   sendPushNotifications,
   getPushNotificationReceipts,
   sendNewOrderNotification,

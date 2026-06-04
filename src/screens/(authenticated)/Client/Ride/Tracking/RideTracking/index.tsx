@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, TouchableOpacity, Linking, Share, Animated } from "react-native";
+import { View, Text, TouchableOpacity, Linking, Share, Animated, Modal, Image, ActivityIndicator, Clipboard } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { createAudioPlayer } from "expo-audio";
-import { MessageCircle } from "lucide-react-native";
+import { MessageCircle, QrCode } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -19,6 +19,7 @@ import { useAuthStore } from "@/context/authStore";
 import { useChatStore } from "@/context/chatStore";
 import { darkMapStyle } from "@/utils/mapStyle";
 import { decodePolyline, LatLng } from "@/utils/polyline";
+import { estimateCancellationFee } from "@/utils/cancellationFee";
 import RoutePin from "@/components/maps/RoutePin";
 import StopPin from "@/components/maps/StopPin";
 import { MapActionButtons } from "@/components/MapActionButtons";
@@ -313,6 +314,8 @@ export default function RideTrackingScreen() {
   const [traveledPath, setTraveledPath] = useState<LatLng[]>([]);
   const [routeEtaText, setRouteEtaText] = useState("");
   const [routeDistanceText, setRouteDistanceText] = useState("");
+  const [showPixModal, setShowPixModal] = useState(false);
+  const [confirmingPix, setConfirmingPix] = useState(false);
   const isDeliveryFlow =
     ride?.serviceType === "delivery" || ride?.serviceType === "frete";
   const driverName = useMemo(() => {
@@ -386,6 +389,18 @@ export default function RideTrackingScreen() {
     const onStatusUpdated = (payload: any) => {
       if (!mounted) return;
       if (payload?.rideId && payload.rideId !== rideId) return;
+      loadRide();
+    };
+
+    const onPaymentConfirmed = (payload: any) => {
+      if (!mounted) return;
+      if (payload?.rideId !== rideId) return;
+      Toast.show({
+        type: "success",
+        text1: "Pagamento Confirmado!",
+        text2: "Seu pagamento via PIX foi processado com sucesso.",
+      });
+      setShowPixModal(false);
       loadRide();
     };
 
@@ -523,6 +538,7 @@ export default function RideTrackingScreen() {
         webSocketService.onDriverArrived(onArrived);
         webSocketService.onRideStarted(onStarted);
         webSocketService.onNewMessage(onNewMsg);
+        webSocketService.on("ride-payment-confirmed", onPaymentConfirmed);
       } catch {
         // fallback no polling
       }
@@ -537,6 +553,7 @@ export default function RideTrackingScreen() {
       webSocketService.off("ride-started", onStarted);
       webSocketService.off("new-message", onNewMsg);
       webSocketService.off("connect", onSocketConnected);
+      webSocketService.off("ride-payment-confirmed", onPaymentConfirmed);
       if (notificationTimeoutRef.current) {
         clearTimeout(notificationTimeoutRef.current);
       }
@@ -774,11 +791,8 @@ export default function RideTrackingScreen() {
     "driver_arriving",
   ].includes(status);
 
-  const cancellationFeePreview =
-    ["accepted", "driver_arriving", "arrived", "in_progress"].includes(status) &&
-    ride?.cancellationFee != null
-      ? Number(ride.cancellationFee)
-      : 0;
+  // Preview da taxa de cancelamento (espelha a regra do backend: janela 2 min / 20%).
+  const cancellationFeePreview = estimateCancellationFee(ride as any);
 
   return (
     <ErrorBoundary componentName="RideTrackingScreen">
@@ -966,6 +980,18 @@ export default function RideTrackingScreen() {
 
         {loading && <Text className="text-[rgba(255,255,255,0.5)] text-[10px] mt-1">Atualizando dados...</Text>}
 
+        {ride?.payment?.method?.toLowerCase() === "pix" && !!ride?.payment?.pixCode && ride?.payment?.status !== "paid" && (
+          <TouchableOpacity
+            className="mt-3 w-full flex-row items-center justify-center gap-2 h-12 rounded-xl bg-[#32BCAD]"
+            onPress={() => setShowPixModal(true)}
+            accessibilityLabel="Pagar com PIX"
+            accessibilityRole="button"
+          >
+            <QrCode size={17} color="#091A2F" />
+            <Text className="text-[#091A2F] text-[13px] font-extrabold">PAGAR COM PIX</Text>
+          </TouchableOpacity>
+        )}
+
         <View className="mt-3 flex-row flex-wrap gap-2">
           <TouchableOpacity
             className="flex-1 min-w-[88px] flex-row items-center justify-center gap-1.5 h-11 rounded-xl border border-[rgba(2,222,149,0.35)] bg-[rgba(2,222,149,0.12)]"
@@ -1062,6 +1088,185 @@ export default function RideTrackingScreen() {
         isVisible={shareSheetVisible}
         onClose={() => setShareSheetVisible(false)}
       />
+
+      {/* Modal de Pagamento PIX para o Cliente */}
+      <Modal
+        visible={showPixModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowPixModal(false)}
+      >
+        <View style={{
+          flex: 1,
+          backgroundColor: "rgba(9, 26, 47, 0.9)",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 24,
+        }}>
+          <View style={{
+            width: "100%",
+            maxWidth: 345,
+            backgroundColor: "#0c1927",
+            borderRadius: 24,
+            borderWidth: 1,
+            borderColor: "rgba(50, 188, 173, 0.25)",
+            padding: 24,
+            alignItems: "center",
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 6 },
+            shadowOpacity: 0.4,
+            shadowRadius: 12,
+            elevation: 10,
+          }}>
+            <Text style={{
+              color: "#fff",
+              fontSize: 20,
+              fontWeight: "900",
+              textAlign: "center",
+              marginBottom: 4,
+            }}>
+              Pagamento via PIX
+            </Text>
+            
+            <Text style={{
+              color: "#32BCAD",
+              fontSize: 13,
+              fontWeight: "700",
+              textAlign: "center",
+              marginBottom: 20,
+            }}>
+              Escaneie o QR Code ou copie o código abaixo
+            </Text>
+
+            <View style={{ alignItems: "center", width: "100%" }}>
+              {/* QR Code Container */}
+              <View style={{
+                backgroundColor: "#fff",
+                padding: 12,
+                borderRadius: 16,
+                marginBottom: 16,
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.15,
+                shadowRadius: 8,
+              }}>
+                {ride?.payment?.qrCodeData ? (
+                  <Image
+                    source={{ uri: ride.payment.qrCodeData }}
+                    style={{ width: 180, height: 180 }}
+                    resizeMode="contain"
+                  />
+                ) : (
+                  <View style={{ width: 180, height: 180, justifyContent: "center", alignItems: "center" }}>
+                    <ActivityIndicator size="small" color="#091A2F" />
+                  </View>
+                )}
+              </View>
+
+              {/* Valor */}
+              <Text style={{ color: "#fff", fontSize: 24, fontWeight: "900", marginBottom: 16 }}>
+                R$ {ride?.pricing?.total ? Number(ride.pricing.total).toFixed(2).replace(".", ",") : "0,00"}
+              </Text>
+
+              {/* Copia e Cola */}
+              <TouchableOpacity
+                activeOpacity={0.8}
+                style={{
+                  backgroundColor: "rgba(255,255,255,0.05)",
+                  borderWidth: 1.2,
+                  borderColor: "rgba(255,255,255,0.12)",
+                  borderRadius: 12,
+                  paddingVertical: 12,
+                  paddingHorizontal: 16,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  width: "100%",
+                  marginBottom: 24,
+                }}
+                onPress={() => {
+                  Clipboard.setString(ride?.payment?.pixCode || "");
+                  Toast.show({ type: "success", text1: "PIX Copia e Cola copiado!" });
+                }}
+              >
+                <Text
+                  style={{ color: "rgba(255,255,255,0.7)", fontSize: 13, fontWeight: "600", flex: 1, marginRight: 8 }}
+                  numberOfLines={1}
+                >
+                  {ride?.payment?.pixCode || "Código PIX"}
+                </Text>
+                <Text style={{ color: "#32BCAD", fontSize: 12, fontWeight: "900" }}>
+                  COPIAR
+                </Text>
+              </TouchableOpacity>
+
+              {/* Actions */}
+              <View style={{ flexDirection: "row", width: "100%", gap: 12 }}>
+                <TouchableOpacity
+                  style={{
+                    flex: 1,
+                    height: 48,
+                    borderRadius: 12,
+                    backgroundColor: "rgba(255, 255, 255, 0.08)",
+                    borderWidth: 1,
+                    borderColor: "rgba(255, 255, 255, 0.15)",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                  onPress={() => setShowPixModal(false)}
+                >
+                  <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}>
+                    Fechar
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={{
+                    flex: 1,
+                    height: 48,
+                    borderRadius: 12,
+                    backgroundColor: "#32BCAD",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexDirection: "row",
+                    gap: 8,
+                  }}
+                  disabled={confirmingPix}
+                  onPress={async () => {
+                    try {
+                      setConfirmingPix(true);
+                      await rideService.confirmRidePixPaymentMock(rideId);
+                      Toast.show({
+                        type: "success",
+                        text1: "Pagamento confirmado!",
+                        text2: "Simulação de pagamento PIX concluída.",
+                      });
+                      setShowPixModal(false);
+                      loadRide();
+                    } catch (err: any) {
+                      Toast.show({
+                        type: "error",
+                        text1: "Erro ao confirmar pagamento",
+                        text2: err?.message || "Erro desconhecido",
+                      });
+                    } finally {
+                      setConfirmingPix(false);
+                    }
+                  }}
+                >
+                  {confirmingPix ? (
+                    <ActivityIndicator size="small" color="#091A2F" />
+                  ) : (
+                    <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 14 }}>
+                      Simular Pago
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Floating Chat Notification Banner */}
       {chatNotification && (

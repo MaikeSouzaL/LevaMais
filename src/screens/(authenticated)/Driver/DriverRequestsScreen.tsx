@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { View, Text, TouchableOpacity, Linking, ActivityIndicator, ScrollView, Alert, Dimensions, StatusBar } from "react-native";
+import { View, Text, TouchableOpacity, Linking, ActivityIndicator, ScrollView, Alert, Dimensions, StatusBar, Image } from "react-native";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
@@ -35,29 +35,16 @@ import { Modal } from "../../../components/Modal";
 import { formatBRL } from "@/utils/mappers";
 import { Icon } from "@/components/ui/Icon";
 
-import { GlobalMap } from "@/components/GlobalMap";
+// GlobalMap removed to improve performance
 const { width, height } = Dimensions.get("window");
 
-interface OperationalBackgroundProps {
-  currentLoc?: { latitude: number; longitude: number };
-}
-function OperationalBackground({ currentLoc }: OperationalBackgroundProps) {
+function OperationalBackground() {
   return (
     <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 0, overflow: "hidden" }}>
-      <GlobalMap
-        provider="google"
-        useDarkStyle={true}
-        initialRegion={{
-          latitude: currentLoc?.latitude || -23.5505,
-          longitude: currentLoc?.longitude || -46.6333,
-          latitudeDelta: 0.05,
-          longitudeDelta: 0.05,
-        }}
+      <Image
+        source={require("../../../assets/mapBg.jpg")}
         style={{ width: width, height: height, opacity: 0.55 }}
-        scrollEnabled={false}
-        zoomEnabled={false}
-        rotateEnabled={false}
-        pitchEnabled={false}
+        resizeMode="cover"
       />
       <BlurView intensity={35} tint="dark" style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }} />
       <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(9, 26, 47, 0.55)" }} />
@@ -75,6 +62,14 @@ type RideRequestItem = {
   duration?: { text?: string };
   serviceType?: string;
   vehicleType?: string;
+  client?: {
+    id?: string;
+    name?: string;
+    phone?: string;
+    profilePhoto?: string;
+    rating?: number;
+    ridesCount?: number;
+  } | null;
   payment?: {
     method?: {
       type?: string;
@@ -152,6 +147,7 @@ export default function DriverRequestsScreen() {
       setPendingNegotiations(
         (res?.requests || []).map((item: any) => ({
           rideId: item.rideId,
+          status: item.status,
           pickup: item.pickup,
           dropoff: item.dropoff,
           pricing: item.pricing,
@@ -260,6 +256,7 @@ export default function DriverRequestsScreen() {
         setRequests(
           (available?.requests || []).map((item: any) => ({
             rideId: item.rideId,
+            status: item.status,
             pickup: item.pickup,
             dropoff: item.dropoff,
             pricing: item.pricing,
@@ -329,6 +326,7 @@ export default function DriverRequestsScreen() {
       if (!mounted) return;
       const item: RideRequestItem = {
         rideId: payload?.rideId,
+        status: payload?.status || "requesting",
         pickup: payload?.pickup,
         dropoff: payload?.dropoff,
         pricing: payload?.pricing,
@@ -363,6 +361,7 @@ export default function DriverRequestsScreen() {
       const takenId = payload?.rideId;
       if (!takenId) return;
       setRequests((prev) => prev.filter((r) => r.rideId !== takenId));
+      setPendingNegotiations((prev) => prev.filter((r) => r.rideId !== takenId));
     };
 
     const onRideExpired = (payload: any) => {
@@ -370,6 +369,7 @@ export default function DriverRequestsScreen() {
       const expiredId = payload?.rideId;
       if (!expiredId) return;
       setRequests((prev) => prev.filter((r) => r.rideId !== expiredId));
+      setPendingNegotiations((prev) => prev.filter((r) => r.rideId !== expiredId));
     };
 
     const onRideCancelled = (payload: any) => {
@@ -377,6 +377,7 @@ export default function DriverRequestsScreen() {
       const cancelledId = payload?.rideId;
       if (!cancelledId) return;
       setRequests((prev) => prev.filter((r) => r.rideId !== cancelledId));
+      setPendingNegotiations((prev) => prev.filter((r) => r.rideId !== cancelledId));
     };
 
     const onRideOfferIncreased = async (payload: any) => {
@@ -394,6 +395,38 @@ export default function DriverRequestsScreen() {
       }
     };
 
+    const onOfferRejectedByClient = (payload: any) => {
+      if (!mounted) return;
+      const rejectedRideId = payload?.rideId;
+      if (!rejectedRideId) return;
+
+      Toast.show({
+        type: "error",
+        text1: "Proposta recusada ❌",
+        text2: "O cliente recusou sua proposta de preço.",
+        position: "top"
+      });
+
+      setRequests((prev) =>
+        prev.map((r) => {
+          if (r.rideId === rejectedRideId) {
+            return {
+              ...r,
+              negotiation: {
+                ...r.negotiation,
+                myOffer: {
+                  amount: r.negotiation?.myOffer?.amount || r.pricing?.total || 0,
+                  driverAmount: r.negotiation?.myOffer?.driverAmount,
+                  status: "rejected",
+                },
+              },
+            };
+          }
+          return r;
+        })
+      );
+    };
+
     const onSocketConnected = () => {
       syncAvailableRequests().catch(() => {});
     };
@@ -407,6 +440,7 @@ export default function DriverRequestsScreen() {
         webSocketService.on("ride-expired", onRideExpired);
         webSocketService.on("ride-cancelled", onRideCancelled);
         webSocketService.on("queue-ride-offer-increased", onRideOfferIncreased);
+        webSocketService.on("ride-offer-rejected-by-client", onOfferRejectedByClient);
        } catch (e) {
         console.error("Error connecting to websocket:", e);
       }
@@ -426,6 +460,7 @@ export default function DriverRequestsScreen() {
       webSocketService.off("ride-expired", onRideExpired);
       webSocketService.off("ride-cancelled", onRideCancelled);
       webSocketService.off("queue-ride-offer-increased", onRideOfferIncreased);
+      webSocketService.off("ride-offer-rejected-by-client", onOfferRejectedByClient);
       webSocketService.off("connect", onSocketConnected);
       driverAlertService.stop().catch(() => {});
     };
@@ -451,31 +486,22 @@ export default function DriverRequestsScreen() {
         name: "Cliente Leva Mais",
         rating: "5.0"
       },
-      cargoType: "Encomenda"
+      cargoType: {
+        food: "Delivery",
+        doc: "Documentos",
+        market: "Mercado",
+        box: "Caixa",
+        material: "Material",
+        furniture: "Móveis",
+        moving: "Mudança",
+        other: "Outros"
+      }[item.details?.itemType as string] || "Encomenda",
+      negotiation: item.negotiation
     };
 
     (navigation as any).navigate("DriverNegotiation", {
       offer: offerParam
     });
-    return;
-    // @ts-ignore
-    const dummy = {
-      offer: {
-        rideId: item.rideId,
-        pickup: item.pickup,
-        dropoff: item.dropoff,
-        pricing: item.pricing,
-        distance: item.distance,
-        duration: item.duration,
-        serviceType: item.serviceType,
-        vehicleType: item.vehicleType,
-        payment: item.payment,
-        details: item.details,
-        negotiation: item.negotiation,
-      },
-      onAccept: () => accept(item.rideId),
-      onReject: () => reject(item.rideId),
-    };
   };
 
   const accept = async (rideId: string) => {
@@ -523,8 +549,31 @@ export default function DriverRequestsScreen() {
             return [updatedReq as any, ...prev];
           });
           setRequests((prev) => prev.filter((r) => r.rideId !== rideId));
-          setActiveTab("realtime");
           driverAlertService.stop().catch(() => {});
+
+          const offerParam = {
+            _id: request.rideId,
+            offeredValue: Number(request.negotiation?.clientOffer || request.pricing?.total || 0),
+            pickup: request.pickup,
+            destination: request.dropoff,
+            dropoff: request.dropoff,
+            distance: request.distance,
+            duration: request.duration,
+            pricing: request.pricing,
+            client: request.client || {
+              name: "Cliente Leva Mais",
+              rating: "5.0"
+            },
+            cargoType: request.serviceType === "delivery" ? "Delivery" : "Corrida",
+            negotiation: {
+              ...request.negotiation,
+              myOffer: {
+                amount: Number(request.negotiation?.clientOffer || request.pricing?.total || 0),
+                status: "pending"
+              }
+            }
+          };
+          (navigation as any).navigate("DriverNegotiation", { offer: offerParam });
         }
       }
       return;
@@ -699,11 +748,26 @@ export default function DriverRequestsScreen() {
     Linking.openURL(url);
   };
 
-  // Ã°Å¸â€â‚¬ Advanced Operational Filtration System
+  // ── Advanced Operational Filtration System
   const offersFeed = useMemo(() => {
-    // Na aba "Ofertas", mostrar apenas solicitações ativas realmente disponíveis em tempo real.
-    // Itens recusados/perdidos/cancelados devem aparecer somente no Histórico.
-    return requests.filter((item) => {
+    // Mesclar requests normais e pendingNegotiations para a aba "Ofertas"
+    const mergedMap = new Map<string, RideRequestItem>();
+    
+    for (const req of requests) {
+      if (req.rideId) {
+        mergedMap.set(req.rideId, req);
+      }
+    }
+    
+    for (const pending of pendingNegotiations) {
+      if (pending.rideId) {
+        mergedMap.set(pending.rideId, pending);
+      }
+    }
+    
+    const mergedList = Array.from(mergedMap.values());
+
+    return mergedList.filter((item) => {
       const status = String(item?.status || "requesting");
       const myOfferStatus = String(item?.negotiation?.myOffer?.status || "");
       const isTerminalRide = [
@@ -718,7 +782,7 @@ export default function DriverRequestsScreen() {
       const isRejectedByMe = myOfferStatus === "rejected";
       return !isTerminalRide && !isRejectedByMe;
     });
-  }, [requests]);
+  }, [requests, pendingNegotiations]);
 
   const currentTabCount = activeTab === "realtime" ? offersFeed.length : scheduledRides.length;
 

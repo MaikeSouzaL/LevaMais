@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text } from "react-native";
+import { View, Text, TouchableOpacity } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MotiView, AnimatePresence } from "moti";
 import { DriverActionButtons } from "./DriverActionButtons";
@@ -27,6 +27,7 @@ type ActiveDeliveryBottomSheetProps = {
   isDelivery?: boolean;
   canArriveDropoff?: boolean;
   onArriveDropoff?: () => void;
+  onShowPix?: () => void;
 };
 
 type ProgressStep = "to_pickup" | "at_pickup" | "to_dropoff" | "completed";
@@ -106,6 +107,7 @@ export function ActiveDeliveryBottomSheet({
   isDelivery = false,
   canArriveDropoff = false,
   onArriveDropoff,
+  onShowPix,
 }: ActiveDeliveryBottomSheetProps) {
   const insets = useSafeAreaInsets();
   const progressStep = getProgressStep(status, canArrive, canStart, canComplete);
@@ -237,6 +239,19 @@ export function ActiveDeliveryBottomSheet({
             loading={actionLoading}
             onPress={onPrimaryActionPress}
           />
+        </View>
+      )}
+
+      {paymentLabel?.toLowerCase() === "pix" && (status === "in_progress" || canComplete) && onShowPix && (
+        <View className="px-5 mt-2">
+          <TouchableOpacity
+            onPress={onShowPix}
+            className="flex-row items-center justify-center bg-emerald-500/10 border border-emerald-500/30 rounded-xl py-3"
+          >
+            <Text className="text-emerald-400 font-black text-sm">
+              EXIBIR QR CODE PIX
+            </Text>
+          </TouchableOpacity>
         </View>
       )}
 

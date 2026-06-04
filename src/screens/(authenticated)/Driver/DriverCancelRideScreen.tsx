@@ -152,6 +152,10 @@ export default function DriverCancelRideScreen() {
           visible
           title="Cancelar corrida"
           subtitle="Selecione um motivo. O cliente será notificado."
+          infoNote={
+            "Ao cancelar, o cliente é reembolsado 100% e a corrida volta automaticamente para a busca por outro motorista. " +
+            "Você não é multado, mas cancelamentos frequentes aumentam sua taxa de cancelamento e podem reduzir suas ofertas."
+          }
           reasons={REASONS}
           selectedReasonId={selected}
           onSelectReason={setSelected}

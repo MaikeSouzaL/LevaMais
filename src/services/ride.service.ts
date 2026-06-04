@@ -116,6 +116,9 @@ export interface Ride {
   };
   payment?: {
     method?: string;
+    status?: string;
+    pixCode?: string;
+    qrCodeData?: string;
   };
   createdAt: string;
   isWaitingInQueue?: boolean;
@@ -124,12 +127,38 @@ export interface Ride {
 }
 
 export interface RideOffer {
-  driverId: string | { _id: string; name?: string; profilePhoto?: string };
+  driverId:
+    | string
+    | {
+        _id: string;
+        name?: string;
+        profilePhoto?: string | null;
+        rating?: number;
+        completedRides?: number;
+        /** % de corridas concluídas sem cancelar (confiança). null se poucos dados. */
+        reliabilityPct?: number | null;
+      };
   amount: number;
   status: "accepted" | "countered" | "rejected" | "client_countered";
   message?: string;
   createdAt?: string;
   updatedAt?: string;
+  /**
+   * Valor original da oferta do motorista. Quando o cliente faz contraproposta
+   * (action = "client_countered"), o backend salva o valor original do motorista
+   * aqui e atualiza `amount` para o valor da contraproposta.
+   */
+  driverAmount?: number | null;
+  /** Tipo de veiculo em uso no momento (vem do DriverLocation). */
+  vehicleType?: "bicycle" | "motorcycle" | "car" | "van" | "truck";
+  /** Label amigavel: "Moto" | "Carro" | "Van" | "Caminhao" | "Bicicleta". */
+  vehicleLabel?: string;
+  /** Distancia real (rota Google) do motorista ate o ponto de embarque, em km. */
+  distanceToPickupKm?: number | null;
+  /** Tempo estimado de chegada (etaMinutes) calculado pelo backend. */
+  etaMinutes?: number | null;
+  /** Origem da metrica: "route_api" (real), "snapshot" ou "estimate" (haversine). */
+  routeSource?: "route_api" | "snapshot" | "estimate" | null;
 }
 
 export interface CalculatePriceRequest {
@@ -168,6 +197,10 @@ export interface RideCategoryOption {
     timePrice: number;
     stopsFee: number;
     total: number;
+    /** Faixa de lance permitida (simétrica, calculada no backend). */
+    minPrice?: number;
+    maxPrice?: number;
+    bidRangeFactor?: number;
     currency: string;
     multiplier: number;
     feePerStop: number;
@@ -466,8 +499,20 @@ class RideService {
   async cancel(
     rideId: string,
     reason?: string,
-  ): Promise<{ message?: string; cancellationFee?: number }> {
+  ): Promise<{ message?: string; cancellationFee?: number; redispatched?: boolean }> {
     const response = await api.post(`/rides/${rideId}/cancel`, { reason });
+    return response.data || {};
+  }
+
+  /**
+   * Relatar problema na entrega no destino (destinatário ausente / endereço errado).
+   * Aciona a devolução do pacote e a liquidação (cliente 100%, motorista total×1,15).
+   */
+  async reportDeliveryProblem(
+    rideId: string,
+    payload: { reason: string; photoUrl?: string; note?: string },
+  ): Promise<{ message?: string; deliveryFailure?: any }> {
+    const response = await api.post(`/rides/${rideId}/delivery-problem`, payload);
     return response.data || {};
   }
 
@@ -714,6 +759,34 @@ class RideService {
 
   async generateShareToken(rideId: string): Promise<{ token: string; shareUrl: string }> {
     const response = await api.get(`/rides/${rideId}/share-token`);
+    return response.data;
+  }
+
+  /**
+   * Gerar Pix de Pagamento da Corrida
+   */
+  async createRidePixPayment(rideId: string): Promise<{
+    success: boolean;
+    transactionId: string;
+    amount: number;
+    pixCode: string;
+    qrCodeData: string;
+    expiresIn: number;
+    status: string;
+    instructions: string[];
+  }> {
+    const response = await api.post(`/rides/${rideId}/pix-payment`);
+    return response.data;
+  }
+
+  /**
+   * Simular confirmacao de pagamento PIX de corrida (apenas para teste/dev)
+   */
+  async confirmRidePixPaymentMock(rideId: string): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    const response = await api.post(`/rides/${rideId}/pix-payment/confirm-mock`);
     return response.data;
   }
 }

@@ -17,6 +17,29 @@ export function mapServiceModeToApi(
   return t;
 }
 
+import { getBaseURL } from "../services/api";
+
+export function resolveAssetURL(url?: string): string | undefined {
+  if (!url) return undefined;
+  
+  // Se for um caminho relativo, anexa a URL base do servidor (removendo o sufixo /api se houver)
+  if (url.startsWith("/")) {
+    const apiBase = getBaseURL();
+    const serverBase = apiBase.replace(/\/api$/, "");
+    return `${serverBase}${url}`;
+  }
+
+  // Se a URL contiver a pasta /uploads/, reescreve a origem dinamicamente para apontar para o servidor atual
+  if (url.includes("/uploads/")) {
+    const apiBase = getBaseURL();
+    const serverBase = apiBase.replace(/\/api$/, "");
+    const parts = url.split("/uploads/");
+    return `${serverBase}/uploads/${parts[1]}`;
+  }
+
+  return url;
+}
+
 export function formatBRL(value: number): string {
   try {
     return new Intl.NumberFormat("pt-BR", {

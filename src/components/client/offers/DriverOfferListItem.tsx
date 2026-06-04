@@ -1,8 +1,7 @@
-import React, { useMemo, useState, useEffect } from "react";
+﻿import React, { useMemo } from "react";
 import { View, Text, TouchableOpacity, ActivityIndicator, Image } from "react-native";
 import { MotiView } from "moti";
-import { BlurView } from "expo-blur";
-import { Star, Package, Clock, Check, MessageCircle, User, Timer, Shield, TrendingUp, Sparkles, Info } from "lucide-react-native";
+import { Star, Clock, Check, MessageCircle, User, Car, Bike, Route, X, ShieldCheck } from "lucide-react-native";
 import { formatBRL } from "@/utils/mappers";
 import { RideOffer } from "@/services/ride.service";
 
@@ -13,10 +12,25 @@ interface DriverOfferListItemProps {
   onDecline: (offer: RideOffer) => void;
   onCounter: (offer: RideOffer) => void;
   loading: boolean;
+  /** Marca esta oferta como a recomendada (melhor custo-benefício) — calculado pela lista. */
+  recommended?: boolean;
+  /** Timestamp atual (ms) compartilhado, para o contador "expira em". */
+  nowTs?: number;
 }
 
-export function DriverOfferListItem({ offer, clientBudget, onSelect, onDecline, onCounter, loading }: DriverOfferListItemProps) {
-  
+/** Janela de validade da oferta (a partir do createdAt) usada no contador "expira em". */
+const OFFER_TTL_SEC = 180;
+
+function readOfferNumber(offer: RideOffer, field: "amount" | "driverAmount"): number {
+  const raw =
+    (offer as any)?.[field] ??
+    (offer as any)?._doc?.[field] ??
+    (offer as any)?.doc?.[field];
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : 0;
+}
+
+export function DriverOfferListItem({ offer, clientBudget, onSelect, onDecline, onCounter, loading, recommended = false, nowTs }: DriverOfferListItemProps) {
   const driverName = useMemo(() => {
     if (typeof offer.driverId === "string") return "Entregador Parceiro";
     return offer.driverId?.name || "Entregador Parceiro";
@@ -27,340 +41,398 @@ export function DriverOfferListItem({ offer, clientBudget, onSelect, onDecline, 
     return offer.driverId?.profilePhoto || null;
   }, [offer.driverId]);
 
-  const isCheaperOrEqual = Number(offer.amount) <= clientBudget;
+  const offerAmount = readOfferNumber(offer, "amount");
+  const originalDriverAmount = readOfferNumber(offer, "driverAmount");
+  const displayAmount =
+    offer.status === "client_countered" && originalDriverAmount > 0
+      ? originalDriverAmount
+      : offerAmount;
+
+  const normalizedBudget = Number(clientBudget || 0);
   const isCounterOffer = offer.status !== "accepted";
   const isPendingDriver = offer.status === "client_countered";
+  const isCheaperOrEqual = displayAmount > 0 && displayAmount <= normalizedBudget;
+  const isBestValue = isCheaperOrEqual && !isCounterOffer;
 
-  // Deterministic calculated metrics based on driverId for absolute consistency! 🧬📈
-  const [rating, deliveryCount, eta] = useMemo(() => {
-    const dId = typeof offer.driverId === "string" ? offer.driverId : offer.driverId?._id || "default-driver";
-    
-    // Linear congruential generator style deterministic hash
-    let hash = 0;
-    for (let i = 0; i < dId.length; i++) {
-      hash = dId.charCodeAt(i) + ((hash << 5) - hash);
-      hash = hash & hash; // Convert to 32bit integer
-    }
-    const seed = Math.abs(hash);
+  const driverObj = typeof offer.driverId === "string" ? null : offer.driverId;
+  const rating = Number(driverObj?.rating ?? 5.0).toFixed(1);
+  const deliveryCount = driverObj?.completedRides ?? 0;
+  const reliabilityPct = driverObj?.reliabilityPct ?? null;
+  const eta = offer.etaMinutes ?? 0;
+  const distanceKm = offer.distanceToPickupKm ?? null;
+  const vehicleName = offer.vehicleLabel ?? "Moto";
+  const vehicleKey = (offer.vehicleType ?? "motorcycle").toLowerCase();
+  const VehicleIcon = vehicleKey === "car" || vehicleKey === "van" || vehicleKey === "truck" ? Car : Bike;
 
-    const finalRating = (4.7 + (seed % 3) * 0.1).toFixed(1); // Deterministic: 4.7, 4.8, 4.9
-    const finalDeliveryCount = 350 + (seed % 950); // Deterministic delivery count 350-1300
-    const finalEta = 3 + (seed % 6); // Deterministic ETA between 3 and 8 min
-    
-    return [finalRating, finalDeliveryCount, finalEta];
-  }, [offer.driverId]);
-  
+  const diff = displayAmount - normalizedBudget;
+  const deltaAbs = Math.abs(diff);
+  const hasComparableBudget = normalizedBudget > 0 && displayAmount > 0;
+  const deltaLabel =
+    !hasComparableBudget || deltaAbs < 0.005
+      ? "Igual à base"
+      : `${diff > 0 ? "+" : "-"} ${formatBRL(deltaAbs)}`;
+  const deltaCaption =
+    !hasComparableBudget || deltaAbs < 0.005
+      ? "Valor alinhado"
+      : diff > 0
+        ? "Acima da base"
+        : "Abaixo da base";
+  const deltaTone =
+    !hasComparableBudget || deltaAbs < 0.005
+      ? { bg: "#F1F5F9", text: "#475569", border: "rgba(71, 85, 105, 0.14)" }
+      : diff > 0
+        ? { bg: "#FEF2F2", text: "#DC2626", border: "rgba(220, 38, 38, 0.16)" }
+        : { bg: "#ECFDF5", text: "#047857", border: "rgba(4, 120, 87, 0.16)" };
 
-  // 🧠 Smart AI justification generator based on local heuristics
-  const smartJustification = useMemo(() => {
-    if (offer.message && offer.message !== "Negociação justa") {
-      return offer.message;
-    }
-    const options = [
-      "Alta demanda de pedidos na região neste momento.",
-      "Trânsito intenso detectado no trajeto de coleta.",
-      "Deslocamento rápido e rota direta exclusiva.",
-      "Entrega prioritária com máxima segurança."
-    ];
-    const dId = String(typeof offer.driverId === "string" ? offer.driverId : offer.driverId?._id || "A");
-    const idx = dId.charCodeAt(dId.length - 1) % options.length;
-    return options[idx];
-  }, [offer.message, offer.driverId]);
+  const isEstimate = offer.routeSource === "estimate";
+  const approxPrefix = isEstimate ? "~" : "";
+  const isVeryClose = eta > 0 && eta <= 2;
 
-  const diff = Number(offer.amount) - clientBudget;
+  // Contador "expira em" a partir do createdAt da oferta.
+  const expiresInSec = useMemo(() => {
+    if (!offer.createdAt) return null;
+    const created = new Date(offer.createdAt).getTime();
+    if (!Number.isFinite(created)) return null;
+    const ref = nowTs ?? Date.now();
+    return Math.max(0, Math.floor((created + OFFER_TTL_SEC * 1000 - ref) / 1000));
+  }, [offer.createdAt, nowTs]);
+  const expiresLabel =
+    expiresInSec != null && expiresInSec > 0
+      ? `expira em ${Math.floor(expiresInSec / 60)}:${String(expiresInSec % 60).padStart(2, "0")}`
+      : null;
+  const distanceLabel =
+    distanceKm == null
+      ? "--"
+      : distanceKm < 1
+        ? `${approxPrefix}${Math.round(distanceKm * 1000)} m`
+        : `${approxPrefix}${distanceKm.toFixed(1)} km`;
+  const etaLabel = eta > 0 ? `${approxPrefix}${eta} min` : "--";
 
   return (
     <MotiView
-      from={{ opacity: 0, scale: 0.92, translateY: 20 }}
+      from={{ opacity: 0, scale: 0.96, translateY: 14 }}
       animate={{ opacity: 1, scale: 1, translateY: 0 }}
-      transition={{ type: "spring", damping: 15 }}
-      className="w-full mb-6 overflow-hidden shadow-2xl"
+      transition={{ type: "spring", damping: 16 }}
+      className="w-full mb-4 overflow-hidden"
       style={{
-        backgroundColor: '#11253E',
-        borderRadius: 32,
-        borderWidth: 1.5,
-        borderColor: 'rgba(255, 255, 255, 0.1)',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.4,
-        shadowRadius: 15,
-        elevation: 8
+        backgroundColor: "#FFFFFF",
+        borderRadius: 22,
+        borderWidth: recommended ? 2 : 1,
+        borderColor: recommended || isBestValue ? "#00C853" : "rgba(15, 23, 42, 0.08)",
+        shadowColor: "#091A2F",
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.08,
+        shadowRadius: 14,
+        elevation: 4,
+        position: "relative",
       }}
     >
-      <BlurView intensity={20} tint="dark" style={{ padding: 24 }}>
-        
-        {/* 1. TOPO: STATUS DA NEGOCIAÇÃO & COUNTDOWN */}
-        <View className="flex-row items-center justify-between mb-5">
-          {isCheaperOrEqual && !isCounterOffer ? (
-            <View className="bg-[#02de95]/15 border border-[#02de95]/30 px-3.5 py-1.5 rounded-full flex-row items-center">
-              <Shield size={10} color="#02de95" className="mr-1.5" />
-              <Text className="text-[#02de95] text-[9px] font-black uppercase tracking-widest">Melhor Custo-Benefício</Text>
-            </View>
-          ) : (
-            <View className="bg-amber-500/15 border border-amber-500/30 px-3.5 py-1.5 rounded-full flex-row items-center shadow-sm">
-              <TrendingUp size={10} color="#F59E0B" className="mr-1.5" />
-              <Text className="text-[#FBBF24] text-[9px] font-black uppercase tracking-widest">Contraproposta Ativa</Text>
-            </View>
-          )}
+      {(recommended || isBestValue) && (
+        <View
+          style={{
+            position: "absolute",
+            top: 0,
+            bottom: 0,
+            left: 0,
+            width: 4,
+            backgroundColor: "#00C853",
+            zIndex: 20,
+          }}
+        />
+      )}
 
+      {recommended && (
+        <View
+          style={{
+            alignSelf: "flex-start",
+            flexDirection: "row",
+            alignItems: "center",
+            backgroundColor: "#00C853",
+            paddingHorizontal: 10,
+            paddingVertical: 4,
+            borderTopLeftRadius: 22,
+            borderBottomRightRadius: 12,
+          }}
+        >
+          <Star size={11} color="#FFFFFF" fill="#FFFFFF" style={{ marginRight: 4 }} />
+          <Text style={{ color: "#FFFFFF", fontWeight: "900", fontSize: 10, letterSpacing: 0.4 }}>
+            RECOMENDADO
+          </Text>
         </View>
+      )}
 
-        {/* 2. MEIO: CARD MOTORISTA (Avatar + Badges Individuais) */}
-        <View className="flex-row items-center mb-6">
-          {/* Premium Avatar Frame with Glowing Ring */}
-          <View 
-            style={{
-              width: 64,
-              height: 64,
-              borderRadius: 32,
-              backgroundColor: '#0C1E35',
-              borderWidth: 2,
-              borderColor: 'rgba(0, 229, 255, 0.25)',
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginRight: 16,
-              position: 'relative',
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 6 },
-              shadowOpacity: 0.3,
-              shadowRadius: 10,
-              elevation: 8
-            }}
-          >
-            <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: '#112A49', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+      <View style={{ padding: 14 }}>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", flex: 1, minWidth: 0 }}>
+            <View
+              style={{
+                width: 50,
+                height: 50,
+                borderRadius: 25,
+                backgroundColor: "#F1F5F9",
+                alignItems: "center",
+                justifyContent: "center",
+                overflow: "hidden",
+                marginRight: 12,
+                borderWidth: 2,
+                borderColor: "#FFFFFF",
+                shadowColor: "#0F172A",
+                shadowOffset: { width: 0, height: 3 },
+                shadowOpacity: 0.12,
+                shadowRadius: 6,
+                elevation: 2,
+              }}
+            >
               {driverPhoto ? (
-                <Image source={{ uri: driverPhoto }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                <Image source={{ uri: driverPhoto }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
               ) : (
-                <User size={28} color="rgba(255,255,255,0.6)" />
+                <User size={20} color="#64748B" />
               )}
             </View>
-            {/* Online Glowing Indicator */}
-            <MotiView
-              from={{ scale: 1, opacity: 0.6 }}
-              animate={{ scale: 1.7, opacity: 0 }}
-              transition={{ loop: true, duration: 2000, type: "timing" }}
-              style={{
-                position: 'absolute',
-                bottom: 0,
-                right: 0,
-                width: 18,
-                height: 18,
-                borderRadius: 9,
-                backgroundColor: '#02de95'
-              }}
-            />
-            <View style={{ position: 'absolute', bottom: 0, right: 0, width: 18, height: 18, borderRadius: 9, backgroundColor: '#02de95', borderWidth: 3, borderColor: '#081526', zIndex: 10 }} />
-          </View>
 
-          <View className="flex-1 justify-center">
-            <Text className="text-white font-black text-xl tracking-tight mb-2" numberOfLines={1}>
-              {driverName}
-            </Text>
-            
-            {/* Individual Premium Glass Capsules */}
-            <View className="flex-row items-center flex-wrap gap-2">
-              <View className="flex-row items-center bg-white/[0.04] border border-white/10 px-2.5 py-1 rounded-xl">
-                <Star size={11} color="#FBBF24" fill="#FBBF24" className="mr-1.5" />
-                <Text className="text-[#FBBF24] font-extrabold text-[11px]">{rating}</Text>
-              </View>
-              
-              <View className="flex-row items-center bg-white/[0.04] border border-white/10 px-2.5 py-1 rounded-xl">
-                <Package size={11} color="rgba(255,255,255,0.6)" className="mr-1.5" />
-                <Text className="text-white/60 font-extrabold text-[9px] tracking-widest uppercase">{deliveryCount} entregas</Text>
-              </View>
-
-              <View className="flex-row items-center bg-white/[0.04] border border-white/10 px-2.5 py-1 rounded-xl">
-                <View className="w-1.5 h-1.5 rounded-full bg-[#02de95] mr-1.5" />
-                <Text className="text-[#02de95] font-extrabold text-[9px] tracking-widest uppercase">Online</Text>
-              </View>
-            </View>
-          </View>
-        </View>
-
-        {/* 3. VALORES: ÁREA OFERTA (Foco Total, Gigante e Premium) */}
-        <View className="w-full bg-[#050E1A]/50 border border-white/10 rounded-[32px] p-6 mb-6 relative items-center shadow-inner">
-          <View className="flex-row justify-between items-center w-full">
-            
-            {/* Left Side: Time to arrive */}
-            <View className="items-start flex-1 border-r border-white/10 pr-4">
-              <Text className="text-white/30 text-[9px] font-black uppercase tracking-widest mb-1.5">Chega em</Text>
-              <View className="flex-row items-center">
-                <Clock size={16} color="#02de95" className="mr-2" />
-                <Text className="text-white font-black text-xl tracking-tight">{eta} min</Text>
-              </View>
-            </View>
-
-            {/* Right Side: Gigantic Price Node with Gold Pulse & Badge */}
-            <View className="items-end flex-[1.5] pl-4">
-              <Text className="text-white/30 text-[9px] font-black uppercase tracking-widest mb-1">
-                {isPendingDriver ? "Sua Proposta" : "Valor Ofertado"}
-              </Text>
-
-              <View className="flex-row items-center mt-1">
-                {!isPendingDriver && diff > 0 && (
-                  <MotiView 
-                    from={{ scale: 0.95, opacity: 0.8 }} 
-                    animate={{ scale: [0.95, 1.05, 0.95], opacity: 1 }} 
-                    transition={{ loop: true, duration: 2500, type: "timing" }}
-                    style={{
-                      backgroundColor: '#FBBF24',
-                      borderColor: '#FBBF24',
-                      borderWidth: 1,
-                      borderRadius: 8,
-                      paddingHorizontal: 6,
-                      paddingVertical: 3,
-                      marginRight: 8,
-                      shadowColor: '#FBBF24',
-                      shadowOffset: { width: 0, height: 4 },
-                      shadowOpacity: 0.4,
-                      shadowRadius: 6,
-                    }}
-                  >
-                    <Text style={{ color: '#000000', fontWeight: '900', fontSize: 10, letterSpacing: -0.5 }}>
-                      +{formatBRL(diff)}
-                    </Text>
-                  </MotiView>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 5 }}>
+                <Text style={{ color: "#0F172A", fontWeight: "800", fontSize: 16, marginRight: 5, flexShrink: 1 }} numberOfLines={1}>
+                  {driverName}
+                </Text>
+                {isBestValue && (
+                  <View style={{ backgroundColor: "#ECFDF5", borderRadius: 8, paddingHorizontal: 4, paddingVertical: 2 }}>
+                    <Check size={10} color="#047857" strokeWidth={3} />
+                  </View>
                 )}
-                
-                {/* Glowing Pulsing Giant Amount */}
-                <MotiView
-                  from={{ scale: 1 }}
-                  animate={{ scale: [1, 1.02, 1] }}
-                  transition={{ loop: true, duration: 4000, type: "timing" }}
-                >
-                  <Text 
-                    className={`text-4xl font-black tracking-tighter text-right ${
-                      isPendingDriver ? 'text-[#02de95]' : (isCheaperOrEqual ? 'text-[#02de95]' : 'text-[#FBBF24]')
-                    }`}
+              </View>
+
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Star size={12} color="#ffb950" fill="#ffb950" style={{ marginRight: 4 }} />
+                <Text style={{ color: "#ffb950", fontWeight: "800", fontSize: 13, marginRight: 4 }}>
+                  {rating}
+                </Text>
+                <Text style={{ color: "#64748B", fontSize: 12 }} numberOfLines={1}>
+                  ({deliveryCount} entregas)
+                </Text>
+                {reliabilityPct != null && (
+                  <View
                     style={{
-                      textShadowColor: isCheaperOrEqual ? 'rgba(2, 222, 149, 0.4)' : 'rgba(251, 191, 36, 0.4)',
-                      textShadowOffset: { width: 0, height: 2 },
-                      textShadowRadius: 8,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      backgroundColor: reliabilityPct >= 90 ? "#ECFDF5" : "#F1F5F9",
+                      borderRadius: 999,
+                      paddingHorizontal: 6,
+                      paddingVertical: 2,
+                      marginLeft: 6,
                     }}
                   >
-                    {formatBRL(Number(offer.amount))}
-                  </Text>
-                </MotiView>
+                    <ShieldCheck size={10} color={reliabilityPct >= 90 ? "#047857" : "#64748B"} style={{ marginRight: 3 }} />
+                    <Text style={{ color: reliabilityPct >= 90 ? "#047857" : "#64748B", fontSize: 10, fontWeight: "900" }}>
+                      {reliabilityPct}%
+                    </Text>
+                  </View>
+                )}
               </View>
             </View>
           </View>
-        </View>
 
-        {/* 4. JUSTIFICATIVA: INTELIGENTE / VISUAL IA */}
-        {!isPendingDriver && (
-          <View className="flex-row items-start bg-[#02de95]/5 border border-[#02de95]/20 p-4 rounded-2xl mb-6 relative overflow-hidden">
-            <View className="mr-3 mt-0.5">
-              <Sparkles size={16} color="#02de95" fill="#02de95" className="opacity-80" />
-            </View>
-            <View className="flex-1">
-              <View className="flex-row items-center mb-1">
-                <Text className="text-[#02de95] font-black text-[8.5px] uppercase tracking-widest mr-1.5">Análise Inteligente</Text>
-                <View className="w-1 h-1 bg-[#02de95] rounded-full opacity-40" />
-              </View>
-              <Text className="text-white/70 font-bold text-[11.5px] leading-4 italic">
-                "{smartJustification}"
+          <View style={{ alignItems: "flex-end", marginLeft: 10, minWidth: 120 }}>
+            <Text style={{ fontSize: 9, fontWeight: "900", color: "#64748B", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 1 }}>
+              Oferta do entregador
+            </Text>
+            <Text style={{ fontSize: 25, fontWeight: "900", color: isBestValue ? "#047857" : "#0F172A", letterSpacing: 0 }}>
+              {displayAmount > 0 ? formatBRL(displayAmount) : "—"}
+            </Text>
+            <View
+              style={{
+                marginTop: 5,
+                borderWidth: 1,
+                borderColor: deltaTone.border,
+                backgroundColor: deltaTone.bg,
+                borderRadius: 999,
+                paddingHorizontal: 8,
+                paddingVertical: 4,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Text style={{ color: deltaTone.text, fontSize: 10, fontWeight: "900" }} numberOfLines={1}>
+                {deltaLabel}
               </Text>
             </View>
+            <Text style={{ marginTop: 3, color: deltaTone.text, fontSize: 9, fontWeight: "800" }} numberOfLines={1}>
+              {deltaCaption}
+            </Text>
+            {offer.status === "client_countered" && offerAmount > 0 && (
+              <Text style={{ marginTop: 4, fontSize: 10, fontWeight: "800", color: "#0EA5E9" }} numberOfLines={1}>
+                sua oferta: {formatBRL(offerAmount)}
+              </Text>
+            )}
+          </View>
+        </View>
+
+        <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
+          <View style={metricBoxStyle}>
+            <View style={metricLabelRowStyle}>
+              <Clock size={14} color="#64748B" style={{ marginRight: 5 }} />
+              <Text style={metricLabelStyle}>Chega</Text>
+            </View>
+            <Text style={metricValueStyle} numberOfLines={1}>{etaLabel}</Text>
+          </View>
+
+          <View style={metricBoxStyle}>
+            <View style={metricLabelRowStyle}>
+              <Route size={14} color="#64748B" style={{ marginRight: 5 }} />
+              <Text style={metricLabelStyle}>Distância</Text>
+            </View>
+            <Text style={metricValueStyle} numberOfLines={1}>{distanceLabel}</Text>
+          </View>
+
+          <View style={metricBoxStyle}>
+            <View style={metricLabelRowStyle}>
+              <VehicleIcon size={14} color="#64748B" style={{ marginRight: 5 }} />
+              <Text style={metricLabelStyle}>Veículo</Text>
+            </View>
+            <Text style={metricValueStyle} numberOfLines={1}>{vehicleName}</Text>
+          </View>
+        </View>
+
+        {(isVeryClose || expiresLabel) && (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
+            {isVeryClose && (
+              <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#ECFDF5", borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 }}>
+                <Clock size={11} color="#047857" style={{ marginRight: 4 }} />
+                <Text style={{ color: "#047857", fontSize: 10, fontWeight: "900" }}>Muito perto</Text>
+              </View>
+            )}
+            {expiresLabel && (
+              <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#FFF7ED", borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 }}>
+                <Text style={{ color: "#C2410C", fontSize: 10, fontWeight: "800" }}>{expiresLabel}</Text>
+              </View>
+            )}
           </View>
         )}
 
-        {/* 🛡️ Waiting Driver Mode Banner */}
         {isPendingDriver && (
-          <View className="flex-row items-center bg-[#02de95]/10 border border-[#02de95]/30 p-4.5 rounded-2xl mb-6">
-            <ActivityIndicator size="small" color="#02de95" className="mr-3.5" />
+          <View className="flex-row items-center bg-emerald-50 border border-emerald-100 p-3 rounded-xl mb-3">
+            <ActivityIndicator size="small" color="#10B981" className="mr-3" />
             <View className="flex-1">
-              <Text className="text-[#02de95] text-[9px] font-black uppercase tracking-widest mb-0.5">Aguardando Retorno</Text>
-              <Text className="text-white/70 text-[11px] font-bold leading-4">
+              <Text className="text-emerald-600 text-[9px] font-black uppercase tracking-widest mb-0.5">Aguardando Retorno</Text>
+              <Text className="text-slate-600 text-[11px] font-bold leading-4">
                 O entregador recebeu sua contraproposta e está decidindo.
               </Text>
             </View>
           </View>
         )}
 
-        {/* 5. AÇÕES: COM RESPIRO E IDENTIDADE PREMIUM */}
         {isPendingDriver ? (
           <TouchableOpacity
             onPress={() => onDecline(offer)}
             disabled={loading}
             activeOpacity={0.7}
-            className="w-full h-14 flex-row items-center justify-center rounded-2xl bg-red-500/10 border border-red-500/20"
+            className="w-full h-12 flex-row items-center justify-center rounded-xl bg-red-50 border border-red-100"
           >
-            <Text className="text-red-400 font-black text-xs uppercase tracking-widest">Retirar Proposta e Recusar</Text>
+            <X size={15} color="#DC2626" strokeWidth={2.5} style={{ marginRight: 7 }} />
+            <Text className="text-red-600 font-black text-xs uppercase tracking-widest">Retirar Proposta</Text>
           </TouchableOpacity>
         ) : (
-          <View className="gap-4 mt-2">
-            {/* Lower Horizontal Grid: Recusar vs Negociar */}
-            <View className="flex-row gap-4">
-              
-              {/* Recusar: Outline Vermelho Premium */}
-              <TouchableOpacity
-                onPress={() => onDecline(offer)}
-                disabled={loading}
-                activeOpacity={0.7}
-                style={{
-                  flex: 1,
-                  height: 56,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  borderRadius: 16,
-                  borderWidth: 1.5,
-                  borderColor: "rgba(239, 68, 68, 0.4)",
-                  backgroundColor: "transparent"
-                }}
-              >
-                <Text style={{ color: "#EF4444", fontWeight: "900", fontSize: 12, textTransform: "uppercase", letterSpacing: 1 }}>
-                  Recusar
-                </Text>
-              </TouchableOpacity>
+          <View className="flex-row gap-3">
+            <TouchableOpacity
+              onPress={() => onDecline(offer)}
+              disabled={loading}
+              activeOpacity={0.7}
+              style={{
+                flex: 1,
+                height: 48,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: 12,
+                borderWidth: 1.5,
+                borderColor: "rgba(220, 38, 38, 0.18)",
+                backgroundColor: "#FFF7F7",
+              }}
+            >
+              <X size={15} color="#DC2626" strokeWidth={2.5} style={{ marginRight: 6 }} />
+              <Text style={{ color: "#B91C1C", fontWeight: "800", fontSize: 13 }}>Recusar</Text>
+            </TouchableOpacity>
 
-              {/* Negociar: Outline Cyan Glow */}
-              <TouchableOpacity
-                onPress={() => onCounter(offer)}
-                disabled={loading}
-                activeOpacity={0.8}
-                style={{
-                  flex: 1,
-                  height: 56,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  borderRadius: 16,
-                  borderWidth: 2,
-                  borderColor: "#02de95",
-                  backgroundColor: "transparent",
-                  shadowColor: '#02de95',
-                  shadowOffset: { width: 0, height: 0 },
-                  shadowOpacity: 0.4,
-                  shadowRadius: 10,
-                }}
-              >
-                <MessageCircle size={16} color="#02de95" style={{ marginRight: 8 }} strokeWidth={3} />
-                <Text style={{ color: "#02de95", fontWeight: "900", fontSize: 12, textTransform: "uppercase", letterSpacing: 1 }}>
-                  Negociar
-                </Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              onPress={() => onCounter(offer)}
+              disabled={loading}
+              activeOpacity={0.78}
+              style={{
+                width: 48,
+                height: 48,
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: 12,
+                borderWidth: 1.5,
+                borderColor: "rgba(14, 165, 233, 0.24)",
+                backgroundColor: "#F0F9FF",
+              }}
+            >
+              <MessageCircle size={18} color="#0284C7" strokeWidth={2.4} />
+            </TouchableOpacity>
 
-            {/* Aceitar: Gradiente Branco Premium com Sombra Profunda */}
             <TouchableOpacity
               onPress={() => onSelect(offer)}
               disabled={loading}
               activeOpacity={0.9}
-              className="w-full h-14 flex-row items-center justify-center rounded-2xl shadow-2xl overflow-hidden bg-white shadow-white/30"
+              style={{
+                flex: 1.5,
+                height: 48,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: 12,
+                backgroundColor: "#00C853",
+                shadowColor: "#00C853",
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.24,
+                shadowRadius: 8,
+                elevation: 4,
+              }}
             >
               {loading ? (
-                <ActivityIndicator color="#091A2F" />
+                <ActivityIndicator color="#FFFFFF" />
               ) : (
-                <View className="flex-row items-center justify-center w-full">
-                  <Check size={18} color="#091A2F" className="mr-2" strokeWidth={3} />
-                  <Text className="text-[#091A2F] font-black text-sm uppercase tracking-widest">Aceitar Proposta</Text>
-                </View>
+                <>
+                  <Check size={16} color="#FFFFFF" strokeWidth={3} style={{ marginRight: 6 }} />
+                  <Text style={{ color: "#FFFFFF", fontWeight: "900", fontSize: 14 }}>Aceitar</Text>
+                </>
               )}
             </TouchableOpacity>
           </View>
         )}
-
-      </BlurView>
+      </View>
     </MotiView>
   );
 }
+
+const metricBoxStyle = {
+  flex: 1,
+  minHeight: 54,
+  borderRadius: 14,
+  backgroundColor: "#F8FAFC",
+  borderWidth: 1,
+  borderColor: "rgba(15, 23, 42, 0.06)",
+  paddingHorizontal: 9,
+  paddingVertical: 8,
+  justifyContent: "center",
+} as const;
+
+const metricLabelRowStyle = {
+  flexDirection: "row",
+  alignItems: "center",
+  marginBottom: 3,
+} as const;
+
+const metricLabelStyle = {
+  color: "#64748B",
+  fontSize: 9,
+  fontWeight: "800",
+  textTransform: "uppercase",
+} as const;
+
+const metricValueStyle = {
+  color: "#0F172A",
+  fontSize: 13,
+  fontWeight: "900",
+} as const;

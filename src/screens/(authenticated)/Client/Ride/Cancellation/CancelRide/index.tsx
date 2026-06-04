@@ -18,6 +18,7 @@ import Toast from "react-native-toast-message";
 
 import rideService from "@/services/ride.service";
 import { formatBRL } from "@/utils/mappers";
+import { estimateCancellationFee } from "@/utils/cancellationFee";
 import { ClientStackParamList } from "../../../types/navigation";
 
 const CANCEL_REASONS = [
@@ -44,6 +45,9 @@ export default function CancelRideScreen() {
   const [rideStatus, setRideStatus] = useState(initialStatus || "");
   const [rideTotal, setRideTotal] = useState(typeof total === "number" ? total : undefined);
   const [serviceType, setServiceType] = useState<string>("");
+  const [computedFee, setComputedFee] = useState<number>(
+    typeof initialEstimatedFee === "number" ? initialEstimatedFee : 0,
+  );
 
   const canSubmit = useMemo(() => Boolean(rideId && selectedReason), [rideId, selectedReason]);
 
@@ -55,6 +59,8 @@ export default function CancelRideScreen() {
       setRideStatus(String(ride?.status || ""));
       setServiceType(String(ride?.serviceType || ""));
       if (ride?.pricing?.total != null) setRideTotal(Number(ride.pricing.total));
+      // Estimativa real da taxa (mesma regra do backend: janela 2 min / 20%).
+      setComputedFee(estimateCancellationFee(ride as any));
     }).catch(() => {});
     return () => { mounted = false; };
   }, [rideId]);
@@ -66,19 +72,19 @@ export default function CancelRideScreen() {
   const isDriverOnTheWay = ["accepted", "driver_arriving"].includes(rideStatus);
   const isDriverAtPickup = rideStatus === "arrived";
 
-  const estimatedFeeFromRide = Number((initialEstimatedFee || 0) > 0 ? initialEstimatedFee : 0);
-  const effectiveEstimatedFee = feeStatusApplies ? estimatedFeeFromRide : 0;
+  // Usa a estimativa calculada pela regra (já trata janela grátis e fase); fallback no param.
+  const effectiveEstimatedFee = computedFee > 0 ? computedFee : (feeStatusApplies ? Number(initialEstimatedFee || 0) : 0);
 
   const warningConfig = useMemo(() => {
     if (isPackageCollected) {
       return {
-        color: "#ef4444",
-        bg: "rgba(239,68,68,0.08)",
-        border: "rgba(239,68,68,0.25)",
+        color: "#f97316",
+        bg: "rgba(249,115,22,0.08)",
+        border: "rgba(249,115,22,0.25)",
         icon: AlertTriangle,
-        title: "Cancelamento bloqueado",
-        message: "O pacote já foi coletado. Para cancelar nesta fase, é necessário contato com o suporte para avaliação operacional.",
-        blocked: true,
+        title: "Pacote já coletado",
+        message: "O entregador já está com seu pacote. Ao cancelar agora será cobrada uma taxa de retorno e o entregador levará o item de volta ao endereço de origem.",
+        blocked: false,
       };
     }
     if (isDriverAtPickup) return {
@@ -102,7 +108,7 @@ export default function CancelRideScreen() {
   }, [isBeforeDriverAccepted, isDriverAtPickup, isDriverOnTheWay, isPackageCollected]);
 
   const handleCancel = async () => {
-    if (!canSubmit || !rideId || isPackageCollected) return;
+    if (!canSubmit || !rideId) return;
     setLoading(true);
     try {
       const reasonLabel = CANCEL_REASONS.find((r) => r.id === selectedReason)?.label || selectedReason;

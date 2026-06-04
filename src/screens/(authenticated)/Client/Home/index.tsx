@@ -6,6 +6,7 @@ import { MotiView } from "moti";
 import { Info, Search, QrCode, Percent, CreditCard, ChevronRight, User, Bell, Shield, ArrowRight, Car, Package, Wallet, Gift, Home as HomeIcon, Briefcase, Sparkles, Bike, Check } from "lucide-react-native";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Toast from "react-native-toast-message";
+import { resolveAssetURL } from "@/utils/mappers";
 
 // 📌 Custom Hooks / Global System
 import { useAuthStore } from "@/context/authStore";
@@ -153,6 +154,13 @@ export default function HomeScreen() {
       navigation.setParams({ activeRideId: undefined });
     }
   }, [route.params, setActiveRequestingRideId, navigation]);
+
+  // Auto-navegar para tela de negociação se houver propostas (proposta de motorista recebida)
+  useEffect(() => {
+    if (negotiationRideId) {
+      navigation.navigate("RideOffersMarketplace", { rideId: negotiationRideId });
+    }
+  }, [negotiationRideId, navigation]);
 
   // Drawer Open
   const handleMenuPress = useCallback(() => {
@@ -302,7 +310,7 @@ export default function HomeScreen() {
               <View className="flex-row items-center gap-3">
                 <TouchableOpacity onPress={handleMenuPress} className="relative" accessibilityLabel="Abrir menu" accessibilityRole="button">
                   {user?.fotoPerfil || user?.profilePhoto ? (
-                    <Image source={{ uri: user.fotoPerfil || user.profilePhoto }} className="w-14 h-14 rounded-full border-[2px] border-white" />
+                    <Image source={{ uri: resolveAssetURL(user.fotoPerfil || user.profilePhoto) }} className="w-14 h-14 rounded-full border-[2px] border-white" />
                   ) : (
                     <View className="w-14 h-14 rounded-full bg-[#091A2F]/10 items-center justify-center border-[1.5px] border-[#091A2F]/20">
                       <User size={24} color="#091A2F" />
@@ -337,7 +345,7 @@ export default function HomeScreen() {
                 userRegion={userRegion}
                 onRegionChangeComplete={handleRegionChangeComplete}
                 useDarkStyle={user?.mapTheme === "dark"}
-                avatarUrl={user?.fotoPerfil || user?.profilePhoto || undefined}
+                avatarUrl={resolveAssetURL(user?.fotoPerfil || user?.profilePhoto) || undefined}
                 rideDrivers={availability.rideDrivers}
                 deliveryDrivers={availability.deliveryDrivers}
                 totalNearby={availability.totalNearby}
@@ -635,7 +643,7 @@ export default function HomeScreen() {
                 <View className="flex-row items-center gap-3">
                   <TouchableOpacity onPress={handleMenuPress} className="relative" accessibilityLabel="Abrir menu" accessibilityRole="button">
                     {user?.fotoPerfil || user?.profilePhoto ? (
-                      <Image source={{ uri: user.fotoPerfil || user.profilePhoto }} className="w-14 h-14 rounded-full border-[1.5px] border-[#091A2F]" />
+                      <Image source={{ uri: resolveAssetURL(user.fotoPerfil || user.profilePhoto) }} className="w-14 h-14 rounded-full border-[1.5px] border-[#091A2F]" />
                     ) : (
                       <View className="w-14 h-14 rounded-full bg-[#11253E] items-center justify-center border-[1.5px] border-white/10">
                         <User size={24} color="#fff" />
@@ -890,7 +898,7 @@ export default function HomeScreen() {
               <View className="flex-row items-center gap-3">
                 <TouchableOpacity onPress={handleMenuPress} className="relative" accessibilityLabel="Abrir menu" accessibilityRole="button">
                   {user?.fotoPerfil || user?.profilePhoto ? (
-                    <Image source={{ uri: user.fotoPerfil || user.profilePhoto }} className="w-14 h-14 rounded-full border-[1.5px] border-[#02de95]" />
+                    <Image source={{ uri: resolveAssetURL(user.fotoPerfil || user.profilePhoto) }} className="w-14 h-14 rounded-full border-[1.5px] border-[#02de95]" />
                   ) : (
                     <View className="w-14 h-14 rounded-full bg-[#11253E] items-center justify-center border-[1.5px] border-white/10">
                       <User size={24} color="#fff" />
@@ -1033,8 +1041,11 @@ export default function HomeScreen() {
             accessibilityRole="button"
           >
             {activeService === "ride" ? (
-              <View className="w-[64px] h-[64px] items-center justify-center">
-                <Car size={28} color="#091A2F" />
+              <View className="items-center justify-center">
+                <Car size={24} color="#091A2F" />
+                <Text style={{ fontSize: 10, fontWeight: "bold", marginTop: 2, color: "#091A2F" }}>
+                  Corrida
+                </Text>
               </View>
             ) : (
               <View className="items-center justify-center">
@@ -1058,8 +1069,11 @@ export default function HomeScreen() {
             accessibilityRole="button"
           >
             {activeService === "delivery" ? (
-              <View className="w-[64px] h-[64px] items-center justify-center">
-                <Package size={28} color="#091A2F" />
+              <View className="items-center justify-center">
+                <Package size={24} color="#091A2F" />
+                <Text style={{ fontSize: 10, fontWeight: "bold", marginTop: 2, color: "#091A2F" }}>
+                  Entrega
+                </Text>
               </View>
             ) : (
               <View className="items-center justify-center">
@@ -1080,8 +1094,11 @@ export default function HomeScreen() {
             accessibilityRole="button"
           >
             {activeService === "pay" ? (
-              <View className="w-[64px] h-[64px] items-center justify-center">
-                <Wallet size={28} color="#091A2F" />
+              <View className="items-center justify-center">
+                <Wallet size={24} color="#091A2F" />
+                <Text style={{ fontSize: 10, fontWeight: "bold", marginTop: 2, color: "#091A2F" }}>
+                  Pay
+                </Text>
               </View>
             ) : (
               <View className="items-center justify-center">

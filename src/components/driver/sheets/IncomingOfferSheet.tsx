@@ -79,7 +79,8 @@ export function IncomingOfferSheet({
       : offer?.payment?.method;
   const paymentLabel =
     String(rawPayment || 'cash').toLowerCase() === 'pix' ? 'Pix'
-    : String(rawPayment || '').toLowerCase() === 'card' ? 'Cartão'
+    : String(rawPayment || '').toLowerCase() === 'card' || String(rawPayment || '').toLowerCase() === 'card_machine' ? 'Cartão'
+    : String(rawPayment || '').toLowerCase() === 'wallet' ? 'LevaPay'
     : 'Dinheiro';
 
   const driverEarnings = React.useMemo(() => {

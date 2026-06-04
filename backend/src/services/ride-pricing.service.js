@@ -67,6 +67,11 @@ async function resolveRouteWithStops(pickup, dropoff, stops = []) {
 /**
  * Calcula o preço de UMA categoria para uma dada distância/duração.
  */
+// Faixa de lance permitida em torno do preço sugerido (simétrica).
+// O cliente pode ofertar de (total × (1 − fator)) até (total × (1 + fator)).
+// Pode ser sobrescrito por categoria via pricing.bidRangeFactor.
+const DEFAULT_BID_RANGE_FACTOR = 0.25; // ±25%
+
 function priceForCategory(cat, { distanceKm, durationMin, stopsCount }) {
   const p = cat.pricing || {};
   const minimumKm = Number(p.minimumKm ?? 2);
@@ -84,6 +89,12 @@ function priceForCategory(cat, { distanceKm, durationMin, stopsCount }) {
   const base = (minimumFee + distancePrice + timePrice) * multiplier;
   const total = toMoney(base + stopsFee);
 
+  // Faixa simétrica de lance (±fator) calculada no backend = fonte da verdade.
+  const rawFactor = Number(p.bidRangeFactor ?? DEFAULT_BID_RANGE_FACTOR);
+  const bidRangeFactor = Number.isFinite(rawFactor) && rawFactor > 0 && rawFactor < 1 ? rawFactor : DEFAULT_BID_RANGE_FACTOR;
+  const minPrice = toMoney(Math.max(1, total * (1 - bidRangeFactor)));
+  const maxPrice = toMoney(total * (1 + bidRangeFactor));
+
   return {
     category: cat.category,
     label: cat.label,
@@ -98,6 +109,10 @@ function priceForCategory(cat, { distanceKm, durationMin, stopsCount }) {
       timePrice: toMoney(timePrice * multiplier),
       stopsFee: toMoney(stopsFee),
       total,
+      // Faixa de lance permitida (simétrica ±bidRangeFactor em torno do total).
+      minPrice,
+      maxPrice,
+      bidRangeFactor,
       currency: "BRL",
       multiplier,
       feePerStop,

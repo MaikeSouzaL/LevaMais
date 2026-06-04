@@ -180,64 +180,11 @@ const driverController = {
 
   // Add deposit
   addDeposit: async (req, res) => {
-    try {
-      const userId = req.user?.id;
-      if (!userId) {
-        return res.status(401).json({ error: "Usuário não autenticado" });
-      }
-
-      const { amount } = req.body;
-
-      if (!amount || amount <= 0) {
-        return res.status(400).json({ error: "Valor de depósito inválido" });
-      }
-
-      const user = await User.findById(userId);
-      if (!user || user.userType !== "driver") {
-        return res.status(403).json({ error: "Usuário não é um motorista" });
-      }
-
-      // Initialize driverBalance if not exists
-      if (!user.driverBalance) {
-        user.driverBalance = {
-          balance: 0,
-          totalDeposits: 0,
-          totalDeductions: 0,
-          transactions: [],
-        };
-      }
-
-      // Add deposit
-      user.driverBalance.balance += amount;
-      user.driverBalance.totalDeposits += amount;
-      user.driverBalance.transactions.push({
-        type: "driver_topup",
-        amount: amount,
-        description: `Recarga de R$ ${amount.toFixed(2)}`,
-        status: "completed",
-        createdAt: new Date(),
-      });
-
-      await user.save();
-
-      // Emit websocket event
-      const io = req.app?.get("io");
-      if (io) {
-        io.to(`driver-${userId}`).emit("balance_updated", {
-          balance: user.driverBalance.balance,
-          totalDeposits: user.driverBalance.totalDeposits,
-          totalDeductions: user.driverBalance.totalDeductions,
-        });
-      }
-
-      res.json({
-        success: true,
-        message: "Depósito realizado com sucesso",
-        data: user.driverBalance,
-      });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
+    return res.status(410).json({
+      success: false,
+      error: "Use /payments/deposit/pix ou /payments/deposit/boleto para recarregar saldo do motorista.",
+      message: "A recarga direta foi desativada. O saldo só é creditado após confirmação do provedor de pagamento.",
+    });
   },
 
   // Deduct balance (when ride is completed)
@@ -545,6 +492,8 @@ const driverController = {
           none: "Seu cadastro ainda nao foi iniciado. Complete o onboarding.",
           pending: "Seus documentos estao em analise. Aguarde a aprovacao.",
           rejected: `Seu cadastro foi reprovado${user.driverDocuments?.rejectionReason ? ": " + user.driverDocuments.rejectionReason : ""}. Corrija e reenvie.`,
+          blocked: `Sua conta de motorista esta bloqueada${user.driverDocuments?.rejectionReason ? ": " + user.driverDocuments.rejectionReason : ""}. Fale com o suporte.`,
+          suspended: `Sua conta de motorista esta suspensa${user.driverDocuments?.rejectionReason ? ": " + user.driverDocuments.rejectionReason : ""}. Fale com o suporte.`,
         };
         return res.status(400).json({
           error: statusMessages[user.driverStatus] || "Cadastro nao aprovado",

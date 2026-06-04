@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -6,6 +6,7 @@ import {
   Pressable,
   ScrollView,
   Share,
+  Linking,
   StatusBar,
   Text,
   TextInput,
@@ -26,12 +27,14 @@ import {
   Wallet,
   X,
   Zap,
+  FileText,
 } from "lucide-react-native";
 import QRCode from "react-native-qrcode-svg";
 import Toast from "react-native-toast-message";
 
 import depositService, {
   type PixDepositResult,
+  type BoletoDepositResult,
 } from "@/services/deposit.service";
 import {
   borderRadius,
@@ -44,20 +47,61 @@ import {
   touchTargets,
 } from "@/theme";
 
-/**
- * Tela de deposito no saldo LevaPay.
- *  - Pix: QR + copia-cola com polling 4s ate status = paid.
- */
 type Step =
   | "select_amount"
+  | "select_method"
+  | "enter_cpf"
   | "processing_pix"
+  | "processing_boleto"
   | "success"
   | "error";
 
 const DEFAULT_SUGGESTIONS = [30, 50, 100, 200];
 
-// Tokens do tema claro (re-exportados para uso local)
-const t = colors.light;
+// Tokens do tema escuro premium para alinhar com o restante do aplicativo LevaMais
+const t = {
+  background: {
+    primary: '#091A2F',
+    secondary: '#091A2F',
+    tertiary: '#11253E',
+  },
+  text: {
+    primary: '#ffffff',
+    secondary: 'rgba(255, 255, 255, 0.70)',
+    tertiary: 'rgba(255, 255, 255, 0.45)',
+    muted: 'rgba(255, 255, 255, 0.40)',
+    inverse: '#091A2F',
+  },
+  border: {
+    subtle: 'rgba(255, 255, 255, 0.06)',
+    default: 'rgba(255, 255, 255, 0.12)',
+    strong: 'rgba(255, 255, 255, 0.20)',
+    focus: '#02de95',
+    danger: '#ef4444',
+  },
+  surface: {
+    card: '#11253E',
+    input: '#1E2D3D',
+    disabled: 'rgba(255, 255, 255, 0.06)',
+    warning: 'rgba(245, 158, 11, 0.06)',
+    warningStrong: 'rgba(245, 158, 11, 0.12)',
+    successSoft: 'rgba(2, 222, 149, 0.10)',
+    dangerSoft: 'rgba(239, 68, 68, 0.10)',
+  },
+  icon: {
+    brand: '#02de95',
+    brandStrong: '#02de95',
+    onBrand: '#091A2F',
+    muted: 'rgba(255, 255, 255, 0.45)',
+    warning: '#f59e0b',
+    warningStrong: '#f59e0b',
+    onWarning: '#f59e0b',
+    danger: '#ef4444',
+  },
+  shadow: {
+    card: '#000000',
+  },
+};
 const sp = spacing;
 const br = borderRadius;
 const fs = fontSize;
@@ -86,6 +130,9 @@ function maskCentsToBRL(raw: string) {
 export default function DepositScreen({ route, navigation }: any) {
   const insets = useSafeAreaInsets();
   const onSuccess = route?.params?.onSuccess;
+  // Conta de destino: "wallet" (cliente) ou "driver_balance" (recarga do motorista).
+  const depositAccount: "wallet" | "driver_balance" =
+    route?.params?.account === "driver_balance" ? "driver_balance" : "wallet";
   const defaultAmount: number | undefined = route?.params?.defaultAmount;
   const suggestions: number[] =
     route?.params?.suggestedAmounts ?? DEFAULT_SUGGESTIONS;
@@ -95,6 +142,8 @@ export default function DepositScreen({ route, navigation }: any) {
     defaultAmount ? maskCentsToBRL(String(Math.round(defaultAmount * 100))) : "",
   );
   const [pixData, setPixData] = useState<PixDepositResult | null>(null);
+  const [boletoData, setBoletoData] = useState<BoletoDepositResult | null>(null);
+  const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -123,19 +172,38 @@ export default function DepositScreen({ route, navigation }: any) {
       });
       return;
     }
-    handleGeneratePix();
+    setStep("select_method");
   };
 
   const handleGeneratePix = async () => {
     setErrorMsg(null);
     setBusy(true);
     try {
-      const pix = await depositService.createPixDeposit(amount);
+      const pix = await depositService.createPixDeposit(amount, depositAccount);
       setPixData(pix);
       setStep("processing_pix");
       startPixPolling(pix.transactionId);
     } catch (err: any) {
       setErrorMsg(err?.message ?? "Falha ao iniciar o deposito.");
+      setStep("error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleGenerateBoleto = async (enteredCpf: string) => {
+    setErrorMsg(null);
+    setBusy(true);
+    try {
+      const cleanCpf = enteredCpf.replace(/\D/g, "");
+      const boleto = await depositService.createBoletoDeposit(amount, {
+        account: depositAccount,
+        taxId: cleanCpf,
+      });
+      setBoletoData(boleto);
+      setStep("processing_boleto");
+    } catch (err: any) {
+      setErrorMsg(err?.message ?? "Falha ao gerar boleto.");
       setStep("error");
     } finally {
       setBusy(false);
@@ -149,6 +217,9 @@ export default function DepositScreen({ route, navigation }: any) {
         const status = await depositService.getPixDepositStatus(txId);
         if (status.status === "paid") {
           if (pollRef.current) clearInterval(pollRef.current);
+          if (status.receiptUrl) {
+            setReceiptUrl(status.receiptUrl);
+          }
           setStep("success");
           onSuccess?.();
         } else if (status.status === "expired" || status.status === "failed") {
@@ -182,9 +253,14 @@ export default function DepositScreen({ route, navigation }: any) {
 
   const handleBack = () => {
     if (pollRef.current) clearInterval(pollRef.current);
-    if (step === "processing_pix" || step === "error") {
+    if (step === "select_method") {
+      setStep("select_amount");
+    } else if (step === "enter_cpf") {
+      setStep("select_method");
+    } else if (step === "processing_pix" || step === "processing_boleto" || step === "error") {
       setStep("select_amount");
       setPixData(null);
+      setBoletoData(null);
       setErrorMsg(null);
     } else {
       navigation.goBack();
@@ -193,7 +269,7 @@ export default function DepositScreen({ route, navigation }: any) {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: t.background.secondary }} edges={["top", "left", "right"]}>
-      <StatusBar barStyle="dark-content" backgroundColor={t.background.secondary} />
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
       {/* Header */}
       <View
@@ -283,13 +359,43 @@ export default function DepositScreen({ route, navigation }: any) {
             />
           )}
 
+          {step === "select_method" && (
+            <MethodSelectStep
+              amount={amount}
+              onSelectMethod={(method) => {
+                if (method === "pix") {
+                  handleGeneratePix();
+                } else {
+                  setStep("enter_cpf");
+                }
+              }}
+              onBack={handleBack}
+            />
+          )}
+
+          {step === "enter_cpf" && (
+            <EnterCpfStep
+              onSubmit={(enteredCpf) => {
+                handleGenerateBoleto(enteredCpf);
+              }}
+              onBack={handleBack}
+              busy={busy}
+            />
+          )}
+
           {step === "processing_pix" && pixData && (
             <PixProcessingStep data={pixData} onCopy={handleCopyPix} />
+          )}
+
+          {step === "processing_boleto" && boletoData && (
+            <BoletoProcessingStep data={boletoData} onBack={handleBack} />
           )}
 
           {step === "success" && (
             <SuccessStep
               amount={amount}
+              transactionId={pixData?.transactionId || boletoData?.transactionId}
+              receiptUrl={receiptUrl}
               onDone={() => {
                 onSuccess?.();
                 navigation.goBack();
@@ -303,7 +409,6 @@ export default function DepositScreen({ route, navigation }: any) {
               onRetry={() => {
                 setErrorMsg(null);
                 setStep("select_amount");
-                setTimeout(() => handleGeneratePix(), 0);
               }}
               onChangeAmount={() => {
                 setErrorMsg(null);
@@ -716,24 +821,22 @@ function PixProcessingStep(props: { data: PixDepositResult; onCopy: () => void }
           style={{
             width: 220,
             height: 220,
-            borderRadius: br.xl + 2,
-            backgroundColor: t.surface.card,
+            borderRadius: br.xl,
+            backgroundColor: "#FFFFFF",
             alignItems: "center",
             justifyContent: "center",
-            borderWidth: 1,
-            borderColor: t.border.subtle,
-            padding: sp.md + 2,
+            padding: sp.md,
           }}
         >
           {props.data.pixCode ? (
             <QRCode
               value={props.data.pixCode}
-              size={188}
-              backgroundColor={t.surface.card}
-              color={t.text.primary}
+              size={180}
+              backgroundColor="#FFFFFF"
+              color="#0F172A"
             />
           ) : (
-            <QrCode size={180} color={t.text.primary} strokeWidth={1.8} />
+            <QrCode size={180} color="#0F172A" strokeWidth={1.8} />
           )}
         </View>
         <Text
@@ -827,107 +930,216 @@ function PixProcessingStep(props: { data: PixDepositResult; onCopy: () => void }
 
 function SuccessStep(props: {
   amount: number;
+  transactionId?: string;
+  receiptUrl?: string | null;
   onDone: () => void;
 }) {
+  const formattedDate = new Date().toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  const handleOpenReceipt = async () => {
+    if (props.receiptUrl) {
+      try {
+        await Linking.openURL(props.receiptUrl);
+      } catch (err) {
+        Toast.show({
+          type: "error",
+          text1: "Erro ao abrir link",
+          text2: "Não foi possível abrir o recibo no navegador.",
+        });
+      }
+    }
+  };
+
   return (
-    <Card variant="elevated" style={{ padding: sp.xl + 4, alignItems: "center", marginTop: sp.xl + 4 }}>
+    <Card variant="elevated" style={{ padding: 24, alignItems: "center", marginTop: 12 }}>
+      {/* Icon checkmark with glow */}
       <View
         style={{
           width: 80,
           height: 80,
-          borderRadius: 28,
-          backgroundColor: t.surface.successSoft,
+          borderRadius: 40,
+          backgroundColor: "rgba(2, 222, 149, 0.12)",
           alignItems: "center",
           justifyContent: "center",
+          borderWidth: 2,
+          borderColor: "rgba(2, 222, 149, 0.3)",
+          shadowColor: "#02de95",
+          shadowOpacity: 0.25,
+          shadowRadius: 16,
+          elevation: 6,
+          marginBottom: 16,
         }}
       >
-        <CheckCircle2 size={56} color={t.icon.brand} strokeWidth={2.2} />
+        <CheckCircle2 size={48} color="#02de95" strokeWidth={2.5} />
       </View>
+
       <Text
         style={{
-          fontSize: fs['2xl'] - 2,
-          fontWeight: fw.black,
-          color: t.text.primary,
-          marginTop: sp.lg,
-          letterSpacing: -0.4,
-        }}
-      >
-        Deposito confirmado!
-      </Text>
-      <Text
-        style={{
-          fontSize: fs.base - 2,
-          color: t.text.tertiary,
+          fontSize: 22,
+          fontWeight: "900",
+          color: "#ffffff",
           textAlign: "center",
-          marginTop: sp.sm,
-          lineHeight: 20,
-          maxWidth: 280,
+          letterSpacing: -0.3,
+          marginBottom: 8,
         }}
       >
-        <Text style={{ fontWeight: fw.black, color: t.text.primary }}>{formatBRL(props.amount)}</Text> ja
-        esta disponivel no seu saldo LevaPay.
+        Depósito Confirmado!
       </Text>
 
+      {/* Recibo digital premium */}
       <View
         style={{
-          marginTop: sp.lg + 2,
-          flexDirection: "row",
-          alignItems: "center",
-          backgroundColor: t.surface.input,
-          paddingHorizontal: sp.md,
-          paddingVertical: sp.sm,
-          borderRadius: borderRadius.full,
+          width: "100%",
+          backgroundColor: "rgba(255, 255, 255, 0.03)",
+          borderRadius: 16,
+          borderWidth: 1,
+          borderColor: "rgba(255, 255, 255, 0.06)",
+          padding: 16,
+          marginVertical: 16,
         }}
       >
-        <Sparkles size={14} color={t.icon.warning} strokeWidth={2.4} />
+        <View style={{ alignItems: "center", marginBottom: 16, borderBottomWidth: 1, borderBottomColor: "rgba(255, 255, 255, 0.08)", paddingBottom: 12 }}>
+          <Text style={{ color: "rgba(255, 255, 255, 0.45)", fontSize: 11, textTransform: "uppercase", fontWeight: "700", letterSpacing: 1 }}>
+            Valor Adicionado
+          </Text>
+          <Text style={{ color: "#02de95", fontSize: 32, fontWeight: "900", marginTop: 4 }}>
+            {formatBRL(props.amount)}
+          </Text>
+        </View>
+
+        <View style={{ gap: 10 }}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+            <Text style={{ color: "rgba(255, 255, 255, 0.4)", fontSize: 12 }}>Método de Pagamento</Text>
+            <Text style={{ color: "#ffffff", fontSize: 12, fontWeight: "700" }}>PIX (Stripe)</Text>
+          </View>
+
+          {props.transactionId && (
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+              <Text style={{ color: "rgba(255, 255, 255, 0.4)", fontSize: 12 }}>ID da Transação</Text>
+              <Text numberOfLines={1} style={{ color: "rgba(255, 255, 255, 0.7)", fontSize: 11, fontFamily: Platform.select({ ios: "Menlo", android: "monospace" }), maxWidth: 140 }}>
+                {props.transactionId}
+              </Text>
+            </View>
+          )}
+
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+            <Text style={{ color: "rgba(255, 255, 255, 0.4)", fontSize: 12 }}>Data e Hora</Text>
+            <Text style={{ color: "rgba(255, 255, 255, 0.7)", fontSize: 12 }}>{formattedDate}</Text>
+          </View>
+
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+            <Text style={{ color: "rgba(255, 255, 255, 0.4)", fontSize: 12 }}>Status</Text>
+            <View style={{ backgroundColor: "rgba(2, 222, 149, 0.15)", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+              <Text style={{ color: "#02de95", fontSize: 10, fontWeight: "900" }}>PAGO</Text>
+            </View>
+          </View>
+        </View>
+      </View>
+
+      {/* Banner de Benefício */}
+      <View
+        style={{
+          width: "100%",
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: "#1E2D3D",
+          paddingVertical: 12,
+          paddingHorizontal: 16,
+          borderRadius: 12,
+          borderWidth: 1,
+          borderColor: "rgba(255, 255, 255, 0.04)",
+        }}
+      >
+        <Sparkles size={16} color="#fbbf24" strokeWidth={2.4} />
         <Text
           style={{
-            marginLeft: sp.sm - 2,
-            fontSize: 11,
-            color: t.text.secondary,
-            fontWeight: fw.bold,
+            marginLeft: 8,
+            fontSize: 12,
+            color: "rgba(255, 255, 255, 0.75)",
+            fontWeight: "700",
           }}
         >
-          Desconto de ate 10% nas proximas viagens
+          Desconto de até 10% nas próximas viagens
         </Text>
       </View>
 
+      {props.receiptUrl && (
+        <Pressable
+          onPress={handleOpenReceipt}
+          accessibilityRole="button"
+          accessibilityLabel="Abrir recibo oficial do Stripe"
+          style={({ pressed }) => ({
+            opacity: pressed ? 0.75 : 1,
+            marginTop: 8,
+            marginBottom: 4,
+            height: 48,
+            width: "100%",
+            borderRadius: 16,
+            borderWidth: 1.5,
+            borderColor: "rgba(2, 222, 149, 0.4)",
+            alignItems: "center",
+            justifyContent: "center",
+            flexDirection: "row",
+            backgroundColor: "transparent",
+          })}
+        >
+          <Text
+            style={{
+              fontSize: 14,
+              fontWeight: "800",
+              color: "#02de95",
+            }}
+          >
+            Visualizar Recibo Oficial
+          </Text>
+        </Pressable>
+      )}
+
+      {/* Botão Concluir Sólido */}
       <Pressable
         onPress={props.onDone}
         accessibilityRole="button"
         accessibilityLabel="Concluir e voltar"
         style={({ pressed }) => ({
-          opacity: pressed ? 0.9 : 1,
-          marginTop: sp.xl - 2,
+          opacity: pressed ? 0.95 : 1,
+          marginTop: 20,
           height: 54,
-          paddingHorizontal: sp['2xl'],
-          borderRadius: br.lg + 2,
-          backgroundColor: colors.primary[500],
+          width: "100%",
+          borderRadius: 16,
+          backgroundColor: "#02de95",
           alignItems: "center",
           justifyContent: "center",
           flexDirection: "row",
-          shadowColor: colors.primary[500],
+          shadowColor: "#02de95",
           shadowOpacity: 0.35,
-          shadowRadius: 12,
-          shadowOffset: { width: 0, height: 6 },
+          shadowRadius: 10,
+          shadowOffset: { width: 0, height: 4 },
           elevation: 4,
         })}
       >
         <Text
           style={{
-            fontSize: fs.base - 1,
-            fontWeight: fw.black,
-            color: t.icon.onBrand,
-            letterSpacing: -0.1,
+            fontSize: 15,
+            fontWeight: "900",
+            color: "#091A2F",
+            letterSpacing: 0.5,
+            textTransform: "uppercase",
           }}
         >
           Concluir
         </Text>
         <ArrowRight
           size={18}
-          color={t.icon.onBrand}
-          strokeWidth={2.8}
-          style={{ marginLeft: sp.sm }}
+          color="#091A2F"
+          strokeWidth={3}
+          style={{ marginLeft: 8 }}
         />
       </Pressable>
     </Card>
@@ -1024,6 +1236,365 @@ function ErrorStep(props: {
           }}
         >
           Alterar valor
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function MethodSelectStep(props: {
+  amount: number;
+  onSelectMethod: (method: "pix" | "boleto") => void;
+  onBack: () => void;
+}) {
+  return (
+    <View style={{ gap: sp.md }}>
+      <Text
+        style={{
+          fontSize: fs.base,
+          fontWeight: fw.black,
+          color: t.text.primary,
+          marginBottom: sp.xs,
+        }}
+      >
+        Escolha o método de pagamento
+      </Text>
+
+      <Pressable
+        onPress={() => props.onSelectMethod("pix")}
+        style={({ pressed }) => ({
+          backgroundColor: t.surface.card,
+          borderRadius: br.xl,
+          padding: sp.lg,
+          borderWidth: 1,
+          borderColor: t.border.subtle,
+          flexDirection: "row",
+          alignItems: "center",
+          opacity: pressed ? 0.9 : 1,
+        })}
+      >
+        <View
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: br.lg,
+            backgroundColor: t.surface.successSoft,
+            alignItems: "center",
+            justifyContent: "center",
+            marginRight: sp.md,
+          }}
+        >
+          <Zap size={22} color={t.icon.brand} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: fs.base, fontWeight: fw.black, color: t.text.primary }}>
+            PIX (Stripe)
+          </Text>
+          <Text style={{ fontSize: fs.xs, color: t.text.tertiary, marginTop: 2 }}>
+            Aprovação imediata e sem taxas.
+          </Text>
+        </View>
+        <ArrowRight size={18} color={t.text.secondary} />
+      </Pressable>
+
+      <Pressable
+        onPress={() => props.onSelectMethod("boleto")}
+        style={({ pressed }) => ({
+          backgroundColor: t.surface.card,
+          borderRadius: br.xl,
+          padding: sp.lg,
+          borderWidth: 1,
+          borderColor: t.border.subtle,
+          flexDirection: "row",
+          alignItems: "center",
+          opacity: pressed ? 0.9 : 1,
+        })}
+      >
+        <View
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: br.lg,
+            backgroundColor: "rgba(59,130,246,0.1)",
+            alignItems: "center",
+            justifyContent: "center",
+            marginRight: sp.md,
+          }}
+        >
+          <FileText size={22} color="#60a5fa" />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: fs.base, fontWeight: fw.black, color: t.text.primary }}>
+            Boleto (Stripe)
+          </Text>
+          <Text style={{ fontSize: fs.xs, color: t.text.tertiary, marginTop: 2 }}>
+            Compensação em 1 a 2 dias úteis.
+          </Text>
+        </View>
+        <ArrowRight size={18} color={t.text.secondary} />
+      </Pressable>
+
+      <Pressable
+        onPress={props.onBack}
+        style={{ marginTop: sp.md, alignItems: "center", paddingVertical: sp.sm }}
+      >
+        <Text style={{ color: t.text.secondary, fontWeight: fw.bold, fontSize: fs.sm }}>
+          Voltar para o valor
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function EnterCpfStep(props: {
+  onSubmit: (cpf: string) => void;
+  onBack: () => void;
+  busy: boolean;
+}) {
+  const [cpfText, setCpfText] = useState("");
+  const isValid = cpfText.replace(/\D/g, "").length === 11;
+
+  const handleTextChange = (text: string) => {
+    const raw = text.replace(/\D/g, "").slice(0, 11);
+    let masked = raw;
+    if (raw.length > 9) {
+      masked = `${raw.slice(0, 3)}.${raw.slice(3, 6)}.${raw.slice(6, 9)}-${raw.slice(9)}`;
+    } else if (raw.length > 6) {
+      masked = `${raw.slice(0, 3)}.${raw.slice(3, 6)}.${raw.slice(6)}`;
+    } else if (raw.length > 3) {
+      masked = `${raw.slice(0, 3)}.${raw.slice(3)}`;
+    }
+    setCpfText(masked);
+  };
+
+  return (
+    <View style={{ gap: sp.md }}>
+      <Card variant="elevated">
+        <Text
+          style={{
+            fontSize: fs.base,
+            fontWeight: fw.black,
+            color: t.text.primary,
+            marginBottom: sp.xs,
+          }}
+        >
+          Informe seu CPF
+        </Text>
+        <Text style={{ fontSize: fs.xs, color: t.text.tertiary, marginBottom: sp.md }}>
+          O CPF é obrigatório para emissão de boleto bancário (Stripe).
+        </Text>
+
+        <TextInput
+          value={cpfText}
+          onChangeText={handleTextChange}
+          keyboardType="numeric"
+          placeholder="000.000.000-00"
+          placeholderTextColor={t.text.muted}
+          style={{
+            backgroundColor: t.surface.input,
+            borderRadius: br.lg,
+            borderWidth: 1.5,
+            borderColor: isValid ? t.border.focus : t.border.default,
+            color: t.text.primary,
+            fontSize: fs.base,
+            fontWeight: fw.bold,
+            paddingHorizontal: sp.md,
+            paddingVertical: sp.md,
+          }}
+        />
+      </Card>
+
+      <Pressable
+        onPress={() => props.onSubmit(cpfText)}
+        disabled={!isValid || props.busy}
+        style={({ pressed }) => ({
+          backgroundColor: isValid && !props.busy ? colors.primary[500] : t.surface.disabled,
+          height: 54,
+          borderRadius: br.xl,
+          alignItems: "center",
+          justifyContent: "center",
+          flexDirection: "row",
+          opacity: pressed ? 0.9 : 1,
+        })}
+      >
+        {props.busy ? (
+          <ActivityIndicator color={t.icon.onBrand} />
+        ) : (
+          <>
+            <Text style={{ fontSize: fs.base, fontWeight: fw.black, color: t.icon.onBrand }}>
+              Gerar Boleto
+            </Text>
+            <ArrowRight size={18} color={t.icon.onBrand} style={{ marginLeft: sp.sm }} />
+          </>
+        )}
+      </Pressable>
+
+      <Pressable
+        onPress={props.onBack}
+        style={{ alignItems: "center", paddingVertical: sp.sm }}
+      >
+        <Text style={{ color: t.text.secondary, fontWeight: fw.bold, fontSize: fs.sm }}>
+          Voltar
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function BoletoProcessingStep(props: {
+  data: BoletoDepositResult;
+  onBack: () => void;
+}) {
+  const handleCopyBarcode = async () => {
+    if (!props.data.number) return;
+    try {
+      // @ts-ignore - expo-clipboard pode nao estar instalado
+      const Clipboard = await import("expo-clipboard").catch(() => null);
+      if (Clipboard?.setStringAsync) {
+        await Clipboard.setStringAsync(props.data.number);
+        Toast.show({ type: "success", text1: "Linha digitável copiada!" });
+      } else {
+        await Share.share({ message: props.data.number });
+      }
+    } catch {}
+  };
+
+  const handleOpenPdf = async () => {
+    if (props.data.pdf) {
+      try {
+        await Linking.openURL(props.data.pdf);
+      } catch {
+        Toast.show({
+          type: "error",
+          text1: "Erro ao abrir PDF",
+          text2: "Não foi possível abrir o link do boleto.",
+        });
+      }
+    }
+  };
+
+  return (
+    <View style={{ gap: sp.md }}>
+      <Card variant="elevated" style={{ alignItems: "center", padding: sp.xl - 2 }}>
+        <View
+          style={{
+            width: 56,
+            height: 56,
+            borderRadius: br.lg + 2,
+            backgroundColor: "rgba(59,130,246,0.1)",
+            alignItems: "center",
+            justifyContent: "center",
+            marginBottom: sp.md,
+          }}
+        >
+          <FileText size={28} color="#60a5fa" strokeWidth={2.4} />
+        </View>
+        <Text
+          style={{
+            fontSize: fs.lg,
+            fontWeight: fw.black,
+            color: t.text.primary,
+            letterSpacing: -0.2,
+          }}
+        >
+          Boleto Gerado!
+        </Text>
+        <Text
+          style={{
+            fontSize: fs.sm - 1,
+            color: t.text.tertiary,
+            textAlign: "center",
+            marginTop: sp.sm + 2,
+            lineHeight: 19,
+            maxWidth: 280,
+          }}
+        >
+          Copie o código de barras abaixo ou abra o arquivo PDF para realizar o pagamento. A
+          compensação leva de 1 a 2 dias úteis.
+        </Text>
+      </Card>
+
+      {props.data.number && (
+        <>
+          <SectionLabel style={{ marginLeft: sp.xs }}>Código de barras</SectionLabel>
+          <Pressable
+            onPress={handleCopyBarcode}
+            style={({ pressed }) => ({
+              opacity: pressed ? 0.85 : 1,
+              backgroundColor: t.surface.card,
+              borderRadius: br.lg,
+              borderWidth: 1,
+              borderColor: t.border.subtle,
+              padding: sp.md,
+              flexDirection: "row",
+              alignItems: "center",
+            })}
+          >
+            <View
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: br.md,
+                backgroundColor: t.surface.input,
+                alignItems: "center",
+                justifyContent: "center",
+                marginRight: sp.md,
+              }}
+            >
+              <Copy size={18} color={t.text.primary} strokeWidth={2.4} />
+            </View>
+            <Text
+              numberOfLines={1}
+              style={{
+                flex: 1,
+                fontSize: fs.xs,
+                color: t.text.secondary,
+                fontFamily: Platform.select({ ios: "Menlo", android: "monospace" }),
+              }}
+            >
+              {props.data.number}
+            </Text>
+            <Text
+              style={{
+                fontSize: fs.xs,
+                fontWeight: fw.black,
+                color: t.icon.brandStrong,
+                marginLeft: sp.sm,
+                letterSpacing: 0.3,
+              }}
+            >
+              COPIAR
+            </Text>
+          </Pressable>
+        </>
+      )}
+
+      {props.data.pdf && (
+        <Pressable
+          onPress={handleOpenPdf}
+          style={({ pressed }) => ({
+            backgroundColor: "#02de95",
+            height: 54,
+            borderRadius: br.xl,
+            alignItems: "center",
+            justifyContent: "center",
+            flexDirection: "row",
+            opacity: pressed ? 0.9 : 1,
+            marginTop: sp.sm,
+          })}
+        >
+          <Text style={{ fontSize: fs.base, fontWeight: fw.black, color: "#091A2F" }}>
+            Visualizar Boleto (PDF)
+          </Text>
+        </Pressable>
+      )}
+
+      <Pressable
+        onPress={props.onBack}
+        style={{ alignItems: "center", paddingVertical: sp.sm, marginTop: sp.md }}
+      >
+        <Text style={{ color: t.text.secondary, fontWeight: fw.bold, fontSize: fs.sm }}>
+          Voltar ao início
         </Text>
       </Pressable>
     </View>

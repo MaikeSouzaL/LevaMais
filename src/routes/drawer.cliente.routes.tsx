@@ -10,6 +10,7 @@ import { Icon } from "@/components/ui/Icon";
 import { useAuthStore } from "../context/authStore";
 import ClientStackRoutes from "./client.stack.routes";
 import { colors } from "@/theme";
+import { resolveAssetURL } from "@/utils/mappers";
 
 type DrawerClienteRoutesProps = {
   initialRideId?: string | null;
@@ -55,7 +56,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
   const displayName = userData?.name || userData?.nome || "Cliente";
   const initials = displayName.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase();
 
-  const profileImageUrl = userData?.fotoPerfil || userData?.profilePhoto;
+  const profileImageUrl = resolveAssetURL(userData?.fotoPerfil || userData?.profilePhoto);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background.primary }}>

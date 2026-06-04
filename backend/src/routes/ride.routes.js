@@ -64,6 +64,9 @@ router.post("/:rideId/proof/delivery", rideController.uploadDeliveryProof);
 // Validação de PIN (coleta e entrega)
 router.post("/:rideId/validate-pin", rideController.validatePin);
 
+// Entrega com problema no destino (ausente/endereço errado) → devolução
+router.post("/:rideId/delivery-problem", rideController.reportDeliveryFailure);
+
 // Tracking de rota (GPS)
 router.post("/:rideId/track-points", rideController.saveTrackPoint);
 router.get("/:rideId/route-audit", rideController.getRouteAudit);
@@ -108,6 +111,10 @@ router.get("/heatmap/:lat/:lng", async (req, res) => {
     res.status(500).json({ success: false, message: e.message });
   }
 });
+
+// PIX Payment for rides
+router.post("/:rideId/pix-payment", rideController.createRidePixPayment);
+router.post("/:rideId/pix-payment/confirm-mock", rideController.confirmRidePixPaymentMock);
 
 // Buscar corrida por ID
 router.get("/:rideId", rideController.getById);

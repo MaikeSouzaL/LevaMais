@@ -26,6 +26,7 @@ export default function DriverOnboardingDashboard() {
   const [vehicleStatus, setVehicleStatus] = useState<"none" | "pending" | "approved" | "rejected">("none");
   const [hasPersonalDocs, setHasPersonalDocs] = useState(false);
   const [driverStatus, setDriverStatus] = useState("none");
+  const isDriverBlocked = driverStatus === "blocked" || driverStatus === "suspended";
   const [progress, setProgress] = useState(0);
   const [driverBalance, setDriverBalance] = useState(0);
   const [hasBalance, setHasBalance] = useState(false);
@@ -350,13 +351,15 @@ export default function DriverOnboardingDashboard() {
       title: "Documentação Pessoal",
       desc: driverStatus === "approved"
         ? "Documentos aprovados"
+        : isDriverBlocked
+        ? "Cadastro bloqueado - Fale com o suporte"
         : driverStatus === "rejected"
         ? "Documentos rejeitados - Clique para revisar"
         : (hasPersonalDocs || driverStatus === "pending")
         ? "Documentos em análise operacional"
         : "Habilitação (CNH) e Selfie facial",
-      status: (hasPersonalDocs || driverStatus === "pending") 
-        ? (driverStatus === "approved" ? "completed" : driverStatus === "rejected" ? "rejected" : "analyzing") 
+      status: (hasPersonalDocs || driverStatus === "pending" || isDriverBlocked) 
+        ? (driverStatus === "approved" ? "completed" : (driverStatus === "rejected" || isDriverBlocked) ? "rejected" : "analyzing") 
         : "pending",
       icon: FileText,
       action: () => navigation ? (navigation as any).navigate("DriverDocuments") : null,
@@ -826,13 +829,15 @@ export default function DriverOnboardingDashboard() {
             transition={{ duration: 500, delay: 300 }}
             style={styles.stepsZone}
           >
-            {driverStatus === "rejected" || vehicleStatus === "rejected" ? (
+            {driverStatus === "rejected" || isDriverBlocked || vehicleStatus === "rejected" ? (
               <View style={styles.rejectedBanner}>
                 <AlertCircle size={20} color="#ef4444" style={{ marginRight: 10 }} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.rejectedTitle}>Revisão Necessária</Text>
                   <Text style={styles.rejectedDesc}>
-                    {driverStatus === "rejected" && vehicleStatus === "rejected"
+                    {isDriverBlocked
+                      ? "Sua conta de motorista foi bloqueada pela equipe de seguranca. Fale com o suporte para regularizar."
+                      : driverStatus === "rejected" && vehicleStatus === "rejected"
                       ? "Seus documentos pessoais e de veículo foram rejeitados. Por favor, revise os dados e reenvie."
                       : driverStatus === "rejected"
                       ? "Seus documentos pessoais foram rejeitados. Por favor, acesse o passo correspondente para reenviar."

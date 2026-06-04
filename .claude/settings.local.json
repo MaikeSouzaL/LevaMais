@@ -37,7 +37,13 @@
       "Bash(node -e \"require\\('./src/models/RideCategory'\\); require\\('./src/services/ride-pricing.service'\\); require\\('./src/models/Ride'\\); require\\('./src/models/User'\\); require\\('./src/controllers/ride.controller'\\); require\\('./src/routes/ride.routes'\\); console.log\\('OK: todos os módulos carregaram'\\);\")",
       "Bash(grep -v ':0$')",
       "Bash(sort -t: -k2 -rn)",
-      "Bash(awk 'END{print NR}' \"src/screens/\\(authenticated\\)/Client/Ride/Request/RideBidSetupScreen/index.tsx\")"
+      "Bash(awk 'END{print NR}' \"src/screens/\\(authenticated\\)/Client/Ride/Request/RideBidSetupScreen/index.tsx\")",
+      "WebSearch",
+      "Bash(awk 'NR>=3040 && NR<=3140 && /ride\\\\.save\\\\\\(\\\\\\)|catch \\\\\\(paymentError|catch \\\\\\(error|return res\\\\.json/ {print NR\": \"$0}' backend/src/controllers/ride.controller.js)",
+      "Bash(awk 'NR>=1493 && NR<=1700 && \\(/status = \"accepted\"|\\\\.acceptedAt|await ride.save\\\\\\(\\\\\\)|await updatedRide.save\\\\\\(\\\\\\)|ride\\\\.payment|paymentMethod|findByIdAndUpdate|findOneAndUpdate\\\\\\(\\\\s*$|negotiation/\\) {print NR\": \"$0}' backend/src/controllers/ride.controller.js)",
+      "Bash(awk 'NR>=1 && NR<=1200 && /async [a-zA-Z]+\\\\\\(req, res\\\\\\)|wallet\\\\.balance = toMoney\\\\\\(\\\\\\(user\\\\.wallet\\\\.balance/ {print NR\": \"$0}' backend/src/controllers/payment.controller.js)",
+      "Bash(grep -vE \"console|//\")",
+      "Bash(xargs grep -lE \"express\\\\\\(\\\\\\)|app.listen|express.json\")"
     ]
   },
   "disabledMcpjsonServers": [

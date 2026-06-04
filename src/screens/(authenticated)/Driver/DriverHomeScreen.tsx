@@ -11,6 +11,7 @@ import {
 } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { resolveAssetURL } from "../../../utils/mappers";
 import { BalanceWidget } from "@/components/BalanceWidget";
 import { DriverDepositModal } from "@/components/DriverDepositModal";
 import { QueueTagYellowFloating } from "@/components/QueueTagYellow";
@@ -157,12 +158,14 @@ export default function DriverHomeScreen() {
 
   useEffect(() => {
     if (
-      pendingRequests === 0 &&
-      waitingQueueCount === 0 &&
-      pendingNegotiationsCount === 0 &&
-      clientCounteredCount === 0 &&
-      scheduledCount === 0
+      pendingRequests > 0 ||
+      waitingQueueCount > 0 ||
+      pendingNegotiationsCount > 0 ||
+      clientCounteredCount > 0 ||
+      scheduledCount > 0
     ) {
+      setShowPendingOfferHighlight(true);
+    } else {
       setShowPendingOfferHighlight(false);
     }
   }, [pendingRequests, waitingQueueCount, pendingNegotiationsCount, clientCounteredCount, scheduledCount]);
@@ -1687,7 +1690,31 @@ export default function DriverHomeScreen() {
           text1: "Oferta aceita",
           text2: "Aguardando cliente selecionar sua proposta.",
         });
-        (navigation as any).navigate("DriverRequests", { initialTab: "realtime" });
+        
+        const baseValue = incomingRequest.negotiation?.clientOffer || incomingRequest.pricing?.total || 0;
+        const offerParam = {
+          _id: incomingRequest.rideId,
+          offeredValue: baseValue,
+          pickup: incomingRequest.pickup,
+          destination: incomingRequest.dropoff,
+          dropoff: incomingRequest.dropoff,
+          distance: incomingRequest.distance,
+          duration: incomingRequest.duration,
+          pricing: incomingRequest.pricing,
+          client: incomingRequest.client || {
+            name: "Cliente Leva Mais",
+            rating: "5.0"
+          },
+          cargoType: incomingRequest.serviceType === "delivery" ? "Delivery" : "Corrida",
+          negotiation: {
+            ...incomingRequest.negotiation,
+            myOffer: {
+              amount: baseValue,
+              status: "pending"
+            }
+          }
+        };
+        (navigation as any).navigate("DriverNegotiation", { offer: offerParam });
         return;
       }
 
@@ -1734,7 +1761,30 @@ export default function DriverHomeScreen() {
         text1: "Proposta Enviada! 🚀",
         text2: `Sua oferta de R$ ${amount.toFixed(2).replace(".", ",")} foi enviada ao cliente.`,
       });
-      (navigation as any).navigate("DriverRequests", { initialTab: "realtime" });
+      
+      const offerParam = {
+        _id: incomingRequest.rideId,
+        offeredValue: incomingRequest.negotiation?.clientOffer || incomingRequest.pricing?.total || 0,
+        pickup: incomingRequest.pickup,
+        destination: incomingRequest.dropoff,
+        dropoff: incomingRequest.dropoff,
+        distance: incomingRequest.distance,
+        duration: incomingRequest.duration,
+        pricing: incomingRequest.pricing,
+        client: incomingRequest.client || {
+          name: "Cliente Leva Mais",
+          rating: "5.0"
+        },
+        cargoType: incomingRequest.serviceType === "delivery" ? "Delivery" : "Corrida",
+        negotiation: {
+          ...incomingRequest.negotiation,
+          myOffer: {
+            amount: amount,
+            status: "pending"
+          }
+        }
+      };
+      (navigation as any).navigate("DriverNegotiation", { offer: offerParam });
     } catch (err: any) {
       Toast.show({
         type: "error",
@@ -1957,7 +2007,7 @@ export default function DriverHomeScreen() {
                       iconNode={
                         (userData?.fotoPerfil || userData?.profilePhoto) ? (
                           <Image 
-                            source={{ uri: userData.fotoPerfil || userData.profilePhoto }}
+                            source={{ uri: resolveAssetURL(userData.fotoPerfil || userData.profilePhoto) }}
                             style={{ width: 16, height: 16, borderRadius: 11, resizeMode: "cover" }}
                           />
                         ) : undefined
@@ -2033,7 +2083,7 @@ export default function DriverHomeScreen() {
                   >
                     {userData?.fotoPerfil || userData?.profilePhoto ? (
                       <Image
-                        source={{ uri: userData.fotoPerfil || userData.profilePhoto }}
+                        source={{ uri: resolveAssetURL(userData.fotoPerfil || userData.profilePhoto) }}
                         style={{
                           width: 56,
                           height: 56,

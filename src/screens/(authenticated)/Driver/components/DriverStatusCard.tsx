@@ -105,7 +105,10 @@ export function DriverStatusCard({
 
   const rawPaymentType = typeof payment?.method === "object" ? payment?.method?.type : payment?.method;
   const paymentLabel =
-    rawPaymentType === "pix" ? "PIX" : rawPaymentType === "card" || rawPaymentType === "credit_card" ? "Cartão" : "Dinheiro";
+    rawPaymentType === "pix" ? "PIX"
+    : rawPaymentType === "card" || rawPaymentType === "credit_card" || rawPaymentType === "card_machine" ? "Cartão"
+    : rawPaymentType === "wallet" ? "LevaPay"
+    : "Dinheiro";
   
   const driverEarning = pricing?.driverValue || pricing?.total || 0;
 
@@ -166,11 +169,13 @@ export function DriverStatusCard({
         <View>
           <Text className="text-white/40 text-[8px] font-black uppercase tracking-wider mb-0.5">Pagamento</Text>
           <Text className="text-[#02de95] text-sm font-black uppercase tracking-wide">
-            {paymentLabel === "Dinheiro" ? "DINHEIRO" : paymentLabel.toUpperCase()}
+            {paymentLabel}
           </Text>
         </View>
-        <View className="bg-[#02de95]/10 px-3 py-1 rounded-xl border border-[#02de95]/20">
-          <Text className="text-[#02de95] text-[9px] font-bold uppercase tracking-wide">Direto ao Motorista</Text>
+        <View className={`${rawPaymentType === "wallet" ? "bg-amber-500/10 border-amber-500/20" : "bg-[#02de95]/10 border-[#02de95]/20"} px-3 py-1 rounded-xl border`}>
+          <Text className={`${rawPaymentType === "wallet" ? "text-amber-500" : "text-[#02de95]"} text-[9px] font-bold uppercase tracking-wide`}>
+            {rawPaymentType === "wallet" ? "Pago pelo App" : "Direto ao Motorista"}
+          </Text>
         </View>
       </View>
 

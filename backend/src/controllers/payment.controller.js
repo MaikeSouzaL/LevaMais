@@ -2,6 +2,8 @@ const crypto = require("crypto");
 const User = require("../models/User");
 const PaymentWebhookEvent = require("../models/PaymentWebhookEvent");
 const { processPayment: gatewayProcess } = require("../services/payment-gateway.service");
+const walletEscrow = require("../services/walletEscrow.service");
+const stripe = process.env.STRIPE_SECRET_KEY ? require("stripe")(process.env.STRIPE_SECRET_KEY) : null;
 
 function sendError(res, status, message, extras = {}) {
   return res.status(status).json({
@@ -14,6 +16,56 @@ function sendError(res, status, message, extras = {}) {
 
 function toMoney(value) {
   return Number(Number(value || 0).toFixed(2));
+}
+
+function canUseDepositAccount(user, account) {
+  return account !== "driver_balance" || user?.userType === "driver";
+}
+
+/**
+ * Credita um depósito confirmado na conta certa do usuário (idempotente por referenceId).
+ *  - account "wallet"        → carteira do cliente (paga corridas via LevaPay).
+ *  - account "driver_balance"→ saldo operacional do motorista (aceita corridas).
+ * Muta o doc `user` (o chamador faz user.save()). Retorna true se creditou agora.
+ */
+function creditDepositToAccount(user, account, amount, { referenceId, description, receiptUrl } = {}) {
+  const amt = toMoney(amount);
+  if (!user || amt <= 0) return false;
+
+  if (account === "driver_balance") {
+    user.driverBalance = user.driverBalance || { balance: 0, totalDeposits: 0, totalDeductions: 0, transactions: [] };
+    const txs = Array.isArray(user.driverBalance.transactions) ? user.driverBalance.transactions : [];
+    if (referenceId && txs.some((t) => String(t.referenceId || "") === String(referenceId))) return false;
+    user.driverBalance.balance = toMoney(Number(user.driverBalance.balance || 0) + amt);
+    user.driverBalance.totalDeposits = toMoney(Number(user.driverBalance.totalDeposits || 0) + amt);
+    user.driverBalance.transactions = txs;
+    user.driverBalance.transactions.push({
+      type: "driver_topup",
+      amount: amt,
+      description: description || "Recarga de saldo",
+      referenceId: referenceId || undefined,
+      receiptUrl: receiptUrl || undefined,
+      status: "completed",
+      createdAt: new Date(),
+    });
+    return true;
+  }
+
+  // default: wallet
+  user.wallet = user.wallet || { balance: 0, held: 0, transactions: [] };
+  const wtxs = Array.isArray(user.wallet.transactions) ? user.wallet.transactions : [];
+  if (referenceId && wtxs.some((t) => String(t.referenceId || "") === String(referenceId))) return false;
+  user.wallet.balance = toMoney(Number(user.wallet.balance || 0) + amt);
+  user.wallet.transactions = wtxs;
+  user.wallet.transactions.push({
+    type: "topup",
+    amount: amt,
+    description: description || "Recarga de saldo",
+    referenceId: referenceId || undefined,
+    receiptUrl: receiptUrl || undefined,
+    createdAt: new Date(),
+  });
+  return true;
 }
 
 function detectCardBrand(cardNumber) {
@@ -376,6 +428,8 @@ class PaymentController {
           referenceId: transactionId,
           createdAt: new Date(),
         });
+        // Quita automaticamente taxa de cancelamento pendente com o novo saldo.
+        await walletEscrow.settlePendingDebt(user);
 
         await user.save();
         await PaymentWebhookEvent.create({
@@ -637,31 +691,72 @@ class PaymentController {
   }
 
   /**
-   * Gera QR Code PIX para depósito na carteira
+   * Gera QR Code PIX para depósito na carteira (com suporte/integração ao Stripe se disponível)
    */
   async createPixDeposit(req, res) {
+    // Variáveis locais (evita globais implícitas compartilhadas entre requisições).
+    let transactionId;
+    let pixCode;
+    let qrCodeData;
     try {
       const { amount } = req.body || {};
       const amountValue = toMoney(amount);
+      // Para onde o saldo vai: carteira do cliente (wallet) ou saldo do motorista (driver_balance).
+      const account = String(req.body?.account || "wallet") === "driver_balance" ? "driver_balance" : "wallet";
 
       if (!Number.isFinite(amountValue) || amountValue <= 0) {
         return sendError(res, 400, "Valor invalido para deposito");
       }
 
-      const user = await User.findById(req.user.id).select("name email");
+      const user = await User.findById(req.user.id).select("name email userType");
       if (!user) {
         return sendError(res, 404, "Usuario nao encontrado");
       }
+      if (!canUseDepositAccount(user, account)) {
+        return sendError(res, 403, "Apenas motoristas podem recarregar o saldo operacional.");
+      }
 
-      // Gerar transactionId único
-      const transactionId = `pix_${crypto.randomBytes(16).toString("hex")}`;
+      if (!stripe) {
+        return sendError(res, 500, "Stripe não configurado no servidor. Chave secreta ausente.");
+      }
 
-      // Gerar código PIX copia-e-cola (simulado para MVP)
-      // Em produção, integrar com gateway (Mercado Pago, PagSeguro, etc)
-      const pixCode = `00020126580014BR.GOV.BCB.PIX0136${transactionId}5204000053039865802BR5925${user.name.substring(0, 25).padEnd(25)}6009SAO PAULO62070503***6304`;
+      try {
+        const amountInCents = Math.round(amountValue * 100);
+        // Cria PaymentIntent PIX no Stripe (account vai em metadata p/ o webhook creditar certo).
+        const paymentIntent = await stripe.paymentIntents.create({
+          amount: amountInCents,
+          currency: "brl",
+          payment_method_types: ["pix"],
+          payment_method_data: {
+            type: "pix",
+          },
+          confirm: true,
+          return_url: "https://example.com",
+          metadata: { userId: String(user._id), account, kind: "deposit" },
+        });
 
-      // Em produção, gerar QR Code real via biblioteca (qrcode)
-      const qrCodeData = pixCode;
+        transactionId = paymentIntent.id;
+
+        if (paymentIntent.next_action && paymentIntent.next_action.pix_display_qr_code) {
+          pixCode = paymentIntent.next_action.pix_display_qr_code.data;
+          qrCodeData = paymentIntent.next_action.pix_display_qr_code.image_url_png || pixCode;
+        } else {
+          return sendError(res, 400, "O Stripe não retornou os dados de QR Code PIX.");
+        }
+      } catch (stripeError) {
+        console.error("[Stripe PIX] Erro ao criar PIX Stripe:", stripeError.message);
+        return sendError(res, 500, `Erro ao criar PIX no Stripe: ${stripeError.message}`);
+      }
+
+      // Salvar evento de pendência para controle do status
+      await PaymentWebhookEvent.create({
+        transactionId,
+        event: "payment.pending",
+        userId: user._id,
+        amount: amountValue,
+        status: "acknowledged",
+        rawPayload: { method: "pix", simulated: false, gateway: "stripe", account }
+      });
 
       return res.json({
         success: true,
@@ -681,6 +776,339 @@ class PaymentController {
     } catch (error) {
       console.error("Erro ao gerar deposito PIX:", error);
       return sendError(res, 500, "Erro ao gerar deposito PIX");
+    }
+  }
+
+  /**
+   * Consulta o status atual de um depósito Pix (com suporte/integração ao Stripe)
+   */
+  async getPixDepositStatus(req, res) {
+    try {
+      const { transactionId } = req.params;
+      if (!transactionId) {
+        return sendError(res, 400, "ID da transação obrigatório");
+      }
+
+      // 1. Procurar se já foi confirmado no banco local
+      const confirmedEvent = await PaymentWebhookEvent.findOne({
+        transactionId,
+        event: "payment.confirmed"
+      });
+
+      if (confirmedEvent) {
+        if (String(confirmedEvent.userId || "") !== String(req.user.id)) {
+          return sendError(res, 404, "Depósito não encontrado");
+        }
+        return res.json({
+          success: true,
+          transactionId,
+          status: "paid",
+          amount: confirmedEvent.amount,
+          paidAt: confirmedEvent.processedAt || confirmedEvent.createdAt,
+          receiptUrl: confirmedEvent.rawPayload?.receiptUrl || null
+        });
+      }
+
+      // 2. Procurar o evento pendente
+      const pendingEvent = await PaymentWebhookEvent.findOne({
+        transactionId,
+        event: "payment.pending"
+      });
+
+      if (!pendingEvent) {
+        return sendError(res, 404, "Depósito não encontrado");
+      }
+      if (String(pendingEvent.userId || "") !== String(req.user.id)) {
+        return sendError(res, 404, "Depósito não encontrado");
+      }
+
+      // 3. Se for uma transação do Stripe real (não simulada de ponta a ponta)
+      let stripeIsPaid = false;
+      let stripeReceiptUrl = null;
+      if (stripe && transactionId.startsWith("pi_")) {
+        try {
+          const paymentIntent = await stripe.paymentIntents.retrieve(transactionId);
+          if (paymentIntent.status === "succeeded") {
+            stripeIsPaid = true;
+            const charge = paymentIntent.charges?.data?.[0];
+            if (charge && charge.receipt_url) {
+              stripeReceiptUrl = charge.receipt_url;
+            }
+          }
+        } catch (stripeErr) {
+          console.warn("[Stripe status check] Erro ao consultar PaymentIntent:", stripeErr.message);
+        }
+      }
+
+      // 4. SÓ credita quando o Stripe confirma o pagamento de verdade (succeeded).
+      //    (Removido o auto-crédito por tempo — creditava sem pagamento = falha grave.)
+      if (stripeIsPaid) {
+        const account = pendingEvent.rawPayload?.account === "driver_balance" ? "driver_balance" : "wallet";
+        const user = await User.findById(pendingEvent.userId);
+        if (user) {
+          if (!canUseDepositAccount(user, account)) {
+            return sendError(res, 403, "Apenas motoristas podem recarregar o saldo operacional.");
+          }
+          const credited = creditDepositToAccount(user, account, pendingEvent.amount, {
+            referenceId: transactionId,
+            description: "Recarga via PIX (Stripe)",
+            receiptUrl: stripeReceiptUrl,
+          });
+          if (credited && account === "wallet") {
+            await walletEscrow.settlePendingDebt(user);
+          }
+          await user.save();
+
+          // Salvar evento de confirmação no log de webhooks
+          const confirmed = await PaymentWebhookEvent.create({
+            transactionId,
+            event: "payment.confirmed",
+            userId: user._id,
+            amount: pendingEvent.amount,
+            status: "processed",
+            rawPayload: { method: "pix", account, stripeIsPaid, receiptUrl: stripeReceiptUrl },
+            processedAt: new Date()
+          });
+
+          return res.json({
+            success: true,
+            transactionId,
+            status: "paid",
+            amount: pendingEvent.amount,
+            paidAt: confirmed.processedAt,
+            receiptUrl: stripeReceiptUrl
+          });
+        }
+      }
+
+      // Caso contrário, continua pendente
+      return res.json({
+        success: true,
+        transactionId,
+        status: "pending",
+        amount: pendingEvent.amount
+      });
+    } catch (error) {
+      console.error("Erro ao consultar status PIX:", error);
+      return sendError(res, 500, "Erro ao consultar status do PIX");
+    }
+  }
+
+  /**
+   * Depósito via BOLETO (Stripe). Requer nome + CPF do pagador.
+   * Credita carteira (account="wallet") ou saldo do motorista (account="driver_balance").
+   */
+  async createBoletoDeposit(req, res) {
+    try {
+      const { amount, taxId } = req.body || {};
+      const amountValue = toMoney(amount);
+      const account = String(req.body?.account || "wallet") === "driver_balance" ? "driver_balance" : "wallet";
+
+      if (!Number.isFinite(amountValue) || amountValue <= 0) {
+        return sendError(res, 400, "Valor invalido para deposito");
+      }
+      if (!stripe) {
+        return sendError(res, 500, "Stripe não configurado no servidor.");
+      }
+
+      const user = await User.findById(req.user.id).select("name email cpf userType");
+      if (!user) return sendError(res, 404, "Usuario nao encontrado");
+      if (!canUseDepositAccount(user, account)) {
+        return sendError(res, 403, "Apenas motoristas podem recarregar o saldo operacional.");
+      }
+
+      const cpf = String(taxId || user.cpf || "").replace(/\D/g, "");
+      if (cpf.length !== 11) {
+        return sendError(res, 400, "CPF é obrigatório para boleto (11 dígitos).");
+      }
+
+      try {
+        const paymentIntent = await stripe.paymentIntents.create({
+          amount: Math.round(amountValue * 100),
+          currency: "brl",
+          payment_method_types: ["boleto"],
+          payment_method_data: {
+            type: "boleto",
+            boleto: { tax_id: cpf },
+            billing_details: {
+              name: user.name || "Cliente Leva",
+              email: user.email || undefined,
+            },
+          },
+          confirm: true,
+          metadata: { userId: String(user._id), account, kind: "deposit" },
+        });
+
+        const na = paymentIntent.next_action?.boleto_display_details || {};
+
+        await PaymentWebhookEvent.create({
+          transactionId: paymentIntent.id,
+          event: "payment.pending",
+          userId: user._id,
+          amount: amountValue,
+          status: "acknowledged",
+          rawPayload: { method: "boleto", gateway: "stripe", account },
+        });
+
+        return res.json({
+          success: true,
+          transactionId: paymentIntent.id,
+          amount: amountValue,
+          status: "pending",
+          boleto: {
+            pdf: na.pdf || null,
+            number: na.number || null,
+            expiresAt: na.expires_at || null,
+            hostedVoucherUrl: na.hosted_voucher_url || null,
+          },
+        });
+      } catch (stripeError) {
+        console.error("[Stripe Boleto] Erro:", stripeError.message);
+        return sendError(res, 500, `Erro ao gerar boleto no Stripe: ${stripeError.message}`);
+      }
+    } catch (error) {
+      console.error("Erro ao gerar deposito boleto:", error);
+      return sendError(res, 500, "Erro ao gerar deposito via boleto");
+    }
+  }
+
+  /**
+   * Webhook OFICIAL do Stripe — verifica a assinatura e credita o depósito.
+   * Trata payment_intent.succeeded (PIX/boleto). Idempotente.
+   */
+  async stripeWebhook(req, res) {
+    if (!stripe) return res.status(500).send("Stripe não configurado");
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+    const signature = req.headers["stripe-signature"];
+
+    let event;
+    try {
+      if (webhookSecret) {
+        event = stripe.webhooks.constructEvent(req.rawBody || req.body, signature, webhookSecret);
+      } else {
+        // Sem secret configurado: aceita o corpo já parseado (apenas dev).
+        if (process.env.NODE_ENV === "production") {
+          return res.status(500).send("STRIPE_WEBHOOK_SECRET ausente");
+        }
+        event = req.body;
+      }
+    } catch (err) {
+      console.error("[Stripe webhook] Assinatura inválida:", err.message);
+      return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+
+    try {
+      if (event.type === "payment_intent.succeeded") {
+        const pi = event.data.object;
+        const transactionId = pi.id;
+        const userId = pi.metadata?.userId;
+        const amountValue = toMoney((pi.amount_received || pi.amount || 0) / 100);
+
+        if (pi.metadata?.kind === "ride_payment") {
+          const rideId = pi.metadata.rideId;
+          const driverId = pi.metadata.driverId;
+          const Ride = require("../models/Ride");
+          const ride = await Ride.findById(rideId);
+          if (ride && ride.payment?.status !== "completed") {
+            if (!ride.payment) {
+              ride.payment = { method: "pix" };
+            }
+            ride.payment.status = "completed";
+            ride.payment.paidAt = new Date();
+            ride.payment.transactionId = transactionId;
+            await ride.save();
+
+            const driver = await User.findById(driverId);
+            if (driver) {
+              driver.driverBalance = driver.driverBalance || { balance: 0, totalDeposits: 0, totalDeductions: 0, transactions: [] };
+              driver.driverBalance.balance = toMoney(Number(driver.driverBalance.balance || 0) + amountValue);
+              driver.driverBalance.totalDeposits = toMoney(Number(driver.driverBalance.totalDeposits || 0) + amountValue);
+              driver.driverBalance.transactions.push({
+                type: "client_in_app_payment",
+                amount: amountValue,
+                description: `Pagamento da corrida/entrega ${rideId} via PIX`,
+                referenceId: transactionId,
+                status: "completed",
+                createdAt: new Date(),
+              });
+              await driver.save();
+            }
+
+            const io = req.app.get("io");
+            if (io) {
+              io.to(String(rideId)).emit("ride-status-updated", {
+                rideId: String(rideId),
+                status: ride.status,
+                paymentStatus: "completed",
+                ride
+              });
+              io.to(String(rideId)).emit("ride-payment-confirmed", {
+                rideId: String(rideId),
+                paymentStatus: "completed",
+                amount: amountValue
+              });
+            }
+
+            await PaymentWebhookEvent.create({
+              transactionId,
+              event: "payment.confirmed",
+              userId: ride.clientId,
+              amount: amountValue,
+              status: "processed",
+              rawPayload: { gateway: "stripe", kind: "ride_payment", rideId, driverId, type: event.type },
+              processedAt: new Date(),
+            });
+          }
+          return res.json({ received: true, status: "ride_payment_processed" });
+        }
+
+        const account = pi.metadata?.account === "driver_balance" ? "driver_balance" : "wallet";
+
+        // Idempotência: já confirmado?
+        const exists = await PaymentWebhookEvent.findOne({ transactionId, event: "payment.confirmed" }).select("_id");
+        if (exists?._id) return res.json({ received: true, status: "already_processed" });
+
+        if (userId && amountValue > 0) {
+          const user = await User.findById(userId);
+          if (user) {
+            if (!canUseDepositAccount(user, account)) {
+              await PaymentWebhookEvent.create({
+                transactionId,
+                event: "payment.confirmed",
+                userId: user._id,
+                amount: amountValue,
+                status: "acknowledged",
+                rawPayload: { gateway: "stripe", account, type: event.type, ignored: "invalid_account_for_user" },
+                processedAt: new Date(),
+              });
+              return res.json({ received: true, status: "ignored_invalid_account" });
+            }
+            const receiptUrl = pi.charges?.data?.[0]?.receipt_url || null;
+            const credited = creditDepositToAccount(user, account, amountValue, {
+              referenceId: transactionId,
+              description: `Recarga via ${pi.payment_method_types?.[0] || "Stripe"}`,
+              receiptUrl,
+            });
+            if (credited && account === "wallet") {
+              await walletEscrow.settlePendingDebt(user);
+            }
+            await user.save();
+            await PaymentWebhookEvent.create({
+              transactionId,
+              event: "payment.confirmed",
+              userId: user._id,
+              amount: amountValue,
+              status: "processed",
+              rawPayload: { gateway: "stripe", account, type: event.type },
+              processedAt: new Date(),
+            });
+          }
+        }
+      }
+      return res.json({ received: true });
+    } catch (error) {
+      console.error("[Stripe webhook] Erro ao processar:", error.message);
+      return res.status(500).send("Erro ao processar webhook");
     }
   }
 
@@ -860,6 +1288,193 @@ class PaymentController {
       success: true,
       fee,
     });
+  }
+
+  /**
+   * Cria um PaymentIntent no Stripe
+   */
+  async createStripeIntent(req, res) {
+    try {
+      const { amount, currency } = req.body || {};
+      const amountValue = Number(amount);
+      const currencyCode = String(currency || "brl").toLowerCase();
+
+      if (!stripe) {
+        return sendError(res, 501, "Stripe não configurado no servidor");
+      }
+
+      if (!amountValue || amountValue <= 0) {
+        return sendError(res, 400, "Valor do depósito inválido");
+      }
+
+      const user = await User.findById(req.user.id).select("name email");
+      if (!user) {
+        return sendError(res, 404, "Usuário não encontrado");
+      }
+
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amountValue,
+        currency: currencyCode,
+        payment_method_types: ["card"],
+        metadata: {
+          userId: String(user._id),
+          purpose: "levapay_topup",
+        },
+      });
+
+      // Registrar o evento pendente
+      await PaymentWebhookEvent.create({
+        transactionId: paymentIntent.id,
+        event: "payment.pending",
+        userId: user._id,
+        amount: toMoney(amountValue / 100),
+        status: "acknowledged",
+        rawPayload: { method: "stripe_card", paymentIntentId: paymentIntent.id }
+      });
+
+      return res.json({
+        success: true,
+        paymentIntentId: paymentIntent.id,
+        clientSecret: paymentIntent.client_secret,
+        amount: paymentIntent.amount,
+        currency: paymentIntent.currency,
+        status: paymentIntent.status,
+        publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || null
+      });
+    } catch (error) {
+      console.error("Erro ao criar PaymentIntent Stripe:", error);
+      return sendError(res, 500, "Erro ao criar PaymentIntent");
+    }
+  }
+
+  /**
+   * Confirma o depósito via Stripe e credita na carteira
+   */
+  async confirmStripePayment(req, res) {
+    try {
+      const { paymentIntentId } = req.body || {};
+      if (!paymentIntentId) {
+        return sendError(res, 400, "paymentIntentId é obrigatório");
+      }
+
+      if (!stripe) {
+        return sendError(res, 501, "Stripe não configurado no servidor");
+      }
+
+      // 1. Procurar se já foi confirmado no banco local
+      const confirmedEvent = await PaymentWebhookEvent.findOne({
+        transactionId: paymentIntentId,
+        event: "payment.confirmed"
+      });
+
+      if (confirmedEvent) {
+        const user = await User.findOne({ "wallet.transactions.referenceId": paymentIntentId });
+        const txn = user?.wallet?.transactions?.find((t) => String(t.referenceId || "") === paymentIntentId);
+        return res.json({
+          success: true,
+          paymentIntentId,
+          status: "succeeded",
+          message: "Depósito já creditado na carteira",
+          receiptUrl: txn?.receiptUrl || confirmedEvent.rawPayload?.receiptUrl || null
+        });
+      }
+
+      // 2. Buscar o intent direto no Stripe
+      const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+      if (paymentIntent.status !== "succeeded") {
+        return res.json({
+          success: true,
+          paymentIntentId,
+          status: paymentIntent.status,
+          message: `O pagamento está em estado: ${paymentIntent.status}`
+        });
+      }
+
+      // 3. Creditar o valor na carteira do usuário
+      const userId = paymentIntent.metadata?.userId;
+      if (!userId) {
+        return sendError(res, 400, "Metadados do PaymentIntent inválidos (userId ausente)");
+      }
+
+      const user = await User.findById(userId);
+      if (!user) {
+        return sendError(res, 404, "Usuário do depósito não encontrado");
+      }
+
+      const amountInReais = toMoney(paymentIntent.amount / 100);
+      const charge = paymentIntent.charges?.data?.[0];
+      const receiptUrl = charge?.receipt_url || null;
+
+      user.wallet = user.wallet || { balance: 0, transactions: [] };
+      user.wallet.transactions = user.wallet.transactions || [];
+
+      const alreadySettled = user.wallet.transactions.some(
+        (t) => String(t.referenceId || "") === paymentIntentId
+      );
+
+      if (!alreadySettled) {
+        user.wallet.balance = toMoney((user.wallet.balance || 0) + amountInReais);
+        user.wallet.transactions.push({
+          type: "topup",
+          amount: amountInReais,
+          description: "Recarga via cartão de crédito (Stripe)",
+          referenceId: paymentIntentId,
+          receiptUrl: receiptUrl,
+          createdAt: new Date()
+        });
+        // Quita automaticamente taxa de cancelamento pendente com o novo saldo.
+        await walletEscrow.settlePendingDebt(user);
+        await user.save();
+      }
+
+      // Salvar evento de confirmação no log de webhooks
+      await PaymentWebhookEvent.create({
+        transactionId: paymentIntentId,
+        event: "payment.confirmed",
+        userId: user._id,
+        amount: amountInReais,
+        status: "processed",
+        rawPayload: { method: "stripe_card", paymentIntent, receiptUrl },
+        processedAt: new Date()
+      });
+
+      return res.json({
+        success: true,
+        paymentIntentId,
+        status: "succeeded",
+        message: "Depósito creditado com sucesso!",
+        receiptUrl: receiptUrl
+      });
+    } catch (error) {
+      console.error("Erro ao confirmar pagamento Stripe:", error);
+      return sendError(res, 500, "Erro ao confirmar pagamento Stripe");
+    }
+  }
+
+  /**
+   * Cancela o PaymentIntent no Stripe
+   */
+  async cancelStripeIntent(req, res) {
+    try {
+      const { paymentIntentId } = req.body || {};
+      if (!paymentIntentId) {
+        return sendError(res, 400, "paymentIntentId é obrigatório");
+      }
+
+      if (!stripe) {
+        return sendError(res, 501, "Stripe não configurado no servidor");
+      }
+
+      await stripe.paymentIntents.cancel(paymentIntentId);
+
+      return res.json({
+        success: true,
+        message: "PaymentIntent cancelado com sucesso"
+      });
+    } catch (error) {
+      console.error("Erro ao cancelar PaymentIntent Stripe:", error);
+      return sendError(res, 500, "Erro ao cancelar PaymentIntent");
+    }
   }
 }
 

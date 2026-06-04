@@ -1,6 +1,7 @@
 import apiClient from './api';
 import { logger } from '@/utils/logger';
 import configService from '@/services/config.service';
+import depositService from '@/services/deposit.service';
 
 export interface DriverBalance {
   id: string;
@@ -91,7 +92,7 @@ class DriverService {
   }
 
   // Add deposit
-  async addDeposit(amount: number, method: 'credit_card' | 'pix' = 'credit_card'): Promise<DriverDeposit> {
+  async addDeposit(amount: number, method: 'credit_card' | 'pix' = 'pix'): Promise<DriverDeposit> {
     try {
       // Validate amount against config
       const isValid = await configService.validateDepositAmount(amount);
@@ -99,22 +100,23 @@ class DriverService {
         throw new Error('Invalid deposit amount');
       }
 
-      const response = await apiClient.post<any>('/drivers/balance/deposit', {
-        amount,
-        method,
-      });
+      if (method !== 'pix') {
+        throw new Error('Depósitos do motorista usam PIX ou boleto via gateway de pagamento.');
+      }
+
+      const deposit = await depositService.createPixDeposit(amount, 'driver_balance');
 
       logger.info('DRIVER_SERVICE', 'Deposit created', {
         amount: amount,
-        status: 'completed',
+        status: deposit.status,
       });
 
       return {
-        id: '',
+        id: deposit.transactionId,
         driverId: '',
         amount,
         method,
-        status: 'confirmed',
+        status: deposit.status === 'paid' ? 'confirmed' : 'pending',
         createdAt: new Date().toISOString(),
       };
     } catch (error) {

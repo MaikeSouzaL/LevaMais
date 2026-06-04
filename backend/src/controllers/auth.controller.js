@@ -3,6 +3,7 @@ const PasswordReset = require("../models/PasswordReset");
 const PhoneVerification = require("../models/PhoneVerification");
 const Ride = require("../models/Ride");
 const RideHistory = require("../models/RideHistory");
+const walletEscrow = require("../services/walletEscrow.service");
 const {
   DEFAULT_PLATFORM_CONFIG,
   mergeConfig,
@@ -16,6 +17,7 @@ const mongoose = require("mongoose");
 const path = require("path");
 const fs = require("fs");
 const { getIO } = require("../config/websocket");
+const pushNotificationService = require("../services/push-notification.service");
 
 
 const ACTIVE_RIDE_STATUSES = [
@@ -28,6 +30,16 @@ const ACTIVE_RIDE_STATUSES = [
 ];
 const CURRENT_CONSENT_VERSION = "2026-05-14";
 const RIDE_CAPABLE_VEHICLES = new Set(["motorcycle", "car"]);
+const DRIVER_REVIEW_FIELDS = [
+  "cnhFrontStatus",
+  "cnhBackStatus",
+  "selfieStatus",
+  "cpfStatus",
+  "bankAccountStatus",
+  "faceMatchStatus",
+  "backgroundCheckStatus",
+];
+const DRIVER_BLOCKING_STATUSES = new Set(["blocked", "suspended"]);
 
 function normalizePhone(phone) {
   if (!phone) return "";
@@ -292,23 +304,40 @@ function normalizeClientVerificationStatus(cpfStatus, selfieStatus) {
 }
 
 function normalizeDriverStatusFromDocs(driverDocuments = {}) {
-  const cnhFrontStatus = String(driverDocuments?.cnhFrontStatus || "pending");
-  const cnhBackStatus = String(driverDocuments?.cnhBackStatus || "pending");
-  const selfieStatus = String(driverDocuments?.selfieStatus || "pending");
-  const cpfStatus = String(driverDocuments?.cpfStatus || "pending");
-  const bankAccountStatus = String(driverDocuments?.bankAccountStatus || "pending");
+  const statuses = DRIVER_REVIEW_FIELDS.map((field) => String(driverDocuments?.[field] || "pending"));
 
-  if ([cnhFrontStatus, cnhBackStatus, selfieStatus, cpfStatus, bankAccountStatus].includes("rejected")) return "rejected";
-  if (
-    cnhFrontStatus === "approved" &&
-    cnhBackStatus === "approved" &&
-    selfieStatus === "approved" &&
-    cpfStatus === "approved" &&
-    bankAccountStatus === "approved"
-  ) {
-    return "approved";
-  }
+  if (statuses.includes("rejected")) return "rejected";
+  if (statuses.every((status) => status === "approved")) return "approved";
   return "pending";
+}
+
+function resolveReviewerId(req) {
+  const id = req.user?.id;
+  return mongoose.isValidObjectId(id) ? id : undefined;
+}
+
+async function notifyDriverVerificationChange(user, status, reason) {
+  if (!user?.pushToken || user.notificationsEnabled === false) return;
+
+  const titleByStatus = {
+    approved: "Cadastro aprovado",
+    rejected: "Cadastro precisa de ajuste",
+    blocked: "Cadastro bloqueado",
+    suspended: "Cadastro suspenso",
+    pending: "Cadastro em analise",
+  };
+  const bodyByStatus = {
+    approved: "Sua conta de motorista foi liberada para trabalhar.",
+    rejected: reason || "Revise os documentos recusados e envie novamente.",
+    blocked: reason || "Fale com o suporte para regularizar sua conta.",
+    suspended: reason || "Fale com o suporte para regularizar sua conta.",
+    pending: "Recebemos sua atualizacao e vamos revisar os dados.",
+  };
+
+  await pushNotificationService.sendPushToUser(user, titleByStatus[status] || "Cadastro atualizado", bodyByStatus[status] || "Seu cadastro foi atualizado.", {
+    type: "driver_verification",
+    status,
+  });
 }
 
 class AuthController {
@@ -1142,6 +1171,8 @@ class AuthController {
         description: "Recarga de saldo",
         referenceId: `topup_${Date.now()}`,
       });
+      // Quita automaticamente taxa de cancelamento pendente com o novo saldo.
+      const debtSettle = await walletEscrow.settlePendingDebt(user);
 
       await user.save();
 
@@ -1149,6 +1180,8 @@ class AuthController {
         success: true,
         message: "Saldo atualizado com sucesso",
         balance: toMoney(user.wallet.balance),
+        pendingDebt: toMoney(user.pendingDebt || 0),
+        settledDebt: toMoney(debtSettle?.settled || 0),
       });
     } catch (error) {
       console.error("Erro ao recarregar carteira:", error);
@@ -2026,7 +2059,10 @@ class AuthController {
         user.clientVerification.selfieStatus || "none",
       );
       user.clientVerification.reviewedAt = new Date();
-      user.clientVerification.reviewedBy = req.user?.id || "admin";
+      const reviewerId = resolveReviewerId(req);
+      if (reviewerId) {
+        user.clientVerification.reviewedBy = reviewerId;
+      }
 
       await user.save();
 
@@ -2057,13 +2093,19 @@ class AuthController {
   async updateDriverVerificationByAdmin(req, res) {
     try {
       const { id } = req.params;
-      const { field, status, reason } = req.body || {};
+      const { field, status, reason, riskFlags } = req.body || {};
+      const normalizedField = String(field || "");
+      const normalizedStatus = String(status || "");
+      const reviewerId = resolveReviewerId(req);
 
-      if (!["cnhFrontStatus", "cnhBackStatus", "selfieStatus", "cpfStatus", "bankAccountStatus"].includes(String(field || ""))) {
-        return sendError(res, 400, "Campo invalido. Use cnhFrontStatus, cnhBackStatus, selfieStatus, cpfStatus ou bankAccountStatus");
+      if (![...DRIVER_REVIEW_FIELDS, "driverStatus"].includes(normalizedField)) {
+        return sendError(res, 400, "Campo invalido. Use um campo de documento/seguranca ou driverStatus");
       }
-      if (!["none", "pending", "approved", "rejected"].includes(String(status || ""))) {
+      if (!["none", "pending", "approved", "rejected", "blocked", "suspended"].includes(normalizedStatus)) {
         return sendError(res, 400, "Status invalido para o campo informado");
+      }
+      if (normalizedField !== "driverStatus" && DRIVER_BLOCKING_STATUSES.has(normalizedStatus)) {
+        return sendError(res, 400, "Use field=driverStatus para bloquear ou suspender um motorista");
       }
 
       const user = await User.findById(id);
@@ -2073,27 +2115,44 @@ class AuthController {
       }
 
       user.driverDocuments = user.driverDocuments || {};
-      user.driverDocuments[field] = status;
+      if (normalizedField === "driverStatus") {
+        user.driverStatus = normalizedStatus;
+        if (DRIVER_BLOCKING_STATUSES.has(normalizedStatus)) {
+          user.driverDocuments.rejectionReason = reason ? String(reason).trim() : "Conta bloqueada pela equipe de seguranca";
+        }
+      } else {
+        user.driverDocuments[normalizedField] = normalizedStatus;
+        user.driverStatus = normalizeDriverStatusFromDocs(user.driverDocuments);
+      }
+
+      if (Array.isArray(riskFlags)) {
+        user.driverDocuments.riskFlags = riskFlags
+          .map((item) => String(item || "").trim())
+          .filter(Boolean)
+          .slice(0, 20);
+      }
+
       user.driverDocuments.reviewedAt = new Date();
-      user.driverDocuments.reviewedBy = req.user?.id || "admin";
+      if (reviewerId) {
+        user.driverDocuments.reviewedBy = reviewerId;
+      }
       user.driverDocuments.reviewHistory = Array.isArray(user.driverDocuments.reviewHistory)
         ? user.driverDocuments.reviewHistory
         : [];
       user.driverDocuments.reviewHistory.push({
-        documentType: field,
-        action: status === "rejected" ? "rejected" : "approved",
+        documentType: normalizedField,
+        action: normalizedStatus === "none" ? "pending" : normalizedStatus,
         reason: reason ? String(reason).trim() : "",
-        reviewedBy: req.user?.id || undefined,
+        reviewedBy: reviewerId,
         reviewedAt: new Date(),
       });
 
-      if (reason && status === "rejected") {
+      if (reason && ["rejected", "blocked", "suspended"].includes(normalizedStatus)) {
         user.driverDocuments.rejectionReason = String(reason).trim();
-      } else if (status === "approved") {
+      } else if (normalizedStatus === "approved" && user.driverStatus === "approved") {
         user.driverDocuments.rejectionReason = "";
       }
 
-      user.driverStatus = normalizeDriverStatusFromDocs(user.driverDocuments);
       await user.save();
 
       try {
@@ -2105,6 +2164,9 @@ class AuthController {
           approved: user.driverStatus === "approved",
         });
       } catch {}
+      notifyDriverVerificationChange(user, user.driverStatus, user.driverDocuments?.rejectionReason).catch((error) => {
+        console.error("Erro ao notificar motorista sobre verificacao:", error.message);
+      });
 
       return res.json({
         success: true,
@@ -2169,8 +2231,18 @@ class AuthController {
       docKeys.forEach((key) => {
         if (req.files[key] && req.files[key][0]) {
           documents[key] = `${baseUrl}/${req.files[key][0].filename}`;
+          const statusField = `${key}Status`;
+          if (DRIVER_REVIEW_FIELDS.includes(statusField)) {
+            documents[statusField] = "pending";
+          }
         }
       });
+
+      if (documents.selfie) {
+        documents.faceMatchStatus = "pending";
+      }
+      documents.backgroundCheckStatus = "pending";
+      documents.riskFlags = [];
 
       user.driverDocuments = {
         ...(user.driverDocuments || {}),

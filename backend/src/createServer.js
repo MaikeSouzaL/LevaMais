@@ -19,6 +19,7 @@ const walletRoutes = require("./routes/wallet.routes");
 const shiftOfferRoutes = require("./routes/shiftOffer.routes");
 const purposeRoutes = require("./routes/purpose.routes");
 const pricingRoutes = require("./routes/pricing.routes");
+const disputeRoutes = require("./routes/dispute.routes");
 
 function parseAllowedOrigins() {
   const fromEnv = String(
@@ -82,7 +83,44 @@ function applyMiddlewares(app) {
   app.use("/api/auth/verify-phone-code", authLimiter);
   app.use("/api/auth/reset-password", authLimiter);
 
-  app.use(express.json({ limit: "50mb" }));
+  const sensitiveActionLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+      success: false,
+      message: "Muitas tentativas em uma area sensivel. Aguarde alguns minutos.",
+    },
+  });
+  app.use("/api/auth/driver-verification", sensitiveActionLimiter);
+  app.use("/api/auth/client-verification", sensitiveActionLimiter);
+  app.use("/api/drivers/vehicles", sensitiveActionLimiter);
+  app.use("/api/disputes", sensitiveActionLimiter);
+
+  const financialLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+      success: false,
+      message: "Muitas operacoes financeiras. Aguarde um momento.",
+    },
+  });
+  app.use("/api/payments", financialLimiter);
+  app.use("/api/wallet", financialLimiter);
+  app.use("/api/drivers/balance", financialLimiter);
+
+  // Captura o corpo cru (rawBody) p/ verificar a assinatura do webhook do Stripe.
+  app.use(
+    express.json({
+      limit: "50mb",
+      verify: (req, _res, buf) => {
+        req.rawBody = buf;
+      },
+    }),
+  );
   app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
   // Serve static uploads
@@ -103,6 +141,7 @@ function applyRoutes(app) {
   app.use("/api/shift-offers", shiftOfferRoutes);
   app.use("/api/purposes", purposeRoutes);
   app.use("/api/pricing", pricingRoutes);
+  app.use("/api/disputes", disputeRoutes);
 
   app.get("/api/health", (req, res) => {
     res.json({
