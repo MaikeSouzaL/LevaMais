@@ -69,12 +69,10 @@ export default function DeliveryPickupConfirm() {
       // Avanca para in_progress
       await rideService.updateStatus(rideId, "in_progress");
 
-      setConfirmed(true);
       Toast.show({ type: "success", text1: "Coleta confirmada!" });
 
-      setTimeout(() => {
-        navigation.replace("DeliveryDropoffConfirm", { rideId });
-      }, 1500);
+      // Volta pra tela do mapa (DriverRide) — motorista verá rota até o destino + botão "CHEGUEI NO DESTINO"
+      navigation.goBack();
     } catch (error) {
       console.error("Erro ao confirmar coleta:", error);
       Toast.show({ type: "error", text1: "Erro ao confirmar coleta" });

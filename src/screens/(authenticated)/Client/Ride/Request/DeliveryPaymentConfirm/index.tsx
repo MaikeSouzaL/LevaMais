@@ -100,7 +100,7 @@ export default function DeliveryPaymentConfirmScreen() {
       await rideService.confirmNegotiationPayment(rideId, { method });
       clearInterval(timerRef.current);
       Toast.show({ type: "success", text1: "Pagamento confirmado!", text2: "O entregador foi notificado e já está a caminho." });
-      navigation.replace("DeliveryTracking", { rideId });
+      navigation.navigate("DeliveryTracking", { rideId });
     } catch (e: any) {
       Toast.show({
         type: "error",

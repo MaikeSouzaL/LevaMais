@@ -141,7 +141,7 @@ export default function RideBiddingScreen({ route, navigation }: any) {
           text1: "Corrida aceita!",
           text2: "Redirecionando para acompanhamento...",
         });
-        navigation.replace("RideTracking", { rideId: ride._id });
+        navigation.navigate("RideTracking", { rideId: ride._id });
       }
     });
 
@@ -172,7 +172,7 @@ export default function RideBiddingScreen({ route, navigation }: any) {
         text2: "Redirecionando para acompanhamento...",
       });
 
-      navigation.replace("RideTracking", { rideId: ride._id });
+      navigation.navigate("RideTracking", { rideId: ride._id });
     } catch (error: any) {
       Toast.show({
         type: "error",

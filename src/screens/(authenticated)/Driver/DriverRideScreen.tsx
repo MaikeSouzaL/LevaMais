@@ -1341,10 +1341,16 @@ export default function DriverRideScreen() {
               if (canArrive) {
                 update("arrived");
               } else if (canStart) {
-                update("in_progress");
+                // Para entregas, abrir tela de confirmação de coleta (PIN + dados)
+                if (isDelivery) {
+                  (navigation as any).navigate("DeliveryPickupConfirm", { rideId });
+                } else {
+                  update("in_progress");
+                }
               } else if (canComplete) {
-                if (ride?.payment?.method?.toLowerCase() === "pix") {
-                  handleShowPixModal();
+                // Para entregas, abrir tela de confirmação de entrega (PIN de entrega)
+                if (isDelivery) {
+                  (navigation as any).navigate("DeliveryDropoffConfirm", { rideId });
                 } else {
                   update("completed");
                 }
@@ -1357,7 +1363,6 @@ export default function DriverRideScreen() {
             isDelivery={isDelivery}
             canArriveDropoff={canArriveDropoff}
             onArriveDropoff={handleArriveDropoff}
-            onShowPix={handleShowPixModal}
           />
         </View>
       </View>

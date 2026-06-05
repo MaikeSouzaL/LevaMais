@@ -373,7 +373,7 @@ export default function ActiveOrdersScreen() {
         }}
       >
         <TouchableOpacity
-          onPress={() => navigation.replace("Home")}
+          onPress={() => navigation.navigate("Home")}
           activeOpacity={0.7}
           className="w-10 h-10 rounded-xl bg-slate-800/70 border border-white/10 items-center justify-center mr-4"
         >
@@ -510,7 +510,7 @@ export default function ActiveOrdersScreen() {
           </Text>
           
           <TouchableOpacity
-            onPress={() => navigation.replace("Home")}
+            onPress={() => navigation.navigate("Home")}
             activeOpacity={0.8}
             className="mt-8 bg-primary hover:bg-[#00b87c] px-6 py-3.5 rounded-xl flex-row items-center gap-2 shadow-lg shadow-primary/20"
           >

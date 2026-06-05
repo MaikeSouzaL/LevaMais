@@ -141,7 +141,7 @@ export default function DeliveryTracking() {
       if (data && data.status === "completed") {
         if (redirectedRef.current) return;
         redirectedRef.current = true;
-        navigation.replace("ClientRateDriver", {
+        navigation.navigate("ClientRateDriver", {
           rideId: data._id || (data as any).id || rideIdRef.current,
           driverName: typeof data.driverId === "string" ? undefined : data.driverId?.name,
           serviceType: data.serviceType || "delivery",

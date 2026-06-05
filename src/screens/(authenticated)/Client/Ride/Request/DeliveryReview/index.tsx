@@ -119,10 +119,10 @@ export default function DeliveryReviewScreen({ navigation, route }: any) {
       const created = await rideService.create(backendPayload);
       if (created?.status === "scheduled") {
         Toast.show({ type: "success", text1: "Entrega agendada", text2: "Seu pedido foi agendado e aparecerá em pedidos ativos." });
-        navigation.replace("ActiveOrders");
+        navigation.navigate("ActiveOrders");
         return;
       }
-      navigation.replace("OrderSent", { rideId: created._id });
+      navigation.navigate("OrderSent", { rideId: created._id });
     } catch (e: any) {
       Toast.show({ type: "error", text1: "Erro ao publicar entrega", text2: e?.message || "Verifique sua conexão" });
     } finally {

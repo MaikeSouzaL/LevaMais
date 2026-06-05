@@ -116,7 +116,7 @@ export default function CancelRideScreen() {
       const chargedFee = Number(response?.cancellationFee ?? response?.data?.cancellationFee ?? effectiveEstimatedFee) || 0;
       Toast.show({ type: "success", text1: isDelivery ? "Entrega cancelada" : "Corrida cancelada" });
       if (chargedFee > 0) {
-        navigation.replace("CancelFee", { rideId, fee: chargedFee, total: rideTotal, serviceType });
+        navigation.navigate("CancelFee", { rideId, fee: chargedFee, total: rideTotal, serviceType });
       } else {
         navigation.reset({ index: 0, routes: [{ name: "Home" }] });
       }

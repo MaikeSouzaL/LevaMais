@@ -333,13 +333,13 @@ export default function RideTrackingScreen() {
 
       // Redirect to DeliveryTracking if this is a delivery
       if (data.serviceType === "delivery" || data.serviceType === "frete") {
-        navigation.replace("DeliveryTracking", { rideId });
+        navigation.navigate("DeliveryTracking", { rideId });
         return;
       }
 
       if (TERMINAL_STATUSES.includes(String(data.status || ""))) {
         if (data.status === "completed") {
-          navigation.replace("RideCompleted", {
+          navigation.navigate("RideCompleted", {
             rideId: data._id,
             total: data?.pricing?.total,
             pickupAddress: data?.pickup?.address,
