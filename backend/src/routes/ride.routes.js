@@ -54,8 +54,8 @@ router.post("/:rideId/retry", rideController.retryRide);
 router.patch("/:rideId/status", rideController.updateStatus);
 
 // Avaliações
-router.post("/:rideId/rate-client", rideController.rateClientToDriver);
-router.post("/:rideId/rate-driver", rideController.rateDriverToClient);
+router.post("/:rideId/rate-driver", rideController.rateClientToDriver);
+router.post("/:rideId/rate-client", rideController.rateDriverToClient);
 router.post("/:rideId/tip", rideController.addTip);
 // Provas de entrega (fotos)
 router.post("/:rideId/proof/pickup", rideController.uploadPickupProof);

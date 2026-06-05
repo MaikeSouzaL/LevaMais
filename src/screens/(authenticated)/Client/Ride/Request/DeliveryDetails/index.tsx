@@ -605,6 +605,8 @@ export default function DeliveryDetailsScreen() {
         address: routeProfiles.pickupProfile.address,
         latitude: pickupCoords.latitude,
         longitude: pickupCoords.longitude,
+        contactName: routeProfiles.pickupProfile.contactName,
+        details: routeProfiles.pickupProfile.details,
       },
       dropoff: {
         address: routeProfiles.dropoffProfile.address,

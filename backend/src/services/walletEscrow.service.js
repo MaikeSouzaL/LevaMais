@@ -13,6 +13,7 @@
  */
 
 const User = require("../models/User");
+const Partner = require("../models/Partner");
 
 function toMoney(v) {
   return Number(Number(v || 0).toFixed(2));
@@ -35,11 +36,13 @@ async function reserve(ride) {
   ride.payment.escrow = ride.payment.escrow || { status: "none" };
 
   if (ride.payment.escrow.status === "reserved" || ride.payment.escrow.status === "released") {
+    console.log(`[Escrow] reserve SKIP — já está ${ride.payment.escrow.status}`, { rideId: String(ride._id) });
     return { ok: true, alreadyReserved: true, amount: toMoney(ride.payment.escrow.amount) };
   }
 
   const amount = rideAmount(ride);
   if (amount <= 0) {
+    console.log(`[Escrow] reserve FAIL — amount inválido`, { rideId: String(ride._id), amount });
     const err = new Error("Valor da corrida inválido para retenção de saldo.");
     err.code = "INVALID_AMOUNT";
     throw err;
@@ -47,6 +50,7 @@ async function reserve(ride) {
 
   const client = await User.findById(clientIdOf(ride));
   if (!client) {
+    console.log(`[Escrow] reserve FAIL — cliente não encontrado`, { clientId: clientIdOf(ride) });
     const err = new Error("Cliente não encontrado para retenção de saldo.");
     err.code = "CLIENT_NOT_FOUND";
     throw err;
@@ -55,6 +59,7 @@ async function reserve(ride) {
   client.wallet = client.wallet || { balance: 0, held: 0, transactions: [] };
   const balance = toMoney(client.wallet.balance);
   if (balance < amount) {
+    console.log(`[Escrow] reserve FAIL — saldo insuficiente`, { rideId: String(ride._id), balance, amount });
     const err = new Error("Saldo LevaPay insuficiente para esta corrida.");
     err.code = "INSUFFICIENT_BALANCE";
     err.required = amount;
@@ -78,6 +83,7 @@ async function reserve(ride) {
   ride.payment.escrow.amount = amount;
   ride.payment.escrow.reservedAt = new Date();
 
+  console.log(`[Escrow] reserve OK`, { rideId: String(ride._id), amount, clientBalance: client.wallet.balance, clientHeld: client.wallet.held });
   return { ok: true, amount };
 }
 
@@ -90,6 +96,7 @@ async function release(ride, { driverId, driverValue, platformFee } = {}) {
   ride.payment.escrow = ride.payment.escrow || { status: "none" };
 
   if (ride.payment.escrow.status !== "reserved") {
+    console.log(`[Escrow] release SKIP — status é ${ride.payment.escrow.status}`, { rideId: String(ride._id) });
     return { ok: false, skipped: true, reason: ride.payment.escrow.status };
   }
 
@@ -143,6 +150,7 @@ async function release(ride, { driverId, driverValue, platformFee } = {}) {
 
   ride.payment.escrow.status = "released";
   ride.payment.escrow.releasedAt = new Date();
+  console.log(`[Escrow] release OK`, { rideId: String(ride._id), amount, credit, driverId });
   return { ok: true, credit, amount };
 }
 
@@ -377,6 +385,304 @@ async function settleFailedDelivery(ride, { driverId, bonusPct = 0.15 } = {}) {
   return { ok: true, amount, driverCredit, chargedVia };
 }
 
+async function reserveOrder(order) {
+  order.payment = order.payment || {};
+  order.payment.escrow = order.payment.escrow || { status: "none" };
+
+  if (order.payment.escrow.status === "reserved" || order.payment.escrow.status === "released") {
+    return { ok: true, alreadyReserved: true, amount: toMoney(order.payment.escrow.amount) };
+  }
+
+  const amount = toMoney(order.pricing?.total || 0);
+  if (amount <= 0) {
+    const err = new Error("Valor do pedido inválido para retenção de saldo.");
+    err.code = "INVALID_AMOUNT";
+    throw err;
+  }
+
+  const client = await User.findById(order.clientId);
+  if (!client) {
+    const err = new Error("Cliente não encontrado para retenção de saldo.");
+    err.code = "CLIENT_NOT_FOUND";
+    throw err;
+  }
+
+  client.wallet = client.wallet || { balance: 0, held: 0, transactions: [] };
+  const balance = toMoney(client.wallet.balance);
+  if (balance < amount) {
+    const err = new Error("Saldo LevaPay insuficiente para este pedido.");
+    err.code = "INSUFFICIENT_BALANCE";
+    err.required = amount;
+    err.available = balance;
+    throw err;
+  }
+
+  client.wallet.balance = toMoney(balance - amount);
+  client.wallet.held = toMoney(Number(client.wallet.held || 0) + amount);
+  client.wallet.transactions = client.wallet.transactions || [];
+  client.wallet.transactions.push({
+    type: "hold",
+    amount,
+    description: `Retenção LevaPay do pedido ${order.orderNumber}`,
+    referenceId: String(order._id),
+    createdAt: new Date(),
+  });
+  await client.save();
+
+  order.payment.escrow.status = "reserved";
+  order.payment.escrow.amount = amount;
+  order.payment.escrow.reservedAt = new Date();
+
+  return { ok: true, amount };
+}
+
+async function releaseOrder(order) {
+  order.payment = order.payment || {};
+  order.payment.escrow = order.payment.escrow || { status: "none" };
+
+  if (order.payment.escrow.status !== "reserved") {
+    return { ok: false, skipped: true, reason: order.payment.escrow.status };
+  }
+
+  const amount = toMoney(order.payment.escrow.amount || order.pricing?.total || 0);
+
+  // 1) Baixa o held do cliente
+  const client = await User.findById(order.clientId);
+  if (client) {
+    client.wallet = client.wallet || { balance: 0, held: 0, transactions: [] };
+    client.wallet.held = toMoney(Math.max(0, Number(client.wallet.held || 0) - amount));
+    client.wallet.transactions = client.wallet.transactions || [];
+    client.wallet.transactions.push({
+      type: "release",
+      amount,
+      description: `Pagamento liberado do pedido ${order.orderNumber}`,
+      referenceId: String(order._id),
+      createdAt: new Date(),
+    });
+    await client.save();
+  }
+
+  // 2) Credita o parceiro
+  if (order.partnerId && order.pricing?.partnerPayout > 0) {
+    const partner = await Partner.findById(order.partnerId);
+    if (partner && partner.ownerUserId) {
+      const partnerOwner = await User.findById(partner.ownerUserId);
+      if (partnerOwner) {
+        partnerOwner.wallet = partnerOwner.wallet || { balance: 0, held: 0, transactions: [] };
+        partnerOwner.wallet.transactions = partnerOwner.wallet.transactions || [];
+        const already = partnerOwner.wallet.transactions.some(
+          (t) => t?.referenceId === String(order._id) && t?.type === "marketplace_payout"
+        );
+        if (!already) {
+          const payout = toMoney(order.pricing.partnerPayout);
+          partnerOwner.wallet.balance = toMoney(Number(partnerOwner.wallet.balance || 0) + payout);
+          partnerOwner.wallet.transactions.push({
+            type: "marketplace_payout",
+            amount: payout,
+            description: `Repasse do pedido de marketplace ${order.orderNumber}`,
+            referenceId: String(order._id),
+            createdAt: new Date(),
+          });
+          await partnerOwner.save();
+        }
+      }
+    }
+  }
+
+  order.payment.escrow.status = "released";
+  order.payment.escrow.releasedAt = new Date();
+  order.payment.payoutStatus = "released";
+  order.payment.payoutAt = new Date();
+
+  return { ok: true, amount };
+}
+
+async function refundOrder(order) {
+  order.payment = order.payment || {};
+  order.payment.escrow = order.payment.escrow || { status: "none" };
+
+  if (order.payment.escrow.status !== "reserved") {
+    return { ok: false, skipped: true, reason: order.payment.escrow.status };
+  }
+
+  const amount = toMoney(order.payment.escrow.amount || 0);
+
+  const client = await User.findById(order.clientId);
+  if (client) {
+    client.wallet = client.wallet || { balance: 0, held: 0, transactions: [] };
+    client.wallet.held = toMoney(Math.max(0, Number(client.wallet.held || 0) - amount));
+    client.wallet.balance = toMoney(Number(client.wallet.balance || 0) + amount);
+    client.wallet.transactions = client.wallet.transactions || [];
+    client.wallet.transactions.push({
+      type: "refund_hold",
+      amount,
+      description: `Estorno LevaPay do pedido ${order.orderNumber}`,
+      referenceId: String(order._id),
+      createdAt: new Date(),
+    });
+    await client.save();
+  }
+
+  order.payment.escrow.status = "refunded";
+  order.payment.escrow.refundedAt = new Date();
+
+  return { ok: true, refunded: amount };
+}
+
+// ---------------------------------------------------------------------------
+// Rotas planejadas / maloteiro (Fase D7–D9)
+// Escrow de RouteReservation: hold no cliente na reserva, release credita o
+// MOTORISTA (driverPayout) na entrega, refund estorna. Espelha reserveOrder/etc.
+// ---------------------------------------------------------------------------
+
+function reservationLabel(reservation, opts = {}) {
+  return `${opts.label || "reserva de rota"} ${String(reservation._id)}`;
+}
+
+async function reserveReservation(reservation, opts = {}) {
+  reservation.payment = reservation.payment || {};
+  reservation.payment.escrow = reservation.payment.escrow || { status: "none" };
+
+  if (
+    reservation.payment.escrow.status === "reserved" ||
+    reservation.payment.escrow.status === "released"
+  ) {
+    return { ok: true, alreadyReserved: true, amount: toMoney(reservation.payment.escrow.amount) };
+  }
+
+  const amount = toMoney(reservation.pricing?.price || 0);
+  if (amount <= 0) {
+    const err = new Error("Valor da reserva inválido para retenção de saldo.");
+    err.code = "INVALID_AMOUNT";
+    throw err;
+  }
+
+  const client = await User.findById(reservation.clientId);
+  if (!client) {
+    const err = new Error("Cliente não encontrado para retenção de saldo.");
+    err.code = "CLIENT_NOT_FOUND";
+    throw err;
+  }
+
+  client.wallet = client.wallet || { balance: 0, held: 0, transactions: [] };
+  const balance = toMoney(client.wallet.balance);
+  if (balance < amount) {
+    const err = new Error("Saldo LevaPay insuficiente para esta reserva.");
+    err.code = "INSUFFICIENT_BALANCE";
+    err.required = amount;
+    err.available = balance;
+    throw err;
+  }
+
+  client.wallet.balance = toMoney(balance - amount);
+  client.wallet.held = toMoney(Number(client.wallet.held || 0) + amount);
+  client.wallet.transactions = client.wallet.transactions || [];
+  client.wallet.transactions.push({
+    type: "hold",
+    amount,
+    description: `Retenção LevaPay da ${reservationLabel(reservation, opts)}`,
+    referenceId: String(reservation._id),
+    createdAt: new Date(),
+  });
+  await client.save();
+
+  reservation.payment.escrow.status = "reserved";
+  reservation.payment.escrow.amount = amount;
+  reservation.payment.escrow.reservedAt = new Date();
+
+  return { ok: true, amount };
+}
+
+async function releaseReservation(reservation, opts = {}) {
+  reservation.payment = reservation.payment || {};
+  reservation.payment.escrow = reservation.payment.escrow || { status: "none" };
+
+  if (reservation.payment.escrow.status !== "reserved") {
+    return { ok: false, skipped: true, reason: reservation.payment.escrow.status };
+  }
+
+  const payoutType = opts.payoutType || "route_payout";
+  const amount = toMoney(reservation.payment.escrow.amount || reservation.pricing?.price || 0);
+
+  // 1) Baixa o held do cliente
+  const client = await User.findById(reservation.clientId);
+  if (client) {
+    client.wallet = client.wallet || { balance: 0, held: 0, transactions: [] };
+    client.wallet.held = toMoney(Math.max(0, Number(client.wallet.held || 0) - amount));
+    client.wallet.transactions = client.wallet.transactions || [];
+    client.wallet.transactions.push({
+      type: "release",
+      amount,
+      description: `Pagamento liberado da ${reservationLabel(reservation, opts)}`,
+      referenceId: String(reservation._id),
+      createdAt: new Date(),
+    });
+    await client.save();
+  }
+
+  // 2) Credita o motorista (driverPayout), idempotente por id+tipo
+  const driverId = reservation.driverId;
+  const payout = toMoney(reservation.pricing?.driverPayout || 0);
+  if (driverId && payout > 0) {
+    const driver = await User.findById(driverId);
+    if (driver) {
+      driver.wallet = driver.wallet || { balance: 0, held: 0, transactions: [] };
+      driver.wallet.transactions = driver.wallet.transactions || [];
+      const already = driver.wallet.transactions.some(
+        (t) => t?.referenceId === String(reservation._id) && t?.type === payoutType,
+      );
+      if (!already) {
+        driver.wallet.balance = toMoney(Number(driver.wallet.balance || 0) + payout);
+        driver.wallet.transactions.push({
+          type: payoutType,
+          amount: payout,
+          description: `Repasse da ${reservationLabel(reservation, opts)}`,
+          referenceId: String(reservation._id),
+          createdAt: new Date(),
+        });
+        await driver.save();
+      }
+    }
+  }
+
+  reservation.payment.escrow.status = "released";
+  reservation.payment.escrow.releasedAt = new Date();
+
+  return { ok: true, amount, payout };
+}
+
+async function refundReservation(reservation, opts = {}) {
+  reservation.payment = reservation.payment || {};
+  reservation.payment.escrow = reservation.payment.escrow || { status: "none" };
+
+  if (reservation.payment.escrow.status !== "reserved") {
+    return { ok: false, skipped: true, reason: reservation.payment.escrow.status };
+  }
+
+  const amount = toMoney(reservation.payment.escrow.amount || 0);
+
+  const client = await User.findById(reservation.clientId);
+  if (client) {
+    client.wallet = client.wallet || { balance: 0, held: 0, transactions: [] };
+    client.wallet.held = toMoney(Math.max(0, Number(client.wallet.held || 0) - amount));
+    client.wallet.balance = toMoney(Number(client.wallet.balance || 0) + amount);
+    client.wallet.transactions = client.wallet.transactions || [];
+    client.wallet.transactions.push({
+      type: "refund_hold",
+      amount,
+      description: `Estorno LevaPay da ${reservationLabel(reservation, opts)}`,
+      referenceId: String(reservation._id),
+      createdAt: new Date(),
+    });
+    await client.save();
+  }
+
+  reservation.payment.escrow.status = "refunded";
+  reservation.payment.escrow.refundedAt = new Date();
+
+  return { ok: true, refunded: amount };
+}
+
 module.exports = {
   reserve,
   release,
@@ -387,4 +693,14 @@ module.exports = {
   settlePendingDebt,
   settleFailedDelivery,
   toMoney,
+  reserveOrder,
+  releaseOrder,
+  refundOrder,
+  reserveReservation,
+  releaseReservation,
+  refundReservation,
+  // Frete sob demanda (T3) — reaproveita o mesmo escrow com label/payout próprios.
+  reserveFreight: (doc) => reserveReservation(doc, { label: "frete" }),
+  releaseFreight: (doc) => releaseReservation(doc, { label: "frete", payoutType: "freight_payout" }),
+  refundFreight: (doc) => refundReservation(doc, { label: "frete" }),
 };

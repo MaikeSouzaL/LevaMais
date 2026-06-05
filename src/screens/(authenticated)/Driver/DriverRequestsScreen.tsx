@@ -324,9 +324,15 @@ export default function DriverRequestsScreen() {
 
     const onNewRide = async (payload: any) => {
       if (!mounted) return;
+      const status = String(payload?.status || "").toLowerCase();
+      if (payload?.paymentPending === true || status === "payment_pending") {
+        await syncAvailableRequests().catch(() => {});
+        return;
+      }
+
       const item: RideRequestItem = {
         rideId: payload?.rideId,
-        status: payload?.status || "requesting",
+        status: status || "requesting",
         pickup: payload?.pickup,
         dropoff: payload?.dropoff,
         pricing: payload?.pricing,

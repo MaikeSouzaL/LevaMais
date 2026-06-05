@@ -4,6 +4,7 @@ const Ride = require("../models/Ride");
 const RideTrackPoint = require("../models/RideTrackPoint");
 const DriverLocation = require("../models/DriverLocation");
 const ChatMessage = require("../models/ChatMessage");
+const { moveToHistory } = require("../controllers/ride.controller");
 
 let io;
 
@@ -318,13 +319,9 @@ function initializeWebSocket(server) {
           await ride.save();
 
           // Move to history
-          try {
-            const RideHistory = require("../models/RideHistory");
-            const historyRide = new RideHistory(ride.toObject());
-            await historyRide.save();
-          } catch (histErr) {
+          moveToHistory(ride).catch((histErr) => {
             console.error("Erro ao salvar historico de entrega expirada:", histErr);
-          }
+          });
 
           console.log(`[WebSocket] Delivery ${rideId} marked as expired (cancelled_no_driver)`);
 
@@ -358,13 +355,9 @@ function initializeWebSocket(server) {
           await ride.save();
 
           // Move to history
-          try {
-            const RideHistory = require("../models/RideHistory");
-            const historyRide = new RideHistory(ride.toObject());
-            await historyRide.save();
-          } catch (histErr) {
+          moveToHistory(ride).catch((histErr) => {
             console.error("Erro ao salvar historico de corrida expirada:", histErr);
-          }
+          });
 
           console.log(`[WebSocket] Ride ${rideId} marked as expired (cancelled_no_driver)`);
 

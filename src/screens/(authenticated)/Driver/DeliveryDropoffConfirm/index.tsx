@@ -73,7 +73,7 @@ export default function DeliveryDropoffConfirm() {
       Toast.show({ type: "success", text1: "Entrega finalizada!" });
 
       setTimeout(() => {
-        navigation.replace("DriverRateClient", { rideId });
+        navigation.navigate("DriverRateClient", { rideId });
       }, 1500);
     } catch (error) {
       console.error("Erro ao finalizar entrega:", error);

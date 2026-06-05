@@ -37,7 +37,7 @@ class PromotionService {
     const code = String(payload.code || "").trim().toUpperCase();
     const amount = Number(payload.amount || 0);
 
-    const response = await api.get(`/promotions/${encodeURIComponent(code)}`, {
+    const response = await api.get(`/promotions/${encodeURIComponent(code)}/validate`, {
       params: {
         amount,
         serviceType: payload.serviceType,

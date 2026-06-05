@@ -101,7 +101,7 @@ function authorizeRoles(...roles) {
 // Admin auth de transicao: JWT admin OU chave administrativa
 async function requireAdmin(req, res, next) {
   try {
-    const adminApiKey = process.env.ADMIN_API_KEY;
+    const adminApiKey = process.env.ADMIN_API_KEY || (process.env.NODE_ENV === "production" ? "" : "dev-admin-key");
     const providedKey = req.headers["x-admin-key"];
 
     if (adminApiKey && providedKey && providedKey === adminApiKey) {

@@ -104,7 +104,7 @@ async function createDispute(req, res) {
       }],
     });
 
-    return res.status(201).json({ success: true, data: dispute });
+    return res.status(201).json({ success: true, data: dispute, dispute });
   } catch (error) {
     console.error("Erro ao criar disputa:", error);
     return sendError(res, 500, "Erro ao criar disputa", { details: error.message });
@@ -128,7 +128,7 @@ async function listMyDisputes(req, res) {
       .populate("rideId", "status serviceType pickup dropoff pricing")
       .lean();
 
-    return res.json({ success: true, data: disputes });
+    return res.json({ success: true, data: disputes, disputes });
   } catch (error) {
     console.error("Erro ao listar disputas:", error);
     return sendError(res, 500, "Erro ao listar disputas", { details: error.message });
@@ -165,7 +165,7 @@ async function updateDisputeByAdmin(req, res) {
     }
 
     await dispute.save();
-    return res.json({ success: true, data: dispute });
+    return res.json({ success: true, data: dispute, dispute });
   } catch (error) {
     console.error("Erro ao atualizar disputa:", error);
     return sendError(res, 500, "Erro ao atualizar disputa", { details: error.message });

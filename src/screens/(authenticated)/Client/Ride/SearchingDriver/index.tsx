@@ -191,12 +191,14 @@ export default function SearchingDriverScreen() {
       doneRef.current = true;
       cleanup();
       const foundRideId = data?.rideId || data?.ride?._id || rideId;
+      const isDelivery = effectiveServiceType === "delivery" || effectiveServiceType === "frete";
+      const trackingScreen = isDelivery ? "DeliveryTracking" : "RideTracking";
       navigation.reset({
         index: 0,
-        routes: [{ name: "RideTracking", params: { rideId: foundRideId } }],
+        routes: [{ name: trackingScreen, params: { rideId: foundRideId } }],
       });
     },
-    [navigation, rideId],
+    [navigation, rideId, effectiveServiceType],
   );
 
   const rideExpiredCallback = useCallback(async () => {
@@ -303,13 +305,24 @@ export default function SearchingDriverScreen() {
         // Re-update price/details dynamic if needed
         setRideData(ride);
 
-        // Ã¢Å¡Â¡ NEW: If dynamic negotiation materialized (offers arriving), forward to Marketplace!
+        // Verificar primeiro se motorista já aceitou direto (sem contraproposta)
+        if (
+          ride.driverId &&
+          ["accepted", "driver_assigned", "driver_arriving", "arrived", "in_progress"].includes(ride.status)
+        ) {
+          doneRef.current = true;
+          clearInterval(pollInterval);
+          driverFoundCallback({ rideId: ride._id, ride });
+          return;
+        }
+
+        // Se tem ofertas de negociação, redireciona para o marketplace
         const offerCount = ride.negotiation?.offers?.length || 0;
         if (offerCount > 0 && !doneRef.current) {
            doneRef.current = true;
            clearInterval(pollInterval);
            cleanup();
-           navigation.replace("RideOffersMarketplace", { rideId: ride._id });
+           navigation.navigate("RideOffersMarketplace", { rideId: ride._id });
            return;
         }
 
@@ -317,17 +330,7 @@ export default function SearchingDriverScreen() {
           doneRef.current = true;
           clearInterval(pollInterval);
           cleanup();
-          navigation.replace("DeliveryTracking", { rideId: ride._id });
-          return;
-        }
-
-        if (
-          ride.driverId &&
-          ["accepted", "driver_arriving", "arrived", "in_progress"].includes(ride.status)
-        ) {
-          doneRef.current = true;
-          clearInterval(pollInterval);
-          driverFoundCallback({ rideId: ride._id, ride });
+          navigation.navigate("DeliveryTracking", { rideId: ride._id });
           return;
         }
 

@@ -306,7 +306,8 @@ export default function DriverHomeScreen() {
 
     // NÃO mostrar chamadas da fila de espera no bottom sheet
     // Elas devem aparecer apenas na aba "Fila" do DriverRequestsScreen
-    if (payload?.isWaitingInQueue === true) {
+    const status = String(payload?.status || "").toLowerCase();
+    if (payload?.isWaitingInQueue === true || payload?.paymentPending === true || status === "payment_pending") {
       return;
     }
 

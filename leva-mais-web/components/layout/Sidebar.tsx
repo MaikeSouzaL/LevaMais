@@ -18,6 +18,7 @@ import {
   Settings,
   ShieldAlert,
   Landmark,
+  Store,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -36,9 +37,21 @@ const MENU_ITEMS = [
     active: true,
   },
   {
+    label: "Transportadoras",
+    icon: Truck,
+    href: "/verification/carriers",
+    active: true,
+  },
+  {
     label: "Saques",
     icon: Landmark,
     href: "/withdrawals",
+    active: true,
+  },
+  {
+    label: "Parceiros",
+    icon: Store,
+    href: "/marketplace/partners",
     active: true,
   },
   {

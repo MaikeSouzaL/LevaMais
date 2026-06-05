@@ -22,6 +22,12 @@ const pricingRoutes = require("./routes/pricing.routes");
 const disputeRoutes = require("./routes/dispute.routes");
 const operationsRoutes = require("./routes/operations.routes");
 const cityRoutes = require("./routes/city.routes");
+const marketplaceAdminRoutes = require("./routes/marketplaceAdmin.routes");
+const driverRouteRoutes = require("./routes/driverRoute.routes");
+const carrierRoutes = require("./routes/carrier.routes");
+const freightRoutes = require("./routes/freight.routes");
+const partnerRoutes = require("./routes/partner.routes");
+const marketplaceRoutes = require("./routes/marketplace.routes");
 
 function parseAllowedOrigins() {
   const fromEnv = String(
@@ -146,6 +152,12 @@ function applyRoutes(app) {
   app.use("/api/disputes", disputeRoutes);
   app.use("/api/operations", operationsRoutes);
   app.use("/api/cities", cityRoutes);
+  app.use("/api/admin/marketplace", marketplaceAdminRoutes);
+  app.use("/api/routes", driverRouteRoutes);
+  app.use("/api/carrier", carrierRoutes);
+  app.use("/api/freight", freightRoutes);
+  app.use("/api/partner", partnerRoutes);
+  app.use("/api/marketplace", marketplaceRoutes);
 
   app.get("/api/health", (req, res) => {
     res.json({

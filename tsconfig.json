@@ -16,6 +16,7 @@
     "node_modules",
     "backend/**/*",
     "leva-mais-web/**/*",
+    "leva-mais-partner-web/**/*",
     "android/**/*",
     "ios/**/*"
   ]

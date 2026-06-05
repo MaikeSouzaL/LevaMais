@@ -14,6 +14,7 @@ const DEFAULT_PLATFORM_CONFIG = {
   rideSearchTimeoutSeconds: 300,
   driverDailyGoalRides: 10,
   driverDailyBonusAmount: 20,
+  operationalCreditAmount: 5,
   appTimeZone: "America/Sao_Paulo",
   suggestedMinPricePercent: 0.8,
   vehiclePricing: {
@@ -62,6 +63,20 @@ const DEFAULT_PLATFORM_CONFIG = {
     termsVersion: "2026-05-14",
     privacyPolicyVersion: "2026-05-14",
     consentVersion: "2026-05-14",
+  },
+  // Marketplace (Fase D) — gate desligado por padrão.
+  marketplace: {
+    marketplaceEnabled: false,
+    defaultCommissionPct: 12,
+    commissionBase: "subtotal",
+    payoutHoldDays: 0,
+    minOrderGlobal: 0,
+  },
+  // Rotas planejadas / maloteiro (Fase D) — gate desligado por padrão.
+  plannedRoutes: {
+    plannedRoutesEnabled: false,
+    defaultCommissionPct: 15,
+    insuranceFeePct: 2,
   },
 };
 
@@ -115,6 +130,10 @@ function mergeConfig(raw = {}) {
     driverDailyBonusAmount: sanitizeNumber(
       raw.driverDailyBonusAmount,
       DEFAULT_PLATFORM_CONFIG.driverDailyBonusAmount,
+    ),
+    operationalCreditAmount: sanitizeNumber(
+      raw.operationalCreditAmount,
+      DEFAULT_PLATFORM_CONFIG.operationalCreditAmount,
     ),
     appTimeZone: sanitizeString(
       raw.appTimeZone,
@@ -304,6 +323,40 @@ function mergeConfig(raw = {}) {
       consentVersion: sanitizeString(
         raw.policyVersions?.consentVersion,
         DEFAULT_PLATFORM_CONFIG.policyVersions.consentVersion,
+      ),
+    },
+    marketplace: {
+      marketplaceEnabled:
+        raw.marketplace?.marketplaceEnabled !== undefined
+          ? Boolean(raw.marketplace.marketplaceEnabled)
+          : DEFAULT_PLATFORM_CONFIG.marketplace.marketplaceEnabled,
+      defaultCommissionPct: sanitizeNumber(
+        raw.marketplace?.defaultCommissionPct,
+        DEFAULT_PLATFORM_CONFIG.marketplace.defaultCommissionPct,
+      ),
+      commissionBase:
+        raw.marketplace?.commissionBase === "total" ? "total" : "subtotal",
+      payoutHoldDays: sanitizeNumber(
+        raw.marketplace?.payoutHoldDays,
+        DEFAULT_PLATFORM_CONFIG.marketplace.payoutHoldDays,
+      ),
+      minOrderGlobal: sanitizeNumber(
+        raw.marketplace?.minOrderGlobal,
+        DEFAULT_PLATFORM_CONFIG.marketplace.minOrderGlobal,
+      ),
+    },
+    plannedRoutes: {
+      plannedRoutesEnabled:
+        raw.plannedRoutes?.plannedRoutesEnabled !== undefined
+          ? Boolean(raw.plannedRoutes.plannedRoutesEnabled)
+          : DEFAULT_PLATFORM_CONFIG.plannedRoutes.plannedRoutesEnabled,
+      defaultCommissionPct: sanitizeNumber(
+        raw.plannedRoutes?.defaultCommissionPct,
+        DEFAULT_PLATFORM_CONFIG.plannedRoutes.defaultCommissionPct,
+      ),
+      insuranceFeePct: sanitizeNumber(
+        raw.plannedRoutes?.insuranceFeePct,
+        DEFAULT_PLATFORM_CONFIG.plannedRoutes.insuranceFeePct,
       ),
     },
   };

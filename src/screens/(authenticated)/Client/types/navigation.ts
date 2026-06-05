@@ -273,11 +273,6 @@ export type ClientStackParamList = {
         pricingSnapshot?: any;
       }
     | undefined;
-  DeliveryPaymentConfirm:
-    | {
-        rideId: string;
-      }
-    | undefined;
   RideTracking: { rideId: string };
   DeliveryTracking: { rideId: string };
   Chat: { rideId: string; driverName?: string };

@@ -100,64 +100,6 @@ export default function DriverRideScreen() {
   const [onPinSubmit, setOnPinSubmit] = useState<((pin: string) => void) | null>(null);
   const [onPinCancel, setOnPinCancel] = useState<(() => void) | null>(null);
 
-  // PIX QR Code States 📱
-  const [pixModalVisible, setPixModalVisible] = useState(false);
-  const [pixData, setPixData] = useState<{
-    pixCode: string;
-    qrCodeData: string;
-    amount: number;
-    transactionId?: string;
-  } | null>(null);
-  const [pixGenerating, setPixGenerating] = useState(false);
-  const [pixConfirming, setPixConfirming] = useState(false);
-
-  const handleShowPixModal = async () => {
-    if (!rideId) return;
-    setPixGenerating(true);
-    setPixModalVisible(true);
-    try {
-      const data = await rideService.createRidePixPayment(rideId);
-      if (data?.success) {
-        setPixData({
-          pixCode: data.pixCode,
-          qrCodeData: data.qrCodeData,
-          amount: data.amount,
-          transactionId: data.transactionId,
-        });
-      } else {
-        Toast.show({ type: "error", text1: "Erro ao gerar PIX", text2: "Resposta inválida do servidor" });
-        setPixModalVisible(false);
-      }
-    } catch (e: any) {
-      Toast.show({ type: "error", text1: "Erro ao gerar PIX", text2: e?.message || "Tente novamente" });
-      setPixModalVisible(false);
-    } finally {
-      setPixGenerating(false);
-    }
-  };
-
-  const handleConfirmPixMock = async () => {
-    if (!rideId) return;
-    setPixConfirming(true);
-    try {
-      const res = await rideService.confirmRidePixPaymentMock(rideId);
-      if (res?.success) {
-        Toast.show({ type: "success", text1: "PIX Simulado com sucesso!" });
-        setPixModalVisible(false);
-        // Avançar corrida após simulação de pagamento bem-sucedida
-        setTimeout(() => {
-          update("completed");
-        }, 800);
-      } else {
-        Toast.show({ type: "error", text1: "Erro ao simular", text2: res?.message });
-      }
-    } catch (e: any) {
-      Toast.show({ type: "error", text1: "Erro ao simular", text2: e?.message });
-    } finally {
-      setPixConfirming(false);
-    }
-  };
-
 
   const promptForPin = (type: "pickup" | "delivery"): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -629,12 +571,8 @@ export default function DriverRideScreen() {
       Toast.show({
         type: "success",
         text1: "Pagamento recebido!",
-        text2: "O cliente efetuou o pagamento via PIX.",
+        text2: "O pagamento foi confirmado.",
       });
-      setPixModalVisible(false);
-      setTimeout(() => {
-        update("completed");
-      }, 500);
     };
 
     (async () => {
@@ -1341,10 +1279,16 @@ export default function DriverRideScreen() {
               if (canArrive) {
                 update("arrived");
               } else if (canStart) {
-                update("in_progress");
+                // Para entregas, abrir tela de confirmação de coleta (PIN + dados)
+                if (isDelivery) {
+                  (navigation as any).navigate("DeliveryPickupConfirm", { rideId });
+                } else {
+                  update("in_progress");
+                }
               } else if (canComplete) {
-                if (ride?.payment?.method?.toLowerCase() === "pix") {
-                  handleShowPixModal();
+                // Para entregas, abrir tela de confirmação de entrega (PIN de entrega)
+                if (isDelivery) {
+                  (navigation as any).navigate("DeliveryDropoffConfirm", { rideId });
                 } else {
                   update("completed");
                 }
@@ -1357,7 +1301,6 @@ export default function DriverRideScreen() {
             isDelivery={isDelivery}
             canArriveDropoff={canArriveDropoff}
             onArriveDropoff={handleArriveDropoff}
-            onShowPix={handleShowPixModal}
           />
         </View>
       </View>
@@ -1514,179 +1457,6 @@ export default function DriverRideScreen() {
                 </Text>
               </TouchableOpacity>
             </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Floating Chat Notification Banner */}
-      {/* Modal do QR Code PIX para o motorista */}
-      <Modal
-        visible={pixModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setPixModalVisible(false)}
-      >
-        <View style={{
-          flex: 1,
-          backgroundColor: "rgba(9, 26, 47, 0.9)",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: 24,
-        }}>
-          <View style={{
-            width: "100%",
-            maxWidth: 345,
-            backgroundColor: "#0c1927",
-            borderRadius: 24,
-            borderWidth: 1,
-            borderColor: "rgba(50, 188, 173, 0.25)",
-            padding: 24,
-            alignItems: "center",
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: 6 },
-            shadowOpacity: 0.4,
-            shadowRadius: 12,
-            elevation: 10,
-          }}>
-            <Text style={{
-              color: "#fff",
-              fontSize: 20,
-              fontWeight: "900",
-              textAlign: "center",
-              marginBottom: 4,
-            }}>
-              Pagamento via PIX
-            </Text>
-            
-            <Text style={{
-              color: "#32BCAD",
-              fontSize: 13,
-              fontWeight: "700",
-              textAlign: "center",
-              marginBottom: 20,
-            }}>
-              Mostre o QR Code ao cliente para pagar
-            </Text>
-
-            {pixGenerating ? (
-              <View style={{ height: 200, justifyContent: "center", alignItems: "center" }}>
-                <ActivityIndicator size="large" color="#32BCAD" />
-                <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 13, marginTop: 12, fontWeight: "600" }}>
-                  Gerando QR Code PIX...
-                </Text>
-              </View>
-            ) : pixData ? (
-              <View style={{ alignItems: "center", width: "100%" }}>
-                {/* QR Code Container */}
-                <View style={{
-                  backgroundColor: "#fff",
-                  padding: 12,
-                  borderRadius: 16,
-                  marginBottom: 16,
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.15,
-                  shadowRadius: 8,
-                }}>
-                  {pixData.qrCodeData ? (
-                    <Image
-                      source={{ uri: pixData.qrCodeData }}
-                      style={{ width: 180, height: 180 }}
-                      resizeMode="contain"
-                    />
-                  ) : (
-                    <View style={{ width: 180, height: 180, justifyContent: "center", alignItems: "center" }}>
-                      <ActivityIndicator size="small" color="#091A2F" />
-                    </View>
-                  )}
-                </View>
-
-                {/* Valor */}
-                <Text style={{ color: "#fff", fontSize: 24, fontWeight: "900", marginBottom: 16 }}>
-                  R$ {pixData.amount ? Number(pixData.amount).toFixed(2).replace(".", ",") : "0,00"}
-                </Text>
-
-                {/* Copia e Cola */}
-                <TouchableOpacity
-                  activeOpacity={0.8}
-                  style={{
-                    backgroundColor: "rgba(255,255,255,0.05)",
-                    borderWidth: 1.2,
-                    borderColor: "rgba(255,255,255,0.12)",
-                    borderRadius: 12,
-                    paddingVertical: 12,
-                    paddingHorizontal: 16,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    width: "100%",
-                    marginBottom: 24,
-                  }}
-                  onPress={() => {
-                    Clipboard.setString(pixData.pixCode || "");
-                    Toast.show({ type: "success", text1: "PIX Copia e Cola copiado!" });
-                  }}
-                >
-                  <Text
-                    style={{ color: "rgba(255,255,255,0.7)", fontSize: 13, fontWeight: "600", flex: 1, marginRight: 8 }}
-                    numberOfLines={1}
-                  >
-                    {pixData.pixCode || "Código PIX"}
-                  </Text>
-                  <Text style={{ color: "#32BCAD", fontSize: 12, fontWeight: "900" }}>
-                    COPIAR
-                  </Text>
-                </TouchableOpacity>
-
-                {/* Actions */}
-                <View style={{ flexDirection: "row", width: "100%", gap: 12 }}>
-                  <TouchableOpacity
-                    style={{
-                      flex: 1,
-                      height: 48,
-                      borderRadius: 12,
-                      backgroundColor: "rgba(239, 68, 68, 0.12)",
-                      borderWidth: 1,
-                      borderColor: "rgba(239, 68, 68, 0.3)",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                    onPress={() => setPixModalVisible(false)}
-                  >
-                    <Text style={{ color: "#ef4444", fontWeight: "700", fontSize: 14 }}>
-                      Fechar
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={{
-                      flex: 1,
-                      height: 48,
-                      borderRadius: 12,
-                      backgroundColor: "#32BCAD",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexDirection: "row",
-                      gap: 8,
-                    }}
-                    disabled={pixConfirming}
-                    onPress={handleConfirmPixMock}
-                  >
-                    {pixConfirming ? (
-                      <ActivityIndicator size="small" color="#091A2F" />
-                    ) : (
-                      <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 14 }}>
-                        Confirmar PIX
-                      </Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ) : (
-              <View style={{ height: 100, justifyContent: "center", alignItems: "center" }}>
-                <Text style={{ color: "#ef4444", fontWeight: "700" }}>Erro ao carregar dados do PIX</Text>
-              </View>
-            )}
           </View>
         </View>
       </Modal>

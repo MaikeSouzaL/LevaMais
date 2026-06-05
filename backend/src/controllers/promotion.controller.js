@@ -43,11 +43,23 @@ function computeDiscount(promotion, amount) {
   return toMoney(Math.min(total, Number(promotion.discountValue || 0)));
 }
 
-async function countUserUsage(promotionId, userId) {
-  return Ride.countDocuments({
+async function countUserUsage(promotion, userId) {
+  const rideCount = await Ride.countDocuments({
     clientId: userId,
-    "promotion.promotionId": promotionId,
+    "promotion.promotionId": promotion._id,
   });
+  let orderCount = 0;
+  try {
+    const StoreOrder = require("../models/StoreOrder");
+    orderCount = await StoreOrder.countDocuments({
+      clientId: userId,
+      "pricing.promotionCode": promotion.code,
+      status: { $nin: ["cancelled", "refunded"] },
+    });
+  } catch (err) {
+    console.error("Erro ao contar uso de cupom no StoreOrder:", err);
+  }
+  return rideCount + orderCount;
 }
 
 async function ensureDefaultPromotions() {
@@ -159,6 +171,16 @@ class PromotionController {
         return sendError(res, 400, "Cupom nao e valido para este servico");
       }
 
+      const queryStoreId = req.query.storeId;
+      const queryCategoryId = req.query.categoryId;
+
+      if (promotion.storeId && queryStoreId && String(promotion.storeId) !== String(queryStoreId)) {
+        return sendError(res, 400, "Cupom nao e valido para esta loja");
+      }
+      if (promotion.categoryId && queryCategoryId && String(promotion.categoryId) !== String(queryCategoryId)) {
+        return sendError(res, 400, "Cupom nao e valido para esta categoria");
+      }
+
       const referenceAmount = hasAmount
         ? amount
         : Math.max(Number(promotion.minOrderValue || 0), 50);
@@ -181,7 +203,7 @@ class PromotionController {
         return sendError(res, 400, "Cupom esgotado");
       }
 
-      const userUsageCount = await countUserUsage(promotion._id, userId);
+      const userUsageCount = await countUserUsage(promotion, userId);
       if (
         Number.isFinite(Number(promotion.perUserLimit)) &&
         Number(promotion.perUserLimit) > 0 &&

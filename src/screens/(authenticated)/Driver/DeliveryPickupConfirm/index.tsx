@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Linking, StyleSheet, Clipboard } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, Clipboard } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { CheckCircle, Package, Phone, MapPin, ChevronRight, Copy, Hash } from "lucide-react-native";
+import { CheckCircle, Package, MapPin, ChevronRight, Copy, Hash } from "lucide-react-native";
 
 import { MotiView } from "moti";
 
@@ -56,7 +56,6 @@ export default function DeliveryPickupConfirm() {
     if (!canConfirm) return;
     setUploading(true);
     try {
-      // Valida PIN via backend (envia automaticamente, motorista já viu o PIN)
       if (ride?.details?.pickupPin) {
         const pinResult = await rideService.validatePin(rideId, "pickup", ride.details.pickupPin);
         if (!pinResult?.valid) {
@@ -66,16 +65,22 @@ export default function DeliveryPickupConfirm() {
         }
       }
 
-      // Avanca para in_progress
-      await rideService.updateStatus(rideId, "in_progress");
+      // Se o status ja for in_progress (ex: transicao via WebSocket), pula o update
+      if (String(ride?.status) !== "in_progress") {
+        await rideService.updateStatus(rideId, "in_progress");
+      }
 
-      setConfirmed(true);
       Toast.show({ type: "success", text1: "Coleta confirmada!" });
 
-      setTimeout(() => {
-        navigation.replace("DeliveryDropoffConfirm", { rideId });
-      }, 1500);
-    } catch (error) {
+      // Volta pra tela de acompanhamento (DriverRide) — o motorista verá o mapa e o botão "CHEGUEI NO DESTINO"
+      navigation.goBack();
+    } catch (error: any) {
+      // Se der 400 pq ja ta in_progress, navega mesmo assim
+      if (error?.response?.status === 400) {
+        Toast.show({ type: "success", text1: "Coleta confirmada!" });
+        navigation.goBack();
+        return;
+      }
       console.error("Erro ao confirmar coleta:", error);
       Toast.show({ type: "error", text1: "Erro ao confirmar coleta" });
     } finally {
@@ -160,7 +165,10 @@ export default function DeliveryPickupConfirm() {
             <View style={s.pinHintContainer}>
               <Text style={s.pinHint}>
                 Diga no estabelecimento:{" "}
-                <Text style={s.pinHintBold}>"Vim buscar o pedido {ride.details.pickupPin}"</Text>
+                <Text style={s.pinHintBold}>
+                  "Vim buscar o pedido {ride.details.pickupPin}
+                  {ride?.details?.recipientName ? ` para ${ride.details.recipientName}` : ""}"
+                </Text>
               </Text>
             </View>
           </MotiView>
@@ -175,55 +183,88 @@ export default function DeliveryPickupConfirm() {
         >
           <Text style={s.sectionLabel}>REMETENTE</Text>
 
-          <View style={s.infoRow}>
-            <View style={s.iconBubble}>
-              <MapPin size={16} color="#02de95" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={s.infoLabel}>Endereço</Text>
-              <Text style={s.infoValue}>{ride?.pickup?.address}</Text>
-            </View>
-          </View>
-
-          {ride?.dropoff?.address && (
-            <View style={s.infoRow}>
-              <View style={[s.iconBubble, { backgroundColor: "rgba(239, 68, 68, 0.1)" }]}>
-                <MapPin size={16} color="#ef4444" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={s.infoLabel}>Destino</Text>
-                <Text style={s.infoValue}>{ride.dropoff.address}</Text>
-              </View>
-            </View>
-          )}
-
-          {ride?.details?.recipientName && (
+          {ride?.pickup?.contactName && (
             <View style={s.infoRow}>
               <View style={s.iconBubble}>
                 <Package size={16} color="#02de95" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={s.infoLabel}>Contato</Text>
+                <Text style={s.infoLabel}>Nome do Remetente</Text>
+                <Text style={s.infoValue}>{ride.pickup.contactName}</Text>
+              </View>
+            </View>
+          )}
+
+          <View style={s.infoRow}>
+            <View style={s.iconBubble}>
+              <MapPin size={16} color="#02de95" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.infoLabel}>Endereço de Coleta</Text>
+              <Text style={s.infoValue}>
+                {ride?.pickup?.address}
+                {ride?.details?.pickupComplement ? `\n${ride.details.pickupComplement}` : ""}
+              </Text>
+            </View>
+          </View>
+
+          {ride?.details?.specialInstructions && (
+            <View style={s.infoRow}>
+              <View style={s.iconBubble}>
+                <Package size={16} color="#02de95" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.infoLabel}>Descrição / Instruções</Text>
+                <Text style={s.infoValue}>{ride.details.specialInstructions}</Text>
+              </View>
+            </View>
+          )}
+        </MotiView>
+
+        {/* Destinatário Info */}
+        <MotiView
+          from={{ opacity: 0, translateY: 12 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ type: "timing", duration: 400, delay: 300 }}
+          style={s.senderCard}
+        >
+          <Text style={[s.sectionLabel, { color: "rgba(2, 222, 149, 0.4)" }]}>DESTINATÁRIO</Text>
+
+          {ride?.details?.recipientName && (
+            <View style={s.infoRow}>
+              <View style={[s.iconBubble, { backgroundColor: "rgba(2, 222, 149, 0.1)" }]}>
+                <Package size={16} color="#02de95" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.infoLabel}>Nome do Destinatário</Text>
                 <Text style={s.infoValue}>{ride.details.recipientName}</Text>
               </View>
             </View>
           )}
 
-          {ride?.details?.recipientPhone && (
-            <TouchableOpacity
-              onPress={() => Linking.openURL(`tel:${ride.details.recipientPhone}`)}
-              activeOpacity={0.7}
-              style={s.phoneRow}
-            >
+          <View style={s.infoRow}>
+            <View style={[s.iconBubble, { backgroundColor: "rgba(239, 68, 68, 0.1)" }]}>
+              <MapPin size={16} color="#ef4444" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.infoLabel}>Endereço de Entrega</Text>
+              <Text style={s.infoValue}>
+                {ride?.dropoff?.address}
+                {ride?.details?.dropoffComplement ? `\n${ride.details.dropoffComplement}` : ""}
+              </Text>
+            </View>
+          </View>
+
+          {ride?.details?.recipientInstructions && (
+            <View style={s.infoRow}>
               <View style={[s.iconBubble, { backgroundColor: "rgba(59, 130, 246, 0.1)" }]}>
-                <Phone size={16} color="#3B82F6" />
+                <Package size={16} color="#3B82F6" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={s.infoLabel}>Telefone</Text>
-                <Text style={[s.infoValue, { color: "#3B82F6" }]}>{ride.details.recipientPhone}</Text>
+                <Text style={s.infoLabel}>Instruções de Entrega</Text>
+                <Text style={s.infoValue}>{ride.details.recipientInstructions}</Text>
               </View>
-              <ChevronRight size={16} color="rgba(255,255,255,0.3)" />
-            </TouchableOpacity>
+            </View>
           )}
         </MotiView>
       </ScrollView>

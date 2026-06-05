@@ -34,13 +34,14 @@ const disputeService = {
   /** Abre uma disputa/contestação sobre uma corrida/entrega. */
   async create(payload: CreateDisputePayload): Promise<Dispute> {
     const { data } = await api.post("/disputes", payload);
-    return data?.dispute || data;
+    return data?.dispute || data?.data || data;
   },
 
   /** Lista as disputas do usuário autenticado. */
   async listMine(params?: { status?: DisputeStatus; limit?: number }): Promise<Dispute[]> {
     const { data } = await api.get("/disputes", { params });
-    return data?.disputes || data || [];
+    const disputes = data?.disputes || data?.data || data || [];
+    return Array.isArray(disputes) ? disputes : [];
   },
 };
 

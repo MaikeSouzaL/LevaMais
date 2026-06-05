@@ -4,6 +4,8 @@ export interface Location {
   address: string;
   latitude: number;
   longitude: number;
+  contactName?: string;
+  details?: string;
 }
 
 export interface RouteCoordinate {

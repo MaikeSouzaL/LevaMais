@@ -10,6 +10,7 @@ export interface PlatformConfig {
   rideSearchTimeoutSeconds?: number;
   driverDailyGoalRides?: number;
   driverDailyBonusAmount?: number;
+  operationalCreditAmount?: number;
   appTimeZone?: string;
   suggestedMinPricePercent?: number;
   vehiclePricing?: {
@@ -59,6 +60,7 @@ const DEFAULT_CONFIG: PlatformConfig = {
   rideSearchTimeoutSeconds: 60,
   driverDailyGoalRides: 10,
   driverDailyBonusAmount: 20,
+  operationalCreditAmount: 5,
   appTimeZone: "America/Sao_Paulo",
   suggestedMinPricePercent: 0.8,
   vehiclePricing: {

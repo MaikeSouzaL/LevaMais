@@ -23,7 +23,6 @@ import DeliveryDetailsScreen from "../screens/(authenticated)/Client/Ride/Reques
 import EditDeliveryAddressScreen from "../screens/(authenticated)/Client/Ride/Request/EditDeliveryAddress";
 import DeliveryMapPickerScreen from "../screens/(authenticated)/Client/Ride/Request/DeliveryMapPicker";
 import DeliveryReviewScreen from "../screens/(authenticated)/Client/Ride/Request/DeliveryReview";
-import DeliveryPaymentConfirmScreen from "../screens/(authenticated)/Client/Ride/Request/DeliveryPaymentConfirm";
 import CancelFeeScreen from "../screens/(authenticated)/Client/Ride/Cancellation/CancelFee";
 import ChatScreen from "../screens/(authenticated)/Client/Ride/Tracking/Chat";
 import OrderDetailsScreen from "../screens/(authenticated)/Client/History/OrderDetails";
@@ -49,6 +48,10 @@ import ReceiptsScreen from "../screens/(authenticated)/Client/Profile/ReceiptsSc
 import PrivacyDataScreen from "../screens/(authenticated)/Client/Profile/PrivacyDataScreen";
 import InviteFriendsScreen from "../screens/(authenticated)/Client/Profile/InviteFriendsScreen";
 import SupportCenterScreen from "../screens/(authenticated)/Client/Profile/SupportCenterScreen";
+import PlannedRoutesScreen from "../screens/(authenticated)/Client/Routes/PlannedRoutesScreen";
+import RouteReserveScreen from "../screens/(authenticated)/Client/Routes/RouteReserveScreen";
+import FreightScreen from "../screens/(authenticated)/Client/Routes/FreightScreen";
+import CarrierProfileScreen from "../screens/(authenticated)/Client/Routes/CarrierProfileScreen";
 
 type ClientStackRoutesProps = {
   initialRideId?: string | null;
@@ -93,7 +96,6 @@ export default function ClientStackRoutes({
       <Stack.Screen name="DeliveryDetails" component={DeliveryDetailsScreen} />
       <Stack.Screen name="DeliverySetup" component={DeliverySetupScreen} />
       <Stack.Screen name="DeliveryReview" component={DeliveryReviewScreen} />
-      <Stack.Screen name="DeliveryPaymentConfirm" component={DeliveryPaymentConfirmScreen} />
       <Stack.Screen name="OrderSent" component={OrderSentScreen} />
       <Stack.Screen name="ActiveOrders" component={ActiveOrdersScreen} />
       <Stack.Screen name="ShiftOffersClient" component={ShiftOffersClientScreen} />
@@ -130,6 +132,10 @@ export default function ClientStackRoutes({
       <Stack.Screen name="PrivacyData" component={PrivacyDataScreen} />
       <Stack.Screen name="InviteFriends" component={InviteFriendsScreen} />
       <Stack.Screen name="SupportCenter" component={SupportCenterScreen} />
+      <Stack.Screen name="PlannedRoutes" component={PlannedRoutesScreen} />
+      <Stack.Screen name="RouteReserve" component={RouteReserveScreen} />
+      <Stack.Screen name="Freight" component={FreightScreen} />
+      <Stack.Screen name="CarrierProfile" component={CarrierProfileScreen} />
     </Stack.Navigator>
   );
 }

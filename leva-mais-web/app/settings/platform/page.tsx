@@ -19,6 +19,7 @@ type ConfigForm = Required<
     | "rideSearchTimeoutSeconds"
     | "driverDailyGoalRides"
     | "driverDailyBonusAmount"
+    | "operationalCreditAmount"
     | "appTimeZone"
     | "suggestedMinPricePercent"
   >
@@ -37,6 +38,7 @@ const DEFAULT_FORM: ConfigForm = {
   rideSearchTimeoutSeconds: 60,
   driverDailyGoalRides: 10,
   driverDailyBonusAmount: 20,
+  operationalCreditAmount: 5,
   appTimeZone: "America/Sao_Paulo",
   suggestedMinPricePercent: 0.8,
   vehiclePricing: {
@@ -82,6 +84,7 @@ function toForm(config: PlatformConfig | null | undefined): ConfigForm {
     rideSearchTimeoutSeconds: Number(config?.rideSearchTimeoutSeconds ?? 60),
     driverDailyGoalRides: Number(config?.driverDailyGoalRides ?? 10),
     driverDailyBonusAmount: Number(config?.driverDailyBonusAmount ?? 20),
+    operationalCreditAmount: Number(config?.operationalCreditAmount ?? 5),
     appTimeZone: String(config?.appTimeZone ?? "America/Sao_Paulo"),
     suggestedMinPricePercent: Number(config?.suggestedMinPricePercent ?? 0.8),
     vehiclePricing: {
@@ -177,6 +180,7 @@ export default function PlatformSettingsPage() {
         rideSearchTimeoutSeconds: Number(form.rideSearchTimeoutSeconds),
         driverDailyGoalRides: Number(form.driverDailyGoalRides),
         driverDailyBonusAmount: Number(form.driverDailyBonusAmount),
+        operationalCreditAmount: Number(form.operationalCreditAmount),
         appTimeZone: form.appTimeZone,
         suggestedMinPricePercent: Number(form.suggestedMinPricePercent),
         vehiclePricing: form.vehiclePricing,
@@ -297,6 +301,13 @@ export default function PlatformSettingsPage() {
                   value={form.driverDailyBonusAmount}
                   onChange={(value) =>
                     setForm((prev) => ({ ...prev, driverDailyBonusAmount: value }))
+                  }
+                />
+                <FieldNumber
+                  label="Crédito operacional inicial (R$)"
+                  value={form.operationalCreditAmount}
+                  onChange={(value) =>
+                    setForm((prev) => ({ ...prev, operationalCreditAmount: value }))
                   }
                 />
                 <FieldNumber

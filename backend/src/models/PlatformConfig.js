@@ -11,6 +11,7 @@ const PlatformConfigSchema = new mongoose.Schema(
     rideSearchTimeoutSeconds: { type: Number, default: 300 },
     driverDailyGoalRides: { type: Number, default: 10 },
     driverDailyBonusAmount: { type: Number, default: 20 },
+    operationalCreditAmount: { type: Number, default: 5 },
     appTimeZone: { type: String, default: "America/Sao_Paulo" },
     suggestedMinPricePercent: { type: Number, default: 0.8 },
     vehiclePricing: {
@@ -60,6 +61,21 @@ const PlatformConfigSchema = new mongoose.Schema(
       termsVersion: { type: String, default: "2026-05-14" },
       privacyPolicyVersion: { type: String, default: "2026-05-14" },
       consentVersion: { type: String, default: "2026-05-14" },
+    },
+    // Marketplace (Fase D). Gate de rollout + comissão padrão global.
+    marketplace: {
+      marketplaceEnabled: { type: Boolean, default: false },
+      defaultCommissionPct: { type: Number, default: 12 },
+      // Base da comissão: sobre os itens (subtotal) e não sobre o frete.
+      commissionBase: { type: String, enum: ["subtotal", "total"], default: "subtotal" },
+      payoutHoldDays: { type: Number, default: 0 },
+      minOrderGlobal: { type: Number, default: 0 },
+    },
+    // Rotas planejadas / maloteiro (Fase D).
+    plannedRoutes: {
+      plannedRoutesEnabled: { type: Boolean, default: false },
+      defaultCommissionPct: { type: Number, default: 15 },
+      insuranceFeePct: { type: Number, default: 2 }, // garantia opcional de encomenda
     },
   },
   { timestamps: true },

@@ -47,7 +47,8 @@
       "Bash(grep -nA0 \"\")",
       "Bash(awk '/driverBalance: \\\\{/,/^    \\\\},/' backend/src/models/User.js)",
       "Bash(sed -n '40,90p' backend/src/services/background-check.service.js)",
-      "Bash(sed -n '160,180p' backend/src/routes/auth.routes.js)"
+      "Bash(sed -n '160,180p' backend/src/routes/auth.routes.js)",
+      "Bash(echo \"---EXIT:$?---\")"
     ]
   },
   "disabledMcpjsonServers": [

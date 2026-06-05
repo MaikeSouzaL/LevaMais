@@ -24,6 +24,8 @@ const menuItems = [
   { route: "History", label: "Histórico", icon: "history" },
   { route: "ActiveOrders", label: "Pedidos ativos", icon: "map-marker-path" },
   { route: "ShiftOffersClient", label: "Plantões motoboy", icon: "store-clock-outline" },
+  { route: "PlannedRoutes", label: "Encomendas em rota", icon: "route" },
+  { route: "Freight", label: "Fretes / Transportadoras", icon: "truck" },
   { route: "Receipts", label: "Comprovantes", icon: "receipt-text-outline" },
   { route: "Wallet", label: "Carteira", icon: "wallet" },
   { route: "PaymentsCenter", label: "Pagamentos", icon: "credit-card-outline" },

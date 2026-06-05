@@ -33,6 +33,27 @@ const rideSchema = new mongoose.Schema(
       enum: ["moto", "car_economy", "car_comfort", "car_luxury", null],
       default: null,
     },
+    // Origem da entrega (Fase D): app comum | pedido de marketplace | reserva de rota planejada.
+    // Aditivo e retrocompatível — entregas/corridas existentes ficam "app".
+    sourceType: {
+      type: String,
+      enum: ["app", "marketplace", "planned_route", "freight"],
+      default: "app",
+      index: true,
+    },
+    // _id do StoreOrder ou RouteReservation que originou esta entrega.
+    sourceRefId: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null,
+      index: true,
+    },
+    // Rota planejada à qual esta entrega pertence (maloteiro/bundling).
+    plannedRouteId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "DriverRoute",
+      default: null,
+      index: true,
+    },
     // Localização de origem
     pickup: {
       address: {
@@ -47,6 +68,8 @@ const rideSchema = new mongoose.Schema(
         type: Number,
         required: true,
       },
+      contactName: String,
+      details: String,
     },
     // Localização de destino
     dropoff: {
@@ -426,8 +449,194 @@ rideSchema.pre("save", function (next) {
       status: this.status,
       timestamp: new Date(),
     });
+    this._statusModified = true;
   }
   next();
+});
+
+// Sincronizar status do Ride com o StoreOrder correspondente
+rideSchema.post("save", async function (doc) {
+  if (doc._statusModified && doc.sourceType === "marketplace" && doc.sourceRefId) {
+    try {
+      const StoreOrder = mongoose.model("StoreOrder");
+      const order = await StoreOrder.findById(doc.sourceRefId);
+      if (order) {
+        let nextStatus = order.status;
+
+        if (["accepted", "driver_assigned", "driver_arriving", "arrived"].includes(doc.status)) {
+          nextStatus = "awaiting_courier";
+        } else if (doc.status === "in_progress") {
+          nextStatus = "in_delivery";
+        } else if (doc.status === "completed") {
+          nextStatus = "delivered";
+        } else if ([
+          "cancelled_by_client",
+          "cancelled_by_driver",
+          "cancelled_no_driver",
+          "delivery_failed"
+        ].includes(doc.status)) {
+          nextStatus = "refunded";
+        }
+
+        if (nextStatus !== order.status) {
+          order.status = nextStatus;
+          order.statusHistory.push({
+            status: nextStatus,
+            at: new Date(),
+            by: "system",
+            note: `Status sincronizado com a entrega (${doc.status})`
+          });
+
+          if (nextStatus === "delivered") {
+            order.status = "completed";
+            order.statusHistory.push({
+              status: "completed",
+              at: new Date(),
+              by: "system",
+              note: "Finalizado automaticamente com a entrega concluida"
+            });
+            order.sla = order.sla || {};
+            order.sla.deliveredAt = new Date();
+            const walletEscrow = require("../services/walletEscrow.service");
+            await walletEscrow.releaseOrder(order);
+          } else if (nextStatus === "refunded") {
+            const walletEscrow = require("../services/walletEscrow.service");
+            await walletEscrow.refundOrder(order);
+          }
+
+          await order.save();
+
+          try {
+            const io = require("../config/websocket").getIO();
+            if (io) {
+              io.to(`client-${order.clientId}`).emit("order-status-updated", { orderId: order._id, status: order.status });
+              const Partner = mongoose.model("Partner");
+              const partner = await Partner.findById(order.partnerId).select("ownerUserId");
+              if (partner && partner.ownerUserId) {
+                io.to(`client-${partner.ownerUserId}`).emit("order-status-updated", { orderId: order._id, status: order.status });
+              }
+            }
+          } catch (wsErr) {}
+        }
+      }
+    } catch (err) {
+      console.error("Erro no post-save do Ride para Marketplace:", err);
+    }
+  }
+});
+
+// Sincronizar status do Ride com a RouteReservation (rotas planejadas / maloteiro)
+rideSchema.post("save", async function (doc) {
+  if (doc._statusModified && doc.sourceType === "planned_route" && doc.sourceRefId) {
+    try {
+      const RouteReservation = mongoose.model("RouteReservation");
+      const reservation = await RouteReservation.findById(doc.sourceRefId);
+      if (!reservation) return;
+
+      const walletEscrow = require("../services/walletEscrow.service");
+      let next = reservation.status;
+
+      if (doc.status === "in_progress") {
+        next = "in_transit";
+      } else if (doc.status === "completed") {
+        next = "completed";
+      } else if ([
+        "cancelled_by_client",
+        "cancelled_by_driver",
+        "cancelled_no_driver",
+        "delivery_failed",
+      ].includes(doc.status)) {
+        next = "refunded";
+      }
+
+      if (next !== reservation.status) {
+        if (next === "completed") {
+          reservation.status = "delivered";
+          reservation.statusHistory.push({ status: "delivered", at: new Date(), note: `Entrega concluída (${doc.status})` });
+          reservation.status = "completed";
+          reservation.statusHistory.push({ status: "completed", at: new Date(), note: "Pagamento liberado ao motorista" });
+          await walletEscrow.releaseReservation(reservation);
+        } else if (next === "refunded") {
+          reservation.status = "refunded";
+          reservation.statusHistory.push({ status: "refunded", at: new Date(), note: `Reserva estornada (${doc.status})` });
+          await walletEscrow.refundReservation(reservation);
+        } else {
+          reservation.status = next;
+          reservation.statusHistory.push({ status: next, at: new Date(), note: `Status sincronizado com a entrega (${doc.status})` });
+        }
+        await reservation.save();
+
+        try {
+          const io = require("../config/websocket").getIO();
+          if (io) {
+            io.to(`client-${reservation.clientId}`).emit("reservation-status-updated", { reservationId: reservation._id, status: reservation.status });
+            if (reservation.driverId) {
+              io.to(`client-${reservation.driverId}`).emit("reservation-status-updated", { reservationId: reservation._id, status: reservation.status });
+            }
+          }
+        } catch (wsErr) {}
+      }
+    } catch (err) {
+      console.error("Erro no post-save do Ride para Rota Planejada:", err);
+    }
+  }
+});
+
+// Sincronizar status do Ride com o FreightRequest (frete sob demanda / transportadora)
+rideSchema.post("save", async function (doc) {
+  if (doc._statusModified && doc.sourceType === "freight" && doc.sourceRefId) {
+    try {
+      const FreightRequest = mongoose.model("FreightRequest");
+      const freight = await FreightRequest.findById(doc.sourceRefId);
+      if (!freight) return;
+
+      const walletEscrow = require("../services/walletEscrow.service");
+      let next = freight.status;
+
+      if (doc.status === "in_progress") {
+        next = "in_transit";
+      } else if (doc.status === "completed") {
+        next = "completed";
+      } else if ([
+        "cancelled_by_client",
+        "cancelled_by_driver",
+        "cancelled_no_driver",
+        "delivery_failed",
+      ].includes(doc.status)) {
+        next = "refunded";
+      }
+
+      if (next !== freight.status) {
+        if (next === "completed") {
+          freight.status = "delivered";
+          freight.statusHistory.push({ status: "delivered", at: new Date(), note: `Entrega concluída (${doc.status})` });
+          freight.status = "completed";
+          freight.statusHistory.push({ status: "completed", at: new Date(), note: "Pagamento liberado ao motorista" });
+          await walletEscrow.releaseFreight(freight);
+        } else if (next === "refunded") {
+          freight.status = "refunded";
+          freight.statusHistory.push({ status: "refunded", at: new Date(), note: `Frete estornado (${doc.status})` });
+          await walletEscrow.refundFreight(freight);
+        } else {
+          freight.status = next;
+          freight.statusHistory.push({ status: next, at: new Date(), note: `Status sincronizado com a entrega (${doc.status})` });
+        }
+        await freight.save();
+
+        try {
+          const io = require("../config/websocket").getIO();
+          if (io) {
+            io.to(`client-${freight.clientId}`).emit("freight-status-updated", { freightId: freight._id, status: freight.status });
+            if (freight.driverId) {
+              io.to(`client-${freight.driverId}`).emit("freight-status-updated", { freightId: freight._id, status: freight.status });
+            }
+          }
+        } catch (wsErr) {}
+      }
+    } catch (err) {
+      console.error("Erro no post-save do Ride para Frete:", err);
+    }
+  }
 });
 
 // Método para calcular preço total

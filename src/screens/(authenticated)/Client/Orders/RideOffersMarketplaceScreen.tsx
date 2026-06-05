@@ -198,13 +198,9 @@ export default function RideOffersMarketplaceScreen() {
 
   useEffect(() => {
     const currentStatus = String(rideDetails?.status || "");
-    if (rideId && (currentStatus === "accepted" || currentStatus === "in_progress")) {
-      // Aceite direto do motorista (shouldAutoMatch) — vai direto pro tracking
+    if (rideId && (currentStatus === "accepted" || currentStatus === "in_progress" || currentStatus === "driver_assigned")) {
       const trackingScreen = rideDetails?.serviceType === "delivery" ? "DeliveryTracking" : "RideTracking";
-      navigation.replace(trackingScreen, { rideId });
-    } else if (currentStatus === "driver_assigned" && rideId) {
-      // Aceite após negociação — confirma pagamento
-      navigation.replace("DeliveryPaymentConfirm", { rideId });
+      navigation.navigate(trackingScreen, { rideId });
     }
   }, [navigation, rideDetails?.status, rideDetails?.serviceType, rideId]);
 
@@ -216,6 +212,14 @@ export default function RideOffersMarketplaceScreen() {
     const init = async () => {
       try {
         await loadOffers();
+        await loadRideDetails();
+        // Se a corrida já foi aceita (aceite direto sem negociação), redireciona direto pro tracking
+        const status = String(rideDetails?.status || "");
+        if (rideId && (status === "accepted" || status === "in_progress" || status === "driver_assigned")) {
+          const trackingScreen = rideDetails?.serviceType === "delivery" ? "DeliveryTracking" : "RideTracking";
+          navigation.replace(trackingScreen, { rideId });
+          return;
+        }
       } catch (e: any) {
         if (mounted) {
           Toast.show({ type: "error", text1: "Erro", text2: "Falha ao atualizar propostas." });
@@ -270,7 +274,7 @@ export default function RideOffersMarketplaceScreen() {
     };
 
     webSocketService.on("ride-offers-updated", onOffersUpdated);
-    webSocketService.on("ride-status-changed", onStatusChanged);
+    webSocketService.on("ride-status-updated", onStatusChanged);
 
     const interval = setInterval(() => {
       loadOffers().catch(() => {});
@@ -281,7 +285,7 @@ export default function RideOffersMarketplaceScreen() {
       mounted = false;
       clearInterval(interval);
       webSocketService.off("ride-offers-updated", onOffersUpdated);
-      webSocketService.off("ride-status-changed", onStatusChanged);
+      webSocketService.off("ride-status-updated", onStatusChanged);
     };
   }, [loadOffers, loadRideDetails]);
 
@@ -346,9 +350,11 @@ export default function RideOffersMarketplaceScreen() {
     setSelectingId(driverId);
     try {
       await rideService.selectOffer(rideId, driverId);
+      // Auto-confirma pagamento via wallet (saldo LevaPay) — valor fica retido em escrow
+      await rideService.confirmNegotiationPayment(rideId, { method: "wallet" });
       Toast.show({
         type: "success",
-        text1: "Proposta aceita! 🎉",
+        text1: "Proposta aceita!",
         text2: "Entregador selecionado com sucesso!",
       });
       navigation.replace("DeliveryTracking", { rideId });

@@ -292,8 +292,9 @@ const driverController = {
       const appFeePercentage = Number(runtimeConfig?.appFeePercentage || 15);
 
       const balance = user.driverBalance?.balance || 0;
+      const opCredit = user.driverBalance?.operationalCredit || 0;
       const requiredBalance = Number((rideValue * appFeePercentage / 100).toFixed(2));
-      const canAccept = balance >= requiredBalance;
+      const canAccept = (balance + opCredit) >= requiredBalance;
 
       res.json({
         success: true,
@@ -545,12 +546,14 @@ const driverController = {
 
       // 5. Verificar saldo (permite saldo zero — motorista novo ganha credito operacional)
       const balance = user.driverBalance?.balance || 0;
-      const operationalCredit = user.driverBalance?.operationalCredit || 0;
-      const totalAvailable = balance + operationalCredit;
+      const existingCredit = user.driverBalance?.operationalCredit || 0;
+      const totalAvailable = balance + existingCredit;
       if (totalAvailable <= 0) {
-        // Concede credito operacional inicial para novos motoristas
+        // Concede credito operacional inicial para novos motoristas (valor via dashboard)
+        const runtimeConfig = await getRuntimeConfig().catch(() => null);
+        const creditAmount = Number(runtimeConfig?.operationalCreditAmount || 5);
         user.driverBalance = user.driverBalance || {};
-        user.driverBalance.operationalCredit = 50; // R$ 50 de credito inicial
+        user.driverBalance.operationalCredit = creditAmount;
         user.driverBalance.balance = user.driverBalance.balance || 0;
         await user.save();
       }

@@ -36,13 +36,13 @@ export default function DeliveryPaymentConfirmScreen() {
   const [rideData, setRideData] = useState<any>(null);
   const [secondsLeft, setSecondsLeft] = useState(TIMER_SECONDS);
   const [expired, setExpired] = useState(false);
+  const didCancelSelectionRef = useRef(false);
   const timerRef = useRef<any>(null);
 
   const loadRide = useCallback(async () => {
     if (!rideId) return;
     try {
-      const res = await rideService.getActiveList();
-      const ride = (res?.rides || []).find((r: any) => r._id === rideId);
+      const ride = await rideService.getById(rideId);
       if (ride) {
         setRideData(ride);
         // Calcular tempo restante com base no updatedAt da ride
@@ -57,6 +57,14 @@ export default function DeliveryPaymentConfirmScreen() {
     setLoading(false);
   }, [rideId]);
 
+  const expireSelection = useCallback(async () => {
+    if (!rideId || didCancelSelectionRef.current) return;
+    didCancelSelectionRef.current = true;
+    try {
+      await rideService.cancelPaymentSelection(rideId);
+    } catch {}
+  }, [rideId]);
+
   useEffect(() => {
     loadRide();
   }, [loadRide]);
@@ -69,13 +77,14 @@ export default function DeliveryPaymentConfirmScreen() {
         if (prev <= 1) {
           clearInterval(timerRef.current);
           setExpired(true);
+          expireSelection().catch(() => {});
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
     return () => clearInterval(timerRef.current);
-  }, [loading, expired]);
+  }, [loading, expired, expireSelection]);
 
   const selectedDriver = rideData?.negotiation?.offers?.find(
     (o: any) => String(o.driverId?._id || o.driverId) === String(rideData?.negotiation?.selectedDriverId)

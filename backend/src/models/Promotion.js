@@ -42,8 +42,19 @@ const promotionSchema = new mongoose.Schema(
     },
     serviceTypes: {
       type: [String],
-      enum: ["ride", "delivery"],
+      enum: ["ride", "delivery", "marketplace", "route"],
       default: [],
+    },
+    // Cupom específico de loja/categoria (Fase D). null = cupom global do vertical.
+    storeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Store",
+      default: null,
+    },
+    categoryId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Category",
+      default: null,
     },
     startsAt: {
       type: Date,

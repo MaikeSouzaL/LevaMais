@@ -48,8 +48,11 @@ async function moveToHistory(ride) {
       }
     }
 
-    const historyRide = new RideHistory(ride.toObject());
-    await historyRide.save();
+    await RideHistory.findOneAndUpdate(
+      { _id: ride._id },
+      ride.toObject(),
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
     // Keep in main Ride collection - do not delete!
     // await Ride.deleteOne({ _id: ride._id });
     console.log(`[RideHistory] Kept ride ${ride._id} in main collection and saved to history.`);
@@ -61,7 +64,11 @@ async function moveToHistory(ride) {
 let rideControllerInstance;
 
 function normalizePaymentMethod(rawMethod) {
-  const value = String(rawMethod || "")
+  let value = rawMethod;
+  if (typeof rawMethod === 'object' && rawMethod !== null) {
+    value = rawMethod.type || rawMethod.method || rawMethod;
+  }
+  value = String(value || "")
     .trim()
     .toLowerCase();
 
@@ -1086,6 +1093,12 @@ class RideController {
               },
             },
           },
+          // Cliente selecionou minha proposta e esta confirmando o pagamento
+          {
+            status: "payment_pending",
+            driverId: new mongoose.Types.ObjectId(driverId),
+            "negotiation.enabled": true,
+          },
           // Corridas concluÃ­das por mim
           {
             status: "completed",
@@ -1566,7 +1579,8 @@ class RideController {
         return sendError(res, 404, "Motorista nao encontrado");
       }
       const balance = driver.driverBalance?.balance || 0;
-      if (balance <= 0) {
+      const opCredit = driver.driverBalance?.operationalCredit || 0;
+      if (balance + opCredit <= 0) {
         return sendError(
           res,
           400,
@@ -1696,14 +1710,26 @@ class RideController {
       }
 
       // Escrow LevaPay no aceite direto (fluxo sem negociação). Idempotente: no fluxo
-      // de lance o valor já foi retido no confirmNegotiationPayment. Não bloqueia o
-      // aceite se o hold falhar (degrada ao comportamento atual, sem retenção).
-      if (ride?.payment?.method === "wallet" && ride?.payment?.escrow?.status !== "reserved") {
+      // de lance o valor já foi retido no confirmNegotiationPayment. Se o hold falhar,
+      // bloqueia o aceite e libera o driver.
+      const paymentMethod = normalizePaymentMethod(
+        ride?.payment?.method?.type || ride?.payment?.method || ride?.payment
+      );
+      if (paymentMethod === "wallet" && ride?.payment?.escrow?.status !== "reserved") {
         try {
           await walletEscrow.reserve(ride);
           await ride.save();
         } catch (escrowErr) {
-          console.error("Falha ao reter saldo LevaPay no aceite direto:", escrowErr.code || escrowErr.message);
+          // Liberar trava do driver antes de retornar erro
+          await DriverLocation.findOneAndUpdate(
+            { driverId, currentRideId: rideId },
+            { status: "available", currentRideId: null }
+          );
+          const statusCode = escrowErr.code === "INSUFFICIENT_BALANCE" ? 400 : 500;
+          const message = escrowErr.code === "INSUFFICIENT_BALANCE"
+            ? "Saldo LevaPay insuficiente para esta corrida."
+            : "Erro ao reter o saldo para a corrida";
+          return sendError(res, statusCode, message, { details: escrowErr.message });
         }
       }
 
@@ -1734,6 +1760,20 @@ class RideController {
           io.to(`client-${ride.clientId._id}`).emit("delivery-accepted", acceptPayload);
         } else {
           io.to(`client-${ride.clientId._id}`).emit("ride-accepted", acceptPayload);
+        }
+
+        // Notificar cliente sobre mudança na carteira (se LevaPay)
+        if (ride?.payment?.escrow?.status === "reserved") {
+          try {
+            const clientId = ride.clientId?._id || ride.clientId;
+            const clientForBalance = await User.findById(clientId);
+            if (clientForBalance) {
+              io.to(`client-${clientId}`).emit("wallet-updated", {
+                balance: clientForBalance.wallet?.balance || 0,
+                held: clientForBalance.wallet?.held || 0,
+              });
+            }
+          } catch {}
         }
 
         // Notificar outros motoristas que a corrida foi aceita
@@ -2099,7 +2139,8 @@ class RideController {
         return sendError(res, 404, "Motorista nao encontrado");
       }
       const balance = driver.driverBalance?.balance || 0;
-      if (balance <= 0) {
+      const opCredit = driver.driverBalance?.operationalCredit || 0;
+      if (balance + opCredit <= 0) {
         return sendError(
           res,
           400,
@@ -2513,19 +2554,37 @@ class RideController {
         Number(ride.splitDetails?.platformConfigUsed || 15),
       );
 
-      const rawMethod = ride.payment?.method?.type || ride.payment?.method || "cash";
-      const method = normalizePaymentMethod(rawMethod) || "cash";
+      const originalMethod = ride.payment?.method || normalizePaymentMethod(req.body?.method) || "cash";
+
       ride.payment = ride.payment || {};
-      ride.payment.method = method;
-      ride.payment.status = method === "cash" ? "pending" : "completed";
-      ride.payment.paidAt = new Date();
+      ride.payment.paidAt = undefined;
+      ride.payment.failureReason = undefined;
 
       ride.negotiation.finalAgreedPrice = finalPrice;
       ride.negotiation.selectedDriverId = selectedDriverId;
       ride.negotiation.selectedAt = new Date();
       ride.driverId = selectedDriverId;
-      ride.status = "driver_assigned";
       ride.requestedAt = new Date();
+
+      if (originalMethod === "wallet") {
+        try {
+          await walletEscrow.reserve(ride);
+          ride.payment.method = "wallet";
+          ride.payment.status = "completed";
+          ride.status = "driver_assigned";
+        } catch (escrowErr) {
+          if (escrowErr.code === "INSUFFICIENT_BALANCE") {
+            return sendError(res, 400, "Saldo Leva Pay insuficiente para aceitar esta proposta.");
+          } else {
+            return sendError(res, 500, "Erro ao reter o saldo para a corrida", { details: escrowErr.message });
+          }
+        }
+      } else {
+        // Remove payment_pending completely for all other methods
+        ride.payment.method = originalMethod;
+        ride.payment.status = "pending";
+        ride.status = "driver_assigned";
+      }
 
       await ride.save();
       await ride.populate("driverId", "name phone profilePhoto ratingStats vehicleInfo createdAt");
@@ -2538,32 +2597,17 @@ class RideController {
           negotiationSelected: true,
           clientRidesCount,
         });
+
+        // Always broadcast as driver_assigned
         io.to(`driver-${selectedDriverId}`).emit("new-ride-request", payloadAssigned);
-        io.to(`driver-${selectedDriverId}`).emit("client-selected-offer-awaiting-payment", payloadAssigned);
-        if (ride.serviceType === "delivery") {
-          io.to(`driver-${selectedDriverId}`).emit("delivery-negotiated", { rideId: ride._id, action: "proposal_accepted", driverId: selectedDriverId });
-        } else {
-          io.to(`driver-${selectedDriverId}`).emit("ride-negotiated", { rideId: ride._id, action: "proposal_accepted", driverId: selectedDriverId });
-        }
 
         io.to(`client-${ride.clientId._id || ride.clientId}`).emit("ride-status-updated", ride);
-        io.to(`client-${ride.clientId._id || ride.clientId}`).emit("ride-offer-selected", {
-          rideId: ride._id,
-          driverId: selectedDriverId,
-          finalPrice,
-        });
-        if (ride.serviceType === "delivery") {
-          io.to(`client-${ride.clientId._id || ride.clientId}`).emit("delivery-negotiated", { rideId: ride._id, action: "offer_selected", driverId: selectedDriverId });
-        } else {
-          io.to(`client-${ride.clientId._id || ride.clientId}`).emit("ride-negotiated", { rideId: ride._id, action: "offer_selected", driverId: selectedDriverId });
-        }
       }
 
       return res.json({
         success: true,
         message: "Oferta selecionada com sucesso",
         ride,
-        paymentDeadlineAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
       });
     } catch (error) {
       console.error("Erro ao selecionar oferta:", error);
@@ -2618,6 +2662,12 @@ class RideController {
       ride.payment.status = method === "cash" ? "pending" : "completed";
       ride.payment.paidAt = new Date();
       ride.status = "driver_assigned";
+      const timeoutKey = String(ride._id);
+      const pendingTimeout = PAYMENT_PENDING_TIMEOUTS.get(timeoutKey);
+      if (pendingTimeout) {
+        clearTimeout(pendingTimeout);
+        PAYMENT_PENDING_TIMEOUTS.delete(timeoutKey);
+      }
 
       // Escrow LevaPay: retém o valor da corrida da carteira do cliente neste momento.
       if (method === "wallet") {
@@ -2650,6 +2700,20 @@ class RideController {
           }),
         );
         io.to(`client-${ride.clientId._id || ride.clientId}`).emit("ride-status-updated", ride);
+
+        // Notificar cliente sobre mudança na carteira
+        if (ride?.payment?.escrow?.status === "reserved") {
+          try {
+            const cid = ride.clientId?._id || ride.clientId;
+            const clientForBalance = await User.findById(cid);
+            if (clientForBalance) {
+              io.to(`client-${cid}`).emit("wallet-updated", {
+                balance: clientForBalance.wallet?.balance || 0,
+                held: clientForBalance.wallet?.held || 0,
+              });
+            }
+          } catch {}
+        }
       }
 
       return res.json({
@@ -2690,6 +2754,12 @@ class RideController {
       ride.payment.method = null;
       ride.payment.status = "not_selected";
       ride.requestedAt = new Date();
+      const timeoutKey = String(ride._id);
+      const pendingTimeout = PAYMENT_PENDING_TIMEOUTS.get(timeoutKey);
+      if (pendingTimeout) {
+        clearTimeout(pendingTimeout);
+        PAYMENT_PENDING_TIMEOUTS.delete(timeoutKey);
+      }
 
       await ride.save();
       if (previousDriverId) {
@@ -3572,6 +3642,20 @@ class RideController {
           statusPayload.arrivedAtDropoffTime = ride.arrivedAtDropoff;
         }
         io.to(`client-${ride.clientId}`).emit("ride-status-updated", statusPayload);
+
+        // Notificar cliente sobre mudança na carteira apos liberação do escrow
+        if (nextStatus === "completed") {
+          try {
+            const cid = ride.clientId?._id || ride.clientId;
+            const clientUser = await User.findById(cid);
+            if (clientUser) {
+              io.to(`client-${cid}`).emit("wallet-updated", {
+                balance: clientUser.wallet?.balance || 0,
+                held: clientUser.wallet?.held || 0,
+              });
+            }
+          } catch {}
+        }
       }
 
       res.json({
@@ -4768,7 +4852,8 @@ class RideController {
         return sendError(res, 404, "Motorista nao encontrado");
       }
       const balance = driver.driverBalance?.balance || 0;
-      if (balance <= 0) {
+      const opCredit = driver.driverBalance?.operationalCredit || 0;
+      if (balance + opCredit <= 0) {
         return sendError(
           res,
           400,
@@ -5332,3 +5417,4 @@ ratingProofMixin.attach(RideController, { Ride, DriverLocation, User });
 const instance = new RideController();
 rideControllerInstance = instance;
 module.exports = instance;
+module.exports.moveToHistory = moveToHistory;

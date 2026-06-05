@@ -464,6 +464,7 @@ class AuthController {
         "rideSearchTimeoutSeconds",
         "driverDailyGoalRides",
         "driverDailyBonusAmount",
+        "operationalCreditAmount",
         "appTimeZone",
         "suggestedMinPricePercent",
         "vehiclePricing",

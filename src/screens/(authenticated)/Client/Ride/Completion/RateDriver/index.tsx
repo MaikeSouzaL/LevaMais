@@ -6,25 +6,35 @@ import {
   StyleSheet,
   TextInput,
   ScrollView,
+  Dimensions,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { Star } from "lucide-react-native";
+import { ArrowLeft, Star, Zap, ShieldCheck, Send } from "lucide-react-native";
 import Toast from "react-native-toast-message";
+import { MotiView } from "moti";
 
-import { colors, spacing, fontSize, fontWeight, borderRadius } from "@/theme";
-import { ClientScreenHeader, LoadingButton } from "../../../Shared/components";
 import rideService from "@/services/ride.service";
 import { ClientStackParamList } from "../../../types/navigation";
 
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
 const QUICK_TAGS = [
-  "Educado",
-  "Chegou rápido",
-  "Boa comunicação",
-  "Dirigiu com cuidado",
-  "Atendimento excelente",
+  { label: "Educado", icon: null },
+  { label: "Chegou rápido", icon: Zap },
+  { label: "Boa comunicação", icon: null },
+  { label: "Dirigiu com cuidado", icon: ShieldCheck },
+  { label: "Atendimento excelente", icon: null },
 ];
+
+const RATING_LABELS: Record<number, string> = {
+  1: "MUITO RUIM",
+  2: "RUIM",
+  3: "REGULAR",
+  4: "BOM",
+  5: "EXCELENTE",
+};
 
 export default function RateDriverScreen() {
   const insets = useSafeAreaInsets();
@@ -46,14 +56,6 @@ export default function RateDriverScreen() {
     [rideId, rating],
   );
 
-  const ratingLabels: Record<number, string> = {
-    1: "Muito ruim",
-    2: "Ruim",
-    3: "Regular",
-    4: "Bom",
-    5: "Excelente",
-  };
-
   const getInitials = (name: string) => {
     return name
       .split(" ")
@@ -68,7 +70,6 @@ export default function RateDriverScreen() {
       .split(";")
       .map((t) => t.trim())
       .filter(Boolean);
-
     const exists = tags.includes(tag);
     const next = exists ? tags.filter((t) => t !== tag) : [...tags, tag];
     setComment(next.join("; "));
@@ -83,16 +84,14 @@ export default function RateDriverScreen() {
 
   const handleSubmit = async () => {
     if (!canSubmit || !rideId) return;
-
     setLoading(true);
     try {
       await rideService.rateClientToDriver(rideId, {
         stars: rating,
         comment: comment.trim() || undefined,
       });
-
       Toast.show({ type: "success", text1: "Avaliação enviada" });
-      navigation.navigate("TipDriver", { rideId, driverName });
+      navigation.navigate("Home");
     } catch (error: any) {
       Toast.show({
         type: "error",
@@ -105,137 +104,184 @@ export default function RateDriverScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ClientScreenHeader
-        title="Avaliar motorista"
-        subtitle={`Como foi a ${isDelivery ? "entrega" : "corrida"} com ${driverName}?`}
-        showBack
-      />
+    <SafeAreaView style={s.safe}>
+      {/* Header */}
+      <View style={s.header}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          accessibilityLabel="Voltar"
+          accessibilityRole="button"
+        >
+          <ArrowLeft size={24} color="#008F60" />
+        </TouchableOpacity>
+        <Text style={s.headerTitle}>Avaliar motorista</Text>
+      </View>
 
       <ScrollView
-        contentContainerStyle={{
-          padding: spacing.lg,
-          paddingBottom: Math.max(insets.bottom, spacing.xl) + 160,
-        }}
+        contentContainerStyle={[
+          s.scrollContent,
+          { paddingBottom: Math.max(insets.bottom, 24) + 120 },
+        ]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
-        {/* Driver Profile Card */}
-        <View style={styles.driverCard}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{getInitials(driverName)}</Text>
+        {/* Pergunta */}
+        <Text style={s.question}>
+          Como foi a {isDelivery ? "entrega" : "corrida"} com {driverName}?
+        </Text>
+
+        {/* Card do Motorista */}
+        <View style={s.card}>
+          <View style={s.avatar}>
+            <Text style={s.avatarText}>{getInitials(driverName)}</Text>
           </View>
-          <Text style={styles.driverNameText}>{driverName}</Text>
-          <Text style={styles.driverSubtext}>Seu motorista parceiro LevaMais</Text>
+          <Text style={s.driverName}>{driverName}</Text>
+          <Text style={s.driverSub}>SEU MOTORISTA PARCEIRO LEVAMAIS</Text>
         </View>
 
-        {/* Rating Card */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Sua nota</Text>
-          <Text style={styles.cardSubtitle}>
-            Toque nas estrelas para selecionar uma nota de 1 a 5
-          </Text>
+        {/* Card de Avaliação */}
+        <MotiView
+          from={{ opacity: 0, translateY: 12 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ type: "timing", duration: 250 }}
+        >
+          <View style={s.card}>
+            <Text style={s.cardTitle}>Sua nota</Text>
+            <Text style={s.cardSubtitle}>
+              Toque nas estrelas para selecionar uma nota de 1 a 5
+            </Text>
 
-          <View style={styles.stars}>
-            {[1, 2, 3, 4, 5].map((star) => {
-              const active = star <= rating;
-              return (
-                <TouchableOpacity
-                  key={star}
-                  onPress={() => setRating(star)}
-                  activeOpacity={0.7}
-                  style={styles.starTouch}
-                  accessibilityLabel={`Avaliar ${star} ${star > 1 ? "estrelas" : "estrela"}`}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: active }}
-                >
-                  <Star
-                    size={42}
-                    color={active ? "#02de95" : "rgba(255, 255, 255, 0.2)"}
-                    fill={active ? "#02de95" : "transparent"}
-                    strokeWidth={1.5}
-                  />
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          {rating > 0 && (
-            <View style={styles.ratingBadge}>
-              <Text style={styles.ratingBadgeText}>{ratingLabels[rating]}</Text>
+            {/* Estrelas */}
+            <View style={s.starsRow}>
+              {[1, 2, 3, 4, 5].map((star) => {
+                const active = star <= rating;
+                return (
+                  <TouchableOpacity
+                    key={star}
+                    onPress={() => setRating(star)}
+                    activeOpacity={0.6}
+                    accessibilityLabel={`Avaliar ${star} ${star > 1 ? "estrelas" : "estrela"}`}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                  >
+                    <MotiView
+                      animate={{
+                        scale: active ? [0.85, 1.12, 1] : 1,
+                      }}
+                      transition={{ type: "spring", damping: 10 }}
+                    >
+                      <Star
+                        size={42}
+                        color={active ? "#00D68F" : "#D1D5DB"}
+                        fill={active ? "#00D68F" : "transparent"}
+                        strokeWidth={active ? 0 : 1.5}
+                      />
+                    </MotiView>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
-          )}
-        </View>
 
-        {/* Feedback Card */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Destaques (opcional)</Text>
-          <Text style={styles.cardSubtitle}>
-            O que você mais gostou na experiência com este motorista?
-          </Text>
-
-          <View style={styles.tagsWrap}>
-            {QUICK_TAGS.map((tag) => {
-              const selected = hasTag(tag);
-              return (
-                <TouchableOpacity
-                  key={tag}
-                  onPress={() => toggleTag(tag)}
-                  style={[styles.tagChip, selected && styles.tagChipSelected]}
-                  activeOpacity={0.8}
-                  accessibilityLabel={`Tag: ${tag}`}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected }}
-                  accessibilityValue={selected ? { text: "selecionado" } : undefined}
-                >
-                  <Text style={[styles.tagText, selected && styles.tagTextSelected]}>{tag}</Text>
-                </TouchableOpacity>
-              );
-            })}
+            {/* Badge */}
+            {rating > 0 && (
+              <MotiView
+                from={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ type: "spring", damping: 14 }}
+                style={s.badge}
+              >
+                <Text style={s.badgeText}>{RATING_LABELS[rating]}</Text>
+              </MotiView>
+            )}
           </View>
+        </MotiView>
 
-          <TextInput
-            value={comment}
-            onChangeText={setComment}
-            placeholder="Deixe um comentário adicional (opcional)"
-            placeholderTextColor="rgba(255, 255, 255, 0.35)"
-            multiline
-            numberOfLines={4}
-            style={styles.input}
-            accessibilityLabel="Comentário adicional sobre o motorista"
-            accessibilityHint="Toque para escrever um comentário opcional"
-          />
-        </View>
+        {/* Card de Destaques */}
+        <MotiView
+          from={{ opacity: 0, translateY: 12 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ type: "timing", duration: 250, delay: 80 }}
+        >
+          <View style={s.card}>
+            <Text style={s.cardTitle}>Destaques (opcional)</Text>
+            <Text style={s.cardSubtitle}>
+              O que você mais gostou na experiência com este motorista?
+            </Text>
+
+            {/* Chips */}
+            <View style={s.chipsWrap}>
+              {QUICK_TAGS.map(({ label, icon: Icon }) => {
+                const selected = hasTag(label);
+                return (
+                  <TouchableOpacity
+                    key={label}
+                    onPress={() => toggleTag(label)}
+                    style={[s.chip, selected && s.chipSelected]}
+                    activeOpacity={0.7}
+                    accessibilityLabel={`Tag: ${label}`}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                  >
+                    {selected && Icon && (
+                      <Icon size={18} color="#008F60" style={{ marginRight: 8 }} />
+                    )}
+                    <Text style={[s.chipText, selected && s.chipTextSelected]}>
+                      {label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Textarea */}
+            <TextInput
+              value={comment}
+              onChangeText={setComment}
+              placeholder="Deixe um comentário adicional..."
+              placeholderTextColor="#9CA3AF"
+              multiline
+              numberOfLines={5}
+              textAlignVertical="top"
+              style={s.textarea}
+              accessibilityLabel="Comentário adicional sobre o motorista"
+              accessibilityHint="Toque para escrever um comentário opcional"
+            />
+          </View>
+        </MotiView>
       </ScrollView>
 
-      {/* Modern Fixed Bottom Action Bar */}
-      <View
-        style={[
-          styles.footer,
-          { paddingBottom: Math.max(insets.bottom, spacing.lg) + spacing.xs },
-        ]}
-      >
-        <View style={styles.buttonGroup}>
+      {/* Barra Inferior Fixa */}
+      <View style={[s.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+        <View style={s.footerRow}>
           <TouchableOpacity
-            style={styles.skipButton}
+            style={s.skipBtn}
             onPress={() => navigation.navigate("Home")}
             disabled={loading}
+            activeOpacity={0.7}
             accessibilityLabel="Pular avaliação"
             accessibilityRole="button"
           >
-            <Text style={styles.skipButtonText}>Pular</Text>
+            <Text style={s.skipBtnText}>PULAR</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.submitButton, !canSubmit && styles.submitButtonDisabled]}
+            style={[s.submitBtn, !canSubmit && s.submitBtnDisabled]}
             onPress={handleSubmit}
             disabled={!canSubmit || loading}
+            activeOpacity={0.8}
             accessibilityLabel={loading ? "Enviando avaliação" : "Enviar avaliação"}
             accessibilityRole="button"
             accessibilityState={{ disabled: !canSubmit || loading }}
           >
-            <Text style={[styles.submitButtonText, !canSubmit && styles.submitButtonTextDisabled]}>
-              {loading ? "Enviando..." : "Enviar avaliação"}
+            <Text style={[s.submitBtnText, !canSubmit && s.submitBtnTextDisabled]}>
+              {loading ? "ENVIANDO..." : "ENVIAR AVALIAÇÃO"}
             </Text>
+            <Send
+              size={18}
+              color={!canSubmit ? "#9CA3AF" : "#005A3D"}
+              style={{ marginLeft: 8 }}
+            />
           </TouchableOpacity>
         </View>
       </View>
@@ -243,197 +289,218 @@ export default function RateDriverScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
+const s = StyleSheet.create({
+  safe: {
     flex: 1,
-    backgroundColor: "#091A2F",
+    backgroundColor: "#F5F6F8",
   },
-  driverCard: {
-    alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.02)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.05)",
-    borderRadius: 24,
-    padding: spacing.xl,
-    marginBottom: spacing.md,
+  scrollContent: {
+    paddingHorizontal: 24,
   },
+
+  // Header
+  header: {
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    paddingBottom: 8,
+  },
+  headerTitle: {
+    color: "#111827",
+    fontSize: 32,
+    fontWeight: "700",
+    fontFamily: undefined, // fallback to system
+    marginTop: 16,
+  },
+
+  // Question
+  question: {
+    color: "#4B5563",
+    fontSize: 18,
+    fontWeight: "400",
+    marginTop: 32,
+    marginBottom: 24,
+  },
+
+  // Card
+  card: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 24,
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 20,
+    elevation: 2,
+  },
+
+  // Driver card
   avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: "rgba(2, 222, 149, 0.12)",
-    borderWidth: 2,
-    borderColor: "rgba(2, 222, 149, 0.35)",
+    width: 88,
+    height: 88,
+    borderRadius: 99,
+    backgroundColor: "#00D68F",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: spacing.md,
+    alignSelf: "center",
+    marginBottom: 16,
   },
   avatarText: {
-    color: "#02de95",
-    fontSize: 24,
-    fontWeight: "900",
+    color: "#005A3D",
+    fontSize: 28,
+    fontWeight: "700",
   },
-  driverNameText: {
-    color: "#ffffff",
-    fontSize: 18,
-    fontWeight: "900",
-    marginBottom: 4,
+  driverName: {
+    color: "#111827",
+    fontSize: 22,
+    fontWeight: "700",
+    textAlign: "center",
+    marginBottom: 6,
   },
-  driverSubtext: {
-    color: "rgba(255, 255, 255, 0.4)",
-    fontSize: 11,
-    fontWeight: "600",
+  driverSub: {
+    color: "#596174",
+    fontSize: 13,
+    fontWeight: "700",
+    textAlign: "center",
+    letterSpacing: 1.2,
     textTransform: "uppercase",
-    letterSpacing: 0.5,
   },
-  card: {
-    backgroundColor: "rgba(255, 255, 255, 0.02)",
-    borderWidth: 1,
-    borderColor: "rgba(2, 222, 149, 0.12)",
-    borderRadius: 24,
-    padding: spacing.xl,
-    marginBottom: spacing.md,
-  },
+
+  // Rating card
   cardTitle: {
-    color: "#ffffff",
-    fontSize: 16,
-    fontWeight: "900",
-    marginBottom: 4,
+    color: "#111827",
+    fontSize: 22,
+    fontWeight: "700",
+    marginBottom: 6,
   },
   cardSubtitle: {
-    color: "rgba(255, 255, 255, 0.5)",
-    fontSize: 12,
-    marginBottom: spacing.lg,
-    lineHeight: 16,
+    color: "#6B7280",
+    fontSize: 16,
+    fontWeight: "400",
+    marginBottom: 24,
+    lineHeight: 22,
   },
-  stars: {
+  starsRow: {
     flexDirection: "row",
     justifyContent: "center",
-    alignItems: "center",
-    gap: spacing.sm,
-    marginVertical: spacing.sm,
+    gap: 16,
+    marginBottom: 20,
   },
-  starTouch: {
-    padding: 4,
-  },
-  ratingBadge: {
+  badge: {
     alignSelf: "center",
-    backgroundColor: "rgba(2, 222, 149, 0.12)",
-    borderWidth: 1,
-    borderColor: "rgba(2, 222, 149, 0.25)",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    marginTop: spacing.md,
+    backgroundColor: "rgba(0,214,143,0.12)",
+    height: 38,
+    borderRadius: 99,
+    paddingHorizontal: 18,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  ratingBadgeText: {
-    color: "#02de95",
-    fontSize: 12,
-    fontWeight: "900",
-    textTransform: "uppercase",
+  badgeText: {
+    color: "#008F60",
+    fontSize: 14,
+    fontWeight: "700",
     letterSpacing: 0.5,
   },
-  tagsWrap: {
+
+  // Chips
+  chipsWrap: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: spacing.xs,
-    marginBottom: spacing.md,
+    gap: 12,
+    marginBottom: 16,
   },
-  tagChip: {
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.08)",
+  chip: {
+    height: 48,
     borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    minHeight: 44,
-    backgroundColor: "rgba(255, 255, 255, 0.02)",
-    marginBottom: spacing.xs,
+    paddingHorizontal: 20,
+    backgroundColor: "#F3F4F6",
+    flexDirection: "row",
+    alignItems: "center",
     justifyContent: "center",
   },
-  tagChipSelected: {
-    borderColor: "#02de95",
-    backgroundColor: "rgba(2, 222, 149, 0.12)",
+  chipSelected: {
+    height: 52,
+    backgroundColor: "#F4FFF9",
+    borderWidth: 2,
+    borderColor: "#008F60",
   },
-  tagText: {
-    color: "rgba(255, 255, 255, 0.6)",
-    fontSize: 12,
+  chipText: {
+    color: "#111827",
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  chipTextSelected: {
+    color: "#008F60",
     fontWeight: "600",
   },
-  tagTextSelected: {
-    color: "#02de95",
-    fontWeight: "800",
-  },
-  input: {
-    minHeight: 100,
-    backgroundColor: "rgba(255, 255, 255, 0.03)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+
+  // Textarea
+  textarea: {
+    backgroundColor: "#EEF2F7",
     borderRadius: 16,
-    padding: spacing.md,
-    color: "#ffffff",
-    textAlignVertical: "top",
-    fontSize: 13,
+    minHeight: 120,
+    padding: 18,
+    color: "#111827",
+    fontSize: 15,
+    lineHeight: 22,
   },
+
+  // Footer
   footer: {
     position: "absolute",
     left: 0,
     right: 0,
     bottom: 0,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    backgroundColor: "#091A2F",
-    borderTopWidth: 1.5,
-    borderTopColor: "rgba(255, 255, 255, 0.05)",
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 20,
+    elevation: 8,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
   },
-  buttonGroup: {
+  footerRow: {
     flexDirection: "row",
-    gap: 12,
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    gap: 16,
   },
-  skipButton: {
+  skipBtn: {
     flex: 1,
-    height: 48,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: "rgba(255, 255, 255, 0.15)",
-    backgroundColor: "transparent",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  skipButtonText: {
-    color: "#ffffff",
-    fontSize: 14,
-    fontWeight: "900",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  submitButton: {
-    flex: 2.2,
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: "#02de95",
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#02de95",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  submitButtonDisabled: {
-    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    height: 60,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
-    shadowOpacity: 0,
-    elevation: 0,
+    borderColor: "#D1D5DB",
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  submitButtonText: {
-    color: "#091A2F",
-    fontSize: 14,
-    fontWeight: "900",
-    textTransform: "uppercase",
+  skipBtnText: {
+    color: "#111827",
+    fontSize: 16,
+    fontWeight: "700",
     letterSpacing: 0.5,
   },
-  submitButtonTextDisabled: {
-    color: "rgba(255, 255, 255, 0.25)",
+  submitBtn: {
+    flex: 2.5,
+    height: 60,
+    borderRadius: 16,
+    backgroundColor: "#00D68F",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  submitBtnDisabled: {
+    backgroundColor: "#E5E7EB",
+  },
+  submitBtnText: {
+    color: "#005A3D",
+    fontSize: 16,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+  submitBtnTextDisabled: {
+    color: "#9CA3AF",
   },
 });

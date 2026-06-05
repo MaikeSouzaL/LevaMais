@@ -38,6 +38,13 @@ import DriverNegotiationScreen from "../screens/(authenticated)/Driver/DriverNeg
 import DeliveryPickupConfirmScreen from "../screens/(authenticated)/Driver/DeliveryPickupConfirm";
 import DeliveryDropoffConfirmScreen from "../screens/(authenticated)/Driver/DeliveryDropoffConfirm";
 
+import DriverRoutesScreen from "../screens/(authenticated)/Driver/DriverRoutesScreen";
+import DriverPublishRouteScreen from "../screens/(authenticated)/Driver/DriverPublishRouteScreen";
+import DriverRouteDetailScreen from "../screens/(authenticated)/Driver/DriverRouteDetailScreen";
+import CarrierScreen from "../screens/(authenticated)/Driver/CarrierScreen";
+import CarrierSchedulesScreen from "../screens/(authenticated)/Driver/CarrierSchedulesScreen";
+import CarrierFreightScreen from "../screens/(authenticated)/Driver/CarrierFreightScreen";
+
 import { useAuthStore } from "../context/authStore";
 import { resolveAssetURL } from "@/utils/mappers";
 
@@ -66,6 +73,8 @@ const menuItems = [
   { name: "DriverRequests", label: "Solicitações", icon: "car" },
   { name: "DriverFinance", label: "Ganhos e carteira", icon: "cash" },
   { name: "DriverShiftOffers", label: "Plantões", icon: "store-clock-outline" },
+  { name: "DriverRoutes", label: "Minhas Rotas", icon: "route" },
+  { name: "Carrier", label: "Modo Transportadora", icon: "truck" },
   { name: "DriverRatings", label: "Avaliações", icon: "star-circle" },
   { name: "DriverHistory", label: "Histórico", icon: "history" },
   { name: "DriverVehicle", label: "Veículo", icon: "car-info" },
@@ -264,6 +273,8 @@ export default function DrawerDriverRoutes({ initialRideId }: DrawerDriverRoutes
       <Drawer.Screen name="DriverRequests" component={DriverRequestsScreen} options={{ title: "Solicitações" }} />
       <Drawer.Screen name="DriverFinance" component={DriverFinanceStack} options={{ title: "Ganhos e carteira", headerShown: false }} />
       <Drawer.Screen name="DriverShiftOffers" component={DriverShiftOffersScreen} options={{ title: "Plantões" }} />
+      <Drawer.Screen name="DriverRoutes" component={DriverRoutesScreen} options={{ title: "Minhas Rotas", headerShown: false }} />
+      <Drawer.Screen name="Carrier" component={CarrierScreen} options={{ title: "Modo Transportadora", headerShown: false }} />
       <Drawer.Screen name="DriverHistory" component={DriverHistoryScreen} options={{ title: "Histórico" }} />
       <Drawer.Screen name="DriverVehicle" component={DriverVehicleScreen} options={{ title: "Veículo" }} />
       <Drawer.Screen name="DriverRatings" component={DriverRatingsScreen} options={{ title: "Avaliações" }} />
@@ -290,6 +301,10 @@ export default function DrawerDriverRoutes({ initialRideId }: DrawerDriverRoutes
       <Drawer.Screen name="DeliveryPickupConfirm" component={DeliveryPickupConfirmScreen} options={HiddenScreenOptions} />
       <Drawer.Screen name="DeliveryDropoffConfirm" component={DeliveryDropoffConfirmScreen} options={HiddenScreenOptions} />
       <Drawer.Screen name="DriverHistoryRideDetails" component={DriverHistoryRideDetailsScreen} options={HiddenScreenOptions} />
+      <Drawer.Screen name="DriverPublishRoute" component={DriverPublishRouteScreen} options={HiddenScreenOptions} />
+      <Drawer.Screen name="CarrierSchedules" component={CarrierSchedulesScreen} options={HiddenScreenOptions} />
+      <Drawer.Screen name="CarrierFreight" component={CarrierFreightScreen} options={HiddenScreenOptions} />
+      <Drawer.Screen name="DriverRouteDetail" component={DriverRouteDetailScreen} options={HiddenScreenOptions} />
     </Drawer.Navigator>
   );
 }
