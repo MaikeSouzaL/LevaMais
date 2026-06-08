@@ -3,8 +3,10 @@
  *
  * Fluxo:
  *   reserve  → no aceite/confirmação: move total de wallet.balance → wallet.held (cliente).
- *   release  → na conclusão: baixa o held e credita o motorista (driverValue); a taxa
- *              da plataforma é a diferença (total − driverValue), receita implícita.
+ *   release  → na conclusão: baixa o held do cliente e credita o VALOR TOTAL ao motorista.
+ *              A taxa do app NÃO é descontada aqui — é debitada à parte do saldo do
+ *              motorista (driverBalance) pelo controlador. Assim o motorista vê o valor
+ *              cheio da corrida e a taxa sai do saldo que ele mantém na conta.
  *   refund   → no cancelamento: devolve o held ao saldo (menos taxa, na Fase 2).
  *
  * Idempotente: cada transição é guardada por ride.payment.escrow.status.
@@ -94,8 +96,10 @@ async function release(ride, { driverId, driverValue, platformFee } = {}) {
   }
 
   const amount = toMoney(ride.payment.escrow.amount || rideAmount(ride));
-  const credit =
-    driverValue != null ? toMoney(driverValue) : toMoney(Math.max(0, amount - toMoney(platformFee)));
+  // Modelo unificado: o motorista recebe o VALOR TOTAL retido. A taxa do app é debitada
+  // à parte do saldo (driverBalance) pelo controlador — não é descontada do valor liberado.
+  // Os parâmetros driverValue/platformFee são mantidos por compatibilidade, mas ignorados.
+  const credit = toMoney(amount);
 
   // 1) Baixa o held do cliente.
   const client = await User.findById(clientIdOf(ride));
@@ -113,7 +117,7 @@ async function release(ride, { driverId, driverValue, platformFee } = {}) {
     await client.save();
   }
 
-  // 2) Credita o motorista (a taxa da plataforma já está embutida: credit = total − taxa).
+  // 2) Credita o motorista com o VALOR TOTAL da corrida (a taxa é debitada do saldo à parte).
   if (driverId && credit > 0) {
     const driver = await User.findById(driverId);
     if (driver) {

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, Image, ScrollView, TouchableOpacity, Linking, Animated, Modal, ActivityIndicator, Clipboard } from "react-native";
+import { View, Text, Image, ScrollView, TouchableOpacity, Linking, Animated, Modal, ActivityIndicator, Clipboard, StatusBar } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -398,7 +398,9 @@ export default function DeliveryTracking() {
   };
 
   const handleGoHome = () => {
-    navigation.navigate("Home");
+    // Passa suppressAutoRedirect para que o useActiveRideMonitor não redirecione
+    // de volta ao tracking quando o usuário voltou intencionalmente para Home.
+    navigation.navigate("Home", { suppressAutoRedirect: rideId });
   };
 
   if (loading) {
@@ -419,6 +421,8 @@ export default function DeliveryTracking() {
 
   return (
     <SafeAreaView className="flex-1 bg-[#091A2F]">
+      {/* Status bar branca (ícones de bateria, hora, sinal visíveis sobre fundo escuro) */}
+      <StatusBar barStyle="light-content" backgroundColor="#091A2F" translucent={false} />
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         {/* Mapa com cantos arredondados na parte inferior */}
         <View className="h-[280px] bg-[#091A2F] overflow-hidden rounded-b-[32px] border-b border-white/[0.06] shadow-lg shadow-black/50">

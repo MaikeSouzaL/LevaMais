@@ -1185,44 +1185,22 @@ export default function DriverRideScreen() {
 
           {/* MARCADOR DO MOTORISTA */}
           {!!driverCoords && (
-            isNavMode ? (
-              // Puck de navegação: círculo branco + seta verde girando com a bússola
-              <Marker
-                key="driver-nav-puck"
-                coordinate={{
-                  latitude: driverCoords.latitude,
-                  longitude: driverCoords.longitude,
-                }}
-                flat={true}
-                anchor={{ x: 0.5, y: 0.5 }}
-                rotation={navHeading}
-                tracksViewChanges={!puckRendered}
-              >
-                <View style={puckStyles.wrapper}>
-                  <View style={puckStyles.glow} />
-                  <View style={puckStyles.circle}>
-                    <View style={puckStyles.arrow} />
-                  </View>
-                </View>
-              </Marker>
-            ) : (
-              <Marker
-                key={`driver-puck-${vehicleType}`}
-                coordinate={{
-                  latitude: driverCoords.latitude,
-                  longitude: driverCoords.longitude,
-                }}
-                flat={true}
-                anchor={{ x: 0.5, y: 0.5 }}
-                tracksViewChanges={true}
-                style={{ width: 40, height: 40 }}
-              >
-                <VehicleMarker
-                  type={vehicleType as any}
-                  isOnline={true}
-                />
-              </Marker>
-            )
+            <Marker
+              key={`driver-puck-${vehicleType}`}
+              coordinate={{
+                latitude: driverCoords.latitude,
+                longitude: driverCoords.longitude,
+              }}
+              flat={true}
+              anchor={{ x: 0.5, y: 0.5 }}
+              tracksViewChanges={true}
+              style={{ width: 40, height: 40 }}
+            >
+              <VehicleMarker
+                type={vehicleType as any}
+                isOnline={true}
+              />
+            </Marker>
           )}
 
           {/* Cliente em tempo real (apenas fora do modo navegação) */}

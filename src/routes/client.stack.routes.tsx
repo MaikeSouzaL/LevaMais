@@ -23,7 +23,6 @@ import DeliveryDetailsScreen from "../screens/(authenticated)/Client/Ride/Reques
 import EditDeliveryAddressScreen from "../screens/(authenticated)/Client/Ride/Request/EditDeliveryAddress";
 import DeliveryMapPickerScreen from "../screens/(authenticated)/Client/Ride/Request/DeliveryMapPicker";
 import DeliveryReviewScreen from "../screens/(authenticated)/Client/Ride/Request/DeliveryReview";
-import DeliveryPaymentConfirmScreen from "../screens/(authenticated)/Client/Ride/Request/DeliveryPaymentConfirm";
 import CancelFeeScreen from "../screens/(authenticated)/Client/Ride/Cancellation/CancelFee";
 import ChatScreen from "../screens/(authenticated)/Client/Ride/Tracking/Chat";
 import OrderDetailsScreen from "../screens/(authenticated)/Client/History/OrderDetails";
@@ -93,7 +92,6 @@ export default function ClientStackRoutes({
       <Stack.Screen name="DeliveryDetails" component={DeliveryDetailsScreen} />
       <Stack.Screen name="DeliverySetup" component={DeliverySetupScreen} />
       <Stack.Screen name="DeliveryReview" component={DeliveryReviewScreen} />
-      <Stack.Screen name="DeliveryPaymentConfirm" component={DeliveryPaymentConfirmScreen} />
       <Stack.Screen name="OrderSent" component={OrderSentScreen} />
       <Stack.Screen name="ActiveOrders" component={ActiveOrdersScreen} />
       <Stack.Screen name="ShiftOffersClient" component={ShiftOffersClientScreen} />

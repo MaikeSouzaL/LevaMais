@@ -631,19 +631,6 @@ class RideService {
     return response.data?.ride;
   }
 
-  async confirmNegotiationPayment(
-    rideId: string,
-    payload: { method: "cash" | "card" | "wallet" | "pix" },
-  ): Promise<Ride> {
-    const response = await api.post(`/rides/${rideId}/payment/confirm`, payload);
-    return response.data?.ride;
-  }
-
-  async cancelPaymentSelection(rideId: string): Promise<Ride> {
-    const response = await api.post(`/rides/${rideId}/payment/cancel-selection`);
-    return response.data?.ride;
-  }
-
   async clientCounterOffer(rideId: string, driverId: string, amount: number): Promise<any> {
     const response = await api.post(`/rides/${rideId}/offers/client-counter`, { driverId, amount });
     return response.data;

@@ -124,7 +124,9 @@ export default function RideOffersMarketplaceScreen() {
     try {
       const details = await rideService.getById(rideId);
       setRideDetails(details);
+      return details;
     } catch (e) {}
+    return null;
   }, [rideId]);
 
   const loadOffers = useCallback(async () => {
@@ -196,10 +198,21 @@ export default function RideOffersMarketplaceScreen() {
     loadRideDetails();
   }, [loadRideDetails]);
 
+  // Redireciona para tracking assim que a corrida tiver motorista comprometido.
+  // Inclui todos os status pós-aceite para garantir que o marketplace nunca
+  // apareça com entrega/corrida já em andamento.
   useEffect(() => {
     const currentStatus = String(rideDetails?.status || "");
-    if (rideId && (currentStatus === "accepted" || currentStatus === "in_progress" || currentStatus === "driver_assigned")) {
-      const trackingScreen = rideDetails?.serviceType === "delivery" ? "DeliveryTracking" : "RideTracking";
+    const activeStatuses = [
+      "driver_assigned",
+      "accepted",
+      "driver_arriving",
+      "arrived",
+      "in_progress",
+    ];
+    if (rideId && activeStatuses.includes(currentStatus)) {
+      const trackingScreen =
+        rideDetails?.serviceType === "delivery" ? "DeliveryTracking" : "RideTracking";
       navigation.navigate(trackingScreen, { rideId });
     }
   }, [navigation, rideDetails?.status, rideDetails?.serviceType, rideId]);
@@ -212,11 +225,20 @@ export default function RideOffersMarketplaceScreen() {
     const init = async () => {
       try {
         await loadOffers();
-        await loadRideDetails();
-        // Se a corrida já foi aceita (aceite direto sem proposta), redireciona imediatamente
-        const status = String(rideDetails?.status || "");
-        if (rideId && (status === "accepted" || status === "in_progress" || status === "driver_assigned")) {
-          const trackingScreen = rideDetails?.serviceType === "delivery" ? "DeliveryTracking" : "RideTracking";
+        // loadRideDetails retorna os dados frescos — não ler rideDetails (state) aqui
+        // pois o React ainda não re-renderizou com o novo valor.
+        const freshDetails = await loadRideDetails();
+        const activeStatuses = [
+          "driver_assigned",
+          "accepted",
+          "driver_arriving",
+          "arrived",
+          "in_progress",
+        ];
+        const freshStatus = String(freshDetails?.status || "");
+        if (rideId && activeStatuses.includes(freshStatus)) {
+          const trackingScreen =
+            freshDetails?.serviceType === "delivery" ? "DeliveryTracking" : "RideTracking";
           navigation.navigate(trackingScreen, { rideId });
           return;
         }

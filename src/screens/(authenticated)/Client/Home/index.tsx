@@ -72,6 +72,9 @@ export default function HomeScreen() {
     waitingQueueCount,
     showCancelledModal,
     allRejected,
+    activeTrackingRideId,
+    activeTrackingServiceType,
+    activeTrackingStatus,
     dismissCancelledModal,
     confirmExpiredAction,
     setActiveRequestingRideId,
@@ -158,12 +161,15 @@ export default function HomeScreen() {
     }
   }, [route.params, setActiveRequestingRideId, navigation]);
 
-  // Auto-navegar para tela de negociação se houver propostas (proposta de motorista recebida)
+  // Auto-navegar para tela de negociação se houver propostas (proposta de motorista recebida).
+  // Defesa em profundidade: NUNCA abrir o marketplace se já existe uma corrida/entrega
+  // comprometida (com motorista). Nesse caso a corrida já tem dono e deve ir ao tracking,
+  // nunca ao "Escolher Entregador".
   useEffect(() => {
-    if (negotiationRideId) {
+    if (negotiationRideId && !activeTrackingRideId) {
       navigation.navigate("RideOffersMarketplace", { rideId: negotiationRideId });
     }
-  }, [negotiationRideId, navigation]);
+  }, [negotiationRideId, activeTrackingRideId, navigation]);
 
   // Drawer Open
   const handleMenuPress = useCallback(() => {
@@ -422,6 +428,63 @@ export default function HomeScreen() {
                   </>
               </ScrollView>
              </View>
+
+             {/* ─── Banner: Entrega / Corrida já em andamento ─────────────────────
+                  Aparece quando o cliente tem um motorista comprometido e voltou
+                  intencionalmente para a Home (ex: usou "Início" no tracking).
+                  Permite retornar ao tracking a qualquer momento, igual ao Uber/99. */}
+             {!!activeTrackingRideId && !activeRequestingRideId && !negotiationRideId && activeService === "ride" && (() => {
+               const isDelivery = activeTrackingServiceType === "delivery";
+               const trackingStatusLabel: Record<string, string> = {
+                 accepted:        isDelivery ? "Motorista a caminho da coleta" : "Motorista aceitou sua corrida",
+                 driver_arriving: isDelivery ? "Motorista indo para a coleta"  : "Motorista a caminho",
+                 arrived:         isDelivery ? "Motorista chegou à coleta"     : "Motorista chegou",
+                 in_progress:     isDelivery ? "Entrega a caminho do destino"  : "Corrida em andamento",
+               };
+               const subtitle = trackingStatusLabel[activeTrackingStatus ?? ""] || "Toque para acompanhar";
+               const trackScreen = isDelivery ? "DeliveryTracking" : "RideTracking";
+               return (
+                 <View style={{ paddingHorizontal: 20, marginTop: 16 }}>
+                   <TouchableOpacity
+                     activeOpacity={0.9}
+                     accessibilityLabel={isDelivery ? "Acompanhar entrega em andamento" : "Acompanhar corrida em andamento"}
+                     accessibilityRole="button"
+                     onPress={() => navigation.navigate(trackScreen, { rideId: activeTrackingRideId })}
+                     style={{
+                       backgroundColor: "#02de95",
+                       borderRadius: 16,
+                       padding: 16,
+                       flexDirection: "row",
+                       alignItems: "center",
+                       borderWidth: 1,
+                       borderColor: "rgba(255,255,255,0.2)",
+                       shadowColor: "#000",
+                       shadowOffset: { width: 0, height: 4 },
+                       shadowOpacity: 0.2,
+                       shadowRadius: 8,
+                       elevation: 5,
+                     }}
+                   >
+                     <View style={{ backgroundColor: "rgba(9, 26, 47, 0.2)", padding: 8, borderRadius: 12, marginRight: 12 }}>
+                       {isDelivery
+                         ? <Package size={20} color="#091A2F" />
+                         : <Car size={20} color="#091A2F" />}
+                     </View>
+                     <View style={{ flex: 1 }}>
+                       <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 14, textTransform: "uppercase" }}>
+                         {isDelivery ? "Entrega em Andamento" : "Corrida em Andamento"}
+                       </Text>
+                       <Text style={{ color: "rgba(9, 26, 47, 0.8)", fontWeight: "700", fontSize: 12 }}>
+                         {subtitle}
+                       </Text>
+                     </View>
+                     <View style={{ backgroundColor: "#091A2F", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}>
+                       <Text style={{ color: "#02de95", fontWeight: "900", fontSize: 10 }}>VER</Text>
+                     </View>
+                   </TouchableOpacity>
+                 </View>
+               );
+             })()}
 
              {/* Active Requesting Ride Banner (Inline for Map Tab) */}
              {!!activeRequestingRideId && !negotiationRideId && activeService === "ride" && (

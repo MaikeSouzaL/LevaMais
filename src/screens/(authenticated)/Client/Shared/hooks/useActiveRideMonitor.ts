@@ -16,6 +16,11 @@ interface ActiveRideMonitorState {
   expiredRideId: string | null;
   showCancelledModal: boolean;
   allRejected: boolean;
+  /** Corrida/entrega já com motorista comprometido (pós-aceite).
+   *  Alimenta o banner "Em andamento" na Home quando o usuário volta do tracking. */
+  activeTrackingRideId: string | null;
+  activeTrackingServiceType: "ride" | "delivery" | null;
+  activeTrackingStatus: string | null;
 }
 
 /**
@@ -33,6 +38,11 @@ export function useActiveRideMonitor() {
   // Corridas que já foram redirecionadas automaticamente para o rastreamento.
   // Evita "prender" o cliente: depois do 1º redirect ele pode voltar para a Home livremente.
   const autoRedirectedRides = useRef<Set<string>>(new Set());
+  // Corridas que JÁ sabemos estar comprometidas (com motorista atrelado).
+  // Protege contra race conditions: chamadas antigas de checkActiveRide ("em voo")
+  // que leram a corrida quando a oferta ainda estava pendente NÃO podem reabrir o
+  // marketplace para uma corrida já atrelada.
+  const committedRideIds = useRef<Set<string>>(new Set());
 
   const [state, setState] = useState<ActiveRideMonitorState>({
     negotiationRideId: null,
@@ -44,8 +54,16 @@ export function useActiveRideMonitor() {
     expiredRideId: null,
     showCancelledModal: false,
     allRejected: false,
+    activeTrackingRideId: null,
+    activeTrackingServiceType: null,
+    activeTrackingStatus: null,
   });
 
+  // checkActiveRide é PURO sincronizador de estado: atualiza banner/negociação/
+  // requesting e RETORNA a corrida comprometida (se houver), mas NUNCA navega.
+  // Pode ser chamado livremente por focus, polling e eventos de socket sem risco
+  // de "arrastar" o cliente. O ÚNICO ponto que redireciona é o handler de aceite
+  // (handleRideAccepted), acionado apenas pelos eventos de aceite do WebSocket.
   const checkActiveRide = useCallback(async () => {
     try {
       const res = await rideService.getActiveList();
@@ -56,10 +74,73 @@ export function useActiveRideMonitor() {
         rides: activeRides.map((r: any) => ({ id: r._id, status: r.status, service: r.serviceType })),
       });
 
-      // 1. Verifica se há ofertas de motoristas (negociação)
+      // Status em que a corrida JÁ tem um motorista comprometido (pós-aceite).
+      // Nesses estados a corrida NÃO é mais uma negociação — ela já pertence
+      // a um motorista e deve abrir o rastreamento, nunca o "Escolher Entregador".
+      const ACTIVE_TRACKING_STATUSES = ["accepted", "driver_arriving", "arrived", "in_progress"];
+
+      // ─── PRIORIDADE 0: Corrida/entrega já comprometida (com motorista) ────────
+      // Tem que ser avaliada ANTES da negociação, porque uma oferta aceita continua
+      // no array `negotiation.offers` com status "accepted" (≠ "rejected"). Sem este
+      // curto-circuito, a corrida já atrelada era erroneamente tratada como
+      // negociação e a Home reabria a tela "Escolher Entregador".
+      // Uma corrida é considerada comprometida se:
+      //  (a) tem driverId + status pós-aceite na resposta atual, OU
+      //  (b) já foi marcada como comprometida numa chamada anterior (ref) e ainda
+      //      aparece na lista de ativas — protege contra respostas atrasadas que
+      //      ainda mostram um status antigo (ex: "driver_assigned").
+      const committedRide = activeRides.find((ride: any) => {
+        if (ride.isWaitingInQueue) return false;
+        if (ride.driverId && ACTIVE_TRACKING_STATUSES.includes(ride.status)) return true;
+        if (committedRideIds.current.has(String(ride._id))) return true;
+        return false;
+      });
+
+      // Registra a corrida comprometida no ref — qualquer chamada futura (mesmo
+      // uma resposta HTTP antiga que chegue atrasada) saberá que ela já tem motorista.
+      if (committedRide) {
+        committedRideIds.current.add(String(committedRide._id));
+      }
+
+      if (committedRide) {
+        // Corrida comprometida → alimenta o banner "Em andamento" e LIMPA qualquer
+        // estado de negociação/requesting para não reabrir o marketplace.
+        setState((prev) => ({
+          ...prev,
+          negotiationRideId: null,
+          activeRequestingRideId: null,
+          allRejected: false,
+          waitingQueueCount: 0,
+          activeTrackingRideId: committedRide._id,
+          activeTrackingServiceType: (committedRide.serviceType as "ride" | "delivery") || "ride",
+          activeTrackingStatus: committedRide.status,
+        }));
+        // Apenas devolve a corrida comprometida — quem decide redirecionar é o
+        // handler de aceite. Aqui NÃO navegamos (banner é suficiente).
+        return committedRide;
+      }
+
+      // Não há corrida comprometida → garante banner "Em andamento" limpo.
+      setState((prev) => ({
+        ...prev,
+        activeTrackingRideId: null,
+        activeTrackingServiceType: null,
+        activeTrackingStatus: null,
+      }));
+
+      // 1. Verifica se há ofertas PENDENTES de motoristas (negociação real).
+      // Exclui ofertas já aceitas (essas viram corrida comprometida, tratada acima)
+      // e rejeitadas. Só "pending"/"countered"/"client_countered" contam como negociação.
+      const NEGOTIABLE_OFFER_STATUSES = ["pending", "countered", "client_countered"];
       const rideWithOffers = activeRides.find((ride: any) => {
+        // Defensivo: nunca tratar uma corrida já atrelada como negociação.
+        if (ride.driverId && ACTIVE_TRACKING_STATUSES.includes(ride.status)) return false;
+        // Defensivo contra race: se já marcamos esta corrida como comprometida em
+        // qualquer chamada anterior, ignore — uma resposta HTTP atrasada não pode
+        // reabrir o marketplace.
+        if (committedRideIds.current.has(String(ride._id))) return false;
         const offers = Array.isArray(ride.negotiation?.offers) ? ride.negotiation.offers : [];
-        return offers.some((o: any) => o.status !== "rejected");
+        return offers.some((o: any) => NEGOTIABLE_OFFER_STATUSES.includes(String(o.status)));
       });
 
       if (rideWithOffers) {
@@ -100,36 +181,33 @@ export function useActiveRideMonitor() {
         ...prev,
         waitingQueueCount: queuedRides.length,
       }));
-
-      // 4. Auto-redirect para rastreamento se motorista aceitou (apenas 1x por corrida).
-      // Depois do primeiro redirect, o cliente pode tocar em "Início" e ficar na Home
-      // sem ser trazido de volta à força (estilo Uber).
-      const primaryRide = activeRides.find((ride: any) => !ride.isWaitingInQueue);
-      if (primaryRide) {
-        if (
-          primaryRide.driverId &&
-          ["accepted", "driver_arriving", "arrived", "in_progress"].includes(primaryRide.status) &&
-          !autoRedirectedRides.current.has(primaryRide._id)
-        ) {
-          autoRedirectedRides.current.add(primaryRide._id);
-          const trackingScreen = primaryRide.serviceType === "delivery" ? "DeliveryTracking" : "RideTracking";
-          try {
-            (navigation as any).navigate(trackingScreen, { rideId: primaryRide._id });
-          } catch {
-            // fallback: if navigate fails (drawer nesting), try replace
-            try {
-              (navigation as any).replace(trackingScreen, { rideId: primaryRide._id });
-            } catch {
-              // ignore — let the interval re-check
-            }
-          }
-          return;
-        }
-      }
+      return null;
     } catch (err) {
       logger.warn("useActiveRideMonitor", "Erro ao verificar corridas ativas", err);
+      return null;
     }
-  }, [navigation]);
+  }, []);
+
+  // ÚNICO ponto de redirecionamento automático para o tracking.
+  // Sincroniza o estado (banner) e, se a corrida estiver comprometida (com motorista),
+  // navega UMA vez por corrida. Acionado SOMENTE pelos eventos de aceite do WebSocket.
+  const redirectToTrackingOnce = useCallback(async () => {
+    const committedRide = await checkActiveRide();
+    if (!committedRide) return;
+    const id = String(committedRide._id);
+    if (autoRedirectedRides.current.has(id)) return;
+    autoRedirectedRides.current.add(id);
+    const trackingScreen = committedRide.serviceType === "delivery" ? "DeliveryTracking" : "RideTracking";
+    try {
+      (navigation as any).navigate(trackingScreen, { rideId: committedRide._id });
+    } catch {
+      try {
+        (navigation as any).replace(trackingScreen, { rideId: committedRide._id });
+      } catch {
+        // ignore — banner na Home mantém o acesso ao tracking
+      }
+    }
+  }, [checkActiveRide, navigation]);
 
   // WebSocket listeners para atualizações em tempo real
   useEffect(() => {
@@ -150,7 +228,15 @@ export function useActiveRideMonitor() {
         setTimeout(() => processedAcceptances.current.delete(rId), 5000);
       }
 
-      await checkActiveRide();
+      // Momento real do aceite → ÚNICO ponto que pode redirecionar (1x por corrida).
+      await redirectToTrackingOnce();
+    };
+
+    // Refresh genérico vindo de eventos de socket que NÃO representam aceite
+    // (status do motorista mudando, propostas recebidas, etc.). Apenas sincroniza
+    // o banner/estado — NUNCA redireciona, então o cliente na Home permanece nela.
+    const handleSocketRefresh = () => {
+      checkActiveRide();
     };
 
     const handleRideCancelled = (data: any) => {
@@ -166,6 +252,9 @@ export function useActiveRideMonitor() {
         processedCancellations.current.add(rId);
         // Clean up after 5 seconds
         setTimeout(() => processedCancellations.current.delete(rId), 5000);
+        // Corrida cancelada deixa de estar comprometida / redirecionada.
+        committedRideIds.current.delete(String(rId));
+        autoRedirectedRides.current.delete(String(rId));
       }
 
       setState((prev) => ({
@@ -175,6 +264,9 @@ export function useActiveRideMonitor() {
         activeRequestingRideId: null,
         negotiationRideId: null,
         waitingQueueCount: 0,
+        activeTrackingRideId: prev.activeTrackingRideId === rId ? null : prev.activeTrackingRideId,
+        activeTrackingServiceType: prev.activeTrackingRideId === rId ? null : prev.activeTrackingServiceType,
+        activeTrackingStatus: prev.activeTrackingRideId === rId ? null : prev.activeTrackingStatus,
       }));
     };
 
@@ -211,8 +303,8 @@ export function useActiveRideMonitor() {
 
     // Conecta WebSocket e registra listeners
     webSocketService.connect().then(() => {
-      webSocketService.on("ride-status-updated", checkActiveRide);
-      webSocketService.on("ride-offers-updated", checkActiveRide);
+      webSocketService.on("ride-status-updated", handleSocketRefresh);
+      webSocketService.on("ride-offers-updated", handleSocketRefresh);
       webSocketService.on("driver-accepted-offer", handleDriverAccepted);
       webSocketService.on("ride-cancelled", handleRideCancelled);
       webSocketService.on("ride-payment-expired", handlePaymentExpired);
@@ -220,13 +312,17 @@ export function useActiveRideMonitor() {
       // Dedicated delivery event key listeners (radios)
       webSocketService.on("delivery-accepted", handleDriverAccepted);
       webSocketService.on("delivery-cancelled", handleRideCancelled);
-      webSocketService.on("delivery-negotiated", checkActiveRide);
+      webSocketService.on("delivery-negotiated", handleSocketRefresh);
+
+      // Aceite DIRETO (shouldAutoMatch): o backend emite "ride-offer-selected" ao
+      // cliente em vez de "*-accepted". É um evento de ACEITE → handler que redireciona.
+      webSocketService.on("ride-offer-selected", handleDriverAccepted);
 
       // Dedicated ride event key listeners (radios)
-      webSocketService.on("ride-open", checkActiveRide);
+      webSocketService.on("ride-open", handleSocketRefresh);
       webSocketService.on("ride-accepted", handleDriverAccepted);
       webSocketService.on("ride-cancelled", handleRideCancelled);
-      webSocketService.on("ride-negotiated", checkActiveRide);
+      webSocketService.on("ride-negotiated", handleSocketRefresh);
     }).catch((error) => {
       logger.error("useActiveRideMonitor", "Erro ao conectar WebSocket", error);
     });
@@ -255,8 +351,8 @@ export function useActiveRideMonitor() {
     return () => {
       mounted = false;
       clearInterval(pollInterval);
-      webSocketService.off("ride-status-updated", checkActiveRide);
-      webSocketService.off("ride-offers-updated", checkActiveRide);
+      webSocketService.off("ride-status-updated", handleSocketRefresh);
+      webSocketService.off("ride-offers-updated", handleSocketRefresh);
       webSocketService.off("driver-accepted-offer", handleDriverAccepted);
       webSocketService.off("ride-cancelled", handleRideCancelled);
       webSocketService.off("ride-payment-expired", handlePaymentExpired);
@@ -264,17 +360,21 @@ export function useActiveRideMonitor() {
       // Dedicated delivery event key listeners (radios) off
       webSocketService.off("delivery-accepted", handleDriverAccepted);
       webSocketService.off("delivery-cancelled", handleRideCancelled);
-      webSocketService.off("delivery-negotiated", checkActiveRide);
+      webSocketService.off("delivery-negotiated", handleSocketRefresh);
+
+      webSocketService.off("ride-offer-selected", handleDriverAccepted);
 
       // Dedicated ride event key listeners (radios) off
-      webSocketService.off("ride-open", checkActiveRide);
+      webSocketService.off("ride-open", handleSocketRefresh);
       webSocketService.off("ride-accepted", handleDriverAccepted);
       webSocketService.off("ride-cancelled", handleRideCancelled);
-      webSocketService.off("ride-negotiated", checkActiveRide);
+      webSocketService.off("ride-negotiated", handleSocketRefresh);
     };
-  }, [checkActiveRide, navigation]);
+  }, [checkActiveRide, redirectToTrackingOnce, navigation]);
 
-  // Re-check no focus da tela
+  // Re-sincroniza o estado (banner) quando a Home ganha foco.
+  // NÃO redireciona — checkActiveRide é puro. Logo, voltar para a Home a partir do
+  // tracking sempre MANTÉM o cliente na Home (o redirect só ocorre no aceite via socket).
   useFocusEffect(
     useCallback(() => {
       checkActiveRide();
@@ -355,6 +455,10 @@ export function useActiveRideMonitor() {
     expiredRideId: state.expiredRideId,
     showCancelledModal: state.showCancelledModal,
     allRejected: state.allRejected,
+    /** Corrida/entrega em andamento — alimenta o banner "Em andamento" da Home */
+    activeTrackingRideId: state.activeTrackingRideId,
+    activeTrackingServiceType: state.activeTrackingServiceType,
+    activeTrackingStatus: state.activeTrackingStatus,
     dismissCancelledModal,
     confirmExpiredAction,
     setActiveRequestingRideId,

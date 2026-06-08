@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, TouchableOpacity, Linking, Share, Animated, Modal, Image, ActivityIndicator, Clipboard } from "react-native";
+import { View, Text, TouchableOpacity, Linking, Share, Animated, Modal, Image, ActivityIndicator, Clipboard, StatusBar } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { createAudioPlayer } from "expo-audio";
 import { MessageCircle, QrCode } from "lucide-react-native";
@@ -797,6 +797,7 @@ export default function RideTrackingScreen() {
   return (
     <ErrorBoundary componentName="RideTrackingScreen">
       <SafeAreaView className="flex-1 bg-[#091A2F]">
+      <StatusBar barStyle="light-content" backgroundColor="#091A2F" translucent={false} />
       <GlobalMap
         ref={mapRef}
         className="absolute inset-0"
@@ -875,7 +876,7 @@ export default function RideTrackingScreen() {
               className="flex-row items-center gap-1 px-2 py-1.5 rounded-full border border-white/20 bg-white/[0.08]"
               accessibilityLabel="Voltar para início"
               accessibilityRole="button"
-              onPress={() => navigation.navigate("Home")}
+              onPress={() => navigation.navigate("Home", { suppressAutoRedirect: rideId })}
             >
               <Icon name="home" size={14} color="#fff" />
               <Text className="text-white text-[11px] font-bold">Inicio</Text>

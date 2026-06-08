@@ -88,6 +88,9 @@ export type ClientStackParamList = {
           vehicleType?: DeliveryVehicleType | string;
           flow?: "send" | "receive" | string;
         };
+        /** Impede que o useActiveRideMonitor redirecione de volta para o tracking
+         *  desta corrida quando o usuário voltou intencionalmente para Home. */
+        suppressAutoRedirect?: string;
       }
     | undefined;
   LocationPicker:
@@ -271,11 +274,6 @@ export type ClientStackParamList = {
         offerValue?: number;
         paymentMethod?: string;
         pricingSnapshot?: any;
-      }
-    | undefined;
-  DeliveryPaymentConfirm:
-    | {
-        rideId: string;
       }
     | undefined;
   RideTracking: { rideId: string };

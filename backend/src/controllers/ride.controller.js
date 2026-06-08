@@ -1696,8 +1696,8 @@ class RideController {
       }
 
       // Escrow LevaPay no aceite direto (fluxo sem negociação). Idempotente: no fluxo
-      // de lance o valor já foi retido no confirmNegotiationPayment. Não bloqueia o
-      // aceite se o hold falhar (degrada ao comportamento atual, sem retenção).
+      // de lance o valor já foi retido em selectOffer. Não bloqueia o aceite se o hold
+      // falhar (degrada ao comportamento atual, sem retenção).
       if (ride?.payment?.method === "wallet" && ride?.payment?.escrow?.status !== "reserved") {
         try {
           await walletEscrow.reserve(ride);
@@ -2517,10 +2517,47 @@ class RideController {
       const method = normalizePaymentMethod(rawMethod) || "cash";
       ride.payment = ride.payment || {};
       ride.payment.method = method;
+
+      // Preço acordado fixado ANTES de qualquer retenção de saldo (escrow lê pricing.total).
+      ride.negotiation.finalAgreedPrice = finalPrice;
+
+      // Escrow LevaPay: ao selecionar a oferta com pagamento por SALDO, o valor é retido
+      // da carteira do cliente NESTE momento. A seleção É a confirmação de pagamento do
+      // fluxo de entrega. Sem isso, a entrega começaria sem hold do cliente.
+      if (method === "wallet" && ride.payment?.escrow?.status !== "reserved") {
+        // Quita eventual taxa de cancelamento pendente antes de comprometer o entregador.
+        const clientUser = await User.findById(clientId);
+        if (clientUser && Number(clientUser.pendingDebt || 0) > 0) {
+          await walletEscrow.settlePendingDebt(clientUser);
+          await clientUser.save();
+          if (Number(clientUser.pendingDebt || 0) > 0) {
+            return sendError(
+              res,
+              402,
+              `Você tem uma taxa de cancelamento pendente de R$ ${Number(clientUser.pendingDebt).toFixed(2)}. Deposite no LevaPay para continuar.`,
+              { pendingDebt: Number(clientUser.pendingDebt) },
+            );
+          }
+        }
+        try {
+          await walletEscrow.reserve(ride);
+        } catch (escrowErr) {
+          if (escrowErr.code === "INSUFFICIENT_BALANCE") {
+            return sendError(res, 400, "Saldo LevaPay insuficiente para esta entrega.", {
+              required: escrowErr.required,
+              available: escrowErr.available,
+            });
+          }
+          console.error("Erro ao reter saldo LevaPay (selectOffer):", escrowErr);
+          return sendError(res, 500, "Erro ao reter o saldo para a entrega", {
+            details: escrowErr.message,
+          });
+        }
+      }
+
       ride.payment.status = method === "cash" ? "pending" : "completed";
       ride.payment.paidAt = new Date();
 
-      ride.negotiation.finalAgreedPrice = finalPrice;
       ride.negotiation.selectedDriverId = selectedDriverId;
       ride.negotiation.selectedAt = new Date();
       ride.driverId = selectedDriverId;
@@ -2570,160 +2607,6 @@ class RideController {
       return sendError(res, 500, "Erro ao selecionar oferta", {
         details: error.message,
       });
-    }
-  }
-
-  // Confirmar pagamento apos selecao de proposta (payment_pending -> driver_assigned)
-  async confirmNegotiationPayment(req, res) {
-    try {
-      const { rideId } = req.params;
-      const clientId = String(req.user.id);
-      const method = normalizePaymentMethod(req.body?.method);
-
-      if (!method) {
-        return sendError(res, 400, "Metodo de pagamento invalido");
-      }
-
-      const ride = await Ride.findById(rideId).populate("clientId");
-      if (!ride) return sendError(res, 404, "Corrida nao encontrada");
-      if (String(ride.clientId?._id || ride.clientId) !== clientId) {
-        return sendError(res, 403, "Somente o cliente pode confirmar pagamento");
-      }
-      if (String(ride.status || "") !== "payment_pending") {
-        return sendError(res, 400, "Corrida nao esta aguardando pagamento");
-      }
-      if (!ride.driverId) {
-        return sendError(res, 400, "Nao existe motorista selecionado para esta corrida");
-      }
-
-      // Taxa de cancelamento pendente: tenta quitar com o saldo LevaPay; se não cobrir,
-      // bloqueia até o cliente quitar (depósito) ou pagar a pendência.
-      const clientUser = await User.findById(clientId);
-      if (clientUser && Number(clientUser.pendingDebt || 0) > 0) {
-        await walletEscrow.settlePendingDebt(clientUser);
-        if (Number(clientUser.pendingDebt || 0) > 0) {
-          await clientUser.save();
-          return sendError(
-            res,
-            402,
-            `Você tem uma taxa de cancelamento pendente de R$ ${Number(clientUser.pendingDebt).toFixed(2)}. Deposite no LevaPay para continuar.`,
-            { pendingDebt: Number(clientUser.pendingDebt) },
-          );
-        }
-        await clientUser.save();
-      }
-
-      ride.payment = ride.payment || {};
-      ride.payment.method = method;
-      ride.payment.status = method === "cash" ? "pending" : "completed";
-      ride.payment.paidAt = new Date();
-      ride.status = "driver_assigned";
-
-      // Escrow LevaPay: retém o valor da corrida da carteira do cliente neste momento.
-      if (method === "wallet") {
-        try {
-          await walletEscrow.reserve(ride);
-        } catch (escrowErr) {
-          if (escrowErr.code === "INSUFFICIENT_BALANCE") {
-            return sendError(res, 400, "Saldo LevaPay insuficiente para esta corrida.", {
-              required: escrowErr.required,
-              available: escrowErr.available,
-            });
-          }
-          console.error("Erro ao reter saldo LevaPay (escrow):", escrowErr);
-          return sendError(res, 500, "Erro ao reter o saldo para a corrida", { details: escrowErr.message });
-        }
-      }
-
-      await ride.save();
-      await ride.populate("driverId", "name phone profilePhoto ratingStats vehicleInfo createdAt");
-      await ride.populate("clientId");
-
-      const io = req.app.get("io");
-      if (io) {
-        const clientRidesCount = await Ride.countDocuments({ clientId: ride.clientId?._id || ride.clientId, status: "completed" }).catch(() => 0);
-        io.to(`driver-${ride.driverId?._id || ride.driverId}`).emit(
-          "new-ride-request",
-          buildRideRequestPayload(ride, {
-            negotiationSelected: true,
-            clientRidesCount,
-          }),
-        );
-        io.to(`client-${ride.clientId._id || ride.clientId}`).emit("ride-status-updated", ride);
-      }
-
-      return res.json({
-        success: true,
-        message: "Pagamento confirmado com sucesso",
-        ride,
-      });
-    } catch (error) {
-      console.error("Erro ao confirmar pagamento da negociacao:", error);
-      return sendError(res, 500, "Erro ao confirmar pagamento", {
-        details: error.message,
-      });
-    }
-  }
-
-  // Cancelar selecao de pagamento pendente (cliente desiste ou timeout)
-  async cancelPaymentSelection(req, res) {
-    try {
-      const { rideId } = req.params;
-      const clientId = String(req.user.id);
-
-      const ride = await Ride.findById(rideId);
-      if (!ride) return sendError(res, 404, "Corrida nao encontrada");
-      if (String(ride.clientId) !== clientId) {
-        return sendError(res, 403, "Somente o cliente pode cancelar a selecao de pagamento");
-      }
-      if (String(ride.status || "") !== "payment_pending") {
-        return sendError(res, 400, "Corrida nao esta aguardando pagamento");
-      }
-
-      // Libera o motorista
-      const previousDriverId = ride.driverId;
-      ride.driverId = null;
-      ride.negotiation.selectedDriverId = null;
-      ride.negotiation.selectedAt = null;
-      ride.negotiation.finalAgreedPrice = null;
-      ride.status = "requesting";
-      ride.payment.method = null;
-      ride.payment.status = "not_selected";
-      ride.requestedAt = new Date();
-
-      await ride.save();
-      if (previousDriverId) {
-        await DriverLocation.findOneAndUpdate(
-          { driverId: previousDriverId },
-          { status: "available", currentRideId: null },
-        );
-      }
-
-      const io = req.app.get("io");
-      if (io) {
-        if (previousDriverId) {
-          io.to(`driver-${previousDriverId}`).emit("delivery-selection-expired", {
-            rideId: ride._id,
-            reason: "cliente_cancelou_selecao",
-          });
-          io.to(`driver-${previousDriverId}`).emit("ride-cancelled", {
-            rideId: ride._id,
-            cancelledBy: "client",
-            reason: "payment_selection_cancelled",
-            message: "O cliente não confirmou o pagamento. Solicitação cancelada para o motorista.",
-          });
-        }
-        io.to(`client-${clientId}`).emit("ride-status-updated", ride);
-      }
-
-      return res.json({
-        success: true,
-        message: "Selecao cancelada. Motorista liberado. Pedido voltou para busca.",
-        ride,
-      });
-    } catch (error) {
-      console.error("Erro ao cancelar selecao de pagamento:", error);
-      return sendError(res, 500, "Erro ao cancelar selecao", { details: error.message });
     }
   }
 
@@ -3431,17 +3314,14 @@ class RideController {
             platformFee = toMoney(pricingTotal * (pct / 100));
           }
 
-          const driverValue = toMoney(
-            ride?.pricing?.driverValue ?? Math.max(0, pricingTotal - platformFee)
-          );
-
-          // Escrow LevaPay: se há valor retido, ele paga o motorista (e a taxa já está
-          // embutida em driverValue). Evita o duplo crédito/débito do caminho legado abaixo.
+          // Modelo unificado: o motorista recebe o VALOR TOTAL da corrida/entrega; a taxa do
+          // app é SEMPRE debitada do saldo (driverBalance), nunca descontada do valor pago.
           const useEscrow = paymentMethod === "wallet" && ride?.payment?.escrow?.status === "reserved";
           let escrowCredit = 0;
           if (useEscrow) {
             try {
-              const rel = await walletEscrow.release(ride, { driverId, driverValue, platformFee });
+              // Libera o valor retido do cliente e credita o TOTAL ao motorista.
+              const rel = await walletEscrow.release(ride, { driverId });
               escrowCredit = toMoney(rel?.credit || 0);
             } catch (relErr) {
               console.error("Erro ao liberar escrow LevaPay na conclusão:", relErr);
@@ -3470,13 +3350,17 @@ class RideController {
               (tx) => tx?.rideId === rideIdStr && tx?.type === "app_fee_debit"
             );
 
-            // No fluxo de escrow o crédito já foi feito pelo release; reflete no realtime.
+            // No escrow, o crédito do VALOR TOTAL já foi feito pelo release acima.
             let creditedAmount = useEscrow ? escrowCredit : 0;
             let deductedAmount = 0;
-            const isInAppPayment = paymentMethod && paymentMethod !== "cash" && paymentMethod !== "card_machine" && !useEscrow;
 
-            if (isInAppPayment && driverValue > 0 && !alreadyCredited) {
-              creditedAmount = driverValue;
+            // Pagamento in-app (pix/cartão/wallet sem escrow): credita o VALOR TOTAL no saldo.
+            // Em dinheiro (cash), o motorista recebeu em mãos — não há crédito in-app.
+            const isInAppPayment =
+              paymentMethod && paymentMethod !== "cash" && paymentMethod !== "card_machine" && !useEscrow;
+
+            if (isInAppPayment && pricingTotal > 0 && !alreadyCredited) {
+              creditedAmount = pricingTotal;
               driver.driverBalance.balance = toMoney(
                 (driver.driverBalance.balance || 0) + creditedAmount
               );
@@ -3493,7 +3377,9 @@ class RideController {
               });
             }
 
-            if (platformFee > 0 && !alreadyDebited && !useEscrow) {
+            // Taxa do app: SEMPRE debitada do saldo do motorista, em qualquer método
+            // (dinheiro, pix, cartão ou saldo). Nunca descontada do valor da corrida.
+            if (platformFee > 0 && !alreadyDebited) {
               deductedAmount = toMoney(platformFee);
               driver.driverBalance.balance = toMoney(
                 (driver.driverBalance.balance || 0) - deductedAmount

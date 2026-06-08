@@ -38,8 +38,6 @@ router.post("/:rideId/offers/client-counter", rideController.clientCounterOffer)
 router.post("/:rideId/offers/select", rideController.selectOffer);
 router.post("/:rideId/offers/decline", rideController.declineOffer);
 router.post("/:rideId/offers/increase", rideController.increaseOffer);
-router.post("/:rideId/payment/confirm", rideController.confirmNegotiationPayment);
-router.post("/:rideId/payment/cancel-selection", rideController.cancelPaymentSelection);
 
 // Cancelar corrida
 router.post("/:rideId/cancel", rideController.cancel);
