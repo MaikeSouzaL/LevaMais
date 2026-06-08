@@ -235,7 +235,7 @@ function HiddenScreenOptions() {
 }
 
 export default function DrawerDriverRoutes({ initialRideId }: DrawerDriverRoutesProps) {
-  const initialRoute = initialRideId ? "DriverRide" : "DriverHome";
+      const initialRoute = initialRideId ? "DriverRide" : "DriverHome";
 
   return (
     <Drawer.Navigator

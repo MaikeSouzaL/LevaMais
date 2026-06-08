@@ -925,15 +925,7 @@ export default function DriverRideScreen() {
           text1: isDelivery ? "Entrega finalizada" : "Corrida finalizada",
         });
         // estilo Uber/99: pedir avaliacao
-        try {
-          (navigation as any).navigate("DriverRateClient", { rideId: r._id });
-        } catch {
-          try {
-            (navigation as any).navigate("DriverHome");
-          } catch {
-            navigation.goBack();
-          }
-        }
+        (navigation as any).navigate("DriverRateClient", { rideId: r._id });
       }
     } catch (e: any) {
       // se o motorista cancelou a foto, nao tratar como erro grave
@@ -961,11 +953,7 @@ export default function DriverRideScreen() {
       });
       setCancelModalOpen(false);
       setSelectedCancelReason(null);
-      try {
-        (navigation as any).navigate("DriverHome");
-      } catch {
-        navigation.goBack();
-      }
+      (navigation as any).reset({ index: 0, routes: [{ name: "DriverHome" }] });
     } catch (e: any) {
       Toast.show({
         type: "error",
@@ -990,11 +978,7 @@ export default function DriverRideScreen() {
       });
       setDeliveryProblemOpen(false);
       setSelectedProblemReason(null);
-      try {
-        (navigation as any).navigate("DriverHome");
-      } catch {
-        navigation.goBack();
-      }
+      (navigation as any).reset({ index: 0, routes: [{ name: "DriverHome" }] });
     } catch (e: any) {
       Toast.show({
         type: "error",

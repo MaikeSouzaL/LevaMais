@@ -69,12 +69,9 @@ export default function DeliveryDropoffConfirm() {
         deliveryPin: pin,
       });
 
-      setConfirmed(true);
       Toast.show({ type: "success", text1: "Entrega finalizada!" });
 
-      setTimeout(() => {
-        navigation.navigate("DriverRateClient", { rideId });
-      }, 1500);
+      (navigation as any).navigate("DriverRateClient", { rideId });
     } catch (error) {
       console.error("Erro ao finalizar entrega:", error);
       Toast.show({ type: "error", text1: "Erro ao finalizar entrega" });
