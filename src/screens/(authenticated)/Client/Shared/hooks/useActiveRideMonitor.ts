@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { NavigationProp, useFocusEffect, useNavigation } from "@react-navigation/native";
+import { NavigationProp, useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import Toast from "react-native-toast-message";
 import rideService from "@/services/ride.service";
 import webSocketService from "@/services/websocket.service";
@@ -30,6 +30,7 @@ interface ActiveRideMonitorState {
  */
 export function useActiveRideMonitor() {
   const navigation = useNavigation<NavigationProp<ClientStackParamList>>();
+  const route = useRoute<any>();
 
   // Deduplication: track recently processed rideIds to avoid duplicate event handling
   const processedCancellations = useRef<Set<string>>(new Set());
@@ -195,6 +196,15 @@ export function useActiveRideMonitor() {
     const committedRide = await checkActiveRide();
     if (!committedRide) return;
     const id = String(committedRide._id);
+
+    // Se o usuário voltou intencionalmente para Home (via botão "Início"),
+    // o parâmetro suppressAutoRedirect impede o redirect automático de volta ao tracking.
+    const suppress = (route.params as any)?.suppressAutoRedirect;
+    if (suppress && String(suppress) === id) {
+      logger.debug("useActiveRideMonitor", "Auto-redirect suprimido — usuário voltou à Home intencionalmente", { rideId: id });
+      return;
+    }
+
     if (autoRedirectedRides.current.has(id)) return;
     autoRedirectedRides.current.add(id);
     const trackingScreen = committedRide.serviceType === "delivery" ? "DeliveryTracking" : "RideTracking";
@@ -207,7 +217,7 @@ export function useActiveRideMonitor() {
         // ignore — banner na Home mantém o acesso ao tracking
       }
     }
-  }, [checkActiveRide, navigation]);
+  }, [checkActiveRide, navigation, route.params]);
 
   // WebSocket listeners para atualizações em tempo real
   useEffect(() => {

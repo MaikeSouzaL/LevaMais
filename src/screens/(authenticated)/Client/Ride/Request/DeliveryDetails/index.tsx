@@ -660,7 +660,7 @@ export default function DeliveryDetailsScreen() {
         navigation.navigate("ActiveOrders");
         return;
       }
-      navigation.navigate("OrderSent", { rideId: created._id });
+      (navigation as any).replace("OrderSent", { rideId: created._id });
     } catch (error: any) {
       Toast.show({
         type: "error",

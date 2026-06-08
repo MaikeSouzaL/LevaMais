@@ -40,7 +40,7 @@ export default function CancelFeeScreen() {
       </View>
 
       <View style={styles.footer}>
-        <LoadingButton title="Entendi" onPress={() => navigation.navigate("Home")} variant="primary" />
+        <LoadingButton title="Entendi" onPress={() => navigation.reset({ index: 0, routes: [{ name: "Home" }] })} variant="primary" />
       </View>
     </SafeAreaView>
   );

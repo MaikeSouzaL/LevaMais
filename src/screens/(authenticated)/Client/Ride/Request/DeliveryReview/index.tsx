@@ -122,7 +122,7 @@ export default function DeliveryReviewScreen({ navigation, route }: any) {
         navigation.navigate("ActiveOrders");
         return;
       }
-      navigation.navigate("OrderSent", { rideId: created._id });
+      navigation.replace("OrderSent", { rideId: created._id });
     } catch (e: any) {
       Toast.show({ type: "error", text1: "Erro ao publicar entrega", text2: e?.message || "Verifique sua conexão" });
     } finally {

@@ -43,7 +43,7 @@ export default function TipDriverScreen() {
         text1: "Gorjeta enviada!",
         text2: `${formatBRL(tipValue)} para ${driverName}`,
       });
-      navigation.navigate("Home");
+      navigation.reset({ index: 0, routes: [{ name: "Home" }] });
     } catch {
       Toast.show({ type: "error", text1: "Erro ao enviar gorjeta" });
     } finally {
@@ -120,7 +120,7 @@ export default function TipDriverScreen() {
 
         <TouchableOpacity
           style={styles.skipLink}
-          onPress={() => navigation.navigate("Home")}
+          onPress={() => navigation.reset({ index: 0, routes: [{ name: "Home" }] })}
         >
           <Text style={styles.skipText}>Pular gorjeta</Text>
         </TouchableOpacity>

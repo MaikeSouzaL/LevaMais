@@ -92,7 +92,7 @@ export default function RateDriverScreen() {
       });
 
       Toast.show({ type: "success", text1: "Avaliação enviada" });
-      navigation.navigate("TipDriver", { rideId, driverName });
+      navigation.reset({ index: 0, routes: [{ name: "Home" }] });
     } catch (error: any) {
       Toast.show({
         type: "error",
@@ -217,7 +217,7 @@ export default function RateDriverScreen() {
         <View style={styles.buttonGroup}>
           <TouchableOpacity
             style={styles.skipButton}
-            onPress={() => navigation.navigate("Home")}
+            onPress={() => navigation.reset({ index: 0, routes: [{ name: "Home" }] })}
             disabled={loading}
             accessibilityLabel="Pular avaliação"
             accessibilityRole="button"

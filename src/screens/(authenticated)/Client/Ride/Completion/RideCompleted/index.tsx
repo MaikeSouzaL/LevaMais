@@ -478,7 +478,7 @@ export default function RideCompletedScreen() {
         }}
       >
         <TouchableOpacity
-          onPress={() => navigation.navigate("Home")}
+          onPress={() => navigation.reset({ index: 0, routes: [{ name: "Home" }] })}
           activeOpacity={0.85}
           style={{
             height: 56, borderRadius: 18,

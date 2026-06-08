@@ -24,7 +24,7 @@ export default function OrderSentScreen() {
 
   const handleClose = () => {
     // Pass rideId directly so Home can show the banner immediately (no polling wait)
-    navigation.navigate("Home", { activeRideId: rideId || undefined });
+    navigation.reset({ index: 0, routes: [{ name: "Home", params: { activeRideId: rideId || undefined } }] });
   };
 
   useEffect(() => {

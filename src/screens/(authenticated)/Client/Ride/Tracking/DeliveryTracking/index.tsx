@@ -141,7 +141,7 @@ export default function DeliveryTracking() {
       if (data && data.status === "completed") {
         if (redirectedRef.current) return;
         redirectedRef.current = true;
-        navigation.navigate("ClientRateDriver", {
+        navigation.replace("ClientRateDriver", {
           rideId: data._id || (data as any).id || rideIdRef.current,
           driverName: typeof data.driverId === "string" ? undefined : data.driverId?.name,
           serviceType: data.serviceType || "delivery",
@@ -398,9 +398,11 @@ export default function DeliveryTracking() {
   };
 
   const handleGoHome = () => {
-    // Passa suppressAutoRedirect para que o useActiveRideMonitor não redirecione
-    // de volta ao tracking quando o usuário voltou intencionalmente para Home.
-    navigation.navigate("Home", { suppressAutoRedirect: rideId });
+    // Reset limpa o histórico de navegação — o usuário não volta ao tracking ao pressionar "voltar"
+    navigation.reset({
+      index: 0,
+      routes: [{ name: "Home", params: { suppressAutoRedirect: rideId } }],
+    });
   };
 
   if (loading) {

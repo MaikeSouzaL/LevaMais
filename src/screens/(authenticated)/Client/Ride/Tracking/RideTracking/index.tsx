@@ -876,7 +876,7 @@ export default function RideTrackingScreen() {
               className="flex-row items-center gap-1 px-2 py-1.5 rounded-full border border-white/20 bg-white/[0.08]"
               accessibilityLabel="Voltar para início"
               accessibilityRole="button"
-              onPress={() => navigation.navigate("Home", { suppressAutoRedirect: rideId })}
+              onPress={() => navigation.reset({ index: 0, routes: [{ name: "Home", params: { suppressAutoRedirect: rideId } }] })}
             >
               <Icon name="home" size={14} color="#fff" />
               <Text className="text-white text-[11px] font-bold">Inicio</Text>
