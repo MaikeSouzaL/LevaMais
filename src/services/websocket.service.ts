@@ -1,302 +1,254 @@
-import io, { Socket } from "socket.io-client";
+import { supabase } from "../lib/supabase";
+import { RealtimeChannel } from "@supabase/supabase-js";
 import { useAuthStore } from "../context/authStore";
-
-// Manter o WebSocket usando a MESMA base da API, para evitar divergÃªncia em emulador/dispositivo.
-const RAW_BASE =
-  process.env.EXPO_PUBLIC_API_URL ||
-  "http://192.168.1.7:3005";
-
-const SOCKET_URL = RAW_BASE.replace(/\/$/, "");
+import { REALTIME_ENABLED } from "../config/migration";
 
 class WebSocketService {
-  private socket: Socket | null = null;
-  private connectPromise: Promise<void> | null = null;
-  private reconnectAttempts = 0;
-  private maxReconnectAttempts = 10;
-  private handledAuthFailure = false;
-
-  private isAuthErrorMessage(message: string): boolean {
-    return /token inv[aá]lido|token n[aã]o fornecido|jwt|sess[aã]o expirada/i.test(
-      String(message || ""),
-    );
-  }
-
-  private normalizeToken(rawToken: string | null | undefined): string {
-    const value = String(rawToken || "").trim();
-    if (!value) return "";
-    if (/^bearer\s+/i.test(value)) {
-      return value.replace(/^bearer\s+/i, "").trim();
-    }
-    return value;
-  }
+  private channels = new Map<string, RealtimeChannel>();
+  private listeners = new Map<string, Set<(data: any) => void>>();
+  private isConnectedState = false;
+  private userChannelName: string | null = null;
+  private currentUserId: string | null = null;
 
   /**
-   * Conectar ao WebSocket
+   * Conectar ao Supabase Realtime Channels
    */
   async connect(): Promise<void> {
-    if (this.socket?.connected) {
-      // jÃ¡ conectado
+    if (!REALTIME_ENABLED) {
       return;
     }
 
-    // evita mÃºltiplas conexÃµes concorrentes
-    if (this.connectPromise) {
-      return this.connectPromise;
+    const token = useAuthStore.getState().token;
+    const userId = useAuthStore.getState().userData?.id;
+
+    if (!token || !userId) {
+      throw new Error("Sessao expirada. Faca login novamente.");
     }
 
-    this.connectPromise = (async () => {
-      const token = this.normalizeToken(useAuthStore.getState().token);
-
-      if (!token) {
-        this.connectPromise = null;
-        throw new Error("Sessao expirada. Faca login novamente.");
-      }
-
-      // se existe socket antigo, derruba antes de criar outro
-      if (this.socket) {
-        try {
-          this.socket.removeAllListeners();
-          this.socket.disconnect();
-        } catch {}
-        this.socket = null;
-      }
-
-      console.log("Conectando ao WebSocket...", SOCKET_URL);
-
-      this.socket = io(SOCKET_URL, {
-        auth: { token },
-        // Em redes mÃ³veis/Wiâ€‘Fi instÃ¡veis, permitir fallback ajuda a evitar perder eventos
-        transports: ["websocket", "polling"],
-        reconnection: true,
-        reconnectionDelay: 1000,
-        reconnectionDelayMax: 8000,
-        randomizationFactor: 0.5,
-        reconnectionAttempts: this.maxReconnectAttempts,
-        timeout: 20000,
-      });
-
-      this.handledAuthFailure = false;
-      this.setupListeners();
-
-      // IMPORTANTe: aguardar conexÃ£o efetiva.
-      // Sem isso, a UI pode registrar listeners e o backend emitir eventos
-      // antes do socket entrar na sala do usuÃ¡rio, causando "perda" do driver-found.
-      await new Promise<void>((resolve, reject) => {
-        if (!this.socket) return reject(new Error("Socket nÃ£o inicializado"));
-        if (this.socket.connected) return resolve();
-
-        const onConnect = () => {
-          cleanup();
-          resolve();
-        };
-        const onError = (err: any) => {
-          cleanup();
-          reject(err instanceof Error ? err : new Error(err?.message || "Falha ao conectar"));
-        };
-        const timer = setTimeout(() => {
-          cleanup();
-          reject(new Error("Timeout ao conectar WebSocket"));
-        }, 20000);
-
-        const cleanup = () => {
-          clearTimeout(timer);
-          try {
-            this.socket?.off("connect", onConnect);
-            this.socket?.off("connect_error", onError);
-          } catch {}
-        };
-
-        this.socket.once("connect", onConnect);
-        this.socket.once("connect_error", onError);
-      });
-    })();
-
-    try {
-      await this.connectPromise;
-    } finally {
-      this.connectPromise = null;
+    if (this.isConnectedState && this.currentUserId === userId) {
+      return;
     }
+
+    console.log("Conectando ao Supabase Realtime...", userId);
+
+    if (this.currentUserId && this.currentUserId !== userId) {
+      this.disconnect();
+    }
+
+    this.currentUserId = userId;
+    this.isConnectedState = true;
+
+    // Subscreve no canal privado do usuário
+    this.userChannelName = `user:${userId}`;
+    this.getOrCreateChannel(this.userChannelName);
+
+    // Subscreve no canal global de lobby (chamadas/corridas disponíveis)
+    this.getOrCreateChannel("lobby");
+
+    // Aciona callback de conexão
+    this.trigger("connect", null);
   }
 
   /**
-   * Configurar listeners do socket
-   */
-  private setupListeners(): void {
-    if (!this.socket) return;
-
-    this.socket.on("connect", () => {
-      const id = this.socket?.id;
-      if (id) {
-        console.log("WebSocket conectado:", id);
-      } else {
-        console.log("WebSocket conectado");
-      }
-      this.reconnectAttempts = 0;
-    });
-
-    this.socket.on("disconnect", (reason) => {
-      console.log("âŒ WebSocket desconectado:", reason);
-    });
-
-    this.socket.io.on("reconnect_attempt", (attempt) => {
-      console.log("ðŸ” Tentando reconectar WebSocket...", attempt);
-    });
-
-    this.socket.io.on("reconnect", (attempt) => {
-      console.log("WebSocket reconectado", attempt);
-    });
-
-    this.socket.io.on("reconnect_failed", () => {
-      console.log("WebSocket falhou ao reconectar");
-    });
-
-    this.socket.on("connect_error", (error) => {
-      const message = String((error as any)?.message || "");
-      console.error("WebSocket connect error:", message);
-      this.reconnectAttempts++;
-
-      if (this.isAuthErrorMessage(message) && !this.handledAuthFailure) {
-        this.handledAuthFailure = true;
-        try {
-          this.disconnect();
-          useAuthStore.getState().logout();
-        } catch {}
-      }
-
-      if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-        console.error("Max reconnect attempts reached");
-      }
-    });
-
-    this.socket.on("error", (error) => {
-      console.error("âŒ Erro WebSocket:", error);
-    });
-  }
-
-  /**
-   * Desconectar do WebSocket
+   * Desconectar de todos os canais do Supabase Realtime
    */
   disconnect(): void {
-    if (this.socket) {
-      console.log("Desconectando WebSocket...");
-      this.socket.disconnect();
-      this.socket = null;
-    }
+    console.log("Desconectando canais do Supabase Realtime...");
+    this.channels.forEach((channel) => {
+      channel.unsubscribe();
+    });
+    this.channels.clear();
+    this.isConnectedState = false;
+    this.currentUserId = null;
+    this.userChannelName = null;
+    this.trigger("disconnect", null);
   }
 
   /**
-   * Verificar se estÃ¡ conectado
+   * Verificar se está conectado
    */
   isConnected(): boolean {
-    return this.socket?.connected || false;
+    return this.isConnectedState;
   }
 
   /**
-   * Emitir evento
+   * Emitir evento (Broadcast)
    */
   emit(event: string, data?: any): void {
-    if (!this.socket?.connected) {
-      // tenta reconectar sem spammar logs
+    if (!REALTIME_ENABLED) return;
+
+    if (!this.isConnectedState) {
       this.connect().catch(() => {});
       return;
     }
 
-    this.socket.emit(event, data);
+    // Normaliza nomes de eventos legado para nova estrutura
+    let targetEvent = event;
+    if (event === "update-location") {
+      targetEvent = "driver-location-updated";
+    } else if (event === "send-message") {
+      targetEvent = "new-message";
+    }
+
+    const rideId = data?.rideId;
+    if (rideId) {
+      const channel = this.getOrCreateChannel(`ride:${rideId}`);
+      channel.send({
+        type: "broadcast",
+        event: targetEvent,
+        payload: data,
+      });
+    } else {
+      const channel = this.getOrCreateChannel("lobby");
+      channel.send({
+        type: "broadcast",
+        event: targetEvent,
+        payload: data,
+      });
+    }
   }
 
   /**
-   * Escutar evento
+   * Enviar evento broadcast diretamente para um usuário específico
+   */
+  emitToUser(userId: string, event: string, data?: any): void {
+    if (!REALTIME_ENABLED) return;
+    const channel = this.getOrCreateChannel(`user:${userId}`);
+    channel.send({
+      type: "broadcast",
+      event: event,
+      payload: data,
+    });
+  }
+
+  /**
+   * Escutar evento genérico
    */
   on(event: string, callback: (data: any) => void): void {
-    if (!this.socket) {
-      console.warn("WebSocket não inicializado");
-      return;
+    let callbacks = this.listeners.get(event);
+    if (!callbacks) {
+      callbacks = new Set();
+      this.listeners.set(event, callbacks);
     }
-
-    this.socket.on(event, callback);
+    callbacks.add(callback);
   }
 
   /**
-   * Remover listener de evento
+   * Remover listener de evento genérico
    */
   off(event: string, callback?: (data: any) => void): void {
-    if (!this.socket) return;
-
-    if (callback) {
-      this.socket.off(event, callback);
+    if (!callback) {
+      this.listeners.delete(event);
     } else {
-      this.socket.off(event);
+      const callbacks = this.listeners.get(event);
+      if (callbacks) {
+        callbacks.delete(callback);
+        if (callbacks.size === 0) {
+          this.listeners.delete(event);
+        }
+      }
     }
   }
 
-  // ========== EVENTOS ESPECÃFICOS ==========
-
   /**
-   * Escutar quando motorista Ã© encontrado
+   * Deixar canal de uma corrida específica
    */
+  leaveRide(rideId: string): void {
+    const channelName = `ride:${rideId}`;
+    const channel = this.channels.get(channelName);
+    if (channel) {
+      channel.unsubscribe();
+      this.channels.delete(channelName);
+      console.log(`Desconectado do canal da corrida: ${channelName}`);
+    }
+  }
+
+  private trigger(event: string, data: any): void {
+    const callbacks = this.listeners.get(event);
+    if (callbacks) {
+      callbacks.forEach((callback) => {
+        try {
+          callback(data);
+        } catch (err) {
+          console.error(`Erro no callback do evento ${event}:`, err);
+        }
+      });
+    }
+  }
+
+  private getOrCreateChannel(channelName: string): RealtimeChannel {
+    let channel = this.channels.get(channelName);
+    if (!channel) {
+      console.log(`Assinando canal Realtime: ${channelName}`);
+      channel = supabase.channel(channelName, {
+        config: {
+          broadcast: { self: false },
+        },
+      });
+
+      channel
+        .on("broadcast", { event: "*" }, (payload) => {
+          const eventName = payload.event;
+          const data = payload.payload;
+          console.log(`[Realtime - ${channelName}] Broadcast recebido: ${eventName}`, data);
+
+          this.trigger(eventName, data);
+
+          // Compatibilidade legado para escutas bidirecionais
+          if (eventName === "driver-location-updated") {
+            this.trigger("update-location", data);
+          } else if (eventName === "new-message") {
+            this.trigger("send-message", data);
+          }
+        })
+        .subscribe((status) => {
+          console.log(`[Realtime - ${channelName}] Status da subscrição: ${status}`);
+        });
+
+      this.channels.set(channelName, channel);
+    }
+    return channel;
+  }
+
+  // ========== EVENTOS ESPECÍFICOS COMPATIBILIDADE ==========
+
   onDriverFound(callback: (data: any) => void): void {
     this.on("driver-found", callback);
   }
 
-  /**
-   * Escutar atualizaÃ§Ã£o de localizaÃ§Ã£o do motorista
-   */
   onDriverLocationUpdated(callback: (data: any) => void): void {
     this.on("driver-location-updated", callback);
   }
 
-  /**
-   * Escutar quando corrida Ã© cancelada
-   */
   onRideCancelled(callback: (data: any) => void): void {
     this.on("ride-cancelled", callback);
   }
 
-  /**
-   * Escutar quando status da corrida Ã© atualizado
-   */
   onRideStatusUpdated(callback: (data: any) => void): void {
     this.on("ride-status-updated", callback);
   }
 
-  /**
-   * Escutar quando motorista chegou
-   */
   onDriverArrived(callback: (data: any) => void): void {
     this.on("driver-arrived", callback);
   }
 
-  /**
-   * Escutar quando corrida foi iniciada
-   */
   onRideStarted(callback: (data: any) => void): void {
     this.on("ride-started", callback);
   }
 
-  /**
-   * Escutar quando a oferta expirou para este motorista
-   */
   onRideExpired(callback: (data: any) => void): void {
     this.on("ride-expired", callback);
   }
 
-  /**
-   * Escutar nova mensagem de chat
-   */
   onNewMessage(callback: (data: any) => void): void {
     this.on("new-message", callback);
   }
 
-  /**
-   * Notificar que cliente estÃ¡ aguardando motorista
-   */
   waitingDriver(rideId: string): void {
+    this.getOrCreateChannel(`ride:${rideId}`);
     this.emit("waiting-driver", { rideId });
   }
 
-  /**
-   * Enviar mensagem de chat
-   */
   sendMessage(rideId: string, message: string, receiverId: string): void {
     this.emit("send-message", {
       rideId,

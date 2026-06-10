@@ -1,4 +1,4 @@
-import axios from "axios";
+import { supabase } from "../lib/supabase";
 
 export interface City {
   _id: string;
@@ -28,37 +28,130 @@ export type CityPayload = {
   defaultVehicleType?: "motorcycle" | "car" | "van" | "truck";
 };
 
-const _RAW_API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001/api";
-const API_URL = _RAW_API_URL.replace("localhost", "127.0.0.1");
-const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || "dev-admin-key";
-
 export const citiesService = {
   async list(includeInactive = true): Promise<City[]> {
-    const res = await axios.get(`${API_URL}/cities`, {
-      params: { includeInactive },
-      headers: { "x-admin-key": ADMIN_API_KEY },
-    });
-    return Array.isArray(res.data) ? res.data : [];
+    try {
+      let query = supabase.from("cities").select("*");
+      if (!includeInactive) {
+        query = query.eq("is_active", true);
+      }
+
+      const { data, error } = await query;
+      if (error) {
+        if (error.code === "42P01") return [];
+        throw error;
+      }
+
+      return (data || []).map((row: any) => ({
+        _id: row.id,
+        name: row.name,
+        state: row.state || undefined,
+        stateCode: row.state_code || undefined,
+        country: row.country || "Brasil",
+        isActive: row.is_active !== false,
+        center: row.center || {
+          latitude: Number(row.latitude || 0),
+          longitude: Number(row.longitude || 0),
+        },
+        radiusKm: Number(row.radius_km || 0),
+        defaultVehicleType: row.default_vehicle_type || undefined,
+      }));
+    } catch (error) {
+      console.error("Error listing cities:", error);
+      return [];
+    }
   },
 
   async create(payload: CityPayload): Promise<City> {
-    const res = await axios.post(`${API_URL}/cities`, payload, {
-      headers: { "x-admin-key": ADMIN_API_KEY },
-    });
-    return res.data?.city;
+    const { data, error } = await supabase
+      .from("cities")
+      .insert({
+        name: payload.name,
+        state: payload.state,
+        state_code: payload.stateCode,
+        is_active: payload.isActive !== false,
+        center: payload.center,
+        radius_km: payload.radiusKm,
+        default_vehicle_type: payload.defaultVehicleType,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return {
+      _id: data.id,
+      name: data.name,
+      state: data.state || undefined,
+      stateCode: data.state_code || undefined,
+      country: data.country || "Brasil",
+      isActive: data.is_active,
+      center: data.center || {
+        latitude: Number(data.latitude || 0),
+        longitude: Number(data.longitude || 0),
+      },
+      radiusKm: Number(data.radius_km || 0),
+      defaultVehicleType: data.default_vehicle_type || undefined,
+    };
   },
 
   async update(id: string, payload: CityPayload): Promise<City> {
-    const res = await axios.patch(`${API_URL}/cities/${id}`, payload, {
-      headers: { "x-admin-key": ADMIN_API_KEY },
-    });
-    return res.data?.city;
+    const { data, error } = await supabase
+      .from("cities")
+      .update({
+        name: payload.name,
+        state: payload.state,
+        state_code: payload.stateCode,
+        is_active: payload.isActive,
+        center: payload.center,
+        radius_km: payload.radiusKm,
+        default_vehicle_type: payload.defaultVehicleType,
+      })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return {
+      _id: data.id,
+      name: data.name,
+      state: data.state || undefined,
+      stateCode: data.state_code || undefined,
+      country: data.country || "Brasil",
+      isActive: data.is_active,
+      center: data.center || {
+        latitude: Number(data.latitude || 0),
+        longitude: Number(data.longitude || 0),
+      },
+      radiusKm: Number(data.radius_km || 0),
+      defaultVehicleType: data.default_vehicle_type || undefined,
+    };
   },
 
   async deactivate(id: string): Promise<City> {
-    const res = await axios.delete(`${API_URL}/cities/${id}`, {
-      headers: { "x-admin-key": ADMIN_API_KEY },
-    });
-    return res.data?.city;
+    const { data, error } = await supabase
+      .from("cities")
+      .update({ is_active: false })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return {
+      _id: data.id,
+      name: data.name,
+      state: data.state || undefined,
+      stateCode: data.state_code || undefined,
+      country: data.country || "Brasil",
+      isActive: data.is_active,
+      center: data.center || {
+        latitude: Number(data.latitude || 0),
+        longitude: Number(data.longitude || 0),
+      },
+      radiusKm: Number(data.radius_km || 0),
+      defaultVehicleType: data.default_vehicle_type || undefined,
+    };
   },
 };

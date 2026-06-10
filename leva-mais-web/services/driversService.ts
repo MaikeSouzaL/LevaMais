@@ -1,4 +1,4 @@
-import axios from "axios";
+import { supabase } from "../lib/supabase";
 
 export interface Driver {
   _id: string;
@@ -44,17 +44,48 @@ export interface Driver {
   };
 }
 
-const _RAW_API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001/api";
-const API_URL = _RAW_API_URL.replace("localhost", "127.0.0.1");
-const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || "dev-admin-key";
-
 export const driversService = {
   async getAll(): Promise<Driver[]> {
     try {
-      const res = await axios.get(`${API_URL}/auth/users?userType=driver`, {
-        headers: { "x-admin-key": ADMIN_API_KEY }
+      const { data, error } = await supabase
+        .from("profiles")
+        .select(`
+          *,
+          driver_details(*)
+        `)
+        .eq("role", "driver");
+
+      if (error) throw error;
+
+      return (data || []).map((row: any) => {
+        const details = row.driver_details?.[0] || row.driver_details || null;
+        return {
+          _id: row.id,
+          name: row.full_name || "",
+          email: row.email || "",
+          phone: row.phone || "",
+          cpf: row.cpf || undefined,
+          userType: "driver",
+          isActive: row.is_active !== false,
+          createdAt: row.created_at,
+          city: row.city || undefined,
+          driverStatus: details?.status || "none",
+          driverDocuments: details?.documents || undefined,
+          vehicles: details ? [
+            {
+              _id: details.id,
+              type: details.vehicle_type,
+              plate: details.vehicle_plate,
+              model: details.vehicle_model,
+              color: details.vehicle_color,
+              year: details.vehicle_year,
+              status: details.status === "approved" ? "approved" : "pending",
+              documents: details.documents || {},
+            }
+          ] : [],
+          bankAccount: details?.bank_account || undefined,
+        };
       });
-      return res.data?.users || [];
     } catch (error) {
       console.error("Error fetching drivers:", error);
       return [];
@@ -62,18 +93,24 @@ export const driversService = {
   },
 
   async updateStatus(id: string, isActive: boolean): Promise<unknown> {
-    const res = await axios.patch(
-      `${API_URL}/auth/users/${id}`,
-      { isActive },
-      { headers: { "x-admin-key": ADMIN_API_KEY } }
-    );
-    return res.data;
+    const { data, error } = await supabase
+      .from("profiles")
+      .update({ is_active: isActive })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
   },
 
   async delete(id: string): Promise<unknown> {
-    const res = await axios.delete(`${API_URL}/auth/users/${id}`, {
-      headers: { "x-admin-key": ADMIN_API_KEY }
-    });
-    return res.data;
+    const { data, error } = await supabase
+      .from("profiles")
+      .delete()
+      .eq("id", id);
+
+    if (error) throw error;
+    return data;
   }
 };

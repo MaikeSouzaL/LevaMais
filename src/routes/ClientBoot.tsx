@@ -14,10 +14,18 @@ import {
 import { useClientCityStore } from "../context/clientCityStore";
 import { logger } from "../utils/logger";
 import { useAuthStore } from "../context/authStore";
-import userService from "../services/user.service";
+import { getProfile as getSupabaseProfile, updateMyProfile } from "../services/supabase-auth.service";
 import TermsScreen from "../screens/(public)/TermsScreen";
 import ClientOnboardingDashboard from "../components/client/home/ClientOnboardingDashboard";
 import LocationPermissionScreen from "../screens/(public)/LocationPermissionScreen";
+
+/** Resolve com `fallback` se a promise não completar em `ms` — evita boot travado por backend offline. */
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+  ]);
+}
 
 export default function ClientBoot() {
   const { userData, updateUserData, token } = useAuthStore();
@@ -29,19 +37,9 @@ export default function ClientBoot() {
 
   const persistActivated = async () => {
     try {
-      await userService.updateProfile({ tourSeen: true });
-      // Fetch latest profile to ensure we have the approved status locally
-      const profile = await userService.getProfile().catch(() => null);
-      if (profile) {
-        updateUserData({
-          cpf: profile.cpf || "",
-          cnpj: profile.cnpj || "",
-          clientVerification: profile.clientVerification || null,
-          tourSeen: true,
-        });
-      } else {
-        updateUserData({ tourSeen: true });
-      }
+      // tour_seen migrado para o Supabase (não depende mais do Node.js)
+      await updateMyProfile({ tour_seen: true }).catch(() => {});
+      updateUserData({ tourSeen: true });
     } catch {}
   };
 
@@ -129,36 +127,52 @@ export default function ClientBoot() {
         logger.info("ClientBoot", "Permissão de localização não concedida, pulando GPS");
       }
 
-      // Fetch latest client profile to check compliance status
-      const profile = await userService.getProfile().catch(() => null);
-      if (profile && mounted) {
-        updateUserData({
-          cidade: profile.cidade || profile.city || "",
-          city: profile.city || profile.cidade || "",
-          cpf: profile.cpf || "",
-          cnpj: profile.cnpj || "",
-          phone: profile.phone || profile.telefone || "",
-          telefone: profile.telefone || profile.phone || "",
-          companyName: profile.companyName || "",
-          companyEmail: profile.companyEmail || "",
-          companyPhone: profile.companyPhone || "",
-          fotoPerfil: profile.profilePhoto || "",
-          clientVerification: profile.clientVerification || null,
-        });
+      // Busca perfil atualizado no Supabase (migrado — não depende mais do Node.js)
+      const userId = userData?.id || userData?._id;
+      if (userId && mounted) {
+        const profile = await getSupabaseProfile(userId).catch(() => null);
+        if (profile && mounted) {
+          const hasDoc = Boolean(profile.cpf || profile.cnpj);
+          const selfiePath = profile.selfie_url || null;
+          const hasSelfie = Boolean(selfiePath);
+          const vStatus =
+            profile.kyc_status === "approved"
+              ? "approved"
+              : hasDoc || hasSelfie
+                ? "pending"
+                : "none";
+          updateUserData({
+            cidade: profile.city || "",
+            city: profile.city || "",
+            cpf: profile.cpf || "",
+            cnpj: profile.cnpj || "",
+            phone: profile.phone || "",
+            telefone: profile.phone || "",
+            fotoPerfil: profile.avatar_url || "",
+            clientVerification: {
+              status: vStatus,
+              documents: { selfie: selfiePath },
+              cpfStatus: hasDoc ? (vStatus === "approved" ? "valid" : "manual_review") : "unchecked",
+              selfieStatus: hasSelfie ? (vStatus === "approved" ? "approved" : "pending") : "none",
+            },
+          } as any);
+        }
       }
 
-      // 2) Retomar corrida ativa (se existir)
-      const res = await rideService.getActive();
-      if (!mounted) return;
-
-      if (res?.active && res.ride?._id) {
-        const ride = res.ride;
-        // Só pula direto para o mapa de rastreio se já tiver um motorista aceito e em execução!
-        // Se ainda estiver na fila (requesting), deixa abrir na Home para exibir o banner inteligente!
-        const activeTrackingStatuses = ["accepted", "driver_arriving", "arrived", "in_progress"];
-        if (ride.driverId && activeTrackingStatuses.includes(ride.status)) {
-          setInitialRideId(res.ride._id);
+      // 2) Retomar corrida ativa — ainda no Node.js (migração Fase 4).
+      // Blindado com timeout para o boot nunca travar se o backend estiver fora.
+      try {
+        const res = await withTimeout(rideService.getActive(), 4000, null);
+        if (!mounted) return;
+        if (res?.active && res.ride?._id) {
+          const ride = res.ride;
+          const activeTrackingStatuses = ["accepted", "driver_arriving", "arrived", "in_progress"];
+          if (ride.driverId && activeTrackingStatuses.includes(ride.status)) {
+            setInitialRideId(res.ride._id);
+          }
         }
+      } catch (rideErr) {
+        logger.warn("ClientBoot", "getActive indisponível (backend Node offline?)", rideErr);
       }
     } catch (e: any) {
       logger.error("ClientBoot", "Erro no fluxo de bootstrap", e);

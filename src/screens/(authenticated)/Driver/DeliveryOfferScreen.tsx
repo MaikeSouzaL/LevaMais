@@ -142,7 +142,7 @@ export default function DeliveryOfferScreen() {
 
         if (result?.rideMatched) {
           // Aceite direto — vai direto pra corrida
-          navigation.navigate("DriverRide", { rideId: offer._id });
+          navigation.replace("DriverRide", { rideId: offer._id });
           Toast.show({
             type: "success",
             text1: "Corrida aceita!",
@@ -151,7 +151,7 @@ export default function DeliveryOfferScreen() {
           return;
         }
 
-        navigation.navigate("DriverNegotiation", {
+        navigation.replace("DriverNegotiation", {
           offerId: offer._id,
           initialOffer: offer,
         });
@@ -167,7 +167,7 @@ export default function DeliveryOfferScreen() {
       await rideService.accept(offer._id);
       Toast.show({ type: "success", text1: "Sucesso!", text2: "Corrida aceita. Dirija com cuidado!" });
       if (timerRef.current) clearInterval(timerRef.current);
-      navigation.navigate("DriverRide", { rideId: offer._id });
+      navigation.replace("DriverRide", { rideId: offer._id });
     } catch (err: any) {
       Toast.show({ type: "error", text1: "Falha no Aceite", text2: err.message || "Tente novamente." });
     }

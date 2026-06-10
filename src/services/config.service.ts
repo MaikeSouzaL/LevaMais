@@ -1,6 +1,6 @@
-import apiClient from './api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { logger } from '@/utils/logger';
+import { supabase } from '../lib/supabase';
 
 export interface RideCategory {
   id: string;
@@ -145,26 +145,48 @@ class ConfigService {
     this.cache.set(key, { data, timestamp: Date.now() });
   }
 
+  async getGlobalConfigFromDb(): Promise<any> {
+    try {
+      const { data, error } = await supabase
+        .from("platform_config")
+        .select("*")
+        .eq("key", "global_config")
+        .maybeSingle();
+
+      if (error) {
+        if (error.code === "42P01") return {};
+        throw error;
+      }
+      return data?.value || {};
+    } catch (err) {
+      logger.warn('CONFIG', 'Failed to fetch platform config from DB', err);
+      return {};
+    }
+  }
+
   async getRideCategories(): Promise<RideCategory[]> {
     const cacheKey = 'ride_categories';
 
     try {
-      // Check cache first
       const cached = this.getCachedData<RideCategory[]>(cacheKey);
-      if (cached) {
-        logger.info('CONFIG', 'Ride categories from cache', { count: cached.length });
-        return cached;
+      if (cached) return cached;
+
+      const config = await this.getGlobalConfigFromDb();
+      let categories = this.fallbacks.rideCategories;
+      if (config?.vehiclePricing) {
+        categories = Object.entries(config.vehiclePricing).map(([id, val]: any) => ({
+          id,
+          name: id.charAt(0).toUpperCase() + id.slice(1),
+          minPassengers: 1,
+          maxPassengers: 4,
+          icon: id === 'motorcycle' ? 'scooter' : 'car',
+          basePrice: val.minimumFee || 5,
+          costPerKm: val.pricePerKm || 2,
+        }));
       }
 
-      // Try backend
-      const response = await apiClient.get<RideCategory[]>('/config/ride-categories', {
-        timeout: 5000,
-      });
-
-      this.setCachedData(cacheKey, response.data);
-      logger.info('CONFIG', 'Ride categories from backend', { count: response.data.length });
-
-      return response.data;
+      this.setCachedData(cacheKey, categories);
+      return categories;
     } catch (error) {
       logger.warn('CONFIG', 'Failed to fetch ride categories, using fallback', error);
       return this.fallbacks.rideCategories;
@@ -172,27 +194,7 @@ class ConfigService {
   }
 
   async getDeliveryTypes(): Promise<DeliveryType[]> {
-    const cacheKey = 'delivery_types';
-
-    try {
-      const cached = this.getCachedData<DeliveryType[]>(cacheKey);
-      if (cached) {
-        logger.info('CONFIG', 'Delivery types from cache', { count: cached.length });
-        return cached;
-      }
-
-      const response = await apiClient.get<DeliveryType[]>('/config/delivery-types', {
-        timeout: 5000,
-      });
-
-      this.setCachedData(cacheKey, response.data);
-      logger.info('CONFIG', 'Delivery types from backend', { count: response.data.length });
-
-      return response.data;
-    } catch (error) {
-      logger.warn('CONFIG', 'Failed to fetch delivery types, using fallback', error);
-      return this.fallbacks.deliveryTypes;
-    }
+    return this.fallbacks.deliveryTypes;
   }
 
   async getDeliveryVehicles(): Promise<DeliveryVehicle[]> {
@@ -200,19 +202,22 @@ class ConfigService {
 
     try {
       const cached = this.getCachedData<DeliveryVehicle[]>(cacheKey);
-      if (cached) {
-        logger.info('CONFIG', 'Delivery vehicles from cache', { count: cached.length });
-        return cached;
+      if (cached) return cached;
+
+      const config = await this.getGlobalConfigFromDb();
+      let vehicles = this.fallbacks.deliveryVehicles;
+      if (config?.vehiclePricing) {
+        vehicles = Object.entries(config.vehiclePricing).map(([id, val]: any) => ({
+          id,
+          name: id.charAt(0).toUpperCase() + id.slice(1),
+          maxWeight: id === 'motorcycle' ? 5 : id === 'car' ? 30 : id === 'van' ? 800 : 3000,
+          costPerKm: val.pricePerKm || 2.0,
+          icon: id === 'motorcycle' ? 'scooter' : 'car',
+        }));
       }
 
-      const response = await apiClient.get<DeliveryVehicle[]>('/config/delivery-vehicles', {
-        timeout: 5000,
-      });
-
-      this.setCachedData(cacheKey, response.data);
-      logger.info('CONFIG', 'Delivery vehicles from backend', { count: response.data.length });
-
-      return response.data;
+      this.setCachedData(cacheKey, vehicles);
+      return vehicles;
     } catch (error) {
       logger.warn('CONFIG', 'Failed to fetch delivery vehicles, using fallback', error);
       return this.fallbacks.deliveryVehicles;
@@ -220,31 +225,11 @@ class ConfigService {
   }
 
   async getCancelReasons(category?: 'driver' | 'client'): Promise<CancelReason[]> {
-    const cacheKey = `cancel_reasons_${category || 'all'}`;
-
-    try {
-      const cached = this.getCachedData<CancelReason[]>(cacheKey);
-      if (cached) {
-        logger.info('CONFIG', 'Cancel reasons from cache', { count: cached.length, category });
-        return cached;
-      }
-
-      const url = category
-        ? `/config/cancel-reasons?category=${category}`
-        : '/config/cancel-reasons';
-
-      const response = await apiClient.get<CancelReason[]>(url, {
-        timeout: 5000,
-      });
-
-      this.setCachedData(cacheKey, response.data);
-      logger.info('CONFIG', 'Cancel reasons from backend', { count: response.data.length });
-
-      return response.data;
-    } catch (error) {
-      logger.warn('CONFIG', 'Failed to fetch cancel reasons, using fallback', error);
-      return this.fallbacks.cancelReasons;
+    const reasons = this.fallbacks.cancelReasons;
+    if (category) {
+      return reasons.filter((r) => r.category === category);
     }
+    return reasons;
   }
 
   async getDepositConfig(): Promise<DriverDepositConfig> {
@@ -252,34 +237,21 @@ class ConfigService {
 
     try {
       const cached = this.getCachedData<DriverDepositConfig>(cacheKey);
-      if (cached) {
-        logger.info('CONFIG', 'Deposit config from cache');
-        return cached;
-      }
+      if (cached) return cached;
 
-      const response = await apiClient.get<any>('/config/deposit-config', {
-        timeout: 5000,
-      });
-
-      // Transform backend response to frontend format
-      const depositArray = response.data?.data || [];
-      const config: DriverDepositConfig = {
+      const config = await this.getGlobalConfigFromDb();
+      const appFee = Number(config?.appFeePercentage || 15);
+      const res: DriverDepositConfig = {
         minDeposit: 5,
         maxDeposit: 1000,
-        presets: depositArray.map((item: any) => item.amount || item),
+        presets: [5, 10, 15, 20, 50, 100],
         currency: 'BRL',
-        deductionPercentage: 15,
+        deductionPercentage: appFee,
       };
 
-      this.setCachedData(cacheKey, config);
-      logger.info('CONFIG', 'Deposit config from backend', {
-        presets: config.presets,
-        deduction: config.deductionPercentage,
-      });
-
-      return config;
-    } catch (error) {
-      logger.warn('CONFIG', 'Failed to fetch deposit config, using fallback', error);
+      this.setCachedData(cacheKey, res);
+      return res;
+    } catch {
       return this.fallbacks.depositConfig;
     }
   }
@@ -289,24 +261,19 @@ class ConfigService {
 
     try {
       const cached = this.getCachedData<RideSettings>(cacheKey);
-      if (cached) {
-        logger.info('CONFIG', 'Ride settings from cache');
-        return cached;
-      }
+      if (cached) return cached;
 
-      const response = await apiClient.get<RideSettings>('/config/ride-settings', {
-        timeout: 5000,
-      });
+      const config = await this.getGlobalConfigFromDb();
+      const res: RideSettings = {
+        searchTimeout: Number(config?.rideSearchTimeoutSeconds || 60),
+        queueRedispatchInterval: 60,
+        maxQueueRetries: 3,
+        minValueMultiplier: 1.0,
+      };
 
-      this.setCachedData(cacheKey, response.data);
-      logger.info('CONFIG', 'Ride settings from backend', {
-        searchTimeout: response.data.searchTimeout,
-        redispatchInterval: response.data.queueRedispatchInterval,
-      });
-
-      return response.data;
-    } catch (error) {
-      logger.warn('CONFIG', 'Failed to fetch ride settings, using fallback', error);
+      this.setCachedData(cacheKey, res);
+      return res;
+    } catch {
       return this.fallbacks.rideSettings;
     }
   }
@@ -316,22 +283,19 @@ class ConfigService {
 
     try {
       const cached = this.getCachedData<SupportChannels>(cacheKey);
-      if (cached) {
-        logger.info('CONFIG', 'Support channels from cache');
-        return cached;
-      }
+      if (cached) return cached;
 
-      const response = await apiClient.get<any>('/config/support-channels', {
-        timeout: 5000,
-      });
+      const config = await this.getGlobalConfigFromDb();
+      const channels: SupportChannels = {
+        phone: config?.supportChannels?.phone || this.fallbacks.supportChannels.phone,
+        email: config?.supportChannels?.email || this.fallbacks.supportChannels.email,
+        whatsapp: config?.supportChannels?.whatsapp || this.fallbacks.supportChannels.whatsapp,
+        helpCenterUrl: config?.supportChannels?.helpCenterUrl || '',
+      };
 
-      const config: SupportChannels = response.data?.data || this.fallbacks.supportChannels;
-      this.setCachedData(cacheKey, config);
-      logger.info('CONFIG', 'Support channels from backend', config);
-
-      return config;
-    } catch (error) {
-      logger.warn('CONFIG', 'Failed to fetch support channels, using fallback', error);
+      this.setCachedData(cacheKey, channels);
+      return channels;
+    } catch {
       return this.fallbacks.supportChannels;
     }
   }
@@ -341,27 +305,22 @@ class ConfigService {
 
     try {
       const cached = this.getCachedData<PolicyVersions>(cacheKey);
-      if (cached) {
-        logger.info('CONFIG', 'Policy versions from cache');
-        return cached;
-      }
+      if (cached) return cached;
 
-      const response = await apiClient.get<any>('/config/policy-versions', {
-        timeout: 5000,
-      });
+      const config = await this.getGlobalConfigFromDb();
+      const versions: PolicyVersions = {
+        consentVersion: config?.policyVersions?.consentVersion || this.fallbacks.policyVersions.consentVersion,
+        termsVersion: config?.policyVersions?.termsVersion || this.fallbacks.policyVersions.termsVersion,
+        privacyPolicyVersion: config?.policyVersions?.privacyPolicyVersion || this.fallbacks.policyVersions.privacyPolicyVersion,
+      };
 
-      const config: PolicyVersions = response.data?.data || this.fallbacks.policyVersions;
-      this.setCachedData(cacheKey, config);
-      logger.info('CONFIG', 'Policy versions from backend', config);
-
-      return config;
-    } catch (error) {
-      logger.warn('CONFIG', 'Failed to fetch policy versions, using fallback', error);
+      this.setCachedData(cacheKey, versions);
+      return versions;
+    } catch {
       return this.fallbacks.policyVersions;
     }
   }
 
-  // Utility: Clear cache for a specific key or all
   clearCache(key?: string): void {
     if (key) {
       this.cache.delete(key);
@@ -372,29 +331,33 @@ class ConfigService {
     }
   }
 
-  // Utility: Get deduction percentage for balance calculations
   async getDeductionPercentage(): Promise<number> {
     const config = await this.getDepositConfig();
-    // deductionPercentage is already stored as a percentage (20), so divide by 100 to get decimal
     return config.deductionPercentage / 100;
   }
 
-  // Utility: Validate deposit amount
   async validateDepositAmount(amount: number): Promise<boolean> {
     const config = await this.getDepositConfig();
     return amount >= config.minDeposit && amount <= config.maxDeposit;
   }
 
-  // Fetch full platform config including isDevelopmentMode
   async getFullConfig(): Promise<any> {
-    const res = await apiClient.get<any>("/config/all");
-    return res.data?.data || res.data;
+    return this.getGlobalConfigFromDb();
   }
 
-  // Update platform config
   async updateConfig(payload: any): Promise<any> {
-    const res = await apiClient.put<any>("/config/update", payload);
-    return res.data?.data || res.data;
+    const current = await this.getGlobalConfigFromDb();
+    const updated = { ...current, ...payload };
+    const { error } = await supabase
+      .from("platform_config")
+      .upsert({
+        key: "global_config",
+        value: updated,
+      });
+
+    if (error) throw error;
+    this.clearCache();
+    return updated;
   }
 }
 

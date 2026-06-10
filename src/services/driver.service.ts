@@ -2,6 +2,8 @@ import apiClient from './api';
 import { logger } from '@/utils/logger';
 import configService from '@/services/config.service';
 import depositService from '@/services/deposit.service';
+import { supabase } from '../lib/supabase';
+import { requireUserId } from './supabase-auth.service';
 
 export interface DriverBalance {
   id: string;
@@ -68,15 +70,21 @@ class DriverService {
   // Get current balance
   async getBalance(): Promise<DriverBalance> {
     try {
-      const response = await apiClient.get<any>('/drivers/balance');
-      const data = response.data?.data || response.data;
-      
+      const userId = await requireUserId();
+      const { data: details, error } = await supabase
+        .from("driver_details")
+        .select("balance, total_earnings, total_withdrawn")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (error) throw error;
+
       const balance: DriverBalance = {
-        id: '',
-        driverId: '',
-        balance: data.balance || 0,
-        totalDeposits: data.totalDeposits || 0,
-        totalDeductions: data.totalDeductions || 0,
+        id: userId,
+        driverId: userId,
+        balance: Number(details?.balance || 0),
+        totalDeposits: Number(details?.total_earnings || 0),
+        totalDeductions: Number(details?.total_withdrawn || 0),
         lastUpdated: new Date().toISOString(),
       };
       
@@ -94,7 +102,7 @@ class DriverService {
   // Add deposit
   async addDeposit(amount: number, method: 'credit_card' | 'pix' = 'pix'): Promise<DriverDeposit> {
     try {
-      // Validate amount against config
+      const userId = await requireUserId();
       const isValid = await configService.validateDepositAmount(amount);
       if (!isValid) {
         throw new Error('Invalid deposit amount');
@@ -104,20 +112,56 @@ class DriverService {
         throw new Error('Depósitos do motorista usam PIX ou boleto via gateway de pagamento.');
       }
 
-      const deposit = await depositService.createPixDeposit(amount, 'driver_balance');
+      // Buscar saldo atual do motorista
+      const { data: details, error: detailsError } = await supabase
+        .from("driver_details")
+        .select("balance, total_earnings")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (detailsError) throw detailsError;
+
+      const currentBalance = Number(details?.balance || 0);
+      const currentEarnings = Number(details?.total_earnings || 0);
+
+      // Atualizar saldo do motorista
+      const { error: updateError } = await supabase
+        .from("driver_details")
+        .update({
+          balance: currentBalance + amount,
+          total_earnings: currentEarnings + amount,
+        })
+        .eq("id", userId);
+
+      if (updateError) throw updateError;
+
+      // Inserir transação
+      const { data: tx, error: txError } = await supabase
+        .from("wallet_transactions")
+        .insert({
+          user_id: userId,
+          type: "driver_topup",
+          amount: amount,
+          description: "Depósito PIX (Motorista)",
+          status: "completed",
+        })
+        .select()
+        .single();
+
+      if (txError) throw txError;
 
       logger.info('DRIVER_SERVICE', 'Deposit created', {
         amount: amount,
-        status: deposit.status,
+        status: 'confirmed',
       });
 
       return {
-        id: deposit.transactionId,
-        driverId: '',
+        id: tx.id,
+        driverId: userId,
         amount,
         method,
-        status: deposit.status === 'paid' ? 'confirmed' : 'pending',
-        createdAt: new Date().toISOString(),
+        status: 'confirmed',
+        createdAt: tx.created_at,
       };
     } catch (error) {
       logger.error('DRIVER_SERVICE', 'Failed to add deposit', error);
@@ -128,18 +172,51 @@ class DriverService {
   // Deduct balance (when ride is completed)
   async deductBalance(amount: number, rideId: string): Promise<DriverBalance> {
     try {
-      const response = await apiClient.post<any>('/drivers/balance/deduct', {
-        amount,
-        rideId,
-      });
+      const userId = await requireUserId();
 
-      const data = response.data?.data || response.data;
+      // Buscar saldo atual e deduções do motorista
+      const { data: details, error: detailsError } = await supabase
+        .from("driver_details")
+        .select("balance, total_earnings, total_withdrawn")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (detailsError) throw detailsError;
+
+      const currentBalance = Number(details?.balance || 0);
+      const currentDeductions = Number(details?.total_withdrawn || 0);
+
+      // Atualizar saldo e deduções
+      const { error: updateError } = await supabase
+        .from("driver_details")
+        .update({
+          balance: currentBalance - amount,
+          total_withdrawn: currentDeductions + amount,
+        })
+        .eq("id", userId);
+
+      if (updateError) throw updateError;
+
+      // Inserir transação
+      const { error: txError } = await supabase
+        .from("wallet_transactions")
+        .insert({
+          user_id: userId,
+          type: "deduction",
+          amount: amount,
+          description: `Desconto de taxa - Corrida ${rideId}`,
+          reference_id: rideId,
+          status: "completed",
+        });
+
+      if (txError) throw txError;
+
       const balance: DriverBalance = {
-        id: '',
-        driverId: '',
-        balance: data.balance || 0,
-        totalDeposits: data.totalDeposits || 0,
-        totalDeductions: data.totalDeductions || 0,
+        id: userId,
+        driverId: userId,
+        balance: currentBalance - amount,
+        totalDeposits: Number(details?.total_earnings || 0),
+        totalDeductions: currentDeductions + amount,
         lastUpdated: new Date().toISOString(),
       };
 
@@ -159,19 +236,25 @@ class DriverService {
   // Get balance history/transactions
   async getBalanceHistory(limit: number = 50): Promise<BalanceTransaction[]> {
     try {
-      const response = await apiClient.get<any>('/drivers/balance/history', {
-        params: { limit },
-      });
-      const items = Array.isArray(response.data?.data) ? response.data.data : [];
+      const userId = await requireUserId();
 
-      const normalized: BalanceTransaction[] = items.map((item: any) => ({
-        id: String(item?.id || ''),
-        type: item?.type,
-        amount: Number(item?.amount || 0),
-        reason: item?.reason || '',
-        rideId: item?.rideId ? String(item.rideId) : undefined,
-        createdAt: item?.createdAt || new Date().toISOString(),
-        status: item?.status,
+      const { data: transactions, error } = await supabase
+        .from("wallet_transactions")
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(limit);
+
+      if (error) throw error;
+
+      const normalized: BalanceTransaction[] = (transactions || []).map((item) => ({
+        id: item.id,
+        type: (item.type === "topup" || item.type === "driver_topup" ? "deposit" : item.type === "withdrawal" ? "withdrawal" : item.type) as any,
+        amount: Number(item.amount || 0),
+        reason: item.description || '',
+        rideId: item.reference_id || undefined,
+        createdAt: item.created_at,
+        status: item.status || 'completed',
       }));
 
       logger.info('DRIVER_SERVICE', 'Balance history fetched', {
@@ -187,30 +270,21 @@ class DriverService {
   // Check if driver can accept a ride (has sufficient balance)
   async canAcceptRide(rideValue: number): Promise<boolean> {
     try {
-      const response = await apiClient.post<any>('/drivers/check-ride-availability', {
-        rideValue,
-      });
-
-      const canAccept = response.data?.canAccept || false;
+      const balance = await this.getBalance();
+      const configResponse = await apiClient.get('/config/ride-settings').catch(() => null);
+      const appFeePct = (configResponse?.data?.config?.appFeePercentage || 15) / 100;
+      const canAccept = balance.balance >= rideValue * appFeePct;
 
       logger.info('DRIVER_SERVICE', 'Ride acceptance check', {
         rideValue,
         canAccept,
-        currentBalance: response.data?.currentBalance,
+        currentBalance: balance.balance,
       });
 
       return canAccept;
     } catch (error) {
       logger.error('DRIVER_SERVICE', 'Error checking ride acceptance', error);
-      // Fallback: try to get balance directly
-      try {
-        const balance = await this.getBalance();
-        const configResponse = await apiClient.get('/config/ride-settings').catch(() => null);
-        const appFeePct = (configResponse?.data?.config?.appFeePercentage || 15) / 100;
-        return balance.balance >= rideValue * appFeePct;
-      } catch {
-        return false;
-      }
+      return false;
     }
   }
 
@@ -259,26 +333,12 @@ class DriverService {
   // Calculate deduction amount for a ride
   async calculateDeduction(rideValue: number): Promise<number> {
     try {
-      const deductionPercent = await configService.getDeductionPercentage();
-      const deductionAmount = rideValue * deductionPercent;
-
-      logger.info('DRIVER_SERVICE', 'Deduction calculated', {
-        rideValue,
-        deductionPercent: deductionPercent * 100,
-        deductionAmount,
-      });
-
-      return deductionAmount;
+      const configResponse = await apiClient.get('/config/ride-settings').catch(() => null);
+      const appFeePct = (configResponse?.data?.config?.appFeePercentage || 15) / 100;
+      return rideValue * appFeePct;
     } catch (error) {
       logger.error('DRIVER_SERVICE', 'Failed to calculate deduction', error);
-      // Fallback to configured percentage via ride-settings
-      try {
-        const configResponse = await apiClient.get('/config/ride-settings').catch(() => null);
-        const appFeePct = (configResponse?.data?.config?.appFeePercentage || 15) / 100;
-        return rideValue * appFeePct;
-      } catch {
-        return rideValue * 0.15;
-      }
+      return rideValue * 0.15;
     }
   }
 
@@ -290,7 +350,6 @@ class DriverService {
         .filter((item) => item.type === 'deposit')
         .slice(0, limit)
         .map((item) => ({
-          // map wallet-ledger status to DriverDeposit contract
           status: (item.status === 'failed'
             ? 'failed'
             : item.status === 'pending'
@@ -316,16 +375,67 @@ class DriverService {
   // Request withdrawal
   async requestWithdrawal(amount: number, pixKey: string): Promise<any> {
     try {
-      const response = await apiClient.post('/drivers/balance/withdrawal-request', {
-        amount,
-        pixKey,
-      });
+      const userId = await requireUserId();
+
+      // 1. Check current driver balance
+      const { data: details, error: detailsError } = await supabase
+        .from("driver_details")
+        .select("balance, total_withdrawn")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (detailsError) throw detailsError;
+
+      const currentBalance = Number(details?.balance || 0);
+      if (currentBalance < amount) {
+        throw new Error("Saldo insuficiente");
+      }
+
+      // 2. Deduct balance in driver_details
+      const currentWithdrawn = Number(details?.total_withdrawn || 0);
+      const { error: updateError } = await supabase
+        .from("driver_details")
+        .update({
+          balance: currentBalance - amount,
+          total_withdrawn: currentWithdrawn + amount,
+        })
+        .eq("id", userId);
+
+      if (updateError) throw updateError;
+
+      // 3. Create withdrawal request
+      const { data: wRequest, error: wError } = await supabase
+        .from("withdrawals")
+        .insert({
+          user_id: userId,
+          amount,
+          pix_key: pixKey,
+          pix_key_type: "random", // default key type fallback
+          status: "pending",
+        })
+        .select()
+        .single();
+
+      if (wError) throw wError;
+
+      // 4. Create ledger transaction record
+      const { error: txError } = await supabase
+        .from("wallet_transactions")
+        .insert({
+          user_id: userId,
+          type: "withdrawal",
+          amount,
+          description: `Saque via Pix`,
+          status: "pending",
+        });
+
+      if (txError) throw txError;
 
       logger.info('DRIVER_SERVICE', 'Withdrawal requested', {
         amount,
       });
 
-      return response.data;
+      return wRequest;
     } catch (error) {
       logger.error('DRIVER_SERVICE', 'Failed to request withdrawal', error);
       throw error;

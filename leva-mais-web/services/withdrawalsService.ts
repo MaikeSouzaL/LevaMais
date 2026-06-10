@@ -1,4 +1,4 @@
-import axios from "axios";
+import { supabase } from "../lib/supabase";
 
 export interface Withdrawal {
   _id: string;
@@ -26,20 +26,49 @@ export interface Withdrawal {
   rejectionReason?: string;
 }
 
-const _RAW_API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001/api";
-const API_URL = _RAW_API_URL.replace("localhost", "127.0.0.1");
-const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || "dev-admin-key";
-
 export const withdrawalsService = {
   async getAll(status?: string): Promise<Withdrawal[]> {
     try {
-      const url = status 
-        ? `${API_URL}/auth/withdrawals?status=${status}` 
-        : `${API_URL}/auth/withdrawals`;
-      const res = await axios.get(url, {
-        headers: { "x-admin-key": ADMIN_API_KEY }
+      let query = supabase
+        .from("withdrawals")
+        .select(`
+          *,
+          profiles(*)
+        `);
+
+      if (status) {
+        query = query.eq("status", status);
+      }
+
+      const { data, error } = await query.order("created_at", { ascending: false });
+
+      if (error) {
+        if (error.code === "42P01") return [];
+        throw error;
+      }
+
+      return (data || []).map((row: any) => {
+        const profile = row.profiles?.[0] || row.profiles || {};
+        return {
+          _id: row.id,
+          userId: {
+            _id: profile.id || row.user_id,
+            name: profile.full_name || "Sem Nome",
+            email: profile.email || "",
+            phone: profile.phone || undefined,
+            cpf: profile.cpf || undefined,
+            bankAccount: profile.bank_account || undefined,
+          },
+          amount: Number(row.amount || 0),
+          pixKey: row.pix_key || "",
+          pixKeyType: row.pix_key_type || "",
+          status: row.status,
+          createdAt: row.created_at,
+          processedAt: row.processed_at || undefined,
+          transactionId: row.transaction_id || undefined,
+          rejectionReason: row.rejection_reason || undefined,
+        };
       });
-      return res.data?.withdrawals || [];
     } catch (error) {
       console.error("Error fetching withdrawals:", error);
       return [];
@@ -47,20 +76,34 @@ export const withdrawalsService = {
   },
 
   async approve(id: string, transactionId?: string): Promise<any> {
-    const res = await axios.patch(
-      `${API_URL}/auth/withdrawals/${id}`,
-      { status: "paid", transactionId },
-      { headers: { "x-admin-key": ADMIN_API_KEY } }
-    );
-    return res.data;
+    const { data, error } = await supabase
+      .from("withdrawals")
+      .update({
+        status: "paid",
+        transaction_id: transactionId,
+        processed_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
   },
 
   async reject(id: string, reason: string): Promise<any> {
-    const res = await axios.patch(
-      `${API_URL}/auth/withdrawals/${id}`,
-      { status: "rejected", reason },
-      { headers: { "x-admin-key": ADMIN_API_KEY } }
-    );
-    return res.data;
+    const { data, error } = await supabase
+      .from("withdrawals")
+      .update({
+        status: "rejected",
+        rejection_reason: reason,
+        processed_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
   }
 };

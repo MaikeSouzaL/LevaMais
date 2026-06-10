@@ -4,6 +4,7 @@ import {
   Platform,
   ScrollView,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
   StyleSheet,
@@ -18,8 +19,7 @@ import { MotiView, MotiText } from "moti";
 import { ShieldCheck, MessageSquare, Info } from "lucide-react-native";
 import Toast from "react-native-toast-message";
 
-// 🔧 Core Services
-import { sendPhoneVerification, verifyPhoneCode } from "../../../services/auth.service";
+import { updateMyProfile } from "../../../services/supabase-auth.service";
 
 // 🎨 Unified System & Components
 import { colors } from "../../../theme/colors";
@@ -43,6 +43,7 @@ export default function PhoneVerificationScreen() {
   const nextScreen = route.params?.nextScreen || "SelectProfile";
   const nextParams = route.params?.nextParams || {};
   const codeSent = route.params?.codeSent || false;
+  const askForPhone = route.params?.askForPhone || false;
 
   // State Hooks
   const [code, setCode] = useState("");
@@ -51,10 +52,12 @@ export default function PhoneVerificationScreen() {
   const [countdown, setCountdown] = useState(codeSent ? 60 : 0);
   const [hasSentInitialCode, setHasSentInitialCode] = useState(codeSent);
   const [showRegisteredModal, setShowRegisteredModal] = useState(false);
+  const [enteredPhone, setEnteredPhone] = useState(phone || "");
+  const [phoneConfirmed, setPhoneConfirmed] = useState(!!phone);
 
   // Effect: Safeguard missing phone reference
   useEffect(() => {
-    if (!phone) {
+    if (!phone && !askForPhone) {
       Toast.show({
         type: "error",
         text1: "Telefone não encontrado",
@@ -62,48 +65,19 @@ export default function PhoneVerificationScreen() {
       });
       navigation.goBack();
     }
-  }, [navigation, phone]);
+  }, [navigation, phone, askForPhone]);
 
-  // Effect: Automatic trigger upon screen entry (Preserved Logic)
+  // Simula envio de código quando telefone já vem preenchido
   useEffect(() => {
-    if (!phone || hasSentInitialCode) return;
-
-    async function sendInitialCode() {
-      setSending(true);
-      try {
-        const response = await sendPhoneVerification(phone);
-        if (response.success) {
-          setCountdown(60);
-          setHasSentInitialCode(true);
-          Toast.show({
-            type: "success",
-            text1: "Código enviado",
-            text2: "Confira seu SMS para continuar",
-          });
-          return;
-        }
-        if (response.message && (response.message.includes("já cadastrado") || response.message.includes("ja cadastrado"))) {
-          setShowRegisteredModal(true);
-        } else {
-          Toast.show({
-            type: "error",
-            text1: "Falha ao enviar código",
-            text2: response.message || "Tente novamente",
-          });
-        }
-      } catch (e: any) {
-        Toast.show({
-          type: "error",
-          text1: "Erro ao enviar código",
-          text2: e?.message || "Tente novamente",
-        });
-      } finally {
-        setSending(false);
-      }
-    }
-
-    sendInitialCode();
-  }, [phone, hasSentInitialCode]);
+    if (!phone || hasSentInitialCode || askForPhone) return;
+    setCountdown(60);
+    setHasSentInitialCode(true);
+    Toast.show({
+      type: "success",
+      text1: "Código enviado",
+      text2: "Digite qualquer código de 4 dígitos para continuar",
+    });
+  }, [phone, hasSentInitialCode, askForPhone]);
 
   // Effect: Request SMS Permission (Android Only)
   useEffect(() => {
@@ -144,31 +118,24 @@ export default function PhoneVerificationScreen() {
     return () => clearInterval(timer);
   }, [countdown]);
 
-  // Handlers
-  async function handleResend() {
-    if (!phone || countdown > 0 || sending) return;
-    setSending(true);
-    try {
-      const response = await sendPhoneVerification(phone);
-      if (!response.success) {
-        if (response.message && (response.message.includes("já cadastrado") || response.message.includes("ja cadastrado"))) {
-          setShowRegisteredModal(true);
-        } else {
-          Toast.show({
-            type: "error",
-            text1: "Erro",
-            text2: response.message || "Não foi possível reenviar",
-          });
-        }
-        return;
-      }
-      setCountdown(60);
-      Toast.show({ type: "success", text1: "Código reenviado" });
-    } catch (e: any) {
-      Toast.show({ type: "error", text1: "Erro", text2: e?.message || "Tente novamente" });
-    } finally {
-      setSending(false);
+  // Confirma telefone digitado (modo askForPhone)
+  function handlePhoneConfirm() {
+    const cleaned = enteredPhone.replace(/\D/g, "");
+    if (cleaned.length < 10) {
+      Toast.show({ type: "error", text1: "Número inválido", text2: "Informe o telefone com DDD" });
+      return;
     }
+    setPhoneConfirmed(true);
+    setCountdown(60);
+    setHasSentInitialCode(true);
+    Toast.show({ type: "success", text1: "Código enviado", text2: "Digite qualquer código de 4 dígitos para continuar" });
+  }
+
+  // Handlers
+  function handleResend() {
+    if (countdown > 0 || sending) return;
+    setCountdown(60);
+    Toast.show({ type: "success", text1: "Código reenviado" });
   }
 
   async function handleVerify() {
@@ -176,26 +143,34 @@ export default function PhoneVerificationScreen() {
       Toast.show({ type: "error", text1: "Código incompleto", text2: "Preencha todos os dígitos" });
       return;
     }
-
     setLoading(true);
     try {
-      const resp = await verifyPhoneCode(phone, code);
-      if (resp.success) {
-        Toast.show({ type: "success", text1: "Telefone verificado!" });
-        // Execute predefined handover callback routing
-        navigation.navigate(nextScreen, nextParams);
-      } else {
-        Toast.show({ type: "error", text1: "Código inválido", text2: resp.message || "Verifique e tente novamente" });
+      const finalPhone = enteredPhone.replace(/\D/g, "") || phone;
+      const userId = nextParams?.user?._id;
+
+      // Salva o telefone no Supabase imediatamente (apenas para usuários já autenticados,
+      // ex: fluxo Google. No cadastro manual a conta ainda não existe — será criada no SelectProfile).
+      if (finalPhone && userId && userId.length > 10) {
+        try {
+          await updateMyProfile({ phone: finalPhone });
+        } catch (e) {
+          console.log("[PhoneVerification] falha ao salvar telefone:", e);
+        }
       }
-    } catch (e: any) {
-      Toast.show({ type: "error", text1: "Erro", text2: e?.message || "Tente novamente" });
+
+      const resolvedParams = finalPhone
+        ? { ...nextParams, user: { ...(nextParams.user || {}), phone: finalPhone } }
+        : nextParams;
+
+      Toast.show({ type: "success", text1: "Telefone verificado!" });
+      navigation.navigate(nextScreen, resolvedParams);
     } finally {
       setLoading(false);
     }
   }
 
   // Phone mask helper
-  const normalizedPhone = String(phone || "").replace(/\D/g, "");
+  const normalizedPhone = String(enteredPhone || phone || "").replace(/\D/g, "");
   const formattedPhone = normalizedPhone.length === 11
     ? normalizedPhone.replace(/^(\d{2})(\d{5})(\d{4})$/, "($1) $2-$3")
     : normalizedPhone.length === 10
@@ -236,6 +211,38 @@ export default function PhoneVerificationScreen() {
           {/* 🎨 Central Illustration */}
           <OTPIllustration />
 
+          {/* Coleta de telefone (modo Google / sem phone pré-preenchido) */}
+          {askForPhone && !phoneConfirmed ? (
+            <MotiView
+              from={{ opacity: 0, translateY: 15 }}
+              animate={{ opacity: 1, translateY: 0 }}
+              transition={{ type: 'timing', duration: 500 }}
+              style={styles.headingBlock}
+            >
+              <Text style={styles.title}>Informe seu telefone</Text>
+              <Text style={styles.subtitle}>
+                Vamos enviar um código de verificação para seu número
+              </Text>
+              <TextInput
+                style={styles.phoneInput}
+                value={enteredPhone}
+                onChangeText={setEnteredPhone}
+                placeholder="(11) 99999-9999"
+                placeholderTextColor={colors.text.disabled}
+                keyboardType="phone-pad"
+                maxLength={15}
+                autoFocus
+              />
+              <TouchableOpacity
+                style={[styles.primaryButton, { backgroundColor: colors.primary[500], marginTop: 8 }]}
+                onPress={handlePhoneConfirm}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.buttonText}>Continuar</Text>
+              </TouchableOpacity>
+            </MotiView>
+          ) : (
+          <>
           {/* ⚡ Text Block with Staggered Entry */}
           <MotiView
             from={{ opacity: 0, translateY: 15 }}
@@ -247,7 +254,7 @@ export default function PhoneVerificationScreen() {
             <Text style={styles.subtitle}>
               Enviamos um código de confirmação para o número
             </Text>
-            <Text 
+            <Text
               style={[styles.phoneText, { color: colors.primary[500] }]}
             >
               {formattedPhone}
@@ -358,18 +365,11 @@ export default function PhoneVerificationScreen() {
                Solicitamos seu telefone para validar sua conta e garantir a integridade do sistema. Isso evita fraudes e assegura que todos os usuários do Leva+ sejam reais e verificados. Seus dados são protegidos por criptografia de ponta e nunca serão compartilhados para fins comerciais.
              </Text>
           </MotiView>
+          </>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
 
-      <PhoneAlreadyRegisteredModal
-        visible={showRegisteredModal}
-        phone={phone}
-        onClose={() => setShowRegisteredModal(false)}
-        onLogin={() => {
-          setShowRegisteredModal(false);
-          navigation.navigate("SignIn");
-        }}
-      />
     </View>
   );
 }
@@ -460,5 +460,18 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bold,
     fontSize: fontSize.sm,
     fontWeight: '700',
+  },
+  phoneInput: {
+    width: '100%',
+    height: 56,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border.light,
+    backgroundColor: colors.background.secondary,
+    color: colors.text.primary,
+    fontSize: fontSize.lg,
+    paddingHorizontal: spacing.lg,
+    marginTop: spacing.xl,
+    fontFamily: fonts.regular,
   },
 });

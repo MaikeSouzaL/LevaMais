@@ -1,4 +1,4 @@
-import axios from "axios";
+import { supabase } from "../lib/supabase";
 
 export interface DriverLocation {
   _id: string;
@@ -18,23 +18,43 @@ export interface DriverLocation {
   updatedAt?: string;
 }
 
-const _RAW_API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001/api";
-const API_URL = _RAW_API_URL.replace("localhost", "127.0.0.1");
-const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || "dev-admin-key";
-
 export const driverLocationService = {
   async getAll(): Promise<DriverLocation[]> {
     try {
-      const res = await axios.get(`${API_URL}/driver-location/all`, {
-        headers: { "x-admin-key": ADMIN_API_KEY },
-      });
+      const { data, error } = await supabase
+        .from("driver_locations")
+        .select(`
+          *,
+          profiles(*)
+        `);
 
-      // backend legacy patterns: { locations: [] } or [].
-      if (Array.isArray(res.data)) return res.data;
-      if (Array.isArray(res.data?.locations)) return res.data.locations;
-      return [];
-    } catch {
-      // Graceful fallback for admin dashboards when route auth is not wired for x-admin-key yet.
+      if (error) {
+        if (error.code === "42P01") return [];
+        throw error;
+      }
+
+      return (data || []).map((row: any) => {
+        const profile = row.profiles?.[0] || row.profiles || {};
+        return {
+          _id: row.id,
+          driverId: {
+            _id: row.id,
+            name: profile.full_name || "Motorista Leva Mais",
+            email: profile.email || "",
+          },
+          status: row.status || "available",
+          vehicleType: row.vehicle_type || "car",
+          speed: Number(row.speed || 0),
+          heading: Number(row.heading || 0),
+          location: {
+            type: "Point",
+            coordinates: [Number(row.longitude || 0), Number(row.latitude || 0)],
+          },
+          updatedAt: row.updated_at,
+        };
+      });
+    } catch (error) {
+      console.error("Error fetching driver locations:", error);
       return [];
     }
   },

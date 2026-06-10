@@ -14,7 +14,7 @@ import * as Location from "expo-location";
 import Toast from "react-native-toast-message";
 
 import { obterEnderecoPorCoordenadas } from "../../../utils/location";
-import userService from "../../../services/user.service";
+import { updateMyProfile } from "../../../services/supabase-auth.service";
 
 const theme = {
   COLORS: {
@@ -69,14 +69,16 @@ export default function PhoneLocationSetupScreen() {
         }
       }
 
-      // Salva cidade no backend se tiver token
-      if (token && city) {
+      // Salva cidade no Supabase imediatamente (apenas para usuários já autenticados)
+      const userId = user?._id;
+      if (city && userId && userId.length > 10) {
         try {
-          await userService.updateProfile({ city }, token);
-        } catch {}
+          await updateMyProfile({ city });
+        } catch (e) {
+          console.log("[PhoneLocationSetup] falha ao salvar cidade:", e);
+        }
       }
 
-      // Navega para SelectProfile com dados atualizados
       navigation.reset({
         index: 0,
         routes: [{

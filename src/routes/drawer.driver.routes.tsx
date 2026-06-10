@@ -6,60 +6,17 @@ import {
 } from "@react-navigation/drawer";
 import { View, Text, TouchableOpacity, Image } from "react-native";
 import { Icon } from "@/components/ui/Icon";
-import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
-import DriverHomeScreen from "../screens/(authenticated)/Driver/DriverHomeScreen";
-import DriverRequestsScreen from "../screens/(authenticated)/Driver/DriverRequestsScreen";
-import DriverRideScreen from "../screens/(authenticated)/Driver/DriverRideScreen";
-import DriverRateClientScreen from "../screens/(authenticated)/Driver/DriverRateClientScreen";
-import DriverCancelRideScreen from "../screens/(authenticated)/Driver/DriverCancelRideScreen";
-import DriverEarningsScreen from "../screens/(authenticated)/Driver/DriverEarningsScreen";
-import DriverHistoryScreen from "../screens/(authenticated)/Driver/DriverHistoryScreen";
-import DriverProfileScreen from "../screens/(authenticated)/Driver/DriverProfileScreen";
-import DriverVehicleScreen from "../screens/(authenticated)/Driver/DriverVehicleScreen";
-import DriverSettingsScreen from "../screens/(authenticated)/Driver/DriverSettingsScreen";
-import DriverWithdrawScreen from "../screens/(authenticated)/Driver/DriverWithdrawScreen";
-import DriverStatementScreen from "../screens/(authenticated)/Driver/DriverStatementScreen";
-import DriverRideDetailsScreen from "../screens/(authenticated)/Driver/DriverRideDetailsScreen";
-import DriverHistoryRideDetailsScreen from "../screens/(authenticated)/Driver/DriverHistoryRideDetailsScreen";
-import DriverHelpScreen from "../screens/(authenticated)/Driver/DriverHelpScreen";
-import DriverChatScreen from "../screens/(authenticated)/Driver/DriverChatScreen";
-import DriverSafetyScreen from "../screens/(authenticated)/Driver/DriverSafetyScreen";
-import DriverPayoutsScreen from "../screens/(authenticated)/Driver/DriverPayoutsScreen";
-import DriverIncentivesScreen from "../screens/(authenticated)/Driver/DriverIncentivesScreen";
-import DriverWorkPreferencesScreen from "../screens/(authenticated)/Driver/DriverWorkPreferencesScreen";
-import DriverDocumentsScreen from "../screens/(authenticated)/Driver/DriverDocumentsScreen";
-import DriverRatingsScreen from "../screens/(authenticated)/Driver/DriverRatingsScreen";
-import DriverSupportCenterScreen from "../screens/(authenticated)/Driver/DriverSupportCenterScreen";
-import DriverShiftOffersScreen from "../screens/(authenticated)/Driver/DriverShiftOffersScreen";
-import DeliveryOfferScreen from "../screens/(authenticated)/Driver/DeliveryOfferScreen";
-import DriverNegotiationScreen from "../screens/(authenticated)/Driver/DriverNegotiationScreen";
-
-import DeliveryPickupConfirmScreen from "../screens/(authenticated)/Driver/DeliveryPickupConfirm";
-import DeliveryDropoffConfirmScreen from "../screens/(authenticated)/Driver/DeliveryDropoffConfirm";
+import DriverStackRoutes from "./driver.stack.routes";
 
 import { useAuthStore } from "../context/authStore";
 import { resolveAssetURL } from "@/utils/mappers";
 
 const Drawer = createDrawerNavigator();
-const Stack = createNativeStackNavigator();
 
 type DrawerDriverRoutesProps = {
   initialRideId?: string | null;
 };
-
-function DriverFinanceStack() {
-  return (
-    <Stack.Navigator screenOptions={{ headerShown: false, animation: "slide_from_right" }}>
-      <Stack.Screen name="DriverEarnings" component={DriverEarningsScreen} />
-      <Stack.Screen name="DriverWithdraw" component={DriverWithdrawScreen} />
-      <Stack.Screen name="DriverStatement" component={DriverStatementScreen} />
-      <Stack.Screen name="DriverPayouts" component={DriverPayoutsScreen} />
-      <Stack.Screen name="DriverIncentives" component={DriverIncentivesScreen} />
-      <Stack.Screen name="DriverRideDetails" component={DriverRideDetailsScreen} />
-    </Stack.Navigator>
-  );
-}
 
 const menuItems = [
   { name: "DriverHome", label: "Mapa", icon: "map" },
@@ -225,71 +182,23 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
   );
 }
 
-function HiddenScreenOptions() {
-  return {
-    headerShown: false,
-    drawerLabel: () => null,
-    title: "",
-    drawerItemStyle: { display: "none" as const },
-  };
-}
-
 export default function DrawerDriverRoutes({ initialRideId }: DrawerDriverRoutesProps) {
-      const initialRoute = initialRideId ? "DriverRide" : "DriverHome";
-
   return (
     <Drawer.Navigator
-      initialRouteName={initialRoute}
       drawerContent={(props) => <CustomDrawerContent {...props} />}
       screenOptions={{
-        headerShown: true,
-        headerStyle: {
-          backgroundColor: "#091A2F",
-          borderBottomWidth: 1,
-          borderBottomColor: "rgba(255,255,255,0.08)",
-          shadowColor: "transparent",
-          elevation: 0,
-        },
-        headerTintColor: "#fff",
-        headerTitleStyle: {
-          fontWeight: "700",
-          fontSize: 16,
-        },
+        headerShown: false,
         drawerStyle: { backgroundColor: "#091A2F", width: 280 },
         drawerType: "slide",
         overlayColor: "rgba(0, 0, 0, 0.5)",
       }}
     >
-      <Drawer.Screen name="DriverHome" component={DriverHomeScreen} options={{ title: "Início", headerShown: false }} />
-      <Drawer.Screen name="DriverRequests" component={DriverRequestsScreen} options={{ title: "Solicitações" }} />
-      <Drawer.Screen name="DriverFinance" component={DriverFinanceStack} options={{ title: "Ganhos e carteira", headerShown: false }} />
-      <Drawer.Screen name="DriverShiftOffers" component={DriverShiftOffersScreen} options={{ title: "Plantões" }} />
-      <Drawer.Screen name="DriverHistory" component={DriverHistoryScreen} options={{ title: "Histórico" }} />
-      <Drawer.Screen name="DriverVehicle" component={DriverVehicleScreen} options={{ title: "Veículo" }} />
-      <Drawer.Screen name="DriverRatings" component={DriverRatingsScreen} options={{ title: "Avaliações" }} />
-      <Drawer.Screen name="DriverDocuments" component={DriverDocumentsScreen} options={{ title: "Documentos" }} />
-      <Drawer.Screen name="DriverWorkPreferences" component={DriverWorkPreferencesScreen} options={{ title: "Preferências" }} />
-      <Drawer.Screen name="DriverProfile" component={DriverProfileScreen} options={{ title: "Perfil" }} />
-      <Drawer.Screen name="DriverSafety" component={DriverSafetyScreen} options={{ title: "Segurança" }} />
-      <Drawer.Screen name="DriverSupportCenter" component={DriverSupportCenterScreen} options={{ title: "Suporte" }} />
-      <Drawer.Screen name="DriverHelp" component={DriverHelpScreen} options={{ title: "Ajuda" }} />
-      <Drawer.Screen name="DriverSettings" component={DriverSettingsScreen} options={{ title: "Configurações" }} />
-
       <Drawer.Screen
-        name="DriverRide"
-        component={DriverRideScreen}
-        initialParams={initialRideId ? { rideId: initialRideId } : undefined}
-        options={HiddenScreenOptions}
-      />
-      <Drawer.Screen name="DriverRateClient" component={DriverRateClientScreen} options={HiddenScreenOptions} />
-      <Drawer.Screen name="DriverCancelRide" component={DriverCancelRideScreen} options={HiddenScreenOptions} />
-      <Drawer.Screen name="DriverChat" component={DriverChatScreen} options={HiddenScreenOptions} />
-      <Drawer.Screen name="DriverNegotiation" component={DriverNegotiationScreen} options={HiddenScreenOptions} />
-      <Drawer.Screen name="DeliveryOfferScreen" component={DeliveryOfferScreen} options={HiddenScreenOptions} />
-
-      <Drawer.Screen name="DeliveryPickupConfirm" component={DeliveryPickupConfirmScreen} options={HiddenScreenOptions} />
-      <Drawer.Screen name="DeliveryDropoffConfirm" component={DeliveryDropoffConfirmScreen} options={HiddenScreenOptions} />
-      <Drawer.Screen name="DriverHistoryRideDetails" component={DriverHistoryRideDetailsScreen} options={HiddenScreenOptions} />
+        name="DriverMain"
+        options={{ title: "Leva+", drawerLabel: () => null, drawerItemStyle: { display: "none" } }}
+      >
+        {() => <DriverStackRoutes initialRideId={initialRideId} />}
+      </Drawer.Screen>
     </Drawer.Navigator>
   );
 }

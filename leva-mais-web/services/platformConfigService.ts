@@ -1,4 +1,4 @@
-import axios from "axios";
+import { supabase } from "../lib/supabase";
 
 export interface PlatformConfig {
   _id?: string;
@@ -47,8 +47,6 @@ export interface PlatformConfig {
 }
 
 const STORAGE_KEY = "leva_mais_platform_config";
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
-const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || "dev-admin-key";
 
 const DEFAULT_CONFIG: PlatformConfig = {
   isDevelopmentMode: true,
@@ -98,14 +96,22 @@ const DEFAULT_CONFIG: PlatformConfig = {
 export const platformConfigService = {
   async get(): Promise<PlatformConfig> {
     try {
-      const res = await axios.get(`${API_URL}/auth/platform-config`, {
-        headers: { "x-admin-key": ADMIN_API_KEY },
-      });
-      const data = res?.data?.data || DEFAULT_CONFIG;
-      if (typeof window !== "undefined") {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      const { data, error } = await supabase
+        .from("platform_config")
+        .select("*")
+        .eq("key", "global_config")
+        .maybeSingle();
+
+      if (error) {
+        if (error.code === "42P01") return DEFAULT_CONFIG;
+        throw error;
       }
-      return data;
+
+      const config = data?.value || DEFAULT_CONFIG;
+      if (typeof window !== "undefined") {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+      }
+      return config;
     } catch {
       if (typeof window === "undefined") return DEFAULT_CONFIG;
       const stored = localStorage.getItem(STORAGE_KEY);
@@ -123,15 +129,24 @@ export const platformConfigService = {
 
   async update(config: Partial<PlatformConfig>): Promise<PlatformConfig> {
     try {
-      const res = await axios.patch(`${API_URL}/auth/platform-config`, config, {
-        headers: { "x-admin-key": ADMIN_API_KEY },
-      });
-      const data = res?.data?.data || DEFAULT_CONFIG;
+      const current = await this.get();
+      const updated = { ...current, ...config };
+
+      const { error } = await supabase
+        .from("platform_config")
+        .upsert({
+          key: "global_config",
+          value: updated,
+        });
+
+      if (error) throw error;
+
       if (typeof window !== "undefined") {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
       }
-      return data;
-    } catch {
+      return updated;
+    } catch (error) {
+      console.error("Error updating config:", error);
       const current = await this.get();
       const updated = { ...current, ...config };
       if (typeof window !== "undefined") {

@@ -1,78 +1,124 @@
-import axios from "axios";
-
-function getAdminHeaders() {
-  const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || "dev-admin-key";
-  return { "x-admin-key": ADMIN_API_KEY };
-}
-
-function normalizeApiBase(input: string) {
-  const raw = String(input || "").trim().replace(/\/+$/, "");
-  if (!raw) return "";
-  return raw.endsWith("/api") ? raw : `${raw}/api`;
-}
-
-function getApiCandidates() {
-  const envBase = normalizeApiBase(process.env.NEXT_PUBLIC_API_URL || "");
-  const browserBase =
-    typeof window !== "undefined"
-      ? normalizeApiBase(`${window.location.origin}/api`)
-      : "";
-
-  const localFallbacks = [
-    "http://localhost:3001/api",
-    "http://127.0.0.1:3001/api",
-    "http://localhost:3000/api",
-    "http://127.0.0.1:3000/api",
-    "http://localhost:3002/api",
-    "http://127.0.0.1:3002/api",
-  ].map(normalizeApiBase);
-
-  return Array.from(new Set([envBase, browserBase, ...localFallbacks].filter(Boolean)));
-}
-
-async function withApiFallback<T>(runner: (apiBase: string) => Promise<T>) {
-  const candidates = getApiCandidates();
-  let lastError: unknown = null;
-
-  for (const apiBase of candidates) {
-    try {
-      return await runner(apiBase);
-    } catch (error) {
-      lastError = error;
-    }
-  }
-
-  throw lastError;
-}
+import { supabase } from "../lib/supabase";
 
 export const verificationAdminService = {
   async listUsers(userType: "driver" | "client") {
-    return withApiFallback(async (apiBase) => {
-      const response = await axios.get(`${apiBase}/auth/users?userType=${userType}`, {
-        headers: getAdminHeaders(),
-      });
-      return response?.data?.users || [];
-    });
+    try {
+      if (userType === "client") {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("role", "client");
+        if (error) throw error;
+
+        return (data || []).map((row: any) => ({
+          _id: row.id,
+          name: row.full_name || "",
+          email: row.email || "",
+          phone: row.phone || "",
+          cpf: row.cpf || undefined,
+          userType: "client",
+          isActive: row.is_active !== false,
+          createdAt: row.created_at,
+          city: row.city || undefined,
+          clientVerification: row.client_verification || {
+            status: "approved",
+          },
+        }));
+      } else {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select(`
+            *,
+            driver_details(*)
+          `)
+          .eq("role", "driver");
+        if (error) throw error;
+
+        return (data || []).map((row: any) => {
+          const details = row.driver_details?.[0] || row.driver_details || null;
+          return {
+            _id: row.id,
+            name: row.full_name || "",
+            email: row.email || "",
+            phone: row.phone || "",
+            cpf: row.cpf || undefined,
+            userType: "driver",
+            isActive: row.is_active !== false,
+            createdAt: row.created_at,
+            city: row.city || undefined,
+            driverStatus: details?.status || "none",
+            driverDocuments: details?.documents || undefined,
+            vehicles: details ? [
+              {
+                _id: details.id,
+                type: details.vehicle_type,
+                plate: details.vehicle_plate,
+                model: details.vehicle_model,
+                color: details.vehicle_color,
+                year: details.vehicle_year,
+                status: details.status === "approved" ? "approved" : "pending",
+                documents: details.documents || {},
+              }
+            ] : [],
+          };
+        });
+      }
+    } catch (error) {
+      console.error("Error listing users for verification:", error);
+      return [];
+    }
   },
 
   async updateUserById(userId: string, payload: Record<string, unknown>) {
-    return withApiFallback(async (apiBase) => {
-      const response = await axios.patch(`${apiBase}/auth/users/${userId}`, payload, {
-        headers: getAdminHeaders(),
-      });
-      return response?.data?.user || null;
-    });
+    const profileUpdates: any = {};
+    if (payload.isActive !== undefined) profileUpdates.is_active = payload.isActive;
+    if (payload.name !== undefined) profileUpdates.full_name = payload.name;
+
+    if (Object.keys(profileUpdates).length > 0) {
+      const { data, error } = await supabase
+        .from("profiles")
+        .update(profileUpdates)
+        .eq("id", userId)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    }
+    return null;
   },
 
   async updateClientVerification(userId: string, field: "cpfStatus" | "selfieStatus", status: string, reason?: string) {
-    return withApiFallback(async (apiBase) => {
-      const response = await axios.patch(
-        `${apiBase}/auth/users/${userId}/client-verification`,
-        { field, status, reason },
-        { headers: getAdminHeaders() }
-      );
-      return response?.data?.user || null;
-    });
+    const { data: profile, error: getError } = await supabase
+      .from("profiles")
+      .select("client_verification")
+      .eq("id", userId)
+      .single();
+
+    if (getError) throw getError;
+
+    const currentVerification = profile?.client_verification || {};
+    const updatedVerification = {
+      ...currentVerification,
+      [field]: status,
+      ...(reason ? { rejectionReason: reason } : {}),
+      reviewedAt: new Date().toISOString(),
+    };
+
+    if (updatedVerification.cpfStatus === "approved" && updatedVerification.selfieStatus === "approved") {
+      updatedVerification.status = "approved";
+    } else if (updatedVerification.cpfStatus === "rejected" || updatedVerification.selfieStatus === "rejected") {
+      updatedVerification.status = "rejected";
+    }
+
+    const { data: updated, error } = await supabase
+      .from("profiles")
+      .update({ client_verification: updatedVerification })
+      .eq("id", userId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return updated;
   },
 
   async updateDriverVerification(
@@ -90,13 +136,41 @@ export const verificationAdminService = {
     reason?: string,
     riskFlags?: string[]
   ) {
-    return withApiFallback(async (apiBase) => {
-      const response = await axios.patch(
-        `${apiBase}/auth/users/${userId}/driver-verification`,
-        { field, status, reason, riskFlags },
-        { headers: getAdminHeaders() }
-      );
-      return response?.data?.user || null;
-    });
+    const { data: details, error: getError } = await supabase
+      .from("driver_details")
+      .select("*")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (getError) throw getError;
+
+    const currentDocs = details?.documents || {};
+    const updatedDocs = {
+      ...currentDocs,
+    };
+
+    const updates: any = {};
+    if (field === "driverStatus") {
+      updates.status = status;
+      if (reason) updates.rejection_reason = reason;
+    } else {
+      updatedDocs[field] = status;
+      updates.documents = updatedDocs;
+      if (reason) updatedDocs.rejectionReason = reason;
+    }
+
+    if (riskFlags) {
+      updates.risk_flags = riskFlags;
+    }
+
+    const { data: updated, error } = await supabase
+      .from("driver_details")
+      .update(updates)
+      .eq("id", userId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return updated;
   },
 };

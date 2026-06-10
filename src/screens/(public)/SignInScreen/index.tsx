@@ -23,10 +23,10 @@ import * as z from "zod";
 
 // Core Logic & Services
 import {
-  login as loginService,
-  googleAuth,
-  checkEmailExists,
-} from "../../../services/auth.service";
+  signInWithEmail,
+  signInWithGoogle,
+  getProfile,
+} from "../../../services/supabase-auth.service";
 import { useAuthStore } from "../../../context/authStore";
 import {
   GoogleSignin,
@@ -95,146 +95,71 @@ export default function SignInScreen() {
   // 💼 Handlers
   async function handleGoogleSignIn() {
     setGoogleLoading(true);
-    console.log("[GoogleSignIn] Início do processo");
     try {
-      console.log("[GoogleSignIn] Verificando Play Services");
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-      
-      // Force account picker by signing out first
-      try {
-        await GoogleSignin.signOut();
-      } catch (e) {}
+      try { await GoogleSignin.signOut(); } catch (e) {}
 
-      console.log("[GoogleSignIn] Iniciando signIn()");
       const userInfo = await GoogleSignin.signIn();
-      console.log("[GoogleSignIn] SignIn realizado com sucesso", userInfo);
-
       if (!isSuccessResponse(userInfo)) {
         Toast.show({ type: "error", text1: "Falha ao autenticar com Google" });
         return;
       }
 
-      const { user } = userInfo.data;
-      const { email, id, name, photo } = user;
-      const normalizedEmail = email.trim().toLowerCase();
+      const idToken = userInfo.data.idToken;
+      if (!idToken) {
+        Toast.show({ type: "error", text1: "Token Google inválido. Tente novamente." });
+        return;
+      }
 
-      // 🔄 Execute Direct Unified Google Authentication.
-      // The backend will autonomously create new accounts OR correctly link/log in existing ones!
-      const response = await googleAuth({
-        googleId: id,
-        email: normalizedEmail,
-        name: name || normalizedEmail.split("@")[0],
-        profilePhoto: photo || undefined,
-      });
+      const { session, user } = await signInWithGoogle(idToken);
+      if (!session || !user) {
+        Toast.show({ type: "error", text1: "Erro ao autenticar com Google" });
+        return;
+      }
 
-      if (response.success && response.data) {
-        const { user: userData, token } = response.data;
-        const {
-          _id,
-          name: userName,
-          email: userEmail,
-          phone,
-          userType,
-          profilePhoto,
-          googleId: gId,
-          acceptedTerms,
-          city,
-        } = userData;
+      const profile = await getProfile(user.id);
 
-        // 🚨 Force Phone Capture if missing
-        if (!phone) {
-          const generatedPassword = `${userEmail}-${id}`;
-          navigation.navigate("GooglePhonePrompt", {
-            user: {
-              _id,
-              name: userName,
-              email: userEmail,
-              password: generatedPassword,
-              phone: "",
-              city: city || "",
-              userType: userType || undefined,
-              googleId: gId,
-              profilePhoto,
-              acceptedTerms,
-            },
-            token,
-          });
-          return;
-        }
-
-        // 🚀 New users (no userType) or users without type MUST go to SelectProfile
-        if (!userType) {
-          const generatedPassword = `${userEmail}-${id}`;
-          navigation.navigate("SelectProfile", {
-            user: {
-              _id,
-              name: userName,
-              email: userEmail,
-              password: generatedPassword,
-              phone: phone,
-              city: city || "",
-              userType: userType || undefined,
-              googleId: gId,
-              profilePhoto,
-              acceptedTerms,
-            },
-            token,
-          });
-          return;
-        }
-
-        if (userType === "client" || userType === "driver") {
-          useAuthStore.getState().login(
-            userType,
-            {
-              id: _id,
-              name: userName,
-              cidade: city || "",
-              nome: userName,
-              email: userEmail,
-              telefone: phone,
-              fotoPerfil: profilePhoto,
-              googleId: gId,
-              aceitouTermos: !!acceptedTerms,
-            },
-            token,
-          );
-
-          Toast.show({
-            type: "success",
-            text1: "Login com Google realizado com sucesso!",
-            text2: `Bem-vindo, ${userName}!`,
-          });
-        } else {
-          const generatedPassword = `${userEmail}-${id}`;
-          navigation.navigate("SelectProfile", {
-            user: {
-              _id,
-              name: userName,
-              email: userEmail,
-              password: generatedPassword,
-              phone: phone,
-              city: city || "",
-              userType: userType || undefined,
-              googleId: gId,
-              profilePhoto,
-              acceptedTerms,
-            },
-            token,
-          });
-        }
-      } else {
-        Toast.show({
-          type: "error",
-          text1: "Erro ao autenticar com Google",
-          text2: response.message || "Verifique sua conexão e tente novamente",
+      // Novo usuário sem role → verificação de telefone → escolher perfil
+      if (!profile?.role) {
+        const googleUserData = {
+          _id: user.id,
+          name: profile?.full_name || user.user_metadata?.full_name || "",
+          email: user.email || "",
+          phone: profile?.phone || "",
+          city: profile?.city || "",
+          acceptedTerms: false,
+        };
+        navigation.navigate("PhoneVerification", {
+          phone: profile?.phone || "",
+          askForPhone: !profile?.phone,
+          nextScreen: "PhoneLocationSetup",
+          nextParams: { user: googleUserData, token: session.access_token },
         });
+        return;
       }
+
+      useAuthStore.getState().login(
+        profile.role as "client" | "driver",
+        {
+          id: user.id,
+          name: profile.full_name || "",
+          nome: profile.full_name || "",
+          email: user.email || "",
+          telefone: profile.phone || "",
+          cidade: profile.city || "",
+          fotoPerfil: profile.avatar_url || undefined,
+          aceitouTermos: profile.accepted_terms,
+        },
+        session.access_token,
+      );
+
+      Toast.show({
+        type: "success",
+        text1: "Bem-vindo!",
+        text2: profile.full_name || "",
+      });
     } catch (error: any) {
-      console.error("[GoogleSignIn] Erro capturado no catch:", error);
-      if (isErrorWithCode(error)) {
-        console.log("[GoogleSignIn] Erro com código:", error.code);
-      }
+      if (isErrorWithCode(error) && error.code === statusCodes.SIGN_IN_CANCELLED) return;
       Toast.show({
         type: "error",
         text1: "Erro ao fazer login com Google",
@@ -248,58 +173,59 @@ export default function SignInScreen() {
   const onSubmit = async (data: LoginFormValues) => {
     setLoading(true);
     try {
-      const response = await loginService({
-        email: data.email.trim().toLowerCase(),
-        password: data.password,
-      });
+      const { session, user } = await signInWithEmail(
+        data.email.trim().toLowerCase(),
+        data.password,
+      );
 
-      if (response.success && response.data) {
-        const { user, token } = response.data;
-        const {
-          _id,
-          name,
-          email: userEmail,
-          phone,
-          userType,
-          profilePhoto,
-          googleId,
-          acceptedTerms,
-          city,
-        } = user;
-
-        useAuthStore.getState().login(
-          userType,
-          {
-            id: _id,
-            name: name,
-            cidade: city || "",
-            nome: name,
-            email: userEmail,
-            telefone: phone || "",
-            fotoPerfil: profilePhoto,
-            googleId: googleId,
-            aceitouTermos: !!acceptedTerms,
-          },
-          token,
-        );
-
-        Toast.show({
-          type: "success",
-          text1: "Login realizado com sucesso!",
-          text2: `Bem-vindo, ${name}!`,
-        });
-      } else {
-        Toast.show({
-          type: "error",
-          text1: "Erro ao fazer login",
-          text2: response.message || "Email ou senha inválidos",
-        });
+      if (!session || !user) {
+        Toast.show({ type: "error", text1: "Email ou senha inválidos" });
+        return;
       }
+
+      const profile = await getProfile(user.id);
+
+      if (!profile?.role) {
+        navigation.navigate("SelectProfile", {
+          supabaseUserId: user.id,
+          user: {
+            _id: user.id,
+            name: profile?.full_name || "",
+            email: user.email || "",
+            phone: profile?.phone || "",
+            city: profile?.city || "",
+            acceptedTerms: false,
+          },
+          token: session.access_token,
+        });
+        return;
+      }
+
+      useAuthStore.getState().login(
+        profile.role as "client" | "driver",
+        {
+          id: user.id,
+          name: profile.full_name || "",
+          nome: profile.full_name || "",
+          email: user.email || "",
+          telefone: profile.phone || "",
+          cidade: profile.city || "",
+          fotoPerfil: profile.avatar_url || undefined,
+          aceitouTermos: profile.accepted_terms,
+        },
+        session.access_token,
+      );
+
+      Toast.show({
+        type: "success",
+        text1: "Login realizado com sucesso!",
+        text2: `Bem-vindo, ${profile.full_name}!`,
+      });
     } catch (error: any) {
-            Toast.show({
+      Toast.show({
         type: "error",
         text1: "Erro ao fazer login",
-        text2: error.message || "Verifique sua conexão e tente novamente",
+        text2: error.message || "Verifique suas credenciais",
       });
     } finally {
       setLoading(false);

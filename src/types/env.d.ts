@@ -4,5 +4,7 @@ declare module "@env" {
   export const Cliente_OAuth_ANDROID_ID: string;
   export const Cliente_OAuth_IOS_ID: string;
   export const EXPO_PUBLIC_API_URL: string;
+  export const EXPO_PUBLIC_SUPABASE_URL: string;
+  export const EXPO_PUBLIC_SUPABASE_ANON_KEY: string;
 }
 

@@ -8,8 +8,14 @@ import { LinearGradient } from "expo-linear-gradient";
 
 import { useAuthStore } from "@/context/authStore";
 import { colors } from "@/theme/colors";
-import userService from "@/services/user.service";
-import webSocketService from "@/services/websocket.service";
+import { supabase } from "@/lib/supabase";
+import {
+  getProfile,
+  saveClientKyc,
+  uploadClientSelfie,
+  getKycSelfieUrl,
+  updateMyProfile,
+} from "@/services/supabase-auth.service";
 import { getCurrentLocationAndAddress } from "@/utils/location";
 import * as ImagePicker from "expo-image-picker";
 
@@ -74,16 +80,9 @@ export default function ClientOnboardingDashboard({ onContinue }: { onContinue: 
       const res = await getCurrentLocationAndAddress();
       if (res && res.address?.city) {
         const detectedCity = res.address.city;
-        
-        // Update on backend
-        const updated = await userService.updateProfile({ city: detectedCity });
-        if (updated) {
-          updateUserData({
-            cidade: updated.cidade || updated.city || detectedCity,
-            city: updated.city || updated.cidade || detectedCity,
-          });
-          setCityInput(updated.city || updated.cidade || detectedCity);
-        }
+        await updateMyProfile({ city: detectedCity }).catch(() => {});
+        updateUserData({ cidade: detectedCity, city: detectedCity });
+        setCityInput(detectedCity);
       }
     } catch (err) {
       console.warn("[ClientOnboarding] Geolocation/City detection error:", err);
@@ -104,11 +103,12 @@ export default function ClientOnboardingDashboard({ onContinue }: { onContinue: 
         cameraType: ImagePicker.CameraType.front,
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.7,
+        quality: 0.6,
+        base64: true,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        await handleFaceVerificationSuccess(result.assets[0].uri);
+        await handleFaceVerificationSuccess(result.assets[0]);
       }
     } catch (e) {
       console.error("[ClientOnboarding] Camera error:", e);
@@ -116,22 +116,26 @@ export default function ClientOnboardingDashboard({ onContinue }: { onContinue: 
     }
   };
 
-  const handleFaceVerificationSuccess = async (localUri: string) => {
+  const handleFaceVerificationSuccess = async (asset: ImagePicker.ImagePickerAsset) => {
     try {
       setUploadingSelfie(true);
-      const remoteUrl = await userService.uploadProfilePhoto(localUri);
-      
-      updateUserData({
-        fotoPerfil: remoteUrl,
-      });
+      if (!asset.base64) throw new Error("Imagem inválida (sem dados).");
 
-      // Reload client status to get the updated clientVerification object from server
+      // Upload para o Supabase Storage (bucket privado kyc/{uid}/selfie.jpg)
+      const { kyc_status } = await uploadClientSelfie(asset.base64);
+
+      // Recarrega status para obter URL assinada e refletir aprovação
       await loadClientStatus();
 
-      Alert.alert("Sucesso", "Biometria facial enviada! Sua conta entrará em análise.");
+      Alert.alert(
+        "Sucesso",
+        kyc_status === "approved"
+          ? "Biometria enviada e conta aprovada!"
+          : "Biometria facial enviada com sucesso!",
+      );
     } catch (e: any) {
       console.error("[ClientOnboarding] Error uploading selfie:", e);
-      Alert.alert("Erro", "Não foi possível enviar a foto da biometria. Tente novamente.");
+      Alert.alert("Erro", e?.message || "Não foi possível enviar a foto da biometria. Tente novamente.");
     } finally {
       setUploadingSelfie(false);
     }
@@ -139,60 +143,71 @@ export default function ClientOnboardingDashboard({ onContinue }: { onContinue: 
 
   const loadClientStatus = async () => {
     try {
-      const profile = await userService.getProfile().catch(() => null);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+      const profile = await getProfile(user.id).catch(() => null);
       if (profile) {
+        const hasDoc = Boolean(profile.cpf || profile.cnpj);
+        const selfiePath = profile.selfie_url || null;
+        const hasSelfie = Boolean(selfiePath);
+        const vStatus: "none" | "pending" | "approved" | "rejected" =
+          profile.kyc_status === "approved"
+            ? "approved"
+            : hasDoc || hasSelfie
+              ? "pending"
+              : "none";
+        const cStatus: "unchecked" | "valid" | "invalid" | "manual_review" = hasDoc
+          ? vStatus === "approved" ? "valid" : "manual_review"
+          : "unchecked";
+        const sStatus: "none" | "pending" | "approved" | "rejected" = hasSelfie
+          ? vStatus === "approved" ? "approved" : "pending"
+          : "none";
+
+        const selfieUrl = await getKycSelfieUrl(selfiePath);
+
         updateUserData({
-          cidade: profile.cidade || profile.city || "",
-          city: profile.city || profile.cidade || "",
+          cidade: profile.city || "",
+          city: profile.city || "",
           cpf: profile.cpf || "",
           cnpj: profile.cnpj || "",
-          phone: profile.phone || profile.telefone || "",
-          telefone: profile.telefone || profile.phone || "",
-          companyName: profile.companyName || "",
-          companyEmail: profile.companyEmail || "",
-          companyPhone: profile.companyPhone || "",
-          paymentMethods: profile.paymentMethods || [],
-          fotoPerfil: profile.profilePhoto || "",
+          phone: profile.phone || "",
+          telefone: profile.phone || "",
+          companyName: profile.company_name || "",
+          companyEmail: profile.company_email || "",
+          companyPhone: profile.company_phone || "",
+          fotoPerfil: selfieUrl || profile.avatar_url || "",
+          clientVerification: {
+            status: vStatus,
+            documents: { selfie: selfiePath },
+            cpfStatus: cStatus,
+            selfieStatus: sStatus,
+          },
         });
 
-        const selfiePath = profile.clientVerification?.documents?.selfie;
-        const vStatus = profile.clientVerification?.status || "none";
-        const cStatus = profile.clientVerification?.cpfStatus || "unchecked";
-        const sStatus = profile.clientVerification?.selfieStatus || "none";
-        
-        setHasSelfieUploaded(Boolean(selfiePath));
+        setHasSelfieUploaded(hasSelfie);
         setVerificationStatus(vStatus);
         setCpfStatus(cStatus);
         setSelfieStatus(sStatus);
 
-        // Se o cliente ja preencheu CPF/CNPJ e a aprovação está concluída
-        const alreadyCompliant = Boolean(
-          (profile.cpf || profile.cnpj) && 
-          selfiePath &&
-          vStatus === "approved"
-        );
-        if (alreadyCompliant) {
+        if (hasDoc && hasSelfie && vStatus === "approved") {
           setShowApprovalReady(true);
         }
-        
+
         // Seed fields
         setCpfInput(profile.cpf ? formatCPF(profile.cpf) : "");
         setNameInput("");
         setCnpjInput(profile.cnpj ? formatCNPJ(profile.cnpj) : "");
-        setPhoneInput(profile.phone || profile.telefone ? formatPhone(profile.phone || profile.telefone || "") : "");
-        setCompanyNameInput(profile.companyName || "");
-        setCompanyEmailInput(profile.companyEmail || "");
-        setCompanyPhoneInput(profile.companyPhone ? formatPhone(profile.companyPhone) : "");
-        setCityInput(profile.city || profile.cidade || "");
-        
-        if (profile.cnpj) {
-          setPersonType("PJ");
-        } else {
-          setPersonType("PF");
-        }
+        setPhoneInput(profile.phone ? formatPhone(profile.phone) : "");
+        setCompanyNameInput(profile.company_name || "");
+        setCompanyEmailInput(profile.company_email || "");
+        setCompanyPhoneInput(profile.company_phone ? formatPhone(profile.company_phone) : "");
+        setCityInput(profile.city || "");
+        setPersonType(profile.cnpj ? "PJ" : "PF");
 
-        // If city is not set, run detection in background
-        if (!profile.city && !profile.cidade) {
+        if (!profile.city) {
           detectAndSaveCity();
         }
       }
@@ -209,36 +224,9 @@ export default function ClientOnboardingDashboard({ onContinue }: { onContinue: 
     }
   }, [isFocused]);
 
-  useEffect(() => {
-    const onVerificationUpdated = (data: any) => {
-      const verification = data?.clientVerification;
-      if (!verification) return;
-
-      const vStatus = verification?.status || "none";
-      const cStatus = verification?.cpfStatus || "unchecked";
-      const sStatus = verification?.selfieStatus || "none";
-      const selfiePath = verification?.documents?.selfie;
-
-      setVerificationStatus(vStatus);
-      setCpfStatus(cStatus);
-      setSelfieStatus(sStatus);
-      setHasSelfieUploaded(Boolean(selfiePath));
-      updateUserData({
-        clientVerification: verification,
-        ...(typeof data?.isActive === "boolean" ? { isActive: data.isActive } : {}),
-      });
-
-      if (data?.approved === true || (vStatus === "approved" && selfiePath)) {
-        setShowApprovalReady(true);
-      }
-    };
-
-    webSocketService.connect().catch(() => {});
-    webSocketService.on("client-verification-updated", onVerificationUpdated);
-    return () => {
-      webSocketService.off("client-verification-updated", onVerificationUpdated);
-    };
-  }, [updateUserData, userData?.cpf, userData?.cnpj]);
+  // KYC agora é auto-aprovado no Supabase ao completar dados + selfie.
+  // Aprovação manual via realtime (Socket.io) será reintroduzida quando o
+  // dashboard admin for migrado para o Supabase (fase futura).
 
   const handleSaveCadastral = async () => {
     // Basic validations
@@ -280,63 +268,52 @@ export default function ClientOnboardingDashboard({ onContinue }: { onContinue: 
       const cleanCPF = cpfInput.replace(/\D/g, "");
       const cleanCNPJ = cnpjInput.replace(/\D/g, "");
 
-      const payload: any = {
-        city: cityInput.trim(),
-        phone: cleanPhone,
-      };
+      const payload =
+        personType === "PF"
+          ? {
+              city: cityInput.trim(),
+              phone: cleanPhone || userData?.phone || undefined,
+              cpf: cleanCPF,
+              full_name: nameInput.trim(),
+              cnpj: "",
+              company_name: "",
+              company_email: "",
+              company_phone: "",
+            }
+          : {
+              city: cityInput.trim(),
+              phone: cleanPhone || userData?.phone || undefined,
+              cnpj: cleanCNPJ,
+              cpf: "",
+              company_name: companyNameInput.trim(),
+              company_email: companyEmailInput.trim(),
+              company_phone: companyPhoneInput.replace(/\D/g, ""),
+            };
 
-      if (personType === "PF") {
-        payload.cpf = cleanCPF;
-        payload.name = nameInput.trim();
-        payload.cnpj = ""; // Clear CNPJ if they switched to PF
-        payload.companyName = "";
-        payload.companyEmail = "";
-        payload.companyPhone = "";
-      } else {
-        payload.cnpj = cleanCNPJ;
-        payload.cpf = ""; // Clear CPF if they switched to PJ
-        payload.companyName = companyNameInput.trim();
-        payload.companyEmail = companyEmailInput.trim();
-        payload.companyPhone = companyPhoneInput.replace(/\D/g, "");
-      }
+      const { kyc_status } = await saveClientKyc(payload);
 
-      const updatedUser = await userService.updateProfile(payload);
-      if (updatedUser) {
-        updateUserData({
-          cidade: updatedUser.cidade || updatedUser.city || "",
-          city: updatedUser.city || updatedUser.cidade || "",
-          cpf: updatedUser.cpf || "",
-          cnpj: updatedUser.cnpj || "",
-          phone: updatedUser.phone || updatedUser.telefone || "",
-          telefone: updatedUser.telefone || updatedUser.phone || "",
-          companyName: updatedUser.companyName || "",
-          companyEmail: updatedUser.companyEmail || "",
-          companyPhone: updatedUser.companyPhone || "",
-        });
+      updateUserData({
+        cidade: payload.city,
+        city: payload.city,
+        cpf: payload.cpf || "",
+        cnpj: payload.cnpj || "",
+        phone: payload.phone || "",
+        telefone: payload.phone || "",
+        companyName: payload.company_name || "",
+        companyEmail: payload.company_email || "",
+        companyPhone: payload.company_phone || "",
+      });
 
-        // Also update clientVerification fields locally
-        const selfiePath = updatedUser.clientVerification?.documents?.selfie;
-        const vStatus = updatedUser.clientVerification?.status || "none";
-        const cStatus = updatedUser.clientVerification?.cpfStatus || "unchecked";
-        const sStatus = updatedUser.clientVerification?.selfieStatus || "none";
-        
-        setHasSelfieUploaded(Boolean(selfiePath));
-        setVerificationStatus(vStatus);
-        setCpfStatus(cStatus);
-        setSelfieStatus(sStatus);
+      const hasDoc = Boolean(payload.cpf || payload.cnpj);
+      setCpfStatus(hasDoc ? (kyc_status === "approved" ? "valid" : "manual_review") : "unchecked");
+      setVerificationStatus(kyc_status as any);
 
-        Alert.alert("Sucesso", "Dados cadastrais atualizados com sucesso!");
-        setShowModal(false);
-        onContinue();
-      }
+      Alert.alert("Sucesso", "Dados cadastrais salvos com sucesso!");
+      setShowModal(false);
+      onContinue();
     } catch (err: any) {
       console.error("[ClientOnboarding] Error saving cadastral data:", err);
-      const errMsg = err?.response?.data?.message || err?.message || "Não foi possível salvar os dados. Tente novamente.";
-      if (errMsg.includes("coincidem") || errMsg.includes("batem") || errMsg.includes("CPF") || errMsg.includes("divergentes")) {
-        Alert.alert("⚠️ Dados Divergentes", errMsg);
-      } else {
-        Alert.alert("Erro", errMsg);
-      }
+      Alert.alert("Erro", err?.message || "Não foi possível salvar os dados. Tente novamente.");
     } finally {
       setSubmitting(false);
     }

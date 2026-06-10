@@ -907,7 +907,7 @@ export default function DriverRideScreen() {
         // Redirecionar para confirmacao de coleta (delivery)
         if (isDelivery) {
           setTimeout(() => {
-            (navigation as any).navigate("DeliveryPickupConfirm", { rideId });
+            (navigation as any).replace("DeliveryPickupConfirm", { rideId });
           }, 500);
           return;
         }
@@ -925,7 +925,7 @@ export default function DriverRideScreen() {
           text1: isDelivery ? "Entrega finalizada" : "Corrida finalizada",
         });
         // estilo Uber/99: pedir avaliacao
-        (navigation as any).navigate("DriverRateClient", { rideId: r._id });
+        (navigation as any).replace("DriverRateClient", { rideId: r._id });
       }
     } catch (e: any) {
       // se o motorista cancelou a foto, nao tratar como erro grave
@@ -1305,14 +1305,14 @@ export default function DriverRideScreen() {
               } else if (canStart) {
                 // Para entregas, abrir tela de confirmação de coleta (PIN + dados)
                 if (isDelivery) {
-                  (navigation as any).navigate("DeliveryPickupConfirm", { rideId });
+                  (navigation as any).replace("DeliveryPickupConfirm", { rideId });
                 } else {
                   update("in_progress");
                 }
               } else if (canComplete) {
                 // Para entregas, abrir tela de confirmação de entrega (PIN de entrega)
                 if (isDelivery) {
-                  (navigation as any).navigate("DeliveryDropoffConfirm", { rideId });
+                  (navigation as any).replace("DeliveryDropoffConfirm", { rideId });
                 } else {
                   update("completed");
                 }

@@ -71,7 +71,7 @@ export default function DeliveryDropoffConfirm() {
 
       Toast.show({ type: "success", text1: "Entrega finalizada!" });
 
-      (navigation as any).navigate("DriverRateClient", { rideId });
+      (navigation as any).replace("DriverRateClient", { rideId });
     } catch (error) {
       console.error("Erro ao finalizar entrega:", error);
       Toast.show({ type: "error", text1: "Erro ao finalizar entrega" });

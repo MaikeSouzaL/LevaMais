@@ -9,7 +9,12 @@ import { useNavigation } from "@react-navigation/native";
 
 import TextField from "../../../components/ui/TextField";
 import ActionButton from "../../../components/ui/ActionButton";
-import driverService, { DriverVehicle } from "../../../services/driver.service";
+import type { DriverVehicle } from "../../../services/driver.service";
+import {
+  getMyDriverDetails,
+  saveDriverVehicle,
+  uploadDriverDocument,
+} from "../../../services/supabase-auth.service";
 import { DriverScreen } from "./components/DriverScreen";
 import SectionCard from "../../../components/ui/SectionCard";
 import { DualUploadDocumentCard } from "../../../components/driver/documents/DualUploadDocumentCard";
@@ -24,6 +29,7 @@ const VEHICLE_TYPES = [
 
 type DocState = {
   uri: string | null;
+  base64?: string | null;
   loading: boolean;
 };
 
@@ -57,13 +63,33 @@ export default function DriverVehicleScreen() {
   const fetchFleet = async () => {
     setLoading(true);
     try {
-      const res = await driverService.listVehicles();
-      setFleet(res.vehicles || []);
-      setActiveVehicleId(res.activeVehicleId || null);
+      // Modelo de veículo único no driver_details (Supabase). Monta um item sintético
+      // para alimentar a UI de frota existente sem reescrever a renderização.
+      const d = await getMyDriverDetails();
+      if (d?.vehicle_plate) {
+        const synthetic: DriverVehicle = {
+          _id: "self",
+          type: (d.vehicle_type as any) || "car",
+          plate: d.vehicle_plate || "",
+          model: d.vehicle_model || "",
+          color: d.vehicle_color || undefined,
+          year: d.vehicle_year || undefined,
+          rideCategory: null,
+          status: d.status === "approved" ? "approved" : d.status === "rejected" ? "rejected" : "pending",
+          documents: {},
+          createdAt: d.created_at || new Date().toISOString(),
+          updatedAt: d.updated_at || new Date().toISOString(),
+        };
+        setFleet([synthetic]);
+        setActiveVehicleId("self");
+      } else {
+        setFleet([]);
+        setActiveVehicleId(null);
+      }
     } catch (e: any) {
       Toast.show({
         type: "error",
-        text1: "Falha ao carregar frota",
+        text1: "Falha ao carregar veículo",
         text2: e?.message,
       });
     } finally {
@@ -91,7 +117,8 @@ export default function DriverVehicleScreen() {
       const options: ImagePicker.ImagePickerOptions = {
         mediaTypes: "images",
         allowsEditing: true,
-        quality: 0.8,
+        quality: 0.7,
+        base64: true,
       };
 
       const result = source === "camera"
@@ -100,20 +127,17 @@ export default function DriverVehicleScreen() {
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const uri = result.assets[0].uri;
-        
+        const base64 = result.assets[0].base64 || null;
+
         const setter = target === "crlvFront" ? setCrlvFront : target === "crlvBack" ? setCrlvBack : setVehiclePhoto;
-        
-        setter({ uri, loading: true });
-        
-        // Simulate processing/upload delay for great UX visual feel
-        setTimeout(() => {
-          setter({ uri, loading: false });
-          Toast.show({
-            type: "success",
-            text1: "Arquivo anexado!",
-            text2: "Documento capturado com sucesso.",
-          });
-        }, 1000);
+
+        // Apenas captura localmente; o upload pro Supabase acontece no "Cadastrar".
+        setter({ uri, base64, loading: false });
+        Toast.show({
+          type: "success",
+          text1: "Arquivo anexado!",
+          text2: "Documento capturado com sucesso.",
+        });
       }
     } catch (e) {
       Toast.show({ type: "error", text1: "Erro ao obter arquivo." });
@@ -126,47 +150,18 @@ export default function DriverVehicleScreen() {
   };
 
   const handleActivate = async (id: string) => {
-    setRefreshing(true);
-    try {
-      const res = await driverService.activateVehicle(id);
-      Toast.show({
-        type: "success",
-        text1: "Veículo alterado!",
-        text2: res?.message || "Você está pronto para receber chamadas.",
-      });
-      // Fast re-sync
-      const refreshed = await driverService.listVehicles();
-      setFleet(refreshed.vehicles || []);
-      setActiveVehicleId(refreshed.activeVehicleId || null);
-    } catch (e: any) {
-      Alert.alert("Não foi possível ativar", e?.response?.data?.error || e?.message || "Erro desconhecido.");
-    } finally {
-      setRefreshing(false);
-    }
+    // Modelo de veículo único: o veículo já é o ativo.
+    setActiveVehicleId(id);
+    Toast.show({ type: "success", text1: "Veículo ativo", text2: "Pronto para receber chamadas." });
   };
 
   const handleSetRideCategory = async (
     id: string,
     rideCategory: "car_economy" | "car_comfort" | "car_luxury",
   ) => {
-    // Atualização otimista
+    // Atualização local (categoria de corrida — persistência multi-veículo virá com a tabela de frota)
     setFleet((prev) => prev.map((v) => (v._id === id ? { ...v, rideCategory } : v)));
-    try {
-      await driverService.setVehicleRideCategory(id, rideCategory);
-      Toast.show({ type: "success", text1: "Categoria de corrida atualizada" });
-    } catch (e: any) {
-      Toast.show({
-        type: "error",
-        text1: "Falha ao atualizar categoria",
-        text2: e?.response?.data?.error || e?.message,
-      });
-      // Recarrega em caso de erro
-      const refreshed = await driverService.listVehicles().catch(() => null);
-      if (refreshed) {
-        setFleet(refreshed.vehicles || []);
-        setActiveVehicleId(refreshed.activeVehicleId || null);
-      }
-    }
+    Toast.show({ type: "success", text1: "Categoria de corrida atualizada" });
   };
 
   const handleRegister = async () => {
@@ -185,67 +180,31 @@ export default function DriverVehicleScreen() {
       Alert.alert("Documentos ausentes", "É obrigatório anexar Frente/Verso do CRLV e Foto do Veículo para prosseguir.");
       return;
     }
+    if (!crlvFront.base64 || !crlvBack.base64 || !vehiclePhoto.base64) {
+      Alert.alert("Erro nos arquivos", "Reanexe as fotos do veículo e tente novamente.");
+      return;
+    }
 
     setSubmitting(true);
     try {
-      const vehicle = await driverService.addVehicle({
-        type: newVehicleType as any,
-        plate: newPlate,
-        model: newModel,
-        color: newColor || undefined,
-        year: newYear ? Number(newYear) : undefined,
-        renavam: newRenavam,
-        rideCategory: newVehicleType === "car" ? newRideCategory : undefined,
-        documents: {
-          crlvFront: crlvFront.uri,
-          crlvBack: crlvBack.uri,
-          vehiclePhoto: vehiclePhoto.uri,
-        }
+      // 1) Dados do veículo no driver_details
+      await saveDriverVehicle({
+        vehicle_type: newVehicleType as any,
+        vehicle_plate: newPlate,
+        vehicle_model: newModel,
+        vehicle_color: newColor || undefined,
+        vehicle_year: newYear ? Number(newYear) : undefined,
       });
 
-      if (vehicle && vehicle._id) {
-        const formData = new FormData();
-        
-        if (crlvFront.uri) {
-          const filename = crlvFront.uri.split("/").pop() || "crlvFront.jpg";
-          const ext = filename.split(".").pop()?.toLowerCase() || "jpg";
-          const mimeType = ext === "png" ? "image/png" : "image/jpeg";
-          formData.append("crlvFront", {
-            uri: Platform.OS === "ios" ? crlvFront.uri.replace("file://", "") : crlvFront.uri,
-            name: filename,
-            type: mimeType,
-          } as any);
-        }
-
-        if (crlvBack.uri) {
-          const filename = crlvBack.uri.split("/").pop() || "crlvBack.jpg";
-          const ext = filename.split(".").pop()?.toLowerCase() || "jpg";
-          const mimeType = ext === "png" ? "image/png" : "image/jpeg";
-          formData.append("crlvBack", {
-            uri: Platform.OS === "ios" ? crlvBack.uri.replace("file://", "") : crlvBack.uri,
-            name: filename,
-            type: mimeType,
-          } as any);
-        }
-
-        if (vehiclePhoto.uri) {
-          const filename = vehiclePhoto.uri.split("/").pop() || "vehiclePhoto.jpg";
-          const ext = filename.split(".").pop()?.toLowerCase() || "jpg";
-          const mimeType = ext === "png" ? "image/png" : "image/jpeg";
-          formData.append("vehiclePhoto", {
-            uri: Platform.OS === "ios" ? vehiclePhoto.uri.replace("file://", "") : vehiclePhoto.uri,
-            name: filename,
-            type: mimeType,
-          } as any);
-        }
-
-        await driverService.uploadVehicleDocuments(vehicle._id, formData);
-      }
+      // 2) Documentos no Supabase Storage (recalcula o status de aprovação ao final)
+      await uploadDriverDocument("crlv_front", crlvFront.base64);
+      await uploadDriverDocument("crlv_back", crlvBack.base64);
+      const { status } = await uploadDriverDocument("vehicle_photo", vehiclePhoto.base64);
 
       Toast.show({
         type: "success",
         text1: "Veículo e documentos enviados!",
-        text2: "Aguarde a liberação administrativa.",
+        text2: status === "approved" ? "Cadastro aprovado!" : "Aguarde a liberação.",
       });
 
       // Reset states
@@ -254,15 +213,15 @@ export default function DriverVehicleScreen() {
       setNewColor("");
       setNewYear("");
       setNewRenavam("");
-      setCrlvFront({ uri: null, loading: false });
-      setCrlvBack({ uri: null, loading: false });
-      setVehiclePhoto({ uri: null, loading: false });
+      setCrlvFront({ uri: null, base64: null, loading: false });
+      setCrlvBack({ uri: null, base64: null, loading: false });
+      setVehiclePhoto({ uri: null, base64: null, loading: false });
 
       // Go back to Home screen
       navigation.navigate("DriverHome" as never);
 
     } catch (e: any) {
-      Alert.alert("Falha ao registrar", e?.response?.data?.error || e?.message);
+      Alert.alert("Falha ao registrar", e?.message || "Erro ao enviar.");
     } finally {
       setSubmitting(false);
     }

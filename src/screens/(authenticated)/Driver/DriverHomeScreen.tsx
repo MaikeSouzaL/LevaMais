@@ -335,7 +335,7 @@ export default function DriverHomeScreen() {
       const active = await rideService.getActive();
       if (active?.active && active.ride?._id) {
         await clearIncoming();
-        (navigation as any).navigate("DriverRide", { rideId: active.ride._id });
+        (navigation as any).replace("DriverRide", { rideId: active.ride._id });
         return;
       }
 
@@ -862,7 +862,7 @@ export default function DriverHomeScreen() {
         const active = await rideService.getActive();
         if (active?.active && active.ride?._id) {
           await clearIncoming();
-          (navigation as any).navigate("DriverRide", { rideId: active.ride._id });
+          (navigation as any).replace("DriverRide", { rideId: active.ride._id });
           return;
         }
       } catch {}
@@ -1680,7 +1680,7 @@ export default function DriverHomeScreen() {
         const result = await rideService.respondToOffer(incomingRequest.rideId, { action: "accept" });
         await clearIncoming();
         if (result?.rideMatched) {
-          (navigation as any).navigate("DriverRide", { rideId: incomingRequest.rideId });
+          (navigation as any).replace("DriverRide", { rideId: incomingRequest.rideId });
           Toast.show({
             type: "success",
             text1: "Corrida aceita!",
@@ -1723,7 +1723,7 @@ export default function DriverHomeScreen() {
 
       const ride = await rideService.accept(incomingRequest.rideId);
       await clearIncoming();
-      (navigation as any).navigate("DriverRide", { rideId: ride._id });
+      (navigation as any).replace("DriverRide", { rideId: ride._id });
     } catch (e: any) {
       Toast.show({
         type: "error",

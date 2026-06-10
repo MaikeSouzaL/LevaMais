@@ -1,4 +1,5 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from "axios";
+import { BACKEND_TIMEOUT_MS, BACKEND_MAX_RETRIES } from "../config/migration";
 
 // Configuracao base da API
 // Preferencia:
@@ -15,7 +16,8 @@ if (__DEV__) {
 function createApiInstance(): AxiosInstance {
   const instance = axios.create({
     baseURL: API_BASE_URL,
-    timeout: 15000,
+    // Timeout curto durante a migração para falhar rápido quando o Node estiver offline.
+    timeout: BACKEND_TIMEOUT_MS,
     headers: {
       "Content-Type": "application/json",
     },
@@ -103,11 +105,18 @@ function createApiInstance(): AxiosInstance {
       // Erro de rede (sem resposta) — retry com backoff
       if (error.request) {
         const config = error.config;
+        const urlStr = String(config.url || "");
+        const isBypassedPath = urlStr.includes("nearby-drivers") || urlStr.includes("location");
+
+        if (isBypassedPath) {
+          return Promise.reject(new Error("Endpoint migrado ou desativado."));
+        }
+
         config._retryCount = config._retryCount || 0;
 
-        if (config._retryCount < 2) {
+        if (config._retryCount < BACKEND_MAX_RETRIES) {
           config._retryCount++;
-          const delay = config._retryCount * 2000; // 2s, 4s
+          const delay = config._retryCount * 1500;
           if (__DEV__) {
             console.log(`[API] Retry ${config._retryCount}/2 em ${delay}ms para ${config.url}`);
           }

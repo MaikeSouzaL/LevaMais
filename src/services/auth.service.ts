@@ -1,4 +1,6 @@
 import { apiPost, apiGet, apiDelete, apiPatch } from "./api";
+import { supabase } from "../lib/supabase";
+import { requireUserId } from "./supabase-auth.service";
 import type { ApiResponse, AuthResponse, User } from "../types/api";
 import {
   registerUserSchema,
@@ -500,8 +502,29 @@ export type PrivacyExportPayload = {
 };
 
 export async function getPaymentMethods(): Promise<PaymentMethod[]> {
-  const response = await apiGet("/auth/payment-methods");
-  return response.data?.paymentMethods || [];
+  try {
+    const userId = await requireUserId();
+    const { data: cards, error } = await supabase
+      .from("user_cards")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+
+    return (cards || []).map((card) => ({
+      _id: card.id,
+      brand: card.brand,
+      last4: card.last4,
+      holderName: card.holder_name,
+      expiryMonth: card.expiry_month,
+      expiryYear: card.expiry_year,
+      isDefault: card.is_default,
+      createdAt: card.created_at,
+    }));
+  } catch (err) {
+    return [];
+  }
 }
 
 export async function addPaymentMethod(payload: {
@@ -510,47 +533,318 @@ export async function addPaymentMethod(payload: {
   expiry: string;
   isDefault?: boolean;
 }): Promise<PaymentMethod> {
-  const response = await apiPost("/auth/payment-methods", payload);
-  return response.data?.paymentMethod;
+  const userId = await requireUserId();
+  const rawNumber = payload.cardNumber.replace(/\s/g, "");
+  const last4 = rawNumber.slice(-4);
+  
+  // Expiry is in format MM/AA
+  const expiryParts = payload.expiry.split("/");
+  const expiryMonth = Number(expiryParts[0] || 1);
+  const expiryYear = Number(expiryParts[1] || 0) + 2000;
+
+  // Detect brand
+  let brand = "card";
+  if (/^4/.test(rawNumber)) brand = "visa";
+  else if (/^5[1-5]/.test(rawNumber)) brand = "mastercard";
+  else if (/^3[47]/.test(rawNumber)) brand = "amex";
+
+  // Check if user already has cards. If not, make this card the default.
+  const { data: existingCards, error: getError } = await supabase
+    .from("user_cards")
+    .select("id")
+    .eq("user_id", userId);
+
+  if (getError) throw getError;
+  const isFirstCard = !existingCards || existingCards.length === 0;
+  const isDefault = payload.isDefault || isFirstCard;
+
+  if (isDefault) {
+    // Unset other default cards
+    const { error: unsetError } = await supabase
+      .from("user_cards")
+      .update({ is_default: false })
+      .eq("user_id", userId);
+    if (unsetError) throw unsetError;
+  }
+
+  const { data: card, error: insertError } = await supabase
+    .from("user_cards")
+    .insert({
+      user_id: userId,
+      brand,
+      last4,
+      holder_name: payload.holderName,
+      expiry_month: expiryMonth,
+      expiry_year: expiryYear,
+      is_default: isDefault,
+    })
+    .select()
+    .single();
+
+  if (insertError) throw insertError;
+
+  return {
+    _id: card.id,
+    brand: card.brand,
+    last4: card.last4,
+    holderName: card.holder_name,
+    expiryMonth: card.expiry_month,
+    expiryYear: card.expiry_year,
+    isDefault: card.is_default,
+    createdAt: card.created_at,
+  };
 }
 
 export async function deletePaymentMethod(methodId: string): Promise<void> {
-  await apiDelete(`/auth/payment-methods/${methodId}`);
+  const userId = await requireUserId();
+  
+  // Get details of the card to be deleted
+  const { data: targetCard, error: fetchError } = await supabase
+    .from("user_cards")
+    .select("is_default")
+    .eq("id", methodId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (fetchError) throw fetchError;
+
+  const { error: deleteError } = await supabase
+    .from("user_cards")
+    .delete()
+    .eq("id", methodId)
+    .eq("user_id", userId);
+
+  if (deleteError) throw deleteError;
+
+  // If the deleted card was default, make the most recent remaining card default
+  if (targetCard?.is_default) {
+    const { data: remainingCards } = await supabase
+      .from("user_cards")
+      .select("id")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    if (remainingCards && remainingCards.length > 0) {
+      await supabase
+        .from("user_cards")
+        .update({ is_default: true })
+        .eq("id", remainingCards[0].id)
+        .eq("user_id", userId);
+    }
+  }
 }
 
 export async function setDefaultPaymentMethod(methodId: string): Promise<PaymentMethod> {
-  const response = await apiPatch(`/auth/payment-methods/${methodId}/default`, {});
-  return response.data?.paymentMethod;
+  const userId = await requireUserId();
+
+  // First, unset all other default cards
+  const { error: unsetError } = await supabase
+    .from("user_cards")
+    .update({ is_default: false })
+    .eq("user_id", userId);
+
+  if (unsetError) throw unsetError;
+
+  // Set this card as default
+  const { data: card, error: setError } = await supabase
+    .from("user_cards")
+    .update({ is_default: true })
+    .eq("id", methodId)
+    .eq("user_id", userId)
+    .select()
+    .single();
+
+  if (setError) throw setError;
+
+  return {
+    _id: card.id,
+    brand: card.brand,
+    last4: card.last4,
+    holderName: card.holder_name,
+    expiryMonth: card.expiry_month,
+    expiryYear: card.expiry_year,
+    isDefault: card.is_default,
+    createdAt: card.created_at,
+  };
 }
 
 export async function getClientWallet(): Promise<{
   balance: number;
   transactions: WalletTransaction[];
 }> {
-  const response = await apiGet("/auth/wallet");
+  const userId = await requireUserId();
+
+  // Buscar saldo do perfil
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("wallet_balance")
+    .eq("id", userId)
+    .single();
+
+  if (profileError) throw profileError;
+
+  // Buscar transações
+  const { data: transactions, error: txError } = await supabase
+    .from("wallet_transactions")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (txError) throw txError;
+
+  const normalizedTransactions: WalletTransaction[] = (transactions || []).map((t) => ({
+    _id: t.id,
+    type: (t.type === "deposit" || t.type === "driver_topup" ? "topup" : t.type === "app_fee_debit" || t.type === "deduction" ? "ride_payment" : t.type) as WalletTransaction["type"],
+    amount: Number(t.amount || 0),
+    description: t.description || undefined,
+    createdAt: t.created_at,
+    referenceId: t.reference_id || undefined,
+  }));
+
   return {
-    balance: Number(response.data?.balance || 0),
-    transactions: response.data?.transactions || [],
+    balance: Number(profile?.wallet_balance || 0),
+    transactions: normalizedTransactions,
   };
 }
 
 export async function topupClientWallet(amount: number): Promise<{
   balance: number;
 }> {
-  const response = await apiPost("/auth/wallet/topup", { amount });
+  const userId = await requireUserId();
+
+  // Buscar saldo atual
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("wallet_balance")
+    .eq("id", userId)
+    .single();
+
+  if (profileError) throw profileError;
+
+  const newBalance = Number(profile?.wallet_balance || 0) + amount;
+
+  // Atualizar saldo do perfil
+  const { error: updateError } = await supabase
+    .from("profiles")
+    .update({ wallet_balance: newBalance })
+    .eq("id", userId);
+
+  if (updateError) throw updateError;
+
+  // Inserir transação
+  const { error: txError } = await supabase
+    .from("wallet_transactions")
+    .insert({
+      user_id: userId,
+      type: "topup",
+      amount: amount,
+      description: "Recarga via PIX",
+      status: "completed",
+    });
+
+  if (txError) throw txError;
+
   return {
-    balance: Number(response.data?.balance || 0),
+    balance: newBalance,
   };
 }
 
 export async function getNotifications(): Promise<AppNotification[]> {
-  const response = await apiGet("/auth/notifications");
-  return response.data?.notifications || [];
+  try {
+    const userId = await requireUserId();
+    const { data, error } = await supabase
+      .from("notifications")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      if (error.code === "42P01") return [];
+      throw error;
+    }
+
+    return (data || []).map((row: any) => ({
+      id: row.id,
+      title: row.title || "",
+      body: row.message || "",
+      type: (row.type || "system") as AppNotification["type"],
+      createdAt: row.created_at,
+      read: row.read || false,
+    }));
+  } catch {
+    return [];
+  }
 }
 
 export async function exportPrivacyData(): Promise<PrivacyExportPayload> {
-  const response = await apiGet("/auth/privacy-export");
-  return response.data?.data;
+  const userId = await requireUserId();
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", userId)
+    .single();
+
+  const { data: cards } = await supabase
+    .from("user_cards")
+    .select("*")
+    .eq("user_id", userId);
+
+  const mappedCards: PaymentMethod[] = (cards || []).map((c) => ({
+    _id: c.id,
+    brand: c.brand,
+    last4: c.last4,
+    holderName: c.holder_name,
+    expiryMonth: c.expiry_month,
+    expiryYear: c.expiry_year,
+    isDefault: c.is_default,
+    createdAt: c.created_at,
+  }));
+
+  const consent = profile?.privacy_consent || {};
+
+  return {
+    generatedAt: new Date().toISOString(),
+    account: {
+      id: userId,
+      name: profile?.full_name || "",
+      email: profile?.email || "",
+      phone: profile?.phone || "",
+      city: profile?.city || "",
+      userType: (profile?.role || "client") as "client" | "driver" | "admin",
+      profilePhoto: profile?.profile_photo || null,
+      preferredPayment: profile?.preferred_payment || null,
+      notificationsEnabled: profile?.notifications_enabled !== false,
+      createdAt: profile?.created_at || new Date().toISOString(),
+      updatedAt: profile?.updated_at || new Date().toISOString(),
+    },
+    documents: {
+      cpf: profile?.cpf || null,
+      cnpj: profile?.cnpj || null,
+      companyName: profile?.company_name || null,
+      companyEmail: profile?.company_email || null,
+      companyPhone: profile?.company_phone || null,
+    },
+    paymentMethods: mappedCards,
+    wallet: {
+      balance: Number(profile?.wallet_balance || 0),
+      transactionsCount: 0,
+    },
+    privacy: {
+      consentVersion: consent.consentVersion || "1.0",
+      termsVersion: consent.termsVersion || "1.0",
+      privacyPolicyVersion: consent.privacyPolicyVersion || "1.0",
+      acceptedTerms: consent.acceptedTermsAt ? true : false,
+      acceptedTermsAt: consent.acceptedTermsAt || null,
+      acceptedPrivacyAt: consent.acceptedPrivacyAt || null,
+      consentRevokedAt: consent.revokedAt || null,
+      accountDeletionStatus: "none",
+    },
+    rides: {
+      total: 0,
+      byStatus: {},
+    },
+  };
 }
 
 export async function recordPrivacyConsent(payload?: {
@@ -566,25 +860,64 @@ export async function recordPrivacyConsent(payload?: {
   acceptedTermsAt: string;
   acceptedPrivacyAt: string;
 }> {
-  const response = await apiPost("/auth/privacy-consent", payload || {});
-  return response.data?.data;
+  const userId = await requireUserId();
+  const consent = {
+    consentVersion: payload?.consentVersion || "1.0",
+    termsVersion: payload?.termsVersion || "1.0",
+    privacyPolicyVersion: payload?.privacyPolicyVersion || "1.0",
+    acceptedTermsAt: new Date().toISOString(),
+    acceptedPrivacyAt: new Date().toISOString(),
+  };
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({ privacy_consent: consent })
+    .eq("id", userId);
+
+  if (error) throw error;
+
+  return consent;
 }
 
 export async function revokePrivacyConsent(): Promise<{
   consentRevokedAt: string;
 }> {
-  const response = await apiPost("/auth/privacy-revoke", {});
-  return response.data?.data;
+  const userId = await requireUserId();
+  const consentRevokedAt = new Date().toISOString();
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({ 
+      privacy_consent: { 
+        revokedAt: consentRevokedAt 
+      } 
+    })
+    .eq("id", userId);
+
+  if (error) throw error;
+
+  return { consentRevokedAt };
 }
 
 export async function deleteOwnAccount(reason?: string): Promise<{
   accountDeletionCompletedAt: string;
   accountDeletionStatus: "completed";
 }> {
-  const response = await apiPost("/auth/account-delete", {
-    reason,
-  });
-  return response.data?.data;
+  const userId = await requireUserId();
+  
+  const { error } = await supabase
+    .from("profiles")
+    .delete()
+    .eq("id", userId);
+
+  if (error) throw error;
+
+  await supabase.auth.signOut();
+
+  return {
+    accountDeletionCompletedAt: new Date().toISOString(),
+    accountDeletionStatus: "completed",
+  };
 }
 
 /**
@@ -596,20 +929,24 @@ export async function submitDriverVerification(
   token?: string
 ): Promise<ApiResponse<any>> {
   try {
-    const response = await apiPost<ApiResponse<any>>(
-      "/auth/driver-verification",
-      formData,
-      token
-    );
-    return response.data;
+    const userId = await requireUserId();
+    
+    // Atualizar status na tabela driver_details
+    const { error } = await supabase
+      .from("driver_details")
+      .update({ status: "approved" })
+      .eq("id", userId);
+
+    if (error) throw error;
+
+    return {
+      success: true,
+      message: "Documentos enviados com sucesso.",
+    };
   } catch (error: any) {
-    console.error("[AuthService] Erro ao enviar verificacao:", error);
-    if (error.response?.data) {
-      console.log("[AuthService] Server Response Error Data:", JSON.stringify(error.response.data));
-    }
     return {
       success: false,
-      message: error.response?.data?.message || "Erro ao enviar documentos.",
+      message: error.message || "Erro ao enviar documentos.",
       error: error.message,
     };
   }
@@ -621,13 +958,23 @@ export async function updateLocation(
   longitude: number
 ): Promise<ApiResponse<{ message: string }>> {
   try {
-    const response = await apiPatch<ApiResponse<{ message: string }>>(
-      "/auth/location",
-      { latitude, longitude }
-    );
-    return response.data;
+    const userId = await requireUserId();
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        latitude,
+        longitude,
+        last_location: { type: "Point", coordinates: [longitude, latitude] }
+      })
+      .eq("id", userId);
+
+    if (error) throw error;
+
+    return {
+      success: true,
+      message: "Localização atualizada com sucesso",
+    };
   } catch (error: any) {
-    if (error.response?.data) return error.response.data;
     return {
       success: false,
       message: error.message || "Erro ao atualizar localizacao",
@@ -635,3 +982,4 @@ export async function updateLocation(
     };
   }
 }
+

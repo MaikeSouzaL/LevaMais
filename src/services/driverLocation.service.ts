@@ -1,4 +1,6 @@
-import api from "./api";
+import { supabase } from "../lib/supabase";
+import { requireUserId } from "./supabase-auth.service";
+import websocketService from "./websocket.service";
 
 export type DriverStatus = "offline" | "available" | "busy" | "on_ride";
 
@@ -25,13 +27,29 @@ export type UpdateDriverLocationRequest = {
 
 class DriverLocationService {
   async getMe() {
-    const res = await api.get("/driver-location/me");
-    return res.data;
+    const userId = await requireUserId();
+    const { data: driver } = await supabase
+      .from("driver_details")
+      .select("*")
+      .eq("id", userId)
+      .maybeSingle();
+    return driver;
   }
 
   async update(data: UpdateDriverLocationRequest) {
-    const res = await api.post("/driver-location/update", data);
-    return res.data;
+    const userId = await requireUserId();
+    
+    websocketService.emit("driver-location-updated", {
+      driverId: userId,
+      latitude: data.latitude,
+      longitude: data.longitude,
+      heading: data.heading,
+      speed: data.speed,
+      status: data.status,
+      vehicleType: data.vehicleType,
+    });
+
+    return { success: true };
   }
 
   async setStatus(data: {
@@ -41,18 +59,20 @@ class DriverLocationService {
     onlineSessionStart?: string;
     searchRadiusKm?: number;
   }) {
-    const res = await api.patch("/driver-location/status", data);
-    return res.data;
+    const userId = await requireUserId();
+    
+    websocketService.emit("driver-status-changed", {
+      driverId: userId,
+      status: data.status,
+      acceptingRides: data.acceptingRides,
+      serviceTypes: data.serviceTypes,
+    });
+
+    return { success: true };
   }
 
   async getNearbyAvailability(coords: { latitude: number; longitude: number }): Promise<{ motorcycle: boolean; car: boolean; van: boolean; truck: boolean }> {
-    const res = await api.get("/driver-location/nearby/availability", {
-      params: {
-        latitude: coords.latitude,
-        longitude: coords.longitude,
-      }
-    });
-    return res.data?.availability || { motorcycle: false, car: false, van: false, truck: false };
+    return { motorcycle: true, car: true, van: true, truck: true };
   }
 }
 

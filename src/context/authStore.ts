@@ -3,18 +3,11 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
+import { supabase } from "../lib/supabase";
 import type { User } from "../types/models";
 
 export type UserType = "client" | "driver" | "admin" | null | undefined;
 
-/**
- * Auth store user shape. Extends the canonical User model with
- * backward-compatible Portuguese field aliases (populated from their
- * canonical English counterparts by normalizeUserData).
- *
- * Consumers should prefer the English fields; the PT aliases exist only
- * so existing call-sites don't break during migration.
- */
 export interface UserData extends User {
   id?: string;
   /** @deprecated use `name` */
@@ -29,11 +22,6 @@ export interface UserData extends User {
   aceitouTermos: boolean;
 }
 
-/**
- * Entrada aceita por `login`: os campos canônicos derivados (`_id`, `phone`,
- * `acceptedTerms`) são opcionais porque `normalizeUserData` os preenche a partir
- * dos aliases em português (`id`/`telefone`/`aceitouTermos`).
- */
 export type LoginUserInput = Omit<UserData, "_id" | "phone" | "acceptedTerms"> &
   Partial<Pick<UserData, "_id" | "phone" | "acceptedTerms">>;
 
@@ -64,13 +52,11 @@ function normalizeUserData(data: LoginUserInput): UserData {
     ...data,
     _id: data._id || data.id || "",
     id: data._id || data.id,
-    // Canonical English fields — prefer these in new code
     name: resolvedName,
     phone: resolvedPhone,
     city: resolvedCity,
     email: data.email?.trim().toLowerCase() || "",
     acceptedTerms: Boolean(data.acceptedTerms || data.aceitouTermos),
-    // Backward-compat Portuguese aliases — populated from canonical fields
     nome: resolvedName,
     telefone: resolvedPhone,
     cidade: resolvedCity,
@@ -97,9 +83,8 @@ export const useAuthStore = create<AuthState>()(
         }),
 
       logout: () => {
-        // Clear cached Google Sign-in session to enable picking other emails
         GoogleSignin.signOut().catch(() => {});
-        
+        supabase.auth.signOut().catch(() => {});
         set({
           isAuthenticated: false,
           userType: null,

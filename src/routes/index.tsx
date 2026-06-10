@@ -4,8 +4,11 @@ import AuthRoutes from "./auth.routes";
 import ClientBoot from "./ClientBoot";
 import DriverBoot from "./DriverBoot";
 import { useAuthStore } from "../context/authStore";
-import { getProfile } from "../services/auth.service";
-import userService from "../services/user.service";
+import {
+  getProfile,
+  updateProfile,
+} from "../services/supabase-auth.service";
+import { supabase } from "../lib/supabase";
 import TermsScreen from "../screens/(public)/TermsScreen";
 import notificationService from "../services/notification.service";
 
@@ -35,55 +38,53 @@ export default function Routes() {
     token,
     updateUserType,
     updateUserData,
+    login,
     logout,
   } = useAuthStore();
   const [resolvingProfile, setResolvingProfile] = useState(false);
 
+  // Sincroniza sessão Supabase → authStore ao iniciar o app
   useEffect(() => {
     let mounted = true;
 
-    async function resolveProfileIfNeeded() {
+    async function syncSupabaseSession() {
       if (!hasHydrated) return;
-      if (!isAuthenticated || !token) return;
 
-      const needsUserType = !userType;
-      const needsUserData = 
-        !userData?.id || 
-        (userType === "driver" && userData?.driverStatus !== "approved");
+      const { data: { session } } = await supabase.auth.getSession();
 
-      if (!needsUserType && !needsUserData) return;
+      if (!session) {
+        if (isAuthenticated) logout();
+        return;
+      }
+
+      // Já está autenticado com dados completos — não precisa recarregar
+      if (isAuthenticated && userType && userData?.id) return;
 
       setResolvingProfile(true);
       try {
-        const response = await getProfile(token);
-        const user = response?.data?.user;
-
+        const profile = await getProfile(session.user.id);
         if (!mounted) return;
 
-        if (!response.success || !user) {
+        if (!profile) {
           logout();
           return;
         }
 
-        if (user.userType) {
-          updateUserType(user.userType);
-        }
-
-        updateUserData({
-          id: user._id,
-          name: user.name,
-          nome: user.name,
-          email: user.email,
-          telefone: user.phone || "",
-          cidade: user.city || "",
-          fotoPerfil: user.profilePhoto,
-          googleId: user.googleId,
-          aceitouTermos: Boolean(user.acceptedTerms),
-          tourSeen: Boolean(user.tourSeen),
-          vehicleType: user.vehicleType,
-          vehicleInfo: user.vehicleInfo,
-          driverStatus: user.driverStatus || "none",
-        });
+        login(
+          (profile.role as "client" | "driver") ?? null,
+          {
+            id: session.user.id,
+            name: profile.full_name || "",
+            nome: profile.full_name || "",
+            email: session.user.email || "",
+            telefone: profile.phone || "",
+            cidade: profile.city || "",
+            fotoPerfil: profile.avatar_url || undefined,
+            aceitouTermos: profile.accepted_terms,
+            tourSeen: profile.tour_seen,
+          },
+          session.access_token,
+        );
       } catch {
         if (mounted) logout();
       } finally {
@@ -91,15 +92,28 @@ export default function Routes() {
       }
     }
 
-    resolveProfileIfNeeded();
+    syncSupabaseSession();
+
+    // Listener de mudanças de sessão (token refresh, logout externo).
+    // IMPORTANTE: só deslogar em evento SIGNED_OUT explícito. Não derrubar por
+    // `!session` — eventos como INITIAL_SESSION podem chegar sem sessão durante
+    // o onboarding e destruiriam a sessão recém-criada (quebrava os UPDATEs no perfil).
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (!mounted) return;
+        if (event === "SIGNED_OUT") {
+          if (useAuthStore.getState().isAuthenticated) logout();
+        } else if (event === "TOKEN_REFRESHED" && session) {
+          updateUserData({ token: session.access_token } as any);
+        }
+      }
+    );
 
     return () => {
       mounted = false;
+      subscription.unsubscribe();
     };
-  }, [
-    token,
-    logout,
-  ]);
+  }, [hasHydrated]);
 
   useEffect(() => {
     if (!hasHydrated) return;
@@ -128,14 +142,16 @@ export default function Routes() {
     return <RouteFallbackLoader />;
   }
 
-  // ⚖️ LEGAL GATEKEEPER: All authenticated users must accept Terms before proceeding.
+  // ⚖️ LEGAL GATEKEEPER: todos os usuários autenticados devem aceitar os termos
   if (!userData?.aceitouTermos) {
     const handleAccept = async () => {
       try {
-        await userService.updateProfile({ acceptedTerms: true });
+        if (userData?.id) {
+          await updateProfile(userData.id, { accepted_terms: true });
+        }
         updateUserData({ aceitouTermos: true });
       } catch (e) {
-        console.error("Erro ao aceitar termos no dispatch central:", e);
+        console.error("Erro ao aceitar termos:", e);
       }
     };
     return <TermsScreen onAccept={handleAccept} />;

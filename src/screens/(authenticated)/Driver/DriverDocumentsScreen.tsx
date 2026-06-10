@@ -7,28 +7,54 @@ import Toast from "react-native-toast-message";
 
 import { DriverScreen } from "./components/DriverScreen";
 import SectionCard from "../../../components/ui/SectionCard";
-import userService, { UserProfile } from "../../../services/user.service";
-import { submitDriverVerification } from "../../../services/auth.service";
-import { useAuthStore } from "../../../context/authStore";
+import {
+  getMyDriverDetails,
+  uploadDriverDocument,
+  getKycSelfieUrl,
+  type DriverDocKind,
+} from "../../../services/supabase-auth.service";
 
 const { width, height } = Dimensions.get("window");
 
 type DocKey = "cnhFront" | "cnhBack" | "crlvFront" | "crlvBack" | "vehiclePhoto" | "selfie";
 
+// Mapeia a chave da UI para o tipo de documento do Supabase
+const DOC_KIND_MAP: Record<DocKey, DriverDocKind> = {
+  cnhFront: "cnh_front",
+  cnhBack: "cnh_back",
+  selfie: "selfie",
+  crlvFront: "crlv_front",
+  crlvBack: "crlv_back",
+  vehiclePhoto: "vehicle_photo",
+};
+
 export default function DriverDocumentsScreen() {
   const navigation = useNavigation();
-  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [driverStatus, setDriverStatus] = useState<string>("none");
+  const [rejectionReason, setRejectionReason] = useState<string | null>(null);
+  const [docs, setDocs] = useState<{ cnhFront: string | null; cnhBack: string | null; selfie: string | null }>({
+    cnhFront: null,
+    cnhBack: null,
+    selfie: null,
+  });
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
   const [uploadingKeys, setUploadingKeys] = useState<Record<string, boolean>>({});
 
   const loadProfile = async () => {
     try {
-      const me = await userService.getProfile();
-      setProfile(me);
+      const d = await getMyDriverDetails();
+      setDriverStatus((d?.status as string) || "none");
+      setRejectionReason(d?.rejection_reason || null);
+      // Gera URLs assinadas para exibição (bucket privado)
+      const [cnhFront, cnhBack, selfie] = await Promise.all([
+        getKycSelfieUrl(d?.cnh_front_url),
+        getKycSelfieUrl(d?.cnh_back_url),
+        getKycSelfieUrl(d?.selfie_url),
+      ]);
+      setDocs({ cnhFront, cnhBack, selfie });
     } catch (error) {
       console.error("Erro ao carregar documentos:", error);
-      setProfile(null);
     }
   };
 
@@ -38,25 +64,14 @@ export default function DriverDocumentsScreen() {
     }, []),
   );
 
-  const docs = useMemo(() => {
-    const d = profile?.driverDocuments || {};
-    return {
-      cnhFront: d.cnhFront || null,
-      cnhBack: d.cnhBack || null,
-      selfie: d.selfie || null,
-    };
-  }, [profile]);
-
-  const isApproved = useMemo(() => {
-    return profile?.driverStatus === "approved";
-  }, [profile]);
+  const isApproved = useMemo(() => driverStatus === "approved", [driverStatus]);
 
   const completedCount = Object.values(docs).filter(Boolean).length;
   const totalCount = 3;
   const progress = Math.round((completedCount / totalCount) * 100);
 
   const getStatusConfig = () => {
-    const status = profile?.driverStatus || "pending";
+    const status = driverStatus || "pending";
     if (status === "approved") {
       return { label: "Cadastro Aprovado", icon: "verified", color: "#02de95" } as const;
     }
@@ -108,7 +123,8 @@ export default function DriverDocumentsScreen() {
       const options: ImagePicker.ImagePickerOptions = {
         mediaTypes: "images",
         allowsEditing: true,
-        quality: 0.75,
+        quality: 0.7,
+        base64: true,
       };
 
       const result = source === "camera"
@@ -116,15 +132,19 @@ export default function DriverDocumentsScreen() {
         : await ImagePicker.launchImageLibraryAsync(options);
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        const uri = result.assets[0].uri;
-        await uploadFile(key, uri);
+        const base64 = result.assets[0].base64;
+        if (!base64) {
+          Toast.show({ type: "error", text1: "Imagem inválida (sem dados)" });
+          return;
+        }
+        await uploadFile(key, base64);
       }
     } catch (err) {
       Toast.show({ type: "error", text1: "Erro ao selecionar arquivo" });
     }
   };
 
-  const uploadFile = async (key: DocKey, uri: string) => {
+  const uploadFile = async (key: DocKey, base64: string) => {
     setUploadingKeys((prev) => ({ ...prev, [key]: true }));
     Toast.show({
       type: "info",
@@ -134,38 +154,17 @@ export default function DriverDocumentsScreen() {
     });
 
     try {
-      const formData = new FormData();
-      const filename = uri.split("/").pop() || `${key}.jpg`;
-      const ext = filename.split(".").pop()?.toLowerCase() || "jpg";
-      const mimeType = ext === "png" ? "image/png" : "image/jpeg";
-
-      formData.append(key, {
-        uri: Platform.OS === "ios" ? uri.replace("file://", "") : uri,
-        name: filename,
-        type: mimeType,
-      } as any);
-
-      const token = useAuthStore.getState().token || undefined;
-      const response = await submitDriverVerification(formData, token);
-
+      const { status } = await uploadDriverDocument(DOC_KIND_MAP[key], base64);
       Toast.hide();
-      if (response.success) {
-        Toast.show({
-          type: "success",
-          text1: "Sucesso!",
-          text2: "Documento anexado com sucesso.",
-        });
-        await loadProfile(); // Refresh UI
-      } else {
-        Toast.show({
-          type: "error",
-          text1: "Falha no envio",
-          text2: response.message || "Não foi possível salvar o documento.",
-        });
-      }
-    } catch (e) {
+      Toast.show({
+        type: "success",
+        text1: "Sucesso!",
+        text2: status === "approved" ? "Documento anexado — cadastro aprovado!" : "Documento anexado com sucesso.",
+      });
+      await loadProfile(); // Atualiza UI (URLs assinadas + status)
+    } catch (e: any) {
       Toast.hide();
-      Toast.show({ type: "error", text1: "Erro crítico de conexão" });
+      Toast.show({ type: "error", text1: "Falha no envio", text2: e?.message || "Erro de conexão" });
     } finally {
       setUploadingKeys((prev) => ({ ...prev, [key]: false }));
     }
@@ -270,7 +269,7 @@ export default function DriverDocumentsScreen() {
         </Text>
 
         {/* Motivo da Rejeição */}
-        {profile?.driverStatus === "rejected" && profile?.driverDocuments?.rejectionReason && (
+        {driverStatus === "rejected" && rejectionReason && (
           <View style={{ 
             flexDirection: "row", 
             backgroundColor: "rgba(239, 68, 68, 0.06)", 
@@ -286,7 +285,7 @@ export default function DriverDocumentsScreen() {
             <View style={{ flex: 1 }}>
               <Text style={{ color: "#EF4444", fontSize: 12, fontWeight: "800", textTransform: "uppercase" }}>Motivo da Recusa:</Text>
               <Text style={{ color: "rgba(255, 255, 255, 0.8)", fontSize: 12, fontWeight: "600", marginTop: 2 }}>
-                {profile.driverDocuments.rejectionReason}
+                {rejectionReason}
               </Text>
             </View>
           </View>

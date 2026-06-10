@@ -7,9 +7,12 @@ import { BlurView } from "expo-blur";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 
-import userService from "@/services/user.service";
-import driverService from "@/services/driver.service";
-import webSocketService from "@/services/websocket.service";
+import { supabase } from "@/lib/supabase";
+import {
+  getProfile,
+  updateMyProfile,
+  getMyDriverDetails,
+} from "@/services/supabase-auth.service";
 import { useAuthStore } from "@/context/authStore";
 import { colors } from "@/theme/colors";
 import { getCurrentLocationAndAddress } from "@/utils/location";
@@ -80,16 +83,9 @@ export default function DriverOnboardingDashboard() {
       const res = await getCurrentLocationAndAddress();
       if (res && res.address?.city) {
         const detectedCity = res.address.city;
-        
-        // Update on backend
-        const updated = await userService.updateProfile({ city: detectedCity });
-        if (updated) {
-          updateUserData({
-            cidade: updated.cidade || updated.city || detectedCity,
-            city: updated.city || updated.cidade || detectedCity,
-          });
-          setCityInput(updated.city || updated.cidade || detectedCity);
-        }
+        await updateMyProfile({ city: detectedCity }).catch(() => {});
+        updateUserData({ cidade: detectedCity, city: detectedCity });
+        setCityInput(detectedCity);
       }
     } catch (err) {
       console.warn("[DriverOnboarding] Geolocation/City detection error:", err);
@@ -142,51 +138,47 @@ export default function DriverOnboardingDashboard() {
       const cleanCPF = cpfInput.replace(/\D/g, "");
       const cleanCNPJ = cnpjInput.replace(/\D/g, "");
 
-      const payload: any = {
-        city: cityInput.trim(),
-        phone: cleanPhone,
-      };
+      const payload =
+        personType === "PF"
+          ? {
+              city: cityInput.trim(),
+              phone: cleanPhone || userData?.phone || undefined,
+              cpf: cleanCPF,
+              full_name: nameInput.trim(),
+              cnpj: "",
+              company_name: "",
+              company_email: "",
+              company_phone: "",
+            }
+          : {
+              city: cityInput.trim(),
+              phone: cleanPhone || userData?.phone || undefined,
+              cnpj: cleanCNPJ,
+              cpf: "",
+              company_name: companyNameInput.trim(),
+              company_email: companyEmailInput.trim(),
+              company_phone: companyPhoneInput.replace(/\D/g, ""),
+            };
 
-      if (personType === "PF") {
-        payload.cpf = cleanCPF;
-        payload.name = nameInput.trim();
-        payload.cnpj = ""; // Clear CNPJ if they switched to PF
-        payload.companyName = "";
-        payload.companyEmail = "";
-        payload.companyPhone = "";
-      } else {
-        payload.cnpj = cleanCNPJ;
-        payload.cpf = ""; // Clear CPF if they switched to PJ
-        payload.companyName = companyNameInput.trim();
-        payload.companyEmail = companyEmailInput.trim();
-        payload.companyPhone = companyPhoneInput.replace(/\D/g, "");
-      }
+      await updateMyProfile(payload);
 
-      const updatedUser = await userService.updateProfile(payload);
-      if (updatedUser) {
-        updateUserData({
-          cidade: updatedUser.cidade || updatedUser.city || "",
-          city: updatedUser.city || updatedUser.cidade || "",
-          cpf: updatedUser.cpf || "",
-          cnpj: updatedUser.cnpj || "",
-          phone: updatedUser.phone || updatedUser.telefone || "",
-          telefone: updatedUser.telefone || updatedUser.phone || "",
-          companyName: updatedUser.companyName || "",
-          companyEmail: updatedUser.companyEmail || "",
-          companyPhone: updatedUser.companyPhone || "",
-        });
+      updateUserData({
+        cidade: payload.city,
+        city: payload.city,
+        cpf: payload.cpf || "",
+        cnpj: payload.cnpj || "",
+        phone: payload.phone || "",
+        telefone: payload.phone || "",
+        companyName: payload.company_name || "",
+        companyEmail: payload.company_email || "",
+        companyPhone: payload.company_phone || "",
+      });
 
-        Alert.alert("Sucesso", "Dados cadastrais salvos com sucesso!");
-        setShowModal(false);
-      }
+      Alert.alert("Sucesso", "Dados cadastrais salvos com sucesso!");
+      setShowModal(false);
     } catch (err: any) {
       console.error("[DriverOnboarding] Error saving cadastral data:", err);
-      const errMsg = err?.response?.data?.message || err?.message || "Não foi possível salvar os dados. Tente novamente.";
-      if (errMsg.includes("coincidem") || errMsg.includes("batem") || errMsg.includes("CPF") || errMsg.includes("divergentes")) {
-        Alert.alert("⚠️ Dados Divergentes", errMsg);
-      } else {
-        Alert.alert("Erro", errMsg);
-      }
+      Alert.alert("Erro", err?.message || "Não foi possível salvar os dados. Tente novamente.");
     } finally {
       setSubmitting(false);
     }
@@ -194,79 +186,67 @@ export default function DriverOnboardingDashboard() {
 
   const loadOnboardingStatus = async () => {
     try {
-      const [profile, fleetData] = await Promise.all([
-        userService.getProfile().catch(() => null),
-        driverService.listVehicles().catch(() => ({ vehicles: [] })),
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      const [profile, details] = await Promise.all([
+        getProfile(user.id).catch(() => null),
+        getMyDriverDetails().catch(() => null),
       ]);
 
       let vStatus: "none" | "pending" | "approved" | "rejected" = "none";
       let isDocsSubmitted = false;
+      const dStatus = (details?.status as string) || "none";
 
       if (profile) {
         updateUserData({
-          cidade: profile.cidade || profile.city || "",
-          city: profile.city || profile.cidade || "",
+          cidade: profile.city || "",
+          city: profile.city || "",
           cpf: profile.cpf || "",
           cnpj: profile.cnpj || "",
-          phone: profile.phone || profile.telefone || "",
-          telefone: profile.telefone || profile.phone || "",
-          companyName: profile.companyName || "",
-          companyEmail: profile.companyEmail || "",
-          companyPhone: profile.companyPhone || "",
-          driverStatus: profile.driverStatus || "none",
-          vehicleType: profile.vehicleType || undefined,
-          vehicleInfo: profile.vehicleInfo || undefined,
+          phone: profile.phone || "",
+          telefone: profile.phone || "",
+          companyName: profile.company_name || "",
+          companyEmail: profile.company_email || "",
+          companyPhone: profile.company_phone || "",
+          driverStatus: dStatus as any,
         });
 
         // Seed fields
         setCpfInput(profile.cpf ? formatCPF(profile.cpf) : "");
         setNameInput("");
         setCnpjInput(profile.cnpj ? formatCNPJ(profile.cnpj) : "");
-        setPhoneInput(profile.phone || profile.telefone ? formatPhone(profile.phone || profile.telefone || "") : "");
-        setCompanyNameInput(profile.companyName || "");
-        setCompanyEmailInput(profile.companyEmail || "");
-        setCompanyPhoneInput(profile.companyPhone ? formatPhone(profile.companyPhone) : "");
-        setCityInput(profile.city || profile.cidade || "");
+        setPhoneInput(profile.phone ? formatPhone(profile.phone) : "");
+        setCompanyNameInput(profile.company_name || "");
+        setCompanyEmailInput(profile.company_email || "");
+        setCompanyPhoneInput(profile.company_phone ? formatPhone(profile.company_phone) : "");
+        setCityInput(profile.city || "");
+        setPersonType(profile.cnpj ? "PJ" : "PF");
 
-        if (profile.cnpj) {
-          setPersonType("PJ");
-        } else {
-          setPersonType("PF");
-        }
-
-        // If city is not set, run detection in background
-        if (!profile.city && !profile.cidade) {
+        if (!profile.city) {
           detectAndSaveCity();
         }
-
-        // Verify CNH & Selfie
-        const d = profile.driverDocuments || {};
-        const hasCNH = Boolean(d.cnhFront && d.cnhBack);
-        const hasSelfie = Boolean(d.selfie);
-        isDocsSubmitted = hasCNH && hasSelfie;
-        setHasPersonalDocs(isDocsSubmitted);
-        setDriverStatus(profile.driverStatus || "none");
-
-        // Atualiza os status de KYC automatizados
-        setFaceMatchStatus(d.faceMatchStatus || "none");
-        setFaceMatchConfidence(d.faceMatchConfidence);
-        setBackgroundCheckStatus(d.backgroundCheckStatus || "none");
       }
 
-      let isVehicleSubmitted = false;
-      const vehiclesList = (fleetData?.vehicles && fleetData.vehicles.length > 0)
-        ? fleetData.vehicles
-        : ((profile as any)?.vehicles || []);
+      // Documentação pessoal (CNH frente/verso + selfie) — do driver_details
+      const hasCNH = Boolean(details?.cnh_front_url && details?.cnh_back_url);
+      const hasSelfie = Boolean(details?.selfie_url);
+      isDocsSubmitted = hasCNH && hasSelfie;
+      setHasPersonalDocs(isDocsSubmitted);
+      setDriverStatus(dStatus);
 
-      if (vehiclesList && vehiclesList.length > 0) {
-        const list = vehiclesList;
-        if (list.some((v: any) => v.status === "approved")) {
-          vStatus = "approved";
-        } else if (list.some((v: any) => v.status === "pending" || v.status === "analyzing" || v.status === "in_analysis" || v.status === "em_analise")) {
-          vStatus = "pending";
-        } else if (list.every((v: any) => v.status === "rejected")) {
-          vStatus = "rejected";
-        }
+      // Validações automatizadas (face-match/antecedentes) — auto na Fase 3
+      setFaceMatchStatus(hasSelfie ? (dStatus === "approved" ? "approved" : "pending") : "none");
+      setBackgroundCheckStatus(details?.criminal_record_url ? (dStatus === "approved" ? "approved" : "pending") : "none");
+
+      // Veículo (placa + CRLV frente) — do driver_details
+      const hasVehicleData = Boolean(details?.vehicle_plate && details?.crlv_front_url);
+      let isVehicleSubmitted = false;
+      if (hasVehicleData) {
+        vStatus = dStatus === "approved" ? "approved" : "pending";
         setHasVehicle(true);
         isVehicleSubmitted = true;
       } else {
@@ -274,29 +254,16 @@ export default function DriverOnboardingDashboard() {
       }
       setVehicleStatus(vStatus);
 
-      // Calculate custom completion scale
-      let completedSteps = 1; // Step 1: Cadastro Básico is always done.
-
+      // Progresso do checklist
+      let completedSteps = 1; // Step 1: Cadastro Básico sempre feito
       const hasCPFOrCNPJ = Boolean(profile?.cpf || profile?.cnpj);
       if (hasCPFOrCNPJ) completedSteps += 1;
-      if (isDocsSubmitted || profile?.driverStatus === "pending") completedSteps += 1;
-      if (isVehicleSubmitted || vStatus === "pending") completedSteps += 1;
+      if (isDocsSubmitted) completedSteps += 1;
+      if (isVehicleSubmitted) completedSteps += 1;
 
-      // Verificar saldo (kept for state but not checklist progress)
-      let hasBalance = false;
-      try {
-        const balanceData = await driverService.getBalance();
-        const bal = Number(balanceData?.balance || 0);
-        hasBalance = bal > 0;
-        setDriverBalance(bal);
-        setHasBalance(hasBalance);
-      } catch {
-        setHasBalance(false);
-      }
+      const ALL_STEPS = 4;
 
-      const ALL_STEPS = 4; // 1-Basic, 2-Cadastral, 3-Docs, 4-Vehicle
-
-      if (profile?.driverStatus === "approved" && vStatus === "approved" && hasCPFOrCNPJ) {
+      if (dStatus === "approved" && hasCPFOrCNPJ) {
         setShowCongrats(true);
       }
 
@@ -314,26 +281,8 @@ export default function DriverOnboardingDashboard() {
     }
   }, [isFocused]);
 
-  useEffect(() => {
-    const onDriverVerificationUpdated = (data: any) => {
-      const nextDriverStatus = String(data?.driverStatus || "none");
-      setDriverStatus(nextDriverStatus);
-      updateUserData({ driverStatus: nextDriverStatus as any });
-
-      const d = data?.driverDocuments || {};
-      setFaceMatchStatus(d.faceMatchStatus || "none");
-      setFaceMatchConfidence(d.faceMatchConfidence);
-      setBackgroundCheckStatus(d.backgroundCheckStatus || "none");
-
-      loadOnboardingStatus();
-    };
-
-    webSocketService.connect().catch(() => {});
-    webSocketService.on("driver-verification-updated", onDriverVerificationUpdated);
-    return () => {
-      webSocketService.off("driver-verification-updated", onDriverVerificationUpdated);
-    };
-  }, [updateUserData]);
+  // Status do motorista agora é auto-aprovado no Supabase ao completar docs + veículo.
+  // Aprovação manual via realtime (Socket.io) volta quando o dashboard admin for migrado.
 
   const hasCPFOrCNPJ = Boolean(userData?.cpf || userData?.cnpj);
 

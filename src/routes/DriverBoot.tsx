@@ -6,11 +6,18 @@ const LogoImg = require("../assets/Logo/logo.png");
 import DrawerDriverRoutes from "./drawer.driver.routes";
 import rideService from "../services/ride.service";
 import { useAuthStore } from "../context/authStore";
-import userService from "../services/user.service";
-import TermsScreen from "../screens/(public)/TermsScreen";
+import { getMyDriverDetails } from "../services/supabase-auth.service";
+
+/** Resolve com `fallback` se a promise não completar em `ms` — evita boot travado por backend offline. */
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+  ]);
+}
 
 export default function DriverBoot() {
-  const { userData, userType } = useAuthStore();
+  const { userData, userType, updateUserData } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [initialRideId, setInitialRideId] = useState<string | null>(null);
 
@@ -20,20 +27,21 @@ export default function DriverBoot() {
   useEffect(() => {
     let mounted = true;
 
-    // Só busca corrida ativa se já estiver aprovado
-    if (!isApproved) {
-      setLoading(false);
-      return;
-    }
-
     (async () => {
       try {
-        const res = await rideService.getActive();
+        // Sincroniza status do motorista a partir do Supabase (driver_details)
+        const details = await getMyDriverDetails().catch(() => null);
+        if (mounted && details) {
+          updateUserData({ driverStatus: (details.status as any) || "none" });
+        }
 
-        if (!mounted) return;
-
-        if (res?.active && res.ride?._id) {
-          setInitialRideId(res.ride._id);
+        // Só busca corrida ativa se já estiver aprovado (ainda Node — Fase 4, blindado com timeout)
+        const approvedNow = (details?.status || status) === "approved";
+        if (approvedNow) {
+          const res = await withTimeout(rideService.getActive(), 4000, null);
+          if (mounted && res?.active && res.ride?._id) {
+            setInitialRideId(res.ride._id);
+          }
         }
       } catch {
         // fluxo silencioso: se falhar, entra no DriverHome normalmente
@@ -45,7 +53,7 @@ export default function DriverBoot() {
     return () => {
       mounted = false;
     };
-  }, [isApproved]);
+  }, []);
 
   if (loading) {
     return (
