@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import Toast from "react-native-toast-message";
-import webSocketService from "@/services/websocket.service";
+import { supabase } from "@/lib/supabase";
 
 export interface DriverInfo {
   id: string;
@@ -101,113 +101,54 @@ export function useDriverSearch(rideId?: string) {
 
     if (!searchingState.visible || !currentRideId) return;
 
-    const onDriverFound = (payload: any) => {
-      if (!mounted) return;
-      if (payload?.rideId && payload.rideId !== currentRideId) return;
+    const channel = supabase
+      .channel(`driver-search:${currentRideId}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "rides", filter: `id=eq.${currentRideId}` },
+        (payload) => {
+          if (!mounted) return;
+          const row = payload.new as any;
+          const status = String(row?.status || "").toLowerCase();
 
-      setSearchingState((prev) => ({ ...prev, visible: false }));
+          if (String(row?.status || "").startsWith("cancelled")) {
+            setSearchingState((prev) => ({ ...prev, visible: false }));
+            resetDriverState();
+            try { driverFoundRef.current?.close?.(); } catch {}
 
-      const etaText =
-        payload?.eta?.text ||
-        (typeof payload?.eta === "string" ? payload.eta : undefined);
+            const noDriverDetected = status === "cancelled_no_driver";
+            setCancelNotice({
+              visible: true,
+              kind: noDriverDetected ? "no_driver" : "generic",
+              reason: noDriverDetected ? "Nenhum motorista disponivel no momento." : undefined,
+            });
+            Toast.show({
+              type: "error",
+              text1: "Corrida cancelada",
+              text2: "Tente novamente.",
+            });
+            return;
+          }
 
-      setDriverFoundState({
-        found: true,
-        info: payload?.driver || null,
-        etaText,
-        location: null,
-      });
-
-      setTimeout(() => {
-        driverFoundRef.current?.snapToIndex?.(0);
-      }, 150);
-    };
-
-    const onRideCancelled = (payload: any) => {
-      if (!mounted) return;
-      if (payload?.rideId && payload.rideId !== currentRideId) return;
-
-      setSearchingState((prev) => ({ ...prev, visible: false }));
-      resetDriverState();
-
-      try {
-        driverFoundRef.current?.close?.();
-      } catch {
-        // no-op
-      }
-
-      const cancelledBy = payload?.cancelledBy;
-      const reason = payload?.reason;
-      const status = String(payload?.status || "").toLowerCase();
-      const noDriverDetected =
-        status === "cancelled_no_driver" ||
-        cancelledBy === "system" ||
-        /nenhum motorista|sem motorista|no driver/i.test(String(reason || ""));
-
-      if (noDriverDetected) {
-        setCancelNotice({
-          visible: true,
-          kind: "no_driver",
-          reason: reason ? String(reason) : "Nenhum motorista disponivel no momento.",
-        });
-      } else if (cancelledBy === "driver") {
-        setCancelNotice({
-          visible: true,
-          kind: "driver_cancelled",
-          reason: reason ? String(reason) : undefined,
-        });
-
-        setTimeout(() => {
-          setCancelNotice({ visible: false, kind: undefined });
-        }, 6000);
-      } else {
-        setCancelNotice({
-          visible: true,
-          kind: "generic",
-          reason: reason ? String(reason) : undefined,
-        });
-      }
-
-      Toast.show({
-        type: "error",
-        text1: cancelledBy === "driver" ? "O motorista cancelou" : "Corrida cancelada",
-        text2: reason ? String(reason) : "Tente novamente.",
-      });
-    };
-
-    const onDriverLocationUpdated = (payload: any) => {
-      if (!mounted) return;
-      if (payload?.rideId && payload.rideId !== currentRideId) return;
-
-      const loc = payload?.location;
-      if (loc?.latitude && loc?.longitude) {
-        setDriverFoundState((prev) => ({
-          ...prev,
-          location: {
-            latitude: Number(loc.latitude),
-            longitude: Number(loc.longitude),
-          },
-        }));
-      }
-    };
-
-    (async () => {
-      try {
-        await webSocketService.connect();
-        webSocketService.onDriverFound(onDriverFound);
-        webSocketService.onRideCancelled(onRideCancelled);
-        webSocketService.onDriverLocationUpdated(onDriverLocationUpdated);
-        webSocketService.waitingDriver(currentRideId);
-      } catch (e) {
-        console.log("Falha ao conectar WebSocket", e);
-      }
-    })();
+          // Motorista encontrado
+          if (row?.driver_id && ["accepted", "driver_assigned", "driver_arriving", "arrived", "in_progress"].includes(status)) {
+            setSearchingState((prev) => ({ ...prev, visible: false }));
+            setDriverFoundState({
+              found: true,
+              info: null,
+              location: null,
+            });
+            setTimeout(() => {
+              driverFoundRef.current?.snapToIndex?.(0);
+            }, 150);
+          }
+        },
+      )
+      .subscribe();
 
     return () => {
       mounted = false;
-      webSocketService.off("driver-found", onDriverFound);
-      webSocketService.off("ride-cancelled", onRideCancelled);
-      webSocketService.off("driver-location-updated", onDriverLocationUpdated);
+      supabase.removeChannel(channel);
     };
   }, [searchingState.visible, searchingState.rideId, rideId]);
 

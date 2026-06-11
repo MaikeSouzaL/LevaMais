@@ -5,7 +5,6 @@ import Toast from "react-native-toast-message";
 
 import rideService from "@/services/ride.service";
 import chatService, { ChatMessage } from "@/services/chat.service";
-import webSocketService from "@/services/websocket.service";
 import { useAuthStore } from "@/context/authStore";
 import { useChatStore } from "@/context/chatStore";
 import { RideChatView } from "@/components/chat/RideChatView";
@@ -93,38 +92,23 @@ export default function ChatScreen() {
   useEffect(() => {
     if (!rideId) return;
 
-    let mounted = true;
-
-    const onNewMessage = (payload: any) => {
-      if (!mounted) return;
-      if (payload?.rideId && payload.rideId !== rideId) return;
-
-      const senderId = payload?.senderId ? String(payload.senderId) : "";
+    const cleanupChat = chatService.onNewMessage(rideId, (msg) => {
+      const senderId = msg?.senderId ? String(msg.senderId) : "";
       if (currentUserId && senderId === String(currentUserId)) return;
 
       setMessages((prev) => [
         ...prev,
         {
-          id: String(payload?.id || payload?._id || `in-${Date.now()}-${Math.random()}`),
-          text: String(payload?.message || ""),
+          id: String(msg?.id || msg?._id || `in-${Date.now()}-${Math.random()}`),
+          text: String(msg?.message || ""),
           sent: false,
-          timestamp: new Date(payload?.createdAt || payload?.timestamp || Date.now()).getTime(),
+          timestamp: new Date(msg?.createdAt || msg?.timestamp || Date.now()).getTime(),
         },
       ]);
-    };
-
-    (async () => {
-      try {
-        await webSocketService.connect();
-        webSocketService.onNewMessage(onNewMessage);
-      } catch {
-        // fallback: chat local while socket reconnects
-      }
-    })();
+    });
 
     return () => {
-      mounted = false;
-      webSocketService.off("new-message", onNewMessage);
+      cleanupChat();
     };
   }, [rideId, currentUserId]);
 

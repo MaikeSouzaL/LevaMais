@@ -32,7 +32,7 @@ class PromotionService {
         .eq("is_active", true);
 
       if (error) {
-        if (error.code === "42P01") return [];
+        if (error.code === "42P01" || error.code === "PGRST205") return [];
         throw error;
       }
 

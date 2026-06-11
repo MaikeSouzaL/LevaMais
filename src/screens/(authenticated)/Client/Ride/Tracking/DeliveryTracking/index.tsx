@@ -17,7 +17,8 @@ import DeliveryTimeline from "@/components/shared/DeliveryTimeline";
 import PINsCard from "@/components/shared/PINsCard";
 import Toast from "react-native-toast-message";
 import rideService from "@/services/ride.service";
-import webSocketService from "@/services/websocket.service";
+import chatService from "@/services/chat.service";
+import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/context/authStore";
 import { useChatStore } from "@/context/chatStore";
 import { resolveAssetURL } from "@/utils/mappers";
@@ -179,43 +180,8 @@ export default function DeliveryTracking() {
 
     loadRide();
 
-    // Named callbacks for proper WebSocket listener cleanup
-    const onDriverLocation = (data: any) => {
-      if (data?.rideId === rideIdRef.current && data?.location) {
-        setDriverLocation({
-          latitude: data.location.latitude ?? data.location.lat,
-          longitude: data.location.longitude ?? data.location.lng,
-        });
-      }
-    };
-
-    const onRideStatusUpdated = (data: any) => {
-      if (data?.rideId === rideIdRef.current || data?._id === rideIdRef.current) {
-        loadRide();
-      }
-    };
-
-    const onPaymentConfirmed = (data: any) => {
+    const onNewMsg = (data: any) => {
       if (!mountedRef.current) return;
-      if (data?.rideId !== rideIdRef.current) return;
-      Toast.show({
-        type: "success",
-        text1: "Pagamento Confirmado!",
-        text2: "Seu pagamento via PIX foi processado com sucesso.",
-      });
-      setShowPixModal(false);
-      loadRide();
-    };
-
-    const onDriverArrived = (data: any) => {
-      if (data?.rideId === rideIdRef.current || data?._id === rideIdRef.current) {
-        loadRide();
-      }
-    };
-
-    const onNewMsg = async (data: any) => {
-      if (!mountedRef.current) return;
-      if (data?.rideId !== rideIdRef.current) return;
       if (String(data?.senderId) === currentUserId) return;
 
       const sender = data?.senderName || (data?.senderType === "driver" ? "Motorista" : "Cliente");
@@ -273,22 +239,32 @@ export default function DeliveryTracking() {
       }
     };
 
-    // Connect WebSocket and subscribe to driver updates
-    (async () => {
-      try {
-        await webSocketService.connect();
-        webSocketService.waitingDriver(rideIdRef.current);
-      } catch (err) {
-        console.error("Erro ao conectar socket em DeliveryTracking:", err);
-      }
-    })();
+    // Supabase Realtime: escuta mudanças na corrida
+    const rideChannel = supabase
+      .channel(`ride-delivery:${rideIdRef.current}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "rides", filter: `id=eq.${rideIdRef.current}` },
+        (payload) => {
+          if (!mountedRef.current) return;
+          const row = payload.new as any;
+          if (row?.payment?.status === "paid") {
+            Toast.show({
+              type: "success",
+              text1: "Pagamento Confirmado!",
+              text2: "Seu pagamento via PIX foi processado com sucesso.",
+            });
+            setShowPixModal(false);
+          }
+          loadRide();
+        },
+      )
+      .subscribe();
 
-    // WebSocket listeners
-    webSocketService.on("driver-location-updated", onDriverLocation);
-    webSocketService.on("ride-status-updated", onRideStatusUpdated);
-    webSocketService.on("driver-arrived", onDriverArrived);
-    webSocketService.on("new-message", onNewMsg);
-    webSocketService.on("ride-payment-confirmed", onPaymentConfirmed);
+    // Chat via chatService Supabase Realtime
+    const cleanupChat = chatService.onNewMessage(rideIdRef.current, (msg) => {
+      onNewMsg(msg);
+    });
 
     // Polling fallback every 4 seconds
     const interval = setInterval(loadRide, 4000);
@@ -296,11 +272,8 @@ export default function DeliveryTracking() {
     return () => {
       mountedRef.current = false;
       clearInterval(interval);
-      webSocketService.off("driver-location-updated", onDriverLocation);
-      webSocketService.off("ride-status-updated", onRideStatusUpdated);
-      webSocketService.off("driver-arrived", onDriverArrived);
-      webSocketService.off("new-message", onNewMsg);
-      webSocketService.off("ride-payment-confirmed", onPaymentConfirmed);
+      supabase.removeChannel(rideChannel);
+      cleanupChat();
       if (notificationTimeoutRef.current) {
         clearTimeout(notificationTimeoutRef.current);
       }
@@ -331,6 +304,32 @@ export default function DeliveryTracking() {
       clearInterval(timer);
     };
   }, [ride?.status]);
+
+  // Supabase Realtime: posição do motorista em tempo real (complementa o socket)
+  useEffect(() => {
+    const driverRaw = ride?.driverId;
+    const driverId = typeof driverRaw === "string"
+      ? driverRaw
+      : (driverRaw as any)?._id || (driverRaw as any)?.id;
+    if (!driverId) return;
+
+    const channel = supabase
+      .channel(`driver-location-delivery:${driverId}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "driver_locations", filter: `id=eq.${driverId}` },
+        (payload) => {
+          const row = payload.new as any;
+          const lat = Number(row?.latitude);
+          const lng = Number(row?.longitude);
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+          setDriverLocation({ latitude: lat, longitude: lng });
+        },
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [ride?.driverId]);
 
   // Métricas em tempo real (ETA + distância): motorista -> alvo atual (coleta ou destino)
   useEffect(() => {

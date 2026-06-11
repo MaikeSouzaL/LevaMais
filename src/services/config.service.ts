@@ -154,7 +154,7 @@ class ConfigService {
         .maybeSingle();
 
       if (error) {
-        if (error.code === "42P01") return {};
+        if (error.code === "42P01" || error.code === "PGRST205") return {};
         throw error;
       }
       return data?.value || {};

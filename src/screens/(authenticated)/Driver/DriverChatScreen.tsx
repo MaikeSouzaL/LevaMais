@@ -4,7 +4,6 @@ import Toast from "react-native-toast-message";
 
 import rideService from "../../../services/ride.service";
 import chatService, { ChatMessage } from "../../../services/chat.service";
-import webSocketService from "../../../services/websocket.service";
 import { useAuthStore } from "../../../context/authStore";
 import { useChatStore } from "../../../context/chatStore";
 import { RideChatView } from "../../../components/chat/RideChatView";
@@ -97,10 +96,8 @@ export default function DriverChatScreen() {
 
     let mounted = true;
 
-    const onNewMessage = (payload: any) => {
+    const onNewMessage = (payload: ChatMessage) => {
       if (!mounted) return;
-      if (payload?.rideId && payload.rideId !== rideId) return;
-
       const senderId = payload?.senderId ? String(payload.senderId) : "";
       if (currentUserId && senderId === String(currentUserId)) return;
 
@@ -115,18 +112,11 @@ export default function DriverChatScreen() {
       ]);
     };
 
-    (async () => {
-      try {
-        await webSocketService.connect();
-        webSocketService.onNewMessage(onNewMessage);
-      } catch {
-        // fallback: chat local while socket reconnects
-      }
-    })();
+    const unsubscribe = chatService.onNewMessage(rideId, onNewMessage);
 
     return () => {
       mounted = false;
-      webSocketService.off("new-message", onNewMessage);
+      if (typeof unsubscribe === "function") unsubscribe();
     };
   }, [rideId, currentUserId]);
 

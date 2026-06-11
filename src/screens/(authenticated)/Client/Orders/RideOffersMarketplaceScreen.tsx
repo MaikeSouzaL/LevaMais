@@ -9,7 +9,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AlertCircle, RefreshCw, TrendingUp, Zap, TrendingDown, Trash2, ChevronLeft } from "lucide-react-native";
 
 import rideService, { RideOffer } from "@/services/ride.service";
-import webSocketService from "@/services/websocket.service";
 import { Audio } from "expo-av";
 import { formatBRL } from "@/utils/mappers";
 
@@ -253,25 +252,22 @@ export default function RideOffersMarketplaceScreen() {
     
     init();
 
-    const onOffersUpdated = async (data: any) => {
-      if (mounted && data?.rideId === rideId) {
-        if (data?.reason === "driver_rejected_some") {
-          setAllRejected(true);
-        } else {
-          setAllRejected(false);
-        }
-        // Capture count before reload
-        const countBefore = prevOfferCount;
-        await loadOffers().catch(() => {});
-        await loadRideDetails().catch(() => {});
-        // After reload, we compare via state setter callback
+    // Also init prevOfferCount after first load
+    setOffers((current) => {
+      prevOfferCount = current.length;
+      return current;
+    });
+
+    const interval = setInterval(() => {
+      if (!mounted) return;
+      const countBefore = prevOfferCount;
+      loadOffers().then(() => {
         setOffers((current) => {
           const countAfter = current.length;
           if (countAfter < countBefore && countBefore > 0) {
-            // A driver declined/withdrew their offer
             Toast.show({
               type: "info",
-              text1: "Um entregador recusou sua oferta ⚠️",
+              text1: "Um entregador recusou sua oferta",
               text2: "Outros parceiros ainda podem aceitar. Tente aumentar o valor para atrair mais interessados!",
               visibilityTime: 5000,
             });
@@ -279,35 +275,13 @@ export default function RideOffersMarketplaceScreen() {
           prevOfferCount = countAfter;
           return current;
         });
-      }
-    };
-
-    // Also init prevOfferCount after first load
-    setOffers((current) => {
-      prevOfferCount = current.length;
-      return current;
-    });
-
-    const onStatusChanged = (data: any) => {
-      if (mounted && data?.rideId === rideId) {
-        loadRideDetails().catch(() => {});
-        loadOffers().catch(() => {});
-      }
-    };
-
-    webSocketService.on("ride-offers-updated", onOffersUpdated);
-    webSocketService.on("ride-status-updated", onStatusChanged);
-
-    const interval = setInterval(() => {
-      loadOffers().catch(() => {});
+      }).catch(() => {});
       loadRideDetails().catch(() => {});
     }, 6000);
 
     return () => {
       mounted = false;
       clearInterval(interval);
-      webSocketService.off("ride-offers-updated", onOffersUpdated);
-      webSocketService.off("ride-status-updated", onStatusChanged);
     };
   }, [loadOffers, loadRideDetails]);
 

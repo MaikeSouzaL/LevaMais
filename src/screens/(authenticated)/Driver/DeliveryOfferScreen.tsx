@@ -12,7 +12,7 @@ import { DeliveryOfferCard } from "@/components/driver/delivery-offer/DeliveryOf
 
 // Services
 import rideService from "@/services/ride.service";
-import webSocketService from "@/services/websocket.service";
+import { supabase } from "@/lib/supabase";
 import Toast from "react-native-toast-message";
 
 export default function DeliveryOfferScreen() {
@@ -47,27 +47,42 @@ export default function DeliveryOfferScreen() {
     fetchOffer();
   }, [offerId]);
 
-  // 🛰️ Real-time Cancellation Sync
+  // 🛰️ Real-time Cancellation Sync via Supabase Realtime
   useEffect(() => {
     if (!offer?._id) return;
 
     let active = true;
 
-    const handleRideCancelled = (payload: any) => {
+    const handleRideCancelled = () => {
       if (!active) return;
-      if (payload?.rideId === offer._id) {
-        active = false;
-        Toast.show({
-          type: "error",
-          text1: "Corrida Cancelada",
-          text2: "Esta solicitação foi cancelada pelo solicitante."
-        });
-        navigation.goBack();
-      }
+      active = false;
+      Toast.show({
+        type: "error",
+        text1: "Corrida Cancelada",
+        text2: "Esta solicitação foi cancelada pelo solicitante.",
+      });
+      navigation.goBack();
     };
 
-    webSocketService.on("ride-cancelled", handleRideCancelled);
-    webSocketService.connect().catch(() => {});
+    const channel = supabase
+      .channel(`delivery-offer:${offer._id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "rides",
+          filter: `id=eq.${offer._id}`,
+        },
+        (payload) => {
+          if (!active) return;
+          const row = payload.new as any;
+          if (String(row.status || "").startsWith("cancelled") || row.status === "expired") {
+            handleRideCancelled();
+          }
+        },
+      )
+      .subscribe();
 
     // Polling backup
     const checkStatus = setInterval(async () => {
@@ -77,24 +92,13 @@ export default function DeliveryOfferScreen() {
         if (["cancelled", "cancelled_by_client", "cancelled_by_driver", "cancelled_no_driver", "expired"].includes(fresh.status)) {
           active = false;
           clearInterval(checkStatus);
-          Toast.show({
-            type: "error",
-            text1: "Corrida Cancelada",
-            text2: "Esta solicitação foi cancelada pelo solicitante."
-          });
-          navigation.goBack();
+          handleRideCancelled();
         }
       } catch (err: any) {
-        // Se der 404 (corrida apagada ou não encontrada), cancela também
         if (err?.response?.status === 404) {
           active = false;
           clearInterval(checkStatus);
-          Toast.show({
-            type: "error",
-            text1: "Corrida Cancelada",
-            text2: "Esta solicitação foi cancelada pelo solicitante."
-          });
-          navigation.goBack();
+          handleRideCancelled();
         }
       }
     }, 3500);
@@ -102,7 +106,7 @@ export default function DeliveryOfferScreen() {
     return () => {
       active = false;
       clearInterval(checkStatus);
-      webSocketService.off("ride-cancelled", handleRideCancelled);
+      supabase.removeChannel(channel);
     };
   }, [offer?._id]);
 

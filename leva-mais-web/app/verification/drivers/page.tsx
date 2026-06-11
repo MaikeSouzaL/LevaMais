@@ -32,6 +32,7 @@ import { useToast } from "@/components/ui/Toast";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import axios from "axios";
+import { verificationAdminService } from "@/services/verificationAdminService";
 
 // TypeScript Interfaces
 interface PendingDriver {
@@ -408,15 +409,13 @@ export default function UnifiedVerificationPage() {
   ) => {
     setProcessing(true);
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
-      const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || '';
-
-      await axios.patch(`${API_URL}/auth/users/${userId}/driver-verification`, {
-        field: "driverStatus",
-        status: newStatus,
+      await verificationAdminService.updateDriverVerification(
+        userId,
+        "driverStatus",
+        newStatus,
         reason,
-        riskFlags: reason ? [reason] : []
-      }, { headers: { "x-admin-key": ADMIN_API_KEY } });
+        reason ? [reason] : []
+      );
 
       const labels = {
         blocked: "bloqueada",
@@ -431,7 +430,7 @@ export default function UnifiedVerificationPage() {
           const driver = prev as PendingDriver;
           return {
             ...driver,
-            driverStatus: newStatus,
+            driverStatus: newStatus as any,
             driverDocuments: {
               ...(driver.driverDocuments || {}),
               rejectionReason: reason,
@@ -443,10 +442,7 @@ export default function UnifiedVerificationPage() {
 
       loadData();
     } catch (err: unknown) {
-      const errMsg = axios.isAxiosError(err)
-        ? err.response?.data?.message || "Erro ao atualizar status da conta"
-        : "Erro ao atualizar status da conta";
-      showToast(errMsg, "error");
+      showToast("Erro ao atualizar status da conta", "error");
     } finally {
       setProcessing(false);
     }

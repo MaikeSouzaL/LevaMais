@@ -21,7 +21,7 @@ import {
   Check
 } from "lucide-react-native";
 
-import webSocketService from "../../../services/websocket.service";
+import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "../../../context/authStore";
 import driverAlertService from "../../../services/driverAlert.service";
 import rideService from "../../../services/ride.service";
@@ -427,24 +427,62 @@ export default function DriverRequestsScreen() {
       );
     };
 
-    const onSocketConnected = () => {
-      syncAvailableRequests().catch(() => {});
-    };
+    const channel = supabase
+      .channel("requests-screen-rides")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "rides",
+        },
+        (payload) => {
+          if (!mounted) return;
+          const row = payload.new as any;
+          if (row.status === "requesting" && !row.driver_id) {
+            onNewRide({
+              rideId: row.id,
+              status: row.status,
+              pickup: row.pickup,
+              dropoff: row.dropoff,
+              pricing: row.pricing,
+              distance: row.distance,
+              duration: row.duration,
+              serviceType: row.service_type,
+              vehicleType: row.vehicle_type,
+              payment: row.payment,
+              details: row.details,
+              isWaitingInQueue: row.is_waiting_in_queue,
+              negotiation: row.negotiation,
+            });
+          }
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "rides",
+        },
+        (payload) => {
+          if (!mounted) return;
+          const row = payload.new as any;
+          const rideId = String(row.id || "");
+          const rideStatus = String(row.status || "");
 
-    (async () => {
-      try {
-        await webSocketService.connect();
-        webSocketService.on("connect", onSocketConnected);
-        webSocketService.on("new-ride-request", onNewRide);
-        webSocketService.on("ride-taken", onRideTaken);
-        webSocketService.on("ride-expired", onRideExpired);
-        webSocketService.on("ride-cancelled", onRideCancelled);
-        webSocketService.on("queue-ride-offer-increased", onRideOfferIncreased);
-        webSocketService.on("ride-offer-rejected-by-client", onOfferRejectedByClient);
-       } catch (e) {
-        console.error("Error connecting to websocket:", e);
-      }
-    })();
+          if (rideStatus.startsWith("cancelled") || rideStatus === "expired") {
+            onRideCancelled({ rideId });
+            return;
+          }
+
+          // Ride accepted/taken by someone
+          if (["accepted", "driver_arriving", "in_progress"].includes(rideStatus) && row.driver_id) {
+            onRideTaken({ rideId });
+          }
+        },
+      )
+      .subscribe();
 
     const pollInterval = setInterval(() => {
       if (mounted) {
@@ -455,13 +493,7 @@ export default function DriverRequestsScreen() {
     return () => {
       mounted = false;
       clearInterval(pollInterval);
-      webSocketService.off("new-ride-request", onNewRide);
-      webSocketService.off("ride-taken", onRideTaken);
-      webSocketService.off("ride-expired", onRideExpired);
-      webSocketService.off("ride-cancelled", onRideCancelled);
-      webSocketService.off("queue-ride-offer-increased", onRideOfferIncreased);
-      webSocketService.off("ride-offer-rejected-by-client", onOfferRejectedByClient);
-      webSocketService.off("connect", onSocketConnected);
+      supabase.removeChannel(channel);
       driverAlertService.stop().catch(() => {});
     };
   }, [navigation]);

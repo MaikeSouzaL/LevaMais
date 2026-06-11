@@ -14,9 +14,10 @@ import * as Location from "expo-location";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 import rideService, { Ride } from "@/services/ride.service";
-import webSocketService from "@/services/websocket.service";
+import chatService from "@/services/chat.service";
 import { useAuthStore } from "@/context/authStore";
 import { useChatStore } from "@/context/chatStore";
+import { supabase } from "@/lib/supabase";
 import { darkMapStyle } from "@/utils/mapStyle";
 import { decodePolyline, LatLng } from "@/utils/polyline";
 import { estimateCancellationFee } from "@/utils/cancellationFee";
@@ -220,7 +221,6 @@ export default function RideTrackingScreen() {
   const currentUserId = useAuthStore((s) => s.userData?.id) || "";
   const unreadCount = useChatStore((s) => s.unreadCounts[rideId]) || 0;
   const mapRef = useRef<MapView>(null);
-  const watchRef = useRef<any>(null);
   const driverAnimatedLocation = useRef<any>(null);
   const [chatNotification, setChatNotification] = useState<{ sender: string; text: string } | null>(null);
   const notificationTimeoutRef = useRef<any>(null);
@@ -381,95 +381,8 @@ export default function RideTrackingScreen() {
     const isCurrentDelivery =
       ride?.serviceType === "delivery" || ride?.serviceType === "frete";
 
-    const onSocketConnected = () => {
-      if (!mounted) return;
-      webSocketService.waitingDriver(rideId);
-    };
-
-    const onStatusUpdated = (payload: any) => {
-      if (!mounted) return;
-      if (payload?.rideId && payload.rideId !== rideId) return;
-      loadRide();
-    };
-
-    const onPaymentConfirmed = (payload: any) => {
-      if (!mounted) return;
-      if (payload?.rideId !== rideId) return;
-      Toast.show({
-        type: "success",
-        text1: "Pagamento Confirmado!",
-        text2: "Seu pagamento via PIX foi processado com sucesso.",
-      });
-      setShowPixModal(false);
-      loadRide();
-    };
-
-    const onCancelled = (payload: any) => {
-      if (!mounted) return;
-      if (payload?.rideId && payload.rideId !== rideId) return;
-
-      Toast.show({
-        type: "error",
-        text1: isCurrentDelivery ? "Entrega cancelada" : "Corrida cancelada",
-        text2: payload?.reason ? String(payload.reason) : undefined,
-      });
-      navigation.reset({ index: 0, routes: [{ name: "Home" }] });
-    };
-
-    const onDriverLocation = (payload: any) => {
-      if (!mounted) return;
-      if (payload?.rideId && payload.rideId !== rideId) return;
-      const loc = payload?.location;
-      if (
-        Number.isFinite(Number(loc?.latitude)) &&
-        Number.isFinite(Number(loc?.longitude))
-      ) {
-        const newLat = Number(loc.latitude);
-        const newLng = Number(loc.longitude);
-
-        if (!driverAnimatedLocation.current) {
-          driverAnimatedLocation.current = new AnimatedRegion({
-            latitude: newLat,
-            longitude: newLng,
-            latitudeDelta: 0.004,
-            longitudeDelta: 0.004,
-          });
-        } else {
-          driverAnimatedLocation.current.timing({
-            latitude: newLat,
-            longitude: newLng,
-            duration: 3000,
-            useNativeDriver: false,
-          }).start();
-        }
-
-        setDriverLocation({
-          latitude: newLat,
-          longitude: newLng,
-        });
-      }
-    };
-
-    const onArrived = (payload: any) => {
-      if (!mounted) return;
-      if (payload?.rideId && payload.rideId !== rideId) return;
-      Toast.show({ type: "info", text1: "Motorista chegou ao ponto de coleta" });
-      loadRide();
-    };
-
-    const onStarted = (payload: any) => {
-      if (!mounted) return;
-      if (payload?.rideId && payload.rideId !== rideId) return;
-      Toast.show({
-        type: "info",
-        text1: isCurrentDelivery ? "Entrega iniciada" : "Corrida iniciada",
-      });
-      loadRide();
-    };
-
     const onNewMsg = async (data: any) => {
       if (!mounted) return;
-      if (data?.rideId !== rideId) return;
       if (String(data?.senderId) === currentUserId) return;
 
       const sender =
@@ -527,88 +440,50 @@ export default function RideTrackingScreen() {
       }
     };
 
-    (async () => {
-      try {
-        await webSocketService.connect();
-        webSocketService.on("connect", onSocketConnected);
-        webSocketService.waitingDriver(rideId);
-        webSocketService.onRideStatusUpdated(onStatusUpdated);
-        webSocketService.onRideCancelled(onCancelled);
-        webSocketService.onDriverLocationUpdated(onDriverLocation);
-        webSocketService.onDriverArrived(onArrived);
-        webSocketService.onRideStarted(onStarted);
-        webSocketService.onNewMessage(onNewMsg);
-        webSocketService.on("ride-payment-confirmed", onPaymentConfirmed);
-      } catch {
-        // fallback no polling
-      }
-    })();
+    // Supabase Realtime: escuta mudanças na corrida
+    const rideChannel = supabase
+      .channel(`ride:${rideId}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "rides", filter: `id=eq.${rideId}` },
+        (payload) => {
+          if (!mounted) return;
+          const row = payload.new as any;
+          if (String(row?.status || "").startsWith("cancelled")) {
+            Toast.show({
+              type: "error",
+              text1: isCurrentDelivery ? "Entrega cancelada" : "Corrida cancelada",
+            });
+            navigation.reset({ index: 0, routes: [{ name: "Home" }] });
+            return;
+          }
+          if (row?.payment?.status === "paid") {
+            Toast.show({
+              type: "success",
+              text1: "Pagamento Confirmado!",
+              text2: "Seu pagamento via PIX foi processado com sucesso.",
+            });
+            setShowPixModal(false);
+          }
+          loadRide();
+        },
+      )
+      .subscribe();
+
+    // Chat via chatService Supabase Realtime
+    const cleanupChat = chatService.onNewMessage(rideId, (msg) => {
+      onNewMsg(msg);
+    });
 
     return () => {
       mounted = false;
-      webSocketService.off("ride-status-updated", onStatusUpdated);
-      webSocketService.off("ride-cancelled", onCancelled);
-      webSocketService.off("driver-location-updated", onDriverLocation);
-      webSocketService.off("driver-arrived", onArrived);
-      webSocketService.off("ride-started", onStarted);
-      webSocketService.off("new-message", onNewMsg);
-      webSocketService.off("connect", onSocketConnected);
-      webSocketService.off("ride-payment-confirmed", onPaymentConfirmed);
+      supabase.removeChannel(rideChannel);
+      cleanupChat();
       if (notificationTimeoutRef.current) {
         clearTimeout(notificationTimeoutRef.current);
       }
     };
   }, [rideId, loadRide, navigation, currentUserId, ride?.serviceType]);
-
-  useEffect(() => {
-    let mounted = true;
-
-    const startLocationTracking = async () => {
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== "granted") return;
-
-        if (watchRef.current) {
-          if (typeof watchRef.current.remove === "function") {
-            watchRef.current.remove();
-          }
-          watchRef.current = null;
-        }
-
-        watchRef.current = await Location.watchPositionAsync(
-          {
-            accuracy: Location.Accuracy.Balanced,
-            timeInterval: 2000,
-            distanceInterval: 5,
-          },
-          (pos) => {
-            if (!mounted) return;
-            try {
-              webSocketService.emit("client-location-update", {
-                rideId,
-                latitude: pos.coords.latitude,
-                longitude: pos.coords.longitude,
-                heading: pos.coords.heading ?? undefined,
-                speed: pos.coords.speed ?? undefined,
-              });
-            } catch {}
-          }
-        );
-      } catch {}
-    };
-
-    startLocationTracking();
-
-    return () => {
-      mounted = false;
-      if (watchRef.current) {
-        if (typeof watchRef.current.remove === "function") {
-          watchRef.current.remove();
-        }
-        watchRef.current = null;
-      }
-    };
-  }, [rideId]);
 
   // Breadcrumb: trajeto realmente percorrido pelo motorista (route-audit)
   useEffect(() => {
@@ -635,6 +510,48 @@ export default function RideTrackingScreen() {
       clearInterval(timer);
     };
   }, [rideId, ride?.status]);
+
+  // Supabase Realtime: posição do motorista em tempo real (complementa o socket)
+  useEffect(() => {
+    const driverRaw = ride?.driverId;
+    const driverId = typeof driverRaw === "string"
+      ? driverRaw
+      : (driverRaw as any)?._id || (driverRaw as any)?.id;
+    if (!driverId) return;
+
+    const channel = supabase
+      .channel(`driver-location:${driverId}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "driver_locations", filter: `id=eq.${driverId}` },
+        (payload) => {
+          const row = payload.new as any;
+          const lat = Number(row?.latitude);
+          const lng = Number(row?.longitude);
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+          if (!driverAnimatedLocation.current) {
+            driverAnimatedLocation.current = new AnimatedRegion({
+              latitude: lat,
+              longitude: lng,
+              latitudeDelta: 0.004,
+              longitudeDelta: 0.004,
+            });
+          } else {
+            driverAnimatedLocation.current.timing({
+              latitude: lat,
+              longitude: lng,
+              duration: 3000,
+              useNativeDriver: false,
+            }).start();
+          }
+          setDriverLocation({ latitude: lat, longitude: lng });
+        },
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [ride?.driverId]);
 
   const pickupCoord = useMemo(() => {
     const pickupLat = Number(ride?.pickup?.latitude);

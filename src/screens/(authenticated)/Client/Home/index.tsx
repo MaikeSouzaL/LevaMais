@@ -12,7 +12,6 @@ import { resolveAssetURL } from "@/utils/mappers";
 import { useAuthStore } from "@/context/authStore";
 import favoriteAddressService from "@/services/favoriteAddress.service";
 import rideService from "@/services/ride.service";
-import webSocketService from "@/services/websocket.service";
 import { LocationLoadingScreen } from "@/components/ui/LocationLoadingScreen";
 
 // 🛠️ Reused Domain Hooks from Original Flow

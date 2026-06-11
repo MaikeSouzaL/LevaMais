@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { NavigationProp, useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import Toast from "react-native-toast-message";
 import rideService from "@/services/ride.service";
-import webSocketService from "@/services/websocket.service";
+import { supabase } from "@/lib/supabase";
 import { logger } from "@/utils/logger";
 import { ClientStackParamList } from "../../types/navigation";
 
@@ -219,168 +219,86 @@ export function useActiveRideMonitor() {
     }
   }, [checkActiveRide, navigation, route.params]);
 
-  // WebSocket listeners para atualizações em tempo real
+  // Supabase Realtime + polling para atualizações em tempo real
   useEffect(() => {
     let mounted = true;
+    const currentRideId = state.activeRequestingRideId || state.activeTrackingRideId;
 
-    const handleDriverAccepted = async (data: any) => {
-      logger.info("useActiveRideMonitor", "Motorista aceitou oferta", data);
-      const rId = data?.rideId;
-
-      // Deduplication: prevent duplicate handling of same ride acceptance
-      if (rId && processedAcceptances.current.has(rId)) {
-        logger.debug("useActiveRideMonitor", "Duplicate acceptance event ignored", { rideId: rId });
-        return;
-      }
-      if (rId) {
-        processedAcceptances.current.add(rId);
-        // Clean up after 5 seconds
-        setTimeout(() => processedAcceptances.current.delete(rId), 5000);
-      }
-
-      // Momento real do aceite → ÚNICO ponto que pode redirecionar (1x por corrida).
-      await redirectToTrackingOnce();
-    };
-
-    // Refresh genérico vindo de eventos de socket que NÃO representam aceite
-    // (status do motorista mudando, propostas recebidas, etc.). Apenas sincroniza
-    // o banner/estado — NUNCA redireciona, então o cliente na Home permanece nela.
-    const handleSocketRefresh = () => {
-      checkActiveRide();
-    };
-
-    const handleRideCancelled = (data: any) => {
-      logger.info("useActiveRideMonitor", "Corrida cancelada", data);
-      const rId = data?.rideId || data?.ride?._id || data?._id;
-
-      // Deduplication: prevent duplicate handling of same ride cancellation
-      if (rId && processedCancellations.current.has(rId)) {
-        logger.debug("useActiveRideMonitor", "Duplicate cancellation event ignored", { rideId: rId });
-        return;
-      }
-      if (rId) {
-        processedCancellations.current.add(rId);
-        // Clean up after 5 seconds
-        setTimeout(() => processedCancellations.current.delete(rId), 5000);
-        // Corrida cancelada deixa de estar comprometida / redirecionada.
-        committedRideIds.current.delete(String(rId));
-        autoRedirectedRides.current.delete(String(rId));
-      }
-
-      setState((prev) => ({
-        ...prev,
-        expiredRideId: rId || null,
-        showCancelledModal: navigation.isFocused(),
-        activeRequestingRideId: null,
-        negotiationRideId: null,
-        waitingQueueCount: 0,
-        activeTrackingRideId: prev.activeTrackingRideId === rId ? null : prev.activeTrackingRideId,
-        activeTrackingServiceType: prev.activeTrackingRideId === rId ? null : prev.activeTrackingServiceType,
-        activeTrackingStatus: prev.activeTrackingRideId === rId ? null : prev.activeTrackingStatus,
-      }));
-    };
-
-    const handlePaymentExpired = (data: any) => {
-      logger.info("useActiveRideMonitor", "Pagamento expirado", data);
-      const rId = data?.rideId || data?.ride?._id || data?._id;
-
-      // Deduplication: prevent duplicate handling of same payment expiration
-      if (rId && processedPaymentExpired.current.has(rId)) {
-        logger.debug("useActiveRideMonitor", "Duplicate payment expired event ignored", { rideId: rId });
-        return;
-      }
-      if (rId) {
-        processedPaymentExpired.current.add(rId);
-        // Clean up after 5 seconds
-        setTimeout(() => processedPaymentExpired.current.delete(rId), 5000);
-      }
-
-      setState((prev) => ({
-        ...prev,
-        expiredRideId: rId || null,
-        showCancelledModal: navigation.isFocused(),
-        activeRequestingRideId: null,
-        negotiationRideId: null,
-        waitingQueueCount: 0,
-      }));
-
-      Toast.show({
-        type: "error",
-        text1: "Pagamento Expirado",
-        text2: data?.reason || "Tempo de confirmação esgotado.",
-      });
-    };
-
-    // Conecta WebSocket e registra listeners
-    webSocketService.connect().then(() => {
-      webSocketService.on("ride-status-updated", handleSocketRefresh);
-      webSocketService.on("ride-offers-updated", handleSocketRefresh);
-      webSocketService.on("driver-accepted-offer", handleDriverAccepted);
-      webSocketService.on("ride-cancelled", handleRideCancelled);
-      webSocketService.on("ride-payment-expired", handlePaymentExpired);
-
-      // Dedicated delivery event key listeners (radios)
-      webSocketService.on("delivery-accepted", handleDriverAccepted);
-      webSocketService.on("delivery-cancelled", handleRideCancelled);
-      webSocketService.on("delivery-negotiated", handleSocketRefresh);
-
-      // Aceite DIRETO (shouldAutoMatch): o backend emite "ride-offer-selected" ao
-      // cliente em vez de "*-accepted". É um evento de ACEITE → handler que redireciona.
-      webSocketService.on("ride-offer-selected", handleDriverAccepted);
-
-      // Dedicated ride event key listeners (radios)
-      webSocketService.on("ride-open", handleSocketRefresh);
-      webSocketService.on("ride-accepted", handleDriverAccepted);
-      webSocketService.on("ride-cancelled", handleRideCancelled);
-      webSocketService.on("ride-negotiated", handleSocketRefresh);
-    }).catch((error) => {
-      logger.error("useActiveRideMonitor", "Erro ao conectar WebSocket", error);
-    });
-
-    // Polling inteligente como fallback:
-    // Se o WebSocket estiver ativo e conectado, as atualizações em tempo real
-    // chegam instantaneamente pelos eventos do socket, então não precisamos
-    // sobrecarregar o servidor com requisições HTTP a cada 6 segundos.
-    // Faremos o polling rápido (a cada 8 segundos) apenas se o WebSocket estiver offline.
-    // E um polling lento (a cada 30 segundos) de segurança se o WebSocket estiver online.
-    let pollCounter = 0;
+    // Polling a cada 8 segundos como fallback
     const pollInterval = setInterval(() => {
-      if (webSocketService.isConnected()) {
-        pollCounter += 5;
-        if (pollCounter >= 60) {
-          pollCounter = 0;
+      if (mounted) checkActiveRide();
+    }, 8000);
+
+    if (!currentRideId) {
+      return () => {
+        mounted = false;
+        clearInterval(pollInterval);
+      };
+    }
+
+    // Supabase Realtime: escuta mudanças na corrida ativa
+    const rideChannel = supabase
+      .channel(`monitor-ride:${currentRideId}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "rides", filter: `id=eq.${currentRideId}` },
+        async (payload) => {
+          if (!mounted) return;
+          const row = payload.new as any;
+          const rId = String(currentRideId);
+
+          if (String(row?.status || "").startsWith("cancelled")) {
+            // Deduplication
+            if (processedCancellations.current.has(rId)) return;
+            processedCancellations.current.add(rId);
+            setTimeout(() => processedCancellations.current.delete(rId), 5000);
+            committedRideIds.current.delete(rId);
+            autoRedirectedRides.current.delete(rId);
+
+            setState((prev) => ({
+              ...prev,
+              expiredRideId: rId,
+              showCancelledModal: navigation.isFocused(),
+              activeRequestingRideId: null,
+              negotiationRideId: null,
+              waitingQueueCount: 0,
+              activeTrackingRideId: prev.activeTrackingRideId === rId ? null : prev.activeTrackingRideId,
+              activeTrackingServiceType: prev.activeTrackingRideId === rId ? null : prev.activeTrackingServiceType,
+              activeTrackingStatus: prev.activeTrackingRideId === rId ? null : prev.activeTrackingStatus,
+            }));
+            return;
+          }
+
+          // Motorista atribuído → verificar aceite e redirecionar se necessário
+          if (row?.driver_id) {
+            const ACTIVE_TRACKING_STATUSES = ["accepted", "driver_arriving", "arrived", "in_progress"];
+            if (ACTIVE_TRACKING_STATUSES.includes(String(row?.status || ""))) {
+              if (processedAcceptances.current.has(rId)) return;
+              processedAcceptances.current.add(rId);
+              setTimeout(() => processedAcceptances.current.delete(rId), 5000);
+              await redirectToTrackingOnce();
+              return;
+            }
+          }
+
+          // Qualquer outra mudança → sincronizar estado
           checkActiveRide();
-        }
-      } else {
-        // Se o WebSocket estiver offline/desconectado, executa o polling rápido de recuperação (a cada 5s)
-        pollCounter = 0;
-        checkActiveRide();
-      }
-    }, 5000);
+        },
+      )
+      .subscribe();
 
     return () => {
       mounted = false;
       clearInterval(pollInterval);
-      webSocketService.off("ride-status-updated", handleSocketRefresh);
-      webSocketService.off("ride-offers-updated", handleSocketRefresh);
-      webSocketService.off("driver-accepted-offer", handleDriverAccepted);
-      webSocketService.off("ride-cancelled", handleRideCancelled);
-      webSocketService.off("ride-payment-expired", handlePaymentExpired);
-
-      // Dedicated delivery event key listeners (radios) off
-      webSocketService.off("delivery-accepted", handleDriverAccepted);
-      webSocketService.off("delivery-cancelled", handleRideCancelled);
-      webSocketService.off("delivery-negotiated", handleSocketRefresh);
-
-      webSocketService.off("ride-offer-selected", handleDriverAccepted);
-
-      // Dedicated ride event key listeners (radios) off
-      webSocketService.off("ride-open", handleSocketRefresh);
-      webSocketService.off("ride-accepted", handleDriverAccepted);
-      webSocketService.off("ride-cancelled", handleRideCancelled);
-      webSocketService.off("ride-negotiated", handleSocketRefresh);
+      supabase.removeChannel(rideChannel);
     };
-  }, [checkActiveRide, redirectToTrackingOnce, navigation]);
+  }, [
+    state.activeRequestingRideId,
+    state.activeTrackingRideId,
+    checkActiveRide,
+    redirectToTrackingOnce,
+    navigation,
+  ]);
 
   // Re-sincroniza o estado (banner) quando a Home ganha foco.
   // NÃO redireciona — checkActiveRide é puro. Logo, voltar para a Home a partir do
@@ -405,9 +323,7 @@ export function useActiveRideMonitor() {
 
     const handleTimeoutCancel = async () => {
       try {
-        const isDelivery = state.activeServiceType === "delivery";
-        logger.info("useActiveRideMonitor", `Timer expired! Emitting ${isDelivery ? "delivery_expired" : "ride_expired"} via socket and calling cancel HTTP`, { rideId });
-        webSocketService.emit(isDelivery ? "delivery_expired" : "ride_expired", { rideId });
+        logger.info("useActiveRideMonitor", "Timer expired! Calling cancel HTTP", { rideId });
         await rideService.cancel(rideId, "no_driver_found");
       } catch (err) {
         logger.warn("useActiveRideMonitor", "Already cancelled or failed to cancel", err);

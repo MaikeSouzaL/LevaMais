@@ -29,9 +29,11 @@ const mapSoftDarkStyle = [
   { featureType: "administrative", elementType: "geometry.stroke", stylers: [{ color: "#2d4a65" }] },
 ];
 
+import rideService from "@/services/ride.service";
+
 interface RealtimeVehicle {
   id: string;
-  type: "car" | "motorcycle";
+  type: "car" | "motorcycle" | "van" | "truck";
   lat: number;
   lng: number;
   rotation: number;
@@ -69,28 +71,32 @@ export const ClientRealtimeMap = memo(({
 
   const [vehicles, setVehicles] = useState<RealtimeVehicle[]>([]);
 
-  // ⚡ Real-time vehicle simulation (Simula motoristas circulando perto do usuario)
+  // ⚡ Obter motoristas reais online do banco de dados (sem simulação falsa)
   useEffect(() => {
-    if (!userRegion?.latitude) return;
-    
-    // Gerador deterministico inicial baseado na lat do usuario
-    const initialVehicles: RealtimeVehicle[] = [
-      { id: "v1", type: "car", lat: userRegion.latitude + 0.002, lng: userRegion.longitude + 0.002, rotation: 45 },
-      { id: "v2", type: "motorcycle", lat: userRegion.latitude - 0.0025, lng: userRegion.longitude + 0.001, rotation: 120 },
-      { id: "v3", type: "car", lat: userRegion.latitude + 0.001, lng: userRegion.longitude - 0.003, rotation: 270 },
-      { id: "v4", type: "motorcycle", lat: userRegion.latitude - 0.0015, lng: userRegion.longitude - 0.002, rotation: 200 },
-    ];
-    setVehicles(initialVehicles);
+    if (!userRegion?.latitude || !userRegion?.longitude) return;
 
-    // Loop de movimentação fluida (Realtime vibes)
-    const interval = setInterval(() => {
-      setVehicles((current) => current.map(v => ({
-        ...v,
-        lat: v.lat + (Math.random() - 0.5) * 0.00015,
-        lng: v.lng + (Math.random() - 0.5) * 0.00015,
-        rotation: v.rotation + (Math.random() - 0.5) * 5,
-      })));
-    }, 3000);
+    const fetchRealDrivers = async () => {
+      try {
+        const driversList = await rideService.getNearbyDrivers(
+          userRegion.latitude,
+          userRegion.longitude,
+          8000 // Busca motoristas em um raio de até 8km
+        );
+        const mapped = driversList.map((d: any) => ({
+          id: d.id,
+          type: d.type || "car",
+          lat: d.latitude,
+          lng: d.longitude,
+          rotation: d.rotation || 0,
+        }));
+        setVehicles(mapped);
+      } catch (err) {
+        console.warn("[ClientRealtimeMap] Error getting real drivers", err);
+      }
+    };
+
+    fetchRealDrivers();
+    const interval = setInterval(fetchRealDrivers, 6000);
 
     return () => clearInterval(interval);
   }, [userRegion?.latitude, userRegion?.longitude]);

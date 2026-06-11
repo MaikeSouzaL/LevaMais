@@ -1,6 +1,5 @@
 import { supabase } from "../lib/supabase";
 import { requireUserId } from "./supabase-auth.service";
-import websocketService from "./websocket.service";
 
 export type DriverStatus = "offline" | "available" | "busy" | "on_ride";
 
@@ -26,32 +25,51 @@ export type UpdateDriverLocationRequest = {
 };
 
 class DriverLocationService {
+  /** Retorna a localização atual do motorista autenticado. */
   async getMe() {
     const userId = await requireUserId();
-    const { data: driver } = await supabase
-      .from("driver_details")
+    const { data: location } = await supabase
+      .from("driver_locations")
       .select("*")
       .eq("id", userId)
       .maybeSingle();
-    return driver;
+
+    if (!location) return null;
+
+    // Normaliza is_online → status para consumo em DriverHomeScreen
+    return {
+      ...location,
+      status: location.is_online ? "available" : "offline",
+    };
   }
 
+  /** Persiste posição GPS do motorista em driver_locations e emite broadcast realtime. */
   async update(data: UpdateDriverLocationRequest) {
     const userId = await requireUserId();
-    
-    websocketService.emit("driver-location-updated", {
-      driverId: userId,
-      latitude: data.latitude,
-      longitude: data.longitude,
-      heading: data.heading,
-      speed: data.speed,
-      status: data.status,
-      vehicleType: data.vehicleType,
-    });
+
+    const { error } = await supabase
+      .from("driver_locations")
+      .upsert(
+        {
+          id: userId,
+          is_online: data.status !== "offline",
+          latitude: data.latitude,
+          longitude: data.longitude,
+          heading: data.heading ?? null,
+          speed: data.speed ?? null,
+          current_vehicle_type: data.vehicleType,
+          service_types: data.serviceTypes ?? [],
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "id" },
+      );
+
+    if (error) throw error;
 
     return { success: true };
   }
 
+  /** Atualiza status online/offline e tipos de serviço em driver_locations. */
   async setStatus(data: {
     status: DriverStatus;
     acceptingRides?: boolean;
@@ -60,18 +78,34 @@ class DriverLocationService {
     searchRadiusKm?: number;
   }) {
     const userId = await requireUserId();
-    
-    websocketService.emit("driver-status-changed", {
-      driverId: userId,
-      status: data.status,
-      acceptingRides: data.acceptingRides,
-      serviceTypes: data.serviceTypes,
-    });
+    const isOnline = data.status !== "offline";
+
+    const { error } = await supabase
+      .from("driver_locations")
+      .upsert(
+        {
+          id: userId,
+          is_online: isOnline,
+          service_types: data.serviceTypes ?? [],
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "id" },
+      );
+
+    if (error) throw error;
 
     return { success: true };
   }
 
-  async getNearbyAvailability(coords: { latitude: number; longitude: number }): Promise<{ motorcycle: boolean; car: boolean; van: boolean; truck: boolean }> {
+  async getNearbyAvailability(_coords: {
+    latitude: number;
+    longitude: number;
+  }): Promise<{
+    motorcycle: boolean;
+    car: boolean;
+    van: boolean;
+    truck: boolean;
+  }> {
     return { motorcycle: true, car: true, van: true, truck: true };
   }
 }

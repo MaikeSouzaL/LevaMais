@@ -51,14 +51,18 @@ export const driversService = {
         .from("profiles")
         .select(`
           *,
-          driver_details(*)
+          driver_details!driver_details_id_fkey(*)
         `)
         .eq("role", "driver");
 
       if (error) throw error;
 
       return (data || []).map((row: any) => {
-        const details = row.driver_details?.[0] || row.driver_details || null;
+        const details = row["driver_details!driver_details_id_fkey"]?.[0] || 
+                        row["driver_details!driver_details_id_fkey"] || 
+                        row.driver_details?.[0] || 
+                        row.driver_details || 
+                        null;
         return {
           _id: row.id,
           name: row.full_name || "",

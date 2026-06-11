@@ -68,7 +68,8 @@
       "mcp__Claude_in_Chrome__find",
       "mcp__Claude_in_Chrome__javascript_tool",
       "mcp__Claude_in_Chrome__read_page",
-      "mcp__Claude_in_Chrome__form_input"
+      "mcp__Claude_in_Chrome__form_input",
+      "Bash(findstr /i \"SUPABASE\")"
     ]
   },
   "disabledMcpjsonServers": [

@@ -71,7 +71,7 @@ class AddressHistoryService {
       const { data, error } = await query;
 
       if (error) {
-        if (error.code === "42P01") {
+        if (error.code === "42P01" || error.code === "PGRST205") {
           const local = await this.getLocal();
           let filtered = local;
           if (params?.context) {
@@ -98,8 +98,10 @@ class AddressHistoryService {
         lastUsedAt: row.last_used_at,
         useCount: row.use_count,
       }));
-    } catch (error) {
-      console.error("Erro ao listar historico de enderecos:", error);
+    } catch (error: any) {
+      if (error?.code !== "42P01" && error?.code !== "PGRST205") {
+        console.error("Erro ao listar historico de enderecos:", error);
+      }
       const local = await this.getLocal();
       let filtered = local;
       if (params?.context) {
@@ -147,7 +149,7 @@ class AddressHistoryService {
         .single();
 
       if (error) {
-        if (error.code === "42P01") {
+        if (error.code === "42P01" || error.code === "PGRST205") {
           const local = await this.getLocal();
           local.unshift(newEntry);
           await this.saveLocal(local.slice(0, 100));
@@ -163,8 +165,10 @@ class AddressHistoryService {
         lastUsedAt: inserted.last_used_at,
         useCount: inserted.use_count,
       };
-    } catch (error) {
-      console.error("Erro ao salvar historico de endereco:", error);
+    } catch (error: any) {
+      if (error?.code !== "42P01" && error?.code !== "PGRST205") {
+        console.error("Erro ao salvar historico de endereco:", error);
+      }
       const local = await this.getLocal();
       local.unshift(newEntry);
       await this.saveLocal(local.slice(0, 100));

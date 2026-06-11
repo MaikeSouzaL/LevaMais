@@ -21,7 +21,7 @@ import driverLocationService, {
   DriverStatus,
   DriverVehicleType,
 } from "../../../services/driverLocation.service";
-import webSocketService from "../../../services/websocket.service";
+import { supabase } from "@/lib/supabase";
 import driverAlertService from "../../../services/driverAlert.service";
 import rideService from "../../../services/ride.service";
 import walletService from "../../../services/wallet.service";
@@ -464,10 +464,6 @@ export default function DriverHomeScreen() {
     } catch {}
 
     try {
-      webSocketService.disconnect();
-    } catch {}
-
-    try {
       await driverAlertService.stop();
     } catch {}
 
@@ -810,19 +806,6 @@ export default function DriverHomeScreen() {
       return;
     }
 
-    try {
-      await webSocketService.connect();
-    } catch (e: any) {
-      const message = String(e?.message || "");
-      
-      if (/sessao expirada|token inv[aá]lido|token n[aã]o fornecido|jwt/i.test(message)) {
-        setError("Sua sessao expirou. Faca login novamente para ficar online.");
-      } else {
-        setError("Nao foi possivel conectar em tempo real. Tente novamente.");
-      }
-      throw e;
-    }
-
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
@@ -842,198 +825,101 @@ export default function DriverHomeScreen() {
     setOnline(true);
   };
 
-  // Badge de solicitacoes novas (new-ride-request)
+  // Supabase Realtime: listen for new/updated rides when driver is online
   useEffect(() => {
     let mounted = true;
 
     if (!online || !isFocused) {
-      webSocketService.off("new-ride-request");
-      webSocketService.off("ride-taken");
       return () => {
         mounted = false;
       };
     }
 
-    const onNewRideRequest = async (payload: any) => {
-      if (!mounted) return;
-      if (!isFocused) return;
-
-      try {
-        const active = await rideService.getActive();
-        if (active?.active && active.ride?._id) {
-          await clearIncoming();
-          (navigation as any).replace("DriverRide", { rideId: active.ride._id });
-          return;
-        }
-      } catch {}
-
-      await showIncomingRideRequest(payload);
-    };
-
-    const onRideTaken = async (payload: any) => {
-      if (!mounted) return;
-      const takenId = payload?.rideId;
-      if (!takenId) return;
-
-      if (incomingRequest?.rideId && incomingRequest.rideId === takenId) {
-        await clearIncoming();
-      }
-    };
-
-    // Deduplication: track recently processed cancellation events to avoid duplicate handling
+    const currentDriverId = useAuthStore.getState().userData?.id;
     const dedupMap = cancellationDedupRef.current;
 
-    const onRideCancelled = async (payload: any) => {
-      if (!mounted) return;
-      const cancelledId = payload?.rideId;
-      if (!cancelledId) return;
+    const channel = supabase
+      .channel("driver-new-rides")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "rides",
+        },
+        async (payload) => {
+          if (!mounted || !isFocused) return;
+          const row = payload.new as any;
+          // Only handle rides in 'requesting' state with no driver yet
+          if (row.status === "requesting" && !row.driver_id) {
+            try {
+              const active = await rideService.getActive();
+              if (active?.active && active.ride?._id) {
+                await clearIncoming();
+                (navigation as any).replace("DriverRide", { rideId: active.ride._id });
+                return;
+              }
+            } catch {}
+            syncAvailableRequests().catch(() => {});
+          }
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "rides",
+        },
+        async (payload) => {
+          if (!mounted) return;
+          const row = payload.new as any;
+          const rideId = String(row.id || "");
 
-      // Deduplication: prevent duplicate handling within 5 seconds
-      const now = Date.now();
-      const lastProcessed = dedupMap.get(cancelledId);
-      if (lastProcessed && now - lastProcessed < 5000) {
-        return;
-      }
-      dedupMap.set(cancelledId, now);
-      // Clean up after 10 seconds
-      setTimeout(() => dedupMap.delete(cancelledId), 10000);
+          // Ride was taken by another driver — remove from incoming if it matches
+          if (
+            row.driver_id &&
+            currentDriverId &&
+            String(row.driver_id) !== String(currentDriverId) &&
+            incomingRequest?.rideId === rideId
+          ) {
+            await clearIncoming();
+            return;
+          }
 
-      if (incomingRequest?.rideId && incomingRequest.rideId === cancelledId) {
-        await clearIncoming();
-        setCancelModalReason(payload?.reason || null);
-        setShowCancelModal(true);
-      }
-    };
+          // Ride was cancelled
+          if (String(row.status || "").startsWith("cancelled")) {
+            const now = Date.now();
+            const lastProcessed = dedupMap.get(rideId);
+            if (lastProcessed && now - lastProcessed < 5000) return;
+            dedupMap.set(rideId, now);
+            setTimeout(() => dedupMap.delete(rideId), 10000);
 
-    const onOnlineTimeUpdated = (payload: any) => {
-      if (!mounted) return;
-      if (payload?.totalSecondsToday != null) {
-        setDriverStats((prev: any) => {
-          if (!prev) return { onlineTime: payload.totalSecondsToday };
-          return { ...prev, onlineTime: payload.totalSecondsToday };
-        });
-      }
-    };
+            if (incomingRequest?.rideId === rideId) {
+              await clearIncoming();
+              setCancelModalReason(null);
+              setShowCancelModal(true);
+            }
+            return;
+          }
 
-    const onClientCounterProposal = () => {
-      if (mounted && isFocused) {
-        driverAlertService.playCounterProposalSound().catch(() => {});
-        syncAvailableRequests().catch(() => {});
-        (navigation as any).navigate("DriverRequests", { initialTab: "negotiation" });
-      }
-    };
+          // Terminal status — clear incoming if it matches
+          const terminalStatuses = [
+            "accepted", "in_progress", "arrived", "completed",
+            "rejected", "expired", "no_drivers_available",
+          ];
+          if (terminalStatuses.includes(String(row.status || "")) && incomingRequest?.rideId === rideId) {
+            await clearIncoming();
+          }
+        },
+      )
+      .subscribe();
 
-    const onRideStatusChanged = async (payload: any) => {
-      if (!mounted) return;
-      const payloadRideId = String(payload?.rideId || payload?._id || payload?.ride?._id || payload?.ride || "");
-      const currentRideId = String(incomingRequest?.rideId || "");
-      if (!payloadRideId || !currentRideId || payloadRideId !== currentRideId) return;
-      const status = String(payload?.status || payload?.ride?.status || "").toLowerCase();
-      const terminalStatuses = [
-        "accepted",
-        "in_progress",
-        "arrived",
-        "completed",
-        "cancelled",
-        "canceled",
-        "cancelled_by_client",
-        "cancelled_by_driver",
-        "cancelled_no_driver",
-        "rejected",
-        "expired",
-        "no_drivers_available",
-      ];
-      if (terminalStatuses.includes(status)) {
-        await clearIncoming();
-        return;
-      }
-      setIncomingRequest((prev: any) => (prev ? { ...prev, status } : prev));
-    };
-
-    // NEW: Handle client selecting this driver's offer (awaiting payment)
-    const onClientSelectedOffer = async (payload: any) => {
-      if (!mounted) return;
-      const rideId = payload?.rideId || payload?.ride?._id;
-      if (!rideId) return;
-      if (incomingRequest && incomingRequest.rideId === rideId) {
-        setIncomingRequest((prev: any) => ({ ...prev, paymentPending: true, status: "payment_pending" }));
-      }
-      await driverAlertService.stop().catch(() => {});
-      Toast.show({ type: "success", text1: "Oferta Selecionada!", text2: "Cliente aceitou sua proposta e esta confirmando o pagamento." });
-      if (isFocused) { (navigation as any).navigate("DriverRequests", { initialTab: "negotiation" }); }
-    };
-
-    // NEW: Handle payment expiration (client didn't confirm)
-    const onDeliverySelectionExpired = async (payload: any) => {
-      if (!mounted) return;
-      const reason = payload?.reason || "tempo_pagamento_expirado";
-      await clearIncoming();
-      await driverAlertService.stop().catch(() => {});
-      Toast.show({ type: "error", text1: "Tempo de Pagamento Expirado", text2: "Cliente nao confirmou o pagamento a tempo. Voce foi liberado." });
-      syncAvailableRequests().catch(() => {});
-    };
-
-    webSocketService.on("new-ride-request", onNewRideRequest);
-    webSocketService.on("ride-taken", onRideTaken);
-    webSocketService.on("ride-cancelled", onRideCancelled);
-    webSocketService.on("waiting-queue-updated", syncAvailableRequests);
-    webSocketService.on("online_time_updated", onOnlineTimeUpdated);
-    webSocketService.on("client-counter-proposal", onClientCounterProposal);
-    webSocketService.on("client-selected-offer-awaiting-payment", onClientSelectedOffer);
-    webSocketService.on("delivery-selection-expired", onDeliverySelectionExpired);
-    webSocketService.on("ride-status-updated", onRideStatusChanged);
-    webSocketService.on("ride-status-changed", onRideStatusChanged);
-
-    // Dedicated delivery event key listeners (radios)
-    webSocketService.on("delivery-open", onNewRideRequest);
-    webSocketService.on("delivery-cancelled", onRideCancelled);
-    webSocketService.on("delivery-negotiated", (payload: any) => {
-      syncAvailableRequests().catch(() => {});
-      onRideStatusChanged(payload);
-    });
-
-    // Dedicated ride event key listeners (radios)
-    webSocketService.on("ride-open", onNewRideRequest);
-    webSocketService.on("ride-cancelled", onRideCancelled);
-    webSocketService.on("ride-negotiated", (payload: any) => {
-      syncAvailableRequests().catch(() => {});
-      onRideStatusChanged(payload);
-    });
-
-    // 🚀 Quando o cliente aumenta a oferta, re-sincronizar para capturar o pedido atualizado
-    const onQueueOfferIncreased = () => {
-      if (mounted && isFocused) {
-        syncAvailableRequests().catch(() => {});
-      }
-    };
-    webSocketService.on("queue-ride-offer-increased", onQueueOfferIncreased);
-
-    webSocketService.connect().catch(() => {});
     syncAvailableRequests().catch(() => {});
 
     return () => {
       mounted = false;
-      webSocketService.off("new-ride-request", onNewRideRequest);
-      webSocketService.off("ride-taken", onRideTaken);
-      webSocketService.off("ride-cancelled", onRideCancelled);
-      webSocketService.off("waiting-queue-updated", syncAvailableRequests);
-      webSocketService.off("online_time_updated", onOnlineTimeUpdated);
-      webSocketService.off("client-counter-proposal", onClientCounterProposal);
-      webSocketService.off("client-selected-offer-awaiting-payment", onClientSelectedOffer);
-      webSocketService.off("delivery-selection-expired", onDeliverySelectionExpired);
-      webSocketService.off("ride-status-updated", onRideStatusChanged);
-      webSocketService.off("ride-status-changed", onRideStatusChanged);
-
-      // Dedicated delivery event key listeners (radios) off
-      webSocketService.off("delivery-open", onNewRideRequest);
-      webSocketService.off("delivery-cancelled", onRideCancelled);
-      webSocketService.off("delivery-negotiated");
-
-      // Dedicated ride event key listeners (radios) off
-      webSocketService.off("ride-open", onNewRideRequest);
-      webSocketService.off("ride-cancelled", onRideCancelled);
-      webSocketService.off("ride-negotiated");
-      webSocketService.off("queue-ride-offer-increased", onQueueOfferIncreased);
+      supabase.removeChannel(channel);
     };
   }, [online, incomingRequest?.rideId, isFocused]);
 

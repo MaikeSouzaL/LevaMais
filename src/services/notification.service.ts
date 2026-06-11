@@ -4,7 +4,6 @@ import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import apiClient from './api';
 import { logger } from '@/utils/logger';
-import webSocketService from './websocket.service';
 
 export interface PushNotification {
   id: string;
@@ -85,7 +84,6 @@ class NotificationService {
 
       // Listeners de notificações
       this.setupNotificationListeners();
-      this.setupWebSocketListeners();
 
       logger.info('NotificationService', 'Serviço de notificações inicializado');
     } catch (error) {
@@ -115,25 +113,6 @@ class NotificationService {
         });
         this.emit('notification:tapped', response.notification);
       });
-  }
-
-  private setupWebSocketListeners() {
-    webSocketService.on('notification:send', (data) => {
-      logger.info('NotificationService', 'Notificação via WebSocket', {
-        title: data.title,
-      });
-      this.emit('notification:received', {
-        request: {
-          content: {
-            title: data.title,
-            body: data.body,
-            data: data.data,
-          },
-        },
-      });
-      // 🚀 Dispara uma notificação nativa local no sistema imediatamente!
-      this.sendLocalNotification(data.title, data.body, data.data).catch(() => {});
-    });
   }
 
   private async registerPushToken(token: string) {
@@ -249,13 +228,31 @@ export async function requestNotificationPermissions(): Promise<boolean> {
 }
 
 export async function getPushToken(projectId: string): Promise<string | null> {
-  try {
-    const token = await Notifications.getExpoPushTokenAsync({ projectId });
-    return token.data;
-  } catch (e) {
-    logger.error('NotificationService', 'Error getting push token:', e as Error);
-    return null;
+  const MAX_RETRIES = 2;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const token = await Notifications.getExpoPushTokenAsync({ projectId });
+      return token.data;
+    } catch (e: any) {
+      const msg = String(e?.message || e || '');
+      const isTransient = msg.includes('FIS_AUTH_ERROR') || msg.includes('SERVICE_NOT_AVAILABLE');
+
+      if (isTransient && attempt < MAX_RETRIES) {
+        // Retry silently after a short backoff
+        await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+        continue;
+      }
+
+      // Only log as warning for known Firebase transient errors
+      if (isTransient) {
+        logger.warn('NotificationService', 'Push token indisponível (Firebase transient). Notificações push desativadas nesta sessão.');
+      } else {
+        logger.error('NotificationService', 'Error getting push token:', e as Error);
+      }
+      return null;
+    }
   }
+  return null;
 }
 
 export function setupNotificationHandler(): void {

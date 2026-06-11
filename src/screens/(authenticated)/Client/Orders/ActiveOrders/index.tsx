@@ -7,7 +7,6 @@ import { MotiView } from "moti";
 import { ArrowLeft, Package, Clock, MapPin, DollarSign, ChevronRight, Inbox, Plus, Calendar, Trash2, Route } from "lucide-react-native";
 import Toast from "react-native-toast-message";
 import rideService from "@/services/ride.service";
-import webSocketService from "@/services/websocket.service";
 import { formatBRL } from "@/utils/mappers";
 import { Modal } from "@/components/Modal";
 
@@ -144,28 +143,12 @@ export default function ActiveOrdersScreen() {
 
   useEffect(() => {
     let mounted = true;
-    
-    const handleUpdate = () => {
-      if (mounted) {
-        loadRides();
-      }
-    };
-
-    webSocketService.connect().then(() => {
-      webSocketService.on("ride-status-updated", handleUpdate);
-      webSocketService.on("ride-cancelled", handleUpdate);
-      webSocketService.on("delivery-cancelled", handleUpdate);
-      webSocketService.on("ride-offers-updated", handleUpdate);
-      webSocketService.on("new-ride-request", handleUpdate);
-    }).catch(err => console.error("Error in websocket connection:", err));
-
+    const pollInterval = setInterval(() => {
+      if (mounted) loadRides();
+    }, 8000);
     return () => {
       mounted = false;
-      webSocketService.off("ride-status-updated", handleUpdate);
-      webSocketService.off("ride-cancelled", handleUpdate);
-      webSocketService.off("delivery-cancelled", handleUpdate);
-      webSocketService.off("ride-offers-updated", handleUpdate);
-      webSocketService.off("new-ride-request", handleUpdate);
+      clearInterval(pollInterval);
     };
   }, [loadRides]);
 

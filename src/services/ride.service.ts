@@ -1,8 +1,7 @@
-import api from "./api";
 import { supabase } from "../lib/supabase";
 import { requireUserId } from "./supabase-auth.service";
-import websocketService from "./websocket.service";
 import deliveryService from "./delivery.service";
+import pricingService, { calculateFare } from "./pricing.service";
 
 export interface Location {
   address: string;
@@ -366,22 +365,29 @@ class RideService {
       total: number;
     };
   }> {
-    const distanceKm = data.distance || 5.0;
-    const durationMin = data.duration || 10.0;
-    const baseFare = data.vehicleType === "motorcycle" ? 4.5 : 6.0;
-    const distancePrice = distanceKm * (data.vehicleType === "motorcycle" ? 1.2 : 2.0);
-    const total = baseFare + distancePrice;
+    if (!data.distance || data.distance <= 0) {
+      throw new Error("Distância da rota não informada. Tente novamente.");
+    }
+    const distanceKm = data.distance;
+    const durationMin = data.duration || 0;
+
+    const rules = await pricingService.getRules("ride");
+    const rule = rules.find((r) => r.vehicleCategory === data.vehicleType);
+    if (!rule) throw new Error("Tabela de preços não configurada para este veículo.");
+
+    const fare = calculateFare(rule.pricing, distanceKm, durationMin, 0);
+
     return {
       success: true,
-      suggestedPrice: total,
-      minPrice: Math.max(5.0, total * 0.85),
-      maxPrice: total * 1.25,
+      suggestedPrice: fare.total,
+      minPrice: Math.max(rule.pricing.minFare, Number((fare.total * 0.85).toFixed(2))),
+      maxPrice: Number((fare.total * 1.25).toFixed(2)),
       distanceKm,
       durationMin,
       pricingBreakdown: {
-        baseFare,
-        distancePrice,
-        total,
+        baseFare: fare.baseFare,
+        distancePrice: fare.distancePrice,
+        total: fare.total,
       },
     };
   }
@@ -395,18 +401,33 @@ class RideService {
     dropoff: Location;
     stops?: Location[];
     cityId?: string;
+    city?: string;
     distance?: number;
     duration?: number;
   }): Promise<RideCategoriesResponse> {
-    const distanceKm = data.distance || 5.0;
-    const durationMin = data.duration || 10.0;
+    if (!data.distance || data.distance <= 0) {
+      throw new Error("Distância da rota não informada. Tente novamente.");
+    }
+    const distanceKm = data.distance;
+    const durationMin = data.duration || 0;
+    const stopsCount = data.stops?.length || 0;
     const distanceVal = distanceKm * 1000;
     const durationVal = durationMin * 60;
+
+    const rules = await pricingService.getRules("ride", data.city);
+    const motoRule = rules.find((r) => r.vehicleCategory === "motorcycle");
+    const carRule = rules.find((r) => r.vehicleCategory === "car");
+    if (!motoRule || !carRule) {
+      throw new Error("Tabela de preços de corrida não configurada.");
+    }
+
+    const moto = calculateFare(motoRule.pricing, distanceKm, durationMin, stopsCount);
+    const car = calculateFare(carRule.pricing, distanceKm, durationMin, stopsCount);
 
     return {
       distance: { value: distanceVal, text: `${distanceKm.toFixed(1)} km` },
       duration: { value: durationVal, text: `${durationMin.toFixed(0)} min` },
-      stopsCount: data.stops?.length || 0,
+      stopsCount,
       categories: [
         {
           category: "moto",
@@ -418,14 +439,14 @@ class RideService {
           order: 1,
           available: true,
           pricing: {
-            basePrice: 4.5,
-            distancePrice: distanceKm * 1.2,
-            timePrice: durationMin * 0.15,
-            stopsFee: (data.stops?.length || 0) * 1.0,
-            total: Math.max(5.0, 4.5 + distanceKm * 1.2 + durationMin * 0.15 + (data.stops?.length || 0) * 1.0),
+            basePrice: moto.baseFare,
+            distancePrice: moto.distancePrice,
+            timePrice: moto.timePrice,
+            stopsFee: moto.stopsFee,
+            total: moto.total,
             currency: "BRL",
             multiplier: 1.0,
-            feePerStop: 1.0
+            feePerStop: motoRule.pricing.perStopFee,
           }
         },
         {
@@ -438,14 +459,14 @@ class RideService {
           order: 2,
           available: true,
           pricing: {
-            basePrice: 6.0,
-            distancePrice: distanceKm * 1.8,
-            timePrice: durationMin * 0.25,
-            stopsFee: (data.stops?.length || 0) * 2.0,
-            total: Math.max(8.0, 6.0 + distanceKm * 1.8 + durationMin * 0.25 + (data.stops?.length || 0) * 2.0),
+            basePrice: car.baseFare,
+            distancePrice: car.distancePrice,
+            timePrice: car.timePrice,
+            stopsFee: car.stopsFee,
+            total: car.total,
             currency: "BRL",
             multiplier: 1.0,
-            feePerStop: 2.0
+            feePerStop: carRule.pricing.perStopFee,
           }
         }
       ]
@@ -483,14 +504,31 @@ class RideService {
   async calculatePrice(
     data: CalculatePriceRequest,
   ): Promise<CalculatePriceResponse> {
-    const distanceKm = data.distance || 5.0;
-    const durationMin = data.duration || 10.0;
-    const basePrice = 5.0;
-    const distancePrice = distanceKm * 1.8;
-    const serviceFee = 1.5;
-    const total = basePrice + distancePrice + serviceFee;
+    if (!data.distance || data.distance <= 0) {
+      throw new Error("Distância da rota não informada. Tente novamente.");
+    }
+    const distanceKm = data.distance;
+    const durationMin = data.duration || 0;
+    const serviceType = data.serviceType || "ride";
+
+    const rules = await pricingService.getRules(serviceType);
+    const rule = rules.find((r) => r.vehicleCategory === data.vehicleType);
+    if (!rule) throw new Error("Tabela de preços não configurada para este veículo.");
+
+    const fare = calculateFare(rule.pricing, distanceKm, durationMin, data.stops?.length || 0);
+    const cfg = await pricingService.getConfig();
+    const serviceFee = Number((fare.total * cfg.appFeePercentage / 100).toFixed(2));
+
     return {
-      pricing: { basePrice, distancePrice, serviceFee, total, currency: "BRL" },
+      pricing: {
+        basePrice: fare.baseFare,
+        distancePrice: fare.distancePrice,
+        serviceFee,
+        total: fare.total,
+        currency: "BRL",
+        platformFee: serviceFee,
+        driverValue: Number((fare.total - serviceFee).toFixed(2)),
+      },
       distance: { value: distanceKm * 1000, text: `${distanceKm.toFixed(1)} km` },
       duration: { value: durationMin * 60, text: `${durationMin.toFixed(0)} min` },
     };
@@ -515,62 +553,50 @@ class RideService {
     serviceTypes?: string[];
   }>> {
     try {
+      // Motoristas REAIS online (driver_locations) + suas preferências (driver_details) e perfil
       const { data, error } = await supabase
-        .from("profiles")
-        .select("id, full_name, latitude, longitude, role, profile_photo")
-        .eq("role", "driver");
+        .from("driver_locations")
+        .select(`
+          id, latitude, longitude, heading, current_vehicle_type, is_online,
+          profiles!inner ( full_name, avatar_url, rating ),
+          driver_details!inner ( service_types, vehicle_type, status )
+        `)
+        .eq("is_online", true);
 
       if (error) throw error;
 
-      return (data || []).map((d: any) => {
-        const R = 6371000;
-        const dLat = ((d.latitude || latitude) - latitude) * Math.PI / 180;
-        const dLon = ((d.longitude || longitude) - longitude) * Math.PI / 180;
-        const a =
-          Math.sin(dLat/2) * Math.sin(dLat/2) +
-          Math.cos(latitude * Math.PI / 180) * Math.cos((d.latitude || latitude) * Math.PI / 180) *
-          Math.sin(dLon/2) * Math.sin(dLon/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        const distance = R * c;
+      return (data || [])
+        .map((d: any) => {
+          if (d.latitude == null || d.longitude == null) return null;
+          // só motoristas aprovados aparecem
+          if (d.driver_details?.status !== "approved") return null;
 
-        return {
-          id: d.id,
-          name: d.full_name || "Motorista",
-          profilePhoto: d.profile_photo || null,
-          rating: 4.8,
-          latitude: Number(d.latitude || latitude),
-          longitude: Number(d.longitude || longitude),
-          type: "car" as const,
-          rotation: Math.floor(Math.random() * 360),
-          serviceTypes: ["ride", "delivery"],
-          distance
-        };
-      }).filter(d => d.distance <= radius);
+          const R = 6371000;
+          const dLat = (d.latitude - latitude) * Math.PI / 180;
+          const dLon = (d.longitude - longitude) * Math.PI / 180;
+          const a =
+            Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(latitude * Math.PI / 180) * Math.cos(d.latitude * Math.PI / 180) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+          const distance = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+          return {
+            id: d.id,
+            name: d.profiles?.full_name || "Motorista",
+            profilePhoto: d.profiles?.avatar_url || null,
+            rating: Number(d.profiles?.rating ?? 5),
+            latitude: Number(d.latitude),
+            longitude: Number(d.longitude),
+            type: (d.current_vehicle_type || d.driver_details?.vehicle_type || "car") as any,
+            rotation: Number(d.heading || 0),
+            serviceTypes: d.driver_details?.service_types || ["ride", "delivery"],
+            distance,
+          };
+        })
+        .filter((d): d is NonNullable<typeof d> => d !== null && d.distance <= radius);
     } catch {
-      return [
-        {
-          id: "simulated-driver-1",
-          name: "Carlos (Moto)",
-          profilePhoto: null,
-          rating: 4.9,
-          latitude: latitude + 0.002,
-          longitude: longitude - 0.001,
-          type: "motorcycle" as const,
-          rotation: 45,
-          serviceTypes: ["ride", "delivery"],
-        },
-        {
-          id: "simulated-driver-2",
-          name: "Ana (Carro)",
-          profilePhoto: null,
-          rating: 4.7,
-          latitude: latitude - 0.0015,
-          longitude: longitude + 0.003,
-          type: "car" as const,
-          rotation: 180,
-          serviceTypes: ["ride"],
-        }
-      ] as any;
+      // Sem fallback mockado — se falhar, simplesmente não há motoristas próximos.
+      return [];
     }
   }
 
@@ -607,7 +633,6 @@ class RideService {
     if (error) throw error;
     const mapped = this.mapToRideModel(ride);
 
-    websocketService.emit("ride-created", { rideId: mapped._id, ride: mapped });
     return mapped;
   }
 
@@ -669,6 +694,30 @@ class RideService {
 
   async getAvailableRequests(): Promise<AvailableRideRequestsResponse> {
     try {
+      // 1. Obter motorista logado e suas preferências
+      const { data: { user } } = await supabase.auth.getUser();
+      let acceptsCash = true;
+      let acceptsCard = true;
+      let acceptsPix = true;
+      let driverVehicleType = "car";
+
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("driver_preferences, vehicle_type")
+          .eq("id", user.id)
+          .maybeSingle();
+        
+        if (profile) {
+          const prefs = profile.driver_preferences || {};
+          acceptsCash = prefs.acceptsCash !== false;
+          acceptsCard = prefs.acceptsCardMachine !== false;
+          acceptsPix = prefs.acceptsPix !== false;
+          driverVehicleType = profile.vehicle_type || "car";
+        }
+      }
+
+      // 2. Buscar corridas pendentes do banco
       const { data: rides, error } = await supabase
         .from("rides")
         .select("*")
@@ -683,7 +732,22 @@ class RideService {
         throw error;
       }
 
-      const requests = (rides || []).map((r) => {
+      // 3. Filtrar baseado no veículo e forma de pagamento do motorista
+      const filteredRides = (rides || []).filter((r: any) => {
+        // Filtrar tipo de veículo
+        const rideVehicle = r.vehicle_type || "car";
+        if (rideVehicle !== driverVehicleType) return false;
+
+        // Filtrar método de pagamento
+        const paymentMethod = r.payment?.method || "cash";
+        if (paymentMethod === "cash" && !acceptsCash) return false;
+        if (paymentMethod === "card" && !acceptsCard) return false;
+        if ((paymentMethod === "wallet" || paymentMethod === "levapay") && !acceptsPix) return false;
+
+        return true;
+      });
+
+      const requests = filteredRides.map((r) => {
         const ride = this.mapToRideModel(r);
         return {
           rideId: ride._id,
@@ -703,7 +767,8 @@ class RideService {
         count: requests.length,
         requests,
       };
-    } catch {
+    } catch (err) {
+      console.warn("[getAvailableRequests] error", err);
       return { count: 0, requests: [] };
     }
   }
@@ -816,22 +881,117 @@ class RideService {
     rideId: string,
     reason?: string,
   ): Promise<{ message?: string; cancellationFee?: number; redispatched?: boolean }> {
-    const { data: ride, error } = await supabase
+    try {
+      // 1. Tentar chamar a RPC no banco de dados para segurança transacional
+      const { data: fee, error: rpcErr } = await supabase.rpc("rpc_cancel_ride", {
+        p_ride_id: rideId,
+        p_reason: reason || "Cancelado pelo usuário"
+      });
+
+      if (!rpcErr) {
+        return { message: "Corrida cancelada com sucesso", cancellationFee: Number(fee || 0) };
+      }
+      // Se não for erro de "função não encontrada", propaga
+      if (rpcErr.code !== "PGRST202" && rpcErr.code !== "42883") {
+        throw rpcErr;
+      }
+    } catch (rpcEx) {
+      console.warn("[RideService] Falha na RPC rpc_cancel_ride, usando fallback local:", rpcEx);
+    }
+
+    // Fallback local caso a RPC não esteja instalada no Supabase
+    const { data: ride, error: getErr } = await supabase
+      .from("rides")
+      .select("*")
+      .eq("id", rideId)
+      .single();
+
+    if (getErr || !ride) {
+      throw getErr || new Error("Corrida não encontrada");
+    }
+
+    let appliedFee = 0;
+
+    // Se tiver motorista e passou de 2 minutos ou motorista já chegou
+    const hasDriver = !!ride.driver_id;
+    const isArrived = ride.status === "arrived";
+    const acceptedAt = ride.accepted_at ? new Date(ride.accepted_at).getTime() : null;
+    const timeDiffSeconds = acceptedAt ? (Date.now() - acceptedAt) / 1000 : 0;
+
+    if (hasDriver && (isArrived || timeDiffSeconds > 120)) {
+      appliedFee = 5.00; // Taxa de cancelamento padrão fallback
+
+      // Deduz do saldo do cliente
+      try {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("wallet_balance")
+          .eq("id", ride.client_id)
+          .single();
+        const newClientBalance = Number(profile?.wallet_balance || 0) - appliedFee;
+        await supabase
+          .from("profiles")
+          .update({ wallet_balance: newClientBalance })
+          .eq("id", ride.client_id);
+
+        // Insere transação de débito do cliente
+        await supabase.from("wallet_transactions").insert({
+          user_id: ride.client_id,
+          type: "cancellation_fee",
+          amount: -appliedFee,
+          description: "Multa por cancelamento de viagem (fallback)",
+          reference_id: rideId,
+          status: "paid",
+        });
+      } catch (clientWalletErr) {
+        console.error("Erro ao debitar cliente (cancelamento):", clientWalletErr);
+      }
+
+      // Credita o motorista
+      try {
+        const { data: details } = await supabase
+          .from("driver_details")
+          .select("balance")
+          .eq("id", ride.driver_id)
+          .single();
+        const newDriverBalance = Number(details?.balance || 0) + appliedFee;
+        await supabase
+          .from("driver_details")
+          .update({ balance: newDriverBalance })
+          .eq("id", ride.driver_id);
+
+        // Insere transação de crédito do motorista
+        await supabase.from("wallet_transactions").insert({
+          user_id: ride.driver_id,
+          type: "cancellation_fee",
+          amount: appliedFee,
+          description: "Crédito por cancelamento de viagem (fallback)",
+          reference_id: rideId,
+          status: "paid",
+        });
+      } catch (driverWalletErr) {
+        console.error("Erro ao creditar motorista (cancelamento):", driverWalletErr);
+      }
+    }
+
+    const { data: updatedRide, error } = await supabase
       .from("rides")
       .update({
         status: "cancelled",
         cancelled_at: new Date().toISOString(),
+        cancellation_fee: appliedFee,
+        details: {
+          ...(ride.details || {}),
+          cancel_reason: reason || "Cancelado pelo usuário",
+        }
       })
       .eq("id", rideId)
       .select()
       .single();
 
     if (error) throw error;
-    const mapped = this.mapToRideModel(ride);
 
-    websocketService.emit("ride-status-updated", { rideId, status: "cancelled", ride: mapped });
-    websocketService.emit("ride-cancelled", { rideId, reason });
-    return { message: "Corrida cancelada com sucesso", cancellationFee: 0 };
+    return { message: "Corrida cancelada com sucesso", cancellationFee: appliedFee };
   }
 
   /**
@@ -861,7 +1021,6 @@ class RideService {
 
     if (error) throw error;
     const mapped = this.mapToRideModel(ride);
-    websocketService.emit("ride-status-updated", { rideId, status: "scheduled", ride: mapped });
     return { success: true, ride: mapped };
   }
 
@@ -886,7 +1045,6 @@ class RideService {
 
     if (error) throw error;
     const mapped = this.mapToRideModel(ride);
-    websocketService.emit("ride-status-updated", { rideId, status: "requesting", ride: mapped });
     return { success: true, ride: mapped };
   }
 
@@ -909,16 +1067,14 @@ class RideService {
     if (error) throw error;
     const mapped = this.mapToRideModel(ride);
 
-    websocketService.emit("ride-status-updated", { rideId, status: "accepted", ride: mapped });
-    websocketService.emit("driver-found", { rideId, driverId: userId, ride: mapped });
     return mapped;
   }
 
   /**
    * Rejeitar corrida (motorista)
    */
-  async reject(rideId: string, reason?: string): Promise<void> {
-    websocketService.emit("ride-rejected-by-driver", { rideId, reason });
+  async reject(_rideId: string, _reason?: string): Promise<void> {
+    // Status updates are handled via Supabase Realtime
   }
 
   async updateStatus(
@@ -926,12 +1082,13 @@ class RideService {
     status?: string,
     arrivedAtDropoff?: boolean,
     pins?: { pickupPin?: string; deliveryPin?: string },
+    realTrajectory?: Array<{ latitude: number; longitude: number; timestamp?: string }>
   ): Promise<Ride> {
     const updates: any = {};
     if (status) updates.status = status;
     if (arrivedAtDropoff !== undefined) updates.arrived_at_dropoff = arrivedAtDropoff;
 
-    if (pins) {
+    if (pins || realTrajectory) {
       const { data: current } = await supabase
         .from("rides")
         .select("details")
@@ -940,8 +1097,11 @@ class RideService {
       const currentDetails = current?.details || {};
       updates.details = {
         ...currentDetails,
-        pickupPin: pins.pickupPin || currentDetails.pickupPin,
-        deliveryPin: pins.deliveryPin || currentDetails.deliveryPin,
+        ...(pins ? {
+          pickupPin: pins.pickupPin || currentDetails.pickupPin,
+          deliveryPin: pins.deliveryPin || currentDetails.deliveryPin,
+        } : {}),
+        ...(realTrajectory ? { real_trajectory: realTrajectory } : {}),
       };
     }
 
@@ -960,57 +1120,107 @@ class RideService {
     if (error) throw error;
     const mapped = this.mapToRideModel(ride);
 
-    if (status) {
-      websocketService.emit("ride-status-updated", { rideId, status, ride: mapped });
-      if (status === "arrived") {
-        websocketService.emit("driver-arrived", { rideId, ride: mapped });
-      } else if (status === "started") {
-        websocketService.emit("ride-started", { rideId, ride: mapped });
-      }
+    if (status === "completed") {
+      // Liquida a corrida: debita taxa do motorista, transfere se pagamento=wallet
+      supabase.rpc("rpc_settle_ride", { p_ride_id: rideId }).then(async ({ error: settleErr }) => {
+        if (settleErr) {
+          console.warn("[rpc_settle_ride] falhou, tentando fallback local:", settleErr);
+          if (settleErr.code === "PGRST202" || settleErr.code === "42883") {
+            // Executa fallback local
+            try {
+              const { data: rd } = await supabase.from("rides").select("*").eq("id", rideId).single();
+              if (rd && rd.driver_id) {
+                const totalPrice = Number(rd.negotiation?.finalAgreedPrice ?? rd.pricing?.total ?? 0);
+                const paymentType = rd.payment?.method?.type || "cash";
+                const isWallet = paymentType === "wallet";
+                const appFeePercent = 15; // padrão 15%
+                const appFee = Math.round(totalPrice * (appFeePercent / 100) * 100) / 100;
+                const driverEarnings = totalPrice - appFee;
+
+                if (isWallet) {
+                  // Debita cliente
+                  const { data: clientProfile } = await supabase.from("profiles").select("wallet_balance").eq("id", rd.client_id).single();
+                  const newClientBal = Number(clientProfile?.wallet_balance || 0) - totalPrice;
+                  await supabase.from("profiles").update({ wallet_balance: newClientBal }).eq("id", rd.client_id);
+
+                  // Credita motorista
+                  const { data: drDetails } = await supabase.from("driver_details").select("balance").eq("id", rd.driver_id).single();
+                  const newDrBal = Number(drDetails?.balance || 0) + driverEarnings;
+                  await supabase.from("driver_details").update({ balance: newDrBal }).eq("id", rd.driver_id);
+
+                  // Lança transações
+                  await supabase.from("wallet_transactions").insert([
+                    { user_id: rd.client_id, type: "ride_payment", amount: -totalPrice, description: "Pagamento de corrida (fallback)", reference_id: rideId, status: "paid" },
+                    { user_id: rd.driver_id, type: "ride_payment", amount: driverEarnings, description: "Ganhos de corrida (fallback)", reference_id: rideId, status: "paid" }
+                  ]);
+                } else {
+                  // Dinheiro / Cartão: debita taxa do saldo do motorista
+                  const { data: drDetails } = await supabase.from("driver_details").select("balance").eq("id", rd.driver_id).single();
+                  const newDrBal = Number(drDetails?.balance || 0) - appFee;
+                  await supabase.from("driver_details").update({ balance: newDrBal }).eq("id", rd.driver_id);
+
+                  // Lança transação
+                  await supabase.from("wallet_transactions").insert({
+                    user_id: rd.driver_id, type: "app_fee_debit", amount: -appFee, description: "Taxa de intermediação de corrida (fallback)", reference_id: rideId, status: "paid"
+                  });
+                }
+
+                // Marca liquidada nos detalhes
+                const details = rd.details || {};
+                await supabase.from("rides").update({ details: { ...details, settled: true } }).eq("id", rideId);
+              }
+            } catch (fallbackErr) {
+              console.error("Erro no fallback do rpc_settle_ride:", fallbackErr);
+            }
+          }
+        }
+      });
     }
 
     return mapped;
   }
 
+  /** Cliente avalia motorista → insere em ride_ratings (trigger agrega média em profiles). */
   async rateClientToDriver(rideId: string, payload: RatePayload): Promise<void> {
-    const { data: current } = await supabase
+    const userId = await requireUserId();
+    const { data: ride, error: rideError } = await supabase
       .from("rides")
-      .select("details")
+      .select("driver_id")
       .eq("id", rideId)
       .single();
-    const details = current?.details || {};
-    const { error } = await supabase
-      .from("rides")
-      .update({
-        details: {
-          ...details,
-          clientRating: payload.stars,
-        },
-      })
-      .eq("id", rideId);
-    if (error) throw error;
+    if (rideError) throw rideError;
+    if (!ride.driver_id) throw new Error("Corrida sem motorista");
+
+    const { error } = await supabase.from("ride_ratings").insert({
+      ride_id: rideId,
+      rater_id: userId,
+      ratee_id: ride.driver_id,
+      rater_role: "client",
+      stars: payload.stars,
+      comment: payload.comment ?? null,
+    });
+    if (error && error.code !== "23505") throw error; // ignora duplicata
   }
 
-  /**
-   * Motorista avalia cliente
-   */
+  /** Motorista avalia cliente → insere em ride_ratings. */
   async rateDriverToClient(rideId: string, payload: RatePayload): Promise<void> {
-    const { data: current } = await supabase
+    const userId = await requireUserId();
+    const { data: ride, error: rideError } = await supabase
       .from("rides")
-      .select("details")
+      .select("client_id")
       .eq("id", rideId)
       .single();
-    const details = current?.details || {};
-    const { error } = await supabase
-      .from("rides")
-      .update({
-        details: {
-          ...details,
-          driverRating: payload.stars,
-        },
-      })
-      .eq("id", rideId);
-    if (error) throw error;
+    if (rideError) throw rideError;
+
+    const { error } = await supabase.from("ride_ratings").insert({
+      ride_id: rideId,
+      rater_id: userId,
+      ratee_id: ride.client_id,
+      rater_role: "driver",
+      stars: payload.stars,
+      comment: payload.comment ?? null,
+    });
+    if (error && error.code !== "23505") throw error;
   }
 
   async addTip(rideId: string, amount: number): Promise<void> {
@@ -1106,8 +1316,6 @@ class RideService {
 
       if (error) throw error;
       const mapped = this.mapToRideModel(updated);
-      websocketService.emit("ride-status-updated", { rideId, status: "accepted", ride: mapped });
-      websocketService.emit("ride-offers-updated", { rideId, offers });
       return { success: true, rideMatched: true };
     } else {
       const newOffer: RideOffer = {
@@ -1126,7 +1334,6 @@ class RideService {
         .eq("id", rideId);
 
       if (error) throw error;
-      websocketService.emit("ride-offers-updated", { rideId, offers });
       return { success: true, rideMatched: false };
     }
   }
@@ -1161,7 +1368,6 @@ class RideService {
 
     if (error) throw error;
     const mapped = this.mapToRideModel(updated);
-    websocketService.emit("ride-status-updated", { rideId, status: "accepted", ride: mapped });
     return mapped;
   }
 
@@ -1191,7 +1397,6 @@ class RideService {
       .eq("id", rideId);
 
     if (error) throw error;
-    websocketService.emit("ride-offers-updated", { rideId, offers });
     return { success: true };
   }
 
@@ -1219,7 +1424,6 @@ class RideService {
       .eq("id", rideId);
 
     if (error) throw error;
-    websocketService.emit("ride-offers-updated", { rideId, offers });
     return { success: true };
   }
 
@@ -1227,16 +1431,36 @@ class RideService {
    * EstatÃ­sticas do motorista (dashboard)
    */
   async getDriverStats(): Promise<DriverStats> {
+    const userId = await requireUserId();
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const { data: rides } = await supabase
+      .from("rides")
+      .select("pricing, payment, completed_at")
+      .eq("driver_id", userId)
+      .eq("status", "completed");
+
+    const all = rides || [];
+    const today = all.filter((r: any) => r.completed_at && r.completed_at >= startOfDay.toISOString());
+    const earningsOf = (r: any) =>
+      Number(r.payment?.fareTotal ?? r.pricing?.total ?? 0) - Number(r.payment?.platformFee ?? 0);
+    const earnings = Number(today.reduce((s: number, r: any) => s + earningsOf(r), 0).toFixed(2));
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("rating")
+      .eq("id", userId)
+      .maybeSingle();
+
     return {
-      earnings: 320.50,
-      rides: 14,
-      goal: 20,
-      bonus: 25.00,
-      rating: 4.9,
-      acceptanceRate: 95,
-      onlineTime: 360,
-      totalRides: 14,
-      completedRides: 14,
+      earnings,
+      rides: today.length,
+      goal: 0,
+      bonus: 0,
+      rating: Number(profile?.rating ?? 5),
+      totalRides: all.length,
+      completedRides: all.length,
     };
   }
 
@@ -1246,15 +1470,45 @@ class RideService {
   async getEarningsHistory(
     period: "day" | "week" | "month" = "week",
   ): Promise<{ label: string; value: number; count?: number }[]> {
-    return [
-      { label: "Seg", value: 45.0, count: 2 },
-      { label: "Ter", value: 60.0, count: 3 },
-      { label: "Qua", value: 30.0, count: 1 },
-      { label: "Qui", value: 85.0, count: 4 },
-      { label: "Sex", value: 100.0, count: 4 },
-      { label: "Sáb", value: 0.0, count: 0 },
-      { label: "Dom", value: 0.0, count: 0 },
-    ];
+    const userId = await requireUserId();
+    const days = period === "month" ? 30 : period === "day" ? 1 : 7;
+    const since = new Date();
+    since.setDate(since.getDate() - (days - 1));
+    since.setHours(0, 0, 0, 0);
+
+    const { data: rides } = await supabase
+      .from("rides")
+      .select("pricing, payment, completed_at")
+      .eq("driver_id", userId)
+      .eq("status", "completed")
+      .gte("completed_at", since.toISOString());
+
+    const earningsOf = (r: any) =>
+      Number(r.payment?.fareTotal ?? r.pricing?.total ?? 0) - Number(r.payment?.platformFee ?? 0);
+    const weekdays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+
+    const buckets: { label: string; value: number; count: number }[] = [];
+    for (let i = 0; i < days; i++) {
+      const d = new Date(since);
+      d.setDate(since.getDate() + i);
+      buckets.push({
+        label: days <= 7 ? weekdays[d.getDay()] : `${d.getDate()}/${d.getMonth() + 1}`,
+        value: 0,
+        count: 0,
+      });
+    }
+
+    (rides || []).forEach((r: any) => {
+      if (!r.completed_at) return;
+      const d = new Date(r.completed_at);
+      const idx = Math.floor((d.getTime() - since.getTime()) / (24 * 3600 * 1000));
+      if (idx >= 0 && idx < buckets.length) {
+        buckets[idx].value = Number((buckets[idx].value + earningsOf(r)).toFixed(2));
+        buckets[idx].count += 1;
+      }
+    });
+
+    return buckets;
   }
 
   /**
@@ -1302,7 +1556,6 @@ class RideService {
 
     if (error) throw error;
     const mapped = this.mapToRideModel(ride);
-    websocketService.emit("ride-status-updated", { rideId, status: "accepted", ride: mapped });
     return { message: "Corrida agendada aceita com sucesso", ride: mapped };
   }
 
@@ -1321,7 +1574,6 @@ class RideService {
 
     if (error) throw error;
     const mapped = this.mapToRideModel(ride);
-    websocketService.emit("ride-status-updated", { rideId, status: mapped.status, ride: mapped });
     return { success: true, ride: mapped };
   }
 
@@ -1356,7 +1608,6 @@ class RideService {
 
     if (error) throw error;
     const mapped = this.mapToRideModel(updated);
-    websocketService.emit("ride-offers-updated", { rideId, offers: negotiation.offers || [] });
     return { success: true, ride: mapped };
   }
 
@@ -1437,7 +1688,6 @@ class RideService {
       .eq("id", rideId);
 
     if (error) throw error;
-    websocketService.emit("ride-status-updated", { rideId, status: "searching_driver" });
     return {
       success: true,
       message: "Pagamento Pix confirmado (simulação).",

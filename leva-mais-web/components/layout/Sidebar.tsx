@@ -7,6 +7,7 @@ import { platformConfigService } from "@/services/platformConfigService";
 import { verificationAdminService } from "@/services/verificationAdminService";
 import { disputeAdminService } from "@/services/disputeAdminService";
 import { withdrawalsService } from "@/services/withdrawalsService";
+import { supabase } from "@/lib/supabase";
 import {
   LayoutDashboard,
   Users,
@@ -18,6 +19,7 @@ import {
   Settings,
   ShieldAlert,
   Landmark,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -86,6 +88,24 @@ export function Sidebar({
   const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
   const [openDisputeCount, setOpenDisputeCount] = useState(0);
   const [pendingWithdrawalCount, setPendingWithdrawalCount] = useState(0);
+  const [adminEmail, setAdminEmail] = useState("admin@levamais.com");
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data?.user?.email) {
+        setAdminEmail(data.user.email);
+      }
+    });
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      window.location.href = "/login";
+    } catch (err) {
+      console.error("Logout error", err);
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -285,57 +305,65 @@ export function Sidebar({
         </div>
 
         {/* User Profile */}
-        <div className="p-4 border-t border-slate-100">
+        <div className="p-4 border-t border-slate-100 flex flex-col gap-2">
           {!isCollapsed ? (
-            <div className="flex items-center gap-3 w-full p-2 rounded-xl hover:bg-slate-50 transition-colors group">
-              <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600 ring-2 ring-white group-hover:ring-emerald-100 transition-all">
-                AD
-              </div>
-              <div className="flex-1 text-left overflow-hidden">
-                <p className="text-sm font-semibold text-slate-900 truncate">
-                  Admin User
-                </p>
-                <p className="text-xs text-slate-500 truncate group-hover:text-slate-600 transition-colors">
-                  admin@levamais.com
-                </p>
-              </div>
-              <div 
-                className="flex items-center gap-1.5 cursor-pointer z-10" 
-                onClick={handleToggleDevMode}
-                title={isDevMode ? "Modo de Desenvolvimento Ativo (Ignorar validaÃ§Ãµes)" : "Modo de ProduÃ§Ã£o Ativo (ValidaÃ§Ã£o Estrita)"}
-              >
-                <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-md transition-all select-none ${
-                  isDevMode ? "bg-amber-100 text-amber-800 ring-1 ring-amber-200" : "bg-slate-100 text-slate-600 ring-1 ring-slate-200"
-                }`}>
-                  {isDevMode ? "DEV" : "PROD"}
-                </span>
-                <button
-                  type="button"
-                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${
-                    isDevMode ? "bg-amber-500" : "bg-slate-300"
-                  }`}
+            <>
+              <div className="flex items-center gap-3 w-full p-2 rounded-xl hover:bg-slate-50 transition-colors group">
+                <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600 ring-2 ring-white group-hover:ring-emerald-100 transition-all">
+                  AD
+                </div>
+                <div className="flex-1 text-left overflow-hidden">
+                  <p className="text-sm font-semibold text-slate-900 truncate">
+                    Admin User
+                  </p>
+                  <p className="text-xs text-slate-500 truncate group-hover:text-slate-600 transition-colors">
+                    {adminEmail}
+                  </p>
+                </div>
+                <div 
+                  className="flex items-center gap-1.5 cursor-pointer z-10" 
+                  onClick={handleToggleDevMode}
+                  title={isDevMode ? "Modo de Desenvolvimento Ativo (Ignorar validações)" : "Modo de Produção Ativo (Validação Estrita)"}
                 >
-                  <span
-                    className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
-                      isDevMode ? "translate-x-5" : "translate-x-1"
-                    }`}
-                  />
-                </button>
+                  <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-md transition-all select-none ${
+                    isDevMode ? "bg-amber-100 text-amber-800 ring-1 ring-amber-200" : "bg-slate-100 text-slate-600 ring-1 ring-slate-200"
+                  }`}>
+                    {isDevMode ? "DEV" : "PROD"}
+                  </span>
+                </div>
               </div>
-            </div>
+
+              <button
+                onClick={handleLogout}
+                className="flex items-center justify-center gap-2 w-full mt-1 py-2 px-3 text-xs font-bold text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all border border-slate-100 hover:border-rose-100"
+              >
+                <LogOut size={14} />
+                <span>Sair do Painel</span>
+              </button>
+            </>
           ) : (
-            <button 
-              className="w-full flex flex-col items-center justify-center p-2 rounded-xl hover:bg-slate-50 transition-colors group relative"
-              onClick={handleToggleDevMode}
-              title={isDevMode ? "Modo de Desenvolvimento Ativo" : "Modo de ProduÃ§Ã£o Ativo"}
-            >
-              <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600 ring-2 ring-white group-hover:ring-emerald-100 transition-all relative">
-                AD
-                <span className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border border-white flex items-center justify-center ${
-                  isDevMode ? "bg-amber-500" : "bg-slate-400"
-                }`} />
-              </div>
-            </button>
+            <div className="flex flex-col items-center gap-3">
+              <button 
+                className="w-full flex flex-col items-center justify-center p-2 rounded-xl hover:bg-slate-50 transition-colors group relative"
+                onClick={handleToggleDevMode}
+                title={isDevMode ? "Modo de Desenvolvimento Ativo" : "Modo de Produção Ativo"}
+              >
+                <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600 ring-2 ring-white group-hover:ring-emerald-100 transition-all relative">
+                  AD
+                  <span className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border border-white flex items-center justify-center ${
+                    isDevMode ? "bg-amber-500" : "bg-slate-400"
+                  }`} />
+                </div>
+              </button>
+
+              <button
+                onClick={handleLogout}
+                className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                title="Sair do Painel"
+              >
+                <LogOut size={18} />
+              </button>
+            </div>
           )}
         </div>
       </aside>

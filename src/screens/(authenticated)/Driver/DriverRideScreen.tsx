@@ -22,7 +22,8 @@ import {
 } from "./components/DriverCancelReasonModal";
 
 import rideService, { Ride } from "../../../services/ride.service";
-import webSocketService from "../../../services/websocket.service";
+import driverLocationService from "../../../services/driverLocation.service";
+import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "../../../context/authStore";
 import { useChatStore } from "../../../context/chatStore";
 import { decodePolyline, LatLng } from "../../../utils/polyline";
@@ -86,6 +87,7 @@ export default function DriverRideScreen() {
   const [navigationModeEnabled, setNavigationModeEnabled] = useState(true);
   const [mapReady, setMapReady] = useState(false);
   const didInitial3DRef = useRef(false);
+  const realTrajectoryRef = useRef<Array<{ latitude: number; longitude: number; timestamp?: string }>>([]);
   // Garante que o puck (View customizada) renderize no Android e depois congela para performance
   const [puckRendered, setPuckRendered] = useState(false);
   // Mesmo tratamento para os pins de coleta/destino (evita o ícone "sumir" no Android)
@@ -529,103 +531,8 @@ export default function DriverRideScreen() {
       });
     };
 
-    const onStatusUpdated = (payload: any) => {
+    const onPaymentConfirmedLocal = () => {
       if (!mounted) return;
-      if (payload?.rideId !== rideId) return;
-      if (payload?.status) { setStatus(String(payload.status)); if (payload.ride) setRide(payload.ride); }
-    };
-
-    const onRideCancelled = (payload: any) => {
-      if (!mounted) return;
-      if (payload?.rideId !== rideId) return;
-      handleCancelledOnce(
-        isDelivery
-          ? "O cliente encerrou a entrega."
-          : "O cliente encerrou a corrida.",
-      );
-    };
-
-    const onNewMsg = async (data: any) => {
-      if (!mounted) return;
-      if (data?.rideId !== rideId) return;
-      if (String(data?.senderId) === currentUserId) return;
-
-      const sender =
-        data?.senderName || (data?.senderType === "client" ? "Cliente" : "Motorista");
-      const preview = String(data?.message || "").slice(0, 80);
-      const navState = navigation.getState?.();
-      const activeRoute =
-        navState?.routes?.[
-          typeof navState?.index === "number" ? navState.index : (navState?.routes?.length || 1) - 1
-        ];
-      const activeRouteName = String(activeRoute?.name || "");
-
-      if (activeRouteName !== "DriverChat") {
-        useChatStore.getState().incrementUnread(rideId);
-
-        // Play sound
-        try {
-          const player = createAudioPlayer(require("../../../assets/sound/notification.mp3"));
-          player.volume = 1.0;
-          player.loop = false;
-          player.play();
-          const subscription = player.addListener("playbackStatusUpdate", (status) => {
-            if (status.didJustFinish) {
-              subscription.remove();
-              player.release();
-            }
-          });
-        } catch (error) {
-          console.log("Falha ao reproduzir som:", error);
-        }
-
-        if (notificationTimeoutRef.current) {
-          clearTimeout(notificationTimeoutRef.current);
-        }
-        setChatNotification({ sender, text: preview });
-        slideAnim.setValue(-400);
-        Animated.spring(slideAnim, {
-          toValue: 0,
-          useNativeDriver: true,
-          tension: 40,
-          friction: 8,
-        }).start();
-
-        notificationTimeoutRef.current = setTimeout(() => {
-          if (mounted) {
-            Animated.timing(slideAnim, {
-              toValue: 400,
-              duration: 300,
-              useNativeDriver: true,
-            }).start(() => {
-              setChatNotification(null);
-            });
-          }
-        }, 10000);
-      }
-    };
-
-    const onClientLocationUpdate = (payload: any) => {
-      if (!mounted) return;
-      if (payload?.rideId !== rideId) return;
-      const lat = Number(payload?.latitude);
-      const lng = Number(payload?.longitude);
-      if (Number.isFinite(lat) && Number.isFinite(lng)) {
-        setClientCoords({ latitude: lat, longitude: lng });
-      }
-    };
-
-    const onStopsUpdated = (payload: any) => {
-      if (!mounted) return;
-      if (payload?.rideId !== rideId) return;
-      if (Array.isArray(payload?.stops)) {
-        setRide((prev) => (prev ? ({ ...prev, stops: payload.stops } as any) : prev));
-      }
-    };
-
-    const onPaymentConfirmed = (payload: any) => {
-      if (!mounted) return;
-      if (payload?.rideId !== rideId) return;
       Toast.show({
         type: "success",
         text1: "Pagamento recebido!",
@@ -637,28 +544,43 @@ export default function DriverRideScreen() {
       }, 500);
     };
 
-    (async () => {
-      try {
-        await webSocketService.connect();
-        webSocketService.on("ride-status-updated", onStatusUpdated);
-        webSocketService.on("ride-cancelled", onRideCancelled);
-        webSocketService.on("delivery-cancelled", onRideCancelled);
-        webSocketService.on("new-message", onNewMsg);
-        webSocketService.on("client-location-update", onClientLocationUpdate);
-        webSocketService.on("ride-stops-updated", onStopsUpdated);
-        webSocketService.on("ride-payment-confirmed", onPaymentConfirmed);
-      } catch {}
-    })();
+    const channel = supabase
+      .channel(`ride:${rideId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "rides",
+          filter: `id=eq.${rideId}`,
+        },
+        (payload) => {
+          if (!mounted) return;
+          const row = payload.new as any;
+          if (row.status) {
+            setStatus(String(row.status));
+            setRide(row as any);
+          }
+          if (String(row.status || "").startsWith("cancelled")) {
+            handleCancelledOnce(
+              isDelivery
+                ? "O cliente encerrou a entrega."
+                : "O cliente encerrou a corrida.",
+            );
+          }
+          if (
+            row.payment?.status === "paid" ||
+            row.status === "payment_confirmed"
+          ) {
+            onPaymentConfirmedLocal();
+          }
+        },
+      )
+      .subscribe();
 
     return () => {
       mounted = false;
-      webSocketService.off("ride-status-updated", onStatusUpdated);
-      webSocketService.off("ride-cancelled", onRideCancelled);
-      webSocketService.off("delivery-cancelled", onRideCancelled);
-      webSocketService.off("new-message", onNewMsg);
-      webSocketService.off("client-location-update", onClientLocationUpdate);
-      webSocketService.off("ride-stops-updated", onStopsUpdated);
-      webSocketService.off("ride-payment-confirmed", onPaymentConfirmed);
+      supabase.removeChannel(channel);
       if (notificationTimeoutRef.current) {
         clearTimeout(notificationTimeoutRef.current);
       }
@@ -676,10 +598,6 @@ export default function DriverRideScreen() {
       if (!resumed) return;
 
       (async () => {
-        try {
-          await webSocketService.connect();
-        } catch {}
-
         if (!rideId) {
           await recoverActiveRide();
           return;
@@ -734,19 +652,22 @@ export default function DriverRideScreen() {
               ? Math.max(0, pos.coords.speed * 3.6)
               : 0,
           );
-          webSocketService.emit("update-location", {
+
+          // Salvar telemetria na trajetória real
+          realTrajectoryRef.current.push({
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+            timestamp: new Date().toISOString(),
+          });
+
+          driverLocationService.update({
             latitude: pos.coords.latitude,
             longitude: pos.coords.longitude,
             heading: pos.coords.heading ?? undefined,
             speed: pos.coords.speed ?? undefined,
-            accuracy: pos.coords.accuracy ?? undefined,
-            rideId: rideId || undefined,
-            phase: statusRef.current === "driver_arriving" ? "to_pickup"
-                 : statusRef.current === "arrived" ? "at_pickup"
-                 : statusRef.current === "in_progress" ? "to_dropoff"
-                 : "to_pickup",
-            capturedAt: new Date().toISOString(),
-          });
+            status: "busy",
+            vehicleType: vehicleType as any,
+          }).catch(() => {});
 
           const navMode =
             statusRef.current === "driver_arriving" ||
@@ -891,10 +812,16 @@ export default function DriverRideScreen() {
 
     setActionLoading(nextStatus);
     try {
-      const r = await rideService.updateStatus(rideId, nextStatus, false, {
-        pickupPin: inputPickupPin,
-        deliveryPin: inputDeliveryPin,
-      });
+      const r = await rideService.updateStatus(
+        rideId,
+        nextStatus,
+        false,
+        {
+          pickupPin: inputPickupPin,
+          deliveryPin: inputDeliveryPin,
+        },
+        nextStatus === "completed" ? realTrajectoryRef.current : undefined
+      );
       setRide(r as any);
       setStatus(r?.status || nextStatus);
 
@@ -902,7 +829,6 @@ export default function DriverRideScreen() {
         Toast.show({ type: "success", text1: "Voce esta a caminho da coleta" });
       }
       if (nextStatus === "arrived") {
-        webSocketService.emit("driver-arrived", { rideId });
         Toast.show({ type: "success", text1: "Voce marcou: Cheguei" });
         // Redirecionar para confirmacao de coleta (delivery)
         if (isDelivery) {
@@ -913,7 +839,6 @@ export default function DriverRideScreen() {
         }
       }
       if (nextStatus === "in_progress") {
-        webSocketService.emit("start-ride", { rideId });
         Toast.show({
           type: "success",
           text1: isDelivery ? "Entrega iniciada" : "Corrida iniciada",

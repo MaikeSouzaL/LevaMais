@@ -28,7 +28,8 @@ import { MotiView } from "moti";
 
 import rideService, { Ride } from "../../../services/ride.service";
 import driverService from "../../../services/driver.service";
-import websocketService from "../../../services/websocket.service";
+import { supabase } from "@/lib/supabase";
+import { useAuthStore } from "../../../context/authStore";
 import { DriverScreen } from "./components/DriverScreen";
 import { DriverDepositModal } from "@/components/DriverDepositModal";
 import GlassCard from "@/components/driver/cards/GlassCard";
@@ -126,10 +127,27 @@ export default function DriverEarningsScreen() {
   );
 
   useEffect(() => {
-    const handleBalanceUpdate = () => loadData(true);
-    websocketService.on("balance_updated", handleBalanceUpdate);
+    const userId = useAuthStore.getState().userData?.id;
+    if (!userId) return;
+
+    const channel = supabase
+      .channel(`earnings-balance:${userId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "profiles",
+          filter: `id=eq.${userId}`,
+        },
+        () => {
+          loadData(true);
+        },
+      )
+      .subscribe();
+
     return () => {
-      websocketService.off("balance_updated", handleBalanceUpdate);
+      supabase.removeChannel(channel);
     };
   }, [loadData]);
 

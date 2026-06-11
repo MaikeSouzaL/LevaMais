@@ -9,7 +9,6 @@ import { MotiView } from "moti";
 import { AlertTriangle, RefreshCcw, Home, Settings, Info, Clock } from "lucide-react-native";
 
 import rideService from "@/services/ride.service";
-import webSocketService from "@/services/websocket.service";
 import { darkMapStyle } from "@/utils/mapStyle";
 import { MapActionButtons } from "@/components/MapActionButtons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -225,14 +224,6 @@ export default function SearchingDriverScreen() {
     }, 2000);
   }, [rideId, navigation]);
   
-  const offersUpdatedCallback = useCallback((data: any) => {
-    if (data?.rideId === rideId && !doneRef.current) {
-      doneRef.current = true;
-      cleanup();
-      navigation.navigate("RideOffersMarketplace", { rideId });
-    }
-  }, [navigation, rideId]);
-
   const rideCancelledCallback = useCallback(
     (data: any) => {
       if (doneRef.current) return;
@@ -266,23 +257,8 @@ export default function SearchingDriverScreen() {
   const connectAndSearch = useCallback(async () => {
     if (!rideId) return;
     cleanup();
-    webSocketService.off("driver-found", driverFoundCallback);
-    webSocketService.off("ride-expired", rideExpiredCallback);
-    webSocketService.off("ride-cancelled", rideCancelledCallback);
-    webSocketService.off("ride-offers-updated", offersUpdatedCallback);
     setError(null);
     setNetworkUnstable(false);
-
-    try {
-      await webSocketService.connect();
-      webSocketService.waitingDriver(rideId);
-      webSocketService.onDriverFound(driverFoundCallback);
-      webSocketService.onRideExpired(rideExpiredCallback);
-      webSocketService.onRideCancelled(rideCancelledCallback);
-      webSocketService.on("ride-offers-updated", offersUpdatedCallback);
-    } catch (e: any) {
-      setError("Conexao instavel. Mantendo busca pelo servidor.");
-    }
 
     let pollFailures = 0;
     const pollInterval = setInterval(async () => {
@@ -363,17 +339,10 @@ export default function SearchingDriverScreen() {
 
   useEffect(() => {
     connectAndSearch();
-    // Add listener for delivery_expired event (emitted by useActiveRideMonitor)
-    webSocketService.on("delivery_expired", rideExpiredCallback);
     return () => {
       cleanup();
-      webSocketService.off("driver-found", driverFoundCallback);
-      webSocketService.off("ride-expired", rideExpiredCallback);
-      webSocketService.off("delivery_expired", rideExpiredCallback);
-      webSocketService.off("ride-cancelled", rideCancelledCallback);
-      webSocketService.off("ride-offers-updated", offersUpdatedCallback);
     };
-  }, [connectAndSearch, driverFoundCallback, rideCancelledCallback, rideExpiredCallback, offersUpdatedCallback]);
+  }, [connectAndSearch]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -457,9 +426,6 @@ export default function SearchingDriverScreen() {
     doneRef.current = false;
     setSearchCycle((prev) => prev + 1);
     cleanup();
-    webSocketService.off("driver-found", driverFoundCallback);
-    webSocketService.off("ride-expired", rideExpiredCallback);
-    webSocketService.off("ride-cancelled", rideCancelledCallback);
     // Ã°Å¸ââ EXPLICIT REACTIVATION: Wake up the backend dispatch cycle for this ride again!
     try {
       await rideService.retry(rideId);

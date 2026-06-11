@@ -31,24 +31,41 @@ export const withdrawalsService = {
     try {
       let query = supabase
         .from("withdrawals")
-        .select(`
-          *,
-          profiles(*)
-        `);
+        .select("*");
 
       if (status) {
         query = query.eq("status", status);
       }
 
-      const { data, error } = await query.order("created_at", { ascending: false });
+      const { data: withdrawalsData, error } = await query.order("created_at", { ascending: false });
 
       if (error) {
         if (error.code === "42P01") return [];
         throw error;
       }
 
-      return (data || []).map((row: any) => {
-        const profile = row.profiles?.[0] || row.profiles || {};
+      if (!withdrawalsData || withdrawalsData.length === 0) {
+        return [];
+      }
+
+      const userIds = Array.from(new Set(withdrawalsData.map((w: any) => w.user_id).filter(Boolean)));
+      const profilesMap = new Map<string, any>();
+
+      if (userIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from("profiles")
+          .select("*")
+          .in("id", userIds);
+        
+        if (profilesData) {
+          profilesData.forEach((p: any) => {
+            profilesMap.set(p.id, p);
+          });
+        }
+      }
+
+      return withdrawalsData.map((row: any) => {
+        const profile = profilesMap.get(row.user_id) || {};
         return {
           _id: row.id,
           userId: {

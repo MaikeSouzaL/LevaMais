@@ -14,7 +14,6 @@ import { Icon } from "@/components/ui/Icon";
 import Toast from "react-native-toast-message";
 
 import rideService from "@/services/ride.service";
-import webSocketService from "@/services/websocket.service";
 
 export default function RideBiddingScreen({ route, navigation }: any) {
   const {
@@ -44,12 +43,9 @@ export default function RideBiddingScreen({ route, navigation }: any) {
 
   useEffect(() => {
     if (ride?._id) {
-      const cleanupSocket = setupWebSocket();
       loadOffers();
-
       const interval = setInterval(loadOffers, 5000);
       return () => {
-        if (cleanupSocket) cleanupSocket();
         clearInterval(interval);
       };
     }
@@ -109,47 +105,6 @@ export default function RideBiddingScreen({ route, navigation }: any) {
       });
       navigation.goBack();
     }
-  };
-
-  const setupWebSocket = () => {
-    if (!ride?._id) return;
-
-    // Eventos alinhados com o backend (ride.controller.js)
-    webSocketService.on("ride-offers-updated", (data: any) => {
-      if (data.rideId === ride._id) {
-        loadOffers();
-      }
-    });
-
-    webSocketService.on("ride_negotiated", (data: any) => {
-      if (data.rideId === ride._id) {
-        loadOffers();
-        if (data.action === "proposal_received") {
-          Toast.show({
-            type: "info",
-            text1: "Nova proposta!",
-            text2: "Um motorista enviou uma proposta",
-          });
-        }
-      }
-    });
-
-    webSocketService.on("ride-offer-selected", (data: any) => {
-      if (data.rideId === ride._id) {
-        Toast.show({
-          type: "success",
-          text1: "Corrida aceita!",
-          text2: "Redirecionando para acompanhamento...",
-        });
-        navigation.navigate("RideTracking", { rideId: ride._id });
-      }
-    });
-
-    return () => {
-      webSocketService.off("ride-offers-updated");
-      webSocketService.off("ride_negotiated");
-      webSocketService.off("ride-offer-selected");
-    };
   };
 
   const loadOffers = async () => {

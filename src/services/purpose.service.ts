@@ -59,7 +59,7 @@ const purposeService = {
         .eq("is_active", isActive);
 
       if (error) {
-        if (error.code === "42P01") {
+        if (error.code === "42P01" || error.code === "PGRST205") {
           return DEFAULT_PURPOSES;
         }
         throw error;

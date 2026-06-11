@@ -1,9 +1,8 @@
-import apiClient from './api';
 import { logger } from '@/utils/logger';
 import configService from '@/services/config.service';
-import depositService from '@/services/deposit.service';
 import { supabase } from '../lib/supabase';
 import { requireUserId } from './supabase-auth.service';
+import pricingService from './pricing.service';
 
 export interface DriverBalance {
   id: string;
@@ -67,101 +66,63 @@ export interface DriverVehicle {
 }
 
 class DriverService {
-  // Get current balance
+  /** Saldo via profiles.wallet_balance (mesma carteira usada pelos RPCs). */
   async getBalance(): Promise<DriverBalance> {
     try {
       const userId = await requireUserId();
-      const { data: details, error } = await supabase
-        .from("driver_details")
-        .select("balance, total_earnings, total_withdrawn")
-        .eq("id", userId)
-        .maybeSingle();
 
-      if (error) throw error;
+      const [profileRes, txRes] = await Promise.all([
+        supabase.from("profiles").select("wallet_balance").eq("id", userId).maybeSingle(),
+        supabase.from("wallet_transactions").select("amount, type").eq("user_id", userId),
+      ]);
 
-      const balance: DriverBalance = {
+      if (profileRes.error) throw profileRes.error;
+
+      const transactions = txRes.data || [];
+      const totalDeposits = transactions
+        .filter((t) => Number(t.amount) > 0)
+        .reduce((s, t) => s + Number(t.amount), 0);
+      const totalDeductions = transactions
+        .filter((t) => Number(t.amount) < 0)
+        .reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
+
+
+      return {
         id: userId,
         driverId: userId,
-        balance: Number(details?.balance || 0),
-        totalDeposits: Number(details?.total_earnings || 0),
-        totalDeductions: Number(details?.total_withdrawn || 0),
+        balance: Number(profileRes.data?.wallet_balance ?? 0),
+        totalDeposits,
+        totalDeductions,
         lastUpdated: new Date().toISOString(),
       };
-      
-      logger.info('DRIVER_SERVICE', 'Balance fetched', {
-        balance: balance.balance,
-        totalDeposits: balance.totalDeposits,
-      });
-      return balance;
     } catch (error) {
       logger.error('DRIVER_SERVICE', 'Failed to fetch balance', error);
       throw error;
     }
   }
 
-  // Add deposit
+  /** Deposita via rpc_deposit (atualiza profiles.wallet_balance atomicamente). */
   async addDeposit(amount: number, method: 'credit_card' | 'pix' = 'pix'): Promise<DriverDeposit> {
     try {
       const userId = await requireUserId();
       const isValid = await configService.validateDepositAmount(amount);
-      if (!isValid) {
-        throw new Error('Invalid deposit amount');
-      }
+      if (!isValid) throw new Error('Valor de depósito inválido');
 
-      if (method !== 'pix') {
-        throw new Error('Depósitos do motorista usam PIX ou boleto via gateway de pagamento.');
-      }
-
-      // Buscar saldo atual do motorista
-      const { data: details, error: detailsError } = await supabase
-        .from("driver_details")
-        .select("balance, total_earnings")
-        .eq("id", userId)
-        .maybeSingle();
-
-      if (detailsError) throw detailsError;
-
-      const currentBalance = Number(details?.balance || 0);
-      const currentEarnings = Number(details?.total_earnings || 0);
-
-      // Atualizar saldo do motorista
-      const { error: updateError } = await supabase
-        .from("driver_details")
-        .update({
-          balance: currentBalance + amount,
-          total_earnings: currentEarnings + amount,
-        })
-        .eq("id", userId);
-
-      if (updateError) throw updateError;
-
-      // Inserir transação
-      const { data: tx, error: txError } = await supabase
-        .from("wallet_transactions")
-        .insert({
-          user_id: userId,
-          type: "driver_topup",
-          amount: amount,
-          description: "Depósito PIX (Motorista)",
-          status: "completed",
-        })
-        .select()
-        .single();
-
-      if (txError) throw txError;
-
-      logger.info('DRIVER_SERVICE', 'Deposit created', {
-        amount: amount,
-        status: 'confirmed',
+      const { error } = await supabase.rpc('rpc_deposit', {
+        p_amount: amount,
+        p_reference: null,
       });
+      if (error) throw error;
+
+      logger.info('DRIVER_SERVICE', 'Deposit created via rpc_deposit', { amount });
 
       return {
-        id: tx.id,
+        id: `${userId}-${Date.now()}`,
         driverId: userId,
         amount,
         method,
         status: 'confirmed',
-        createdAt: tx.created_at,
+        createdAt: new Date().toISOString(),
       };
     } catch (error) {
       logger.error('DRIVER_SERVICE', 'Failed to add deposit', error);
@@ -169,75 +130,15 @@ class DriverService {
     }
   }
 
-  // Deduct balance (when ride is completed)
+  /** @deprecated Use rpc_settle_ride ao concluir corrida. */
   async deductBalance(amount: number, rideId: string): Promise<DriverBalance> {
-    try {
-      const userId = await requireUserId();
-
-      // Buscar saldo atual e deduções do motorista
-      const { data: details, error: detailsError } = await supabase
-        .from("driver_details")
-        .select("balance, total_earnings, total_withdrawn")
-        .eq("id", userId)
-        .maybeSingle();
-
-      if (detailsError) throw detailsError;
-
-      const currentBalance = Number(details?.balance || 0);
-      const currentDeductions = Number(details?.total_withdrawn || 0);
-
-      // Atualizar saldo e deduções
-      const { error: updateError } = await supabase
-        .from("driver_details")
-        .update({
-          balance: currentBalance - amount,
-          total_withdrawn: currentDeductions + amount,
-        })
-        .eq("id", userId);
-
-      if (updateError) throw updateError;
-
-      // Inserir transação
-      const { error: txError } = await supabase
-        .from("wallet_transactions")
-        .insert({
-          user_id: userId,
-          type: "deduction",
-          amount: amount,
-          description: `Desconto de taxa - Corrida ${rideId}`,
-          reference_id: rideId,
-          status: "completed",
-        });
-
-      if (txError) throw txError;
-
-      const balance: DriverBalance = {
-        id: userId,
-        driverId: userId,
-        balance: currentBalance - amount,
-        totalDeposits: Number(details?.total_earnings || 0),
-        totalDeductions: currentDeductions + amount,
-        lastUpdated: new Date().toISOString(),
-      };
-
-      logger.info('DRIVER_SERVICE', 'Balance deducted', {
-        amount,
-        newBalance: balance.balance,
-        rideId,
-      });
-
-      return balance;
-    } catch (error) {
-      logger.error('DRIVER_SERVICE', 'Failed to deduct balance', error);
-      throw error;
-    }
+    logger.warn('DRIVER_SERVICE', 'deductBalance is deprecated — use rpc_settle_ride(rideId) instead', { rideId });
+    return this.getBalance();
   }
 
-  // Get balance history/transactions
   async getBalanceHistory(limit: number = 50): Promise<BalanceTransaction[]> {
     try {
       const userId = await requireUserId();
-
       const { data: transactions, error } = await supabase
         .from("wallet_transactions")
         .select("*")
@@ -247,277 +148,236 @@ class DriverService {
 
       if (error) throw error;
 
-      const normalized: BalanceTransaction[] = (transactions || []).map((item) => ({
+      return (transactions || []).map((item) => ({
         id: item.id,
-        type: (item.type === "topup" || item.type === "driver_topup" ? "deposit" : item.type === "withdrawal" ? "withdrawal" : item.type) as any,
-        amount: Number(item.amount || 0),
+        type: (
+          item.type === "deposit" || item.type === "driver_topup"
+            ? "deposit"
+            : item.type === "withdrawal"
+            ? "withdrawal"
+            : item.type === "app_fee_debit"
+            ? "app_fee_debit"
+            : item.type
+        ) as BalanceTransaction["type"],
+        amount: Number(item.amount ?? 0),
         reason: item.description || '',
         rideId: item.reference_id || undefined,
         createdAt: item.created_at,
-        status: item.status || 'completed',
+        status: item.status || 'confirmed',
       }));
-
-      logger.info('DRIVER_SERVICE', 'Balance history fetched', {
-        count: normalized.length,
-      });
-      return normalized;
     } catch (error) {
       logger.error('DRIVER_SERVICE', 'Failed to fetch balance history', error);
       return [];
     }
   }
 
-  // Check if driver can accept a ride (has sufficient balance)
+  /** Verifica se motorista tem saldo para cobrir a taxa da corrida. */
   async canAcceptRide(rideValue: number): Promise<boolean> {
     try {
-      const balance = await this.getBalance();
-      const configResponse = await apiClient.get('/config/ride-settings').catch(() => null);
-      const appFeePct = (configResponse?.data?.config?.appFeePercentage || 15) / 100;
-      const canAccept = balance.balance >= rideValue * appFeePct;
-
-      logger.info('DRIVER_SERVICE', 'Ride acceptance check', {
-        rideValue,
-        canAccept,
-        currentBalance: balance.balance,
-      });
-
-      return canAccept;
-    } catch (error) {
-      logger.error('DRIVER_SERVICE', 'Error checking ride acceptance', error);
+      const [balance, config] = await Promise.all([
+        this.getBalance(),
+        pricingService.getConfig(),
+      ]);
+      return balance.balance >= rideValue * (config.appFeePercentage / 100);
+    } catch {
       return false;
     }
   }
 
-  // Go online (requires approval, docs, vehicle, balance)
+  /**
+   * Gating para ir online:
+   * 1. driver_details.status === 'approved'
+   * 2. rpc_driver_can_work() verifica saldo mínimo
+   */
   async goOnline(): Promise<{ success: boolean; message?: string; error?: string; appFeePercentage?: number }> {
     try {
-      const response = await apiClient.post<any>('/drivers/go-online');
+      const userId = await requireUserId();
 
-      logger.info('DRIVER_SERVICE', 'Driver went online');
-      return {
-        success: response.data?.success || true,
-        message: response.data?.message,
-        appFeePercentage: response.data?.appFeePercentage,
-      };
-    } catch (error: any) {
-      const status = error.response?.status;
-      if (status === 400 || status === 403) {
-        logger.warn('DRIVER_SERVICE', 'Failed to go online due to validation error', {
-          status,
-          error: error.response?.data?.error || error.message
-        });
-      } else {
-        logger.error('DRIVER_SERVICE', 'Failed to go online due to system error', error);
+      const { data: details, error: detailsError } = await supabase
+        .from("driver_details")
+        .select("status")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (detailsError) throw detailsError;
+
+      if (!details || details.status !== "approved") {
+        return {
+          success: false,
+          error: "Cadastro não aprovado. Complete seu perfil e aguarde a aprovação.",
+        };
       }
+
+      const { data: canWorkData, error: rpcError } = await supabase.rpc("rpc_driver_can_work");
+      if (rpcError) throw rpcError;
+
+      const canWork = canWorkData?.canWork ?? canWorkData;
+      if (!canWork) {
+        const minBal = canWorkData?.minBalance ?? 5;
+        return {
+          success: false,
+          error: `Saldo insuficiente. Adicione pelo menos R$ ${Number(minBal).toFixed(2).replace('.', ',')} para ficar online.`,
+        };
+      }
+
+      const config = await pricingService.getConfig();
+      return { success: true, appFeePercentage: config.appFeePercentage };
+    } catch (error: any) {
+      logger.error('DRIVER_SERVICE', 'goOnline failed', error);
       return {
         success: false,
-        error: error.response?.data?.error || 'Voce precisa ter cadastro aprovado, documentos enviados e saldo positivo.',
-        message: error.response?.data?.message,
+        error: error?.message || "Não foi possível validar sua conta para ficar online.",
       };
     }
   }
 
-  // Go offline
+  /** Marca motorista como offline em driver_locations. */
   async goOffline(): Promise<{ success: boolean }> {
     try {
-      const response = await apiClient.post<{ success: boolean }>('/drivers/go-offline');
-
+      const userId = await requireUserId();
+      await supabase
+        .from("driver_locations")
+        .upsert(
+          { id: userId, is_online: false, updated_at: new Date().toISOString() },
+          { onConflict: "id" },
+        );
       logger.info('DRIVER_SERVICE', 'Driver went offline');
-      return response.data;
+      return { success: true };
     } catch (error) {
       logger.error('DRIVER_SERVICE', 'Failed to go offline', error);
       throw error;
     }
   }
 
-  // Calculate deduction amount for a ride
   async calculateDeduction(rideValue: number): Promise<number> {
     try {
-      const configResponse = await apiClient.get('/config/ride-settings').catch(() => null);
-      const appFeePct = (configResponse?.data?.config?.appFeePercentage || 15) / 100;
-      return rideValue * appFeePct;
-    } catch (error) {
-      logger.error('DRIVER_SERVICE', 'Failed to calculate deduction', error);
+      const config = await pricingService.getConfig();
+      return rideValue * (config.appFeePercentage / 100);
+    } catch {
       return rideValue * 0.15;
     }
   }
 
-  // Get deposit history
-  async getDepositHistory(limit: number = 20): Promise<DriverDeposit[]> {
-    try {
-      const history = await this.getBalanceHistory(Math.max(limit, 1) * 3);
-      const deposits = history
-        .filter((item) => item.type === 'deposit')
-        .slice(0, limit)
-        .map((item) => ({
-          status: (item.status === 'failed'
-            ? 'failed'
-            : item.status === 'pending'
-            ? 'pending'
-            : 'confirmed') as DriverDeposit['status'],
-          id: item.id,
-          driverId: '',
-          amount: Number(item.amount || 0),
-          method: 'pix' as const,
-          createdAt: item.createdAt,
-        }));
-
-      logger.info('DRIVER_SERVICE', 'Deposit history fetched', {
-        count: deposits.length,
-      });
-      return deposits;
-    } catch (error) {
-      logger.error('DRIVER_SERVICE', 'Failed to fetch deposit history', error);
-      return [];
-    }
-  }
-
-  // Request withdrawal
+  /** Solicita saque via rpc_request_withdrawal (debita saldo + cria registro pendente). */
   async requestWithdrawal(amount: number, pixKey: string): Promise<any> {
     try {
-      const userId = await requireUserId();
-
-      // 1. Check current driver balance
-      const { data: details, error: detailsError } = await supabase
-        .from("driver_details")
-        .select("balance, total_withdrawn")
-        .eq("id", userId)
-        .maybeSingle();
-
-      if (detailsError) throw detailsError;
-
-      const currentBalance = Number(details?.balance || 0);
-      if (currentBalance < amount) {
-        throw new Error("Saldo insuficiente");
-      }
-
-      // 2. Deduct balance in driver_details
-      const currentWithdrawn = Number(details?.total_withdrawn || 0);
-      const { error: updateError } = await supabase
-        .from("driver_details")
-        .update({
-          balance: currentBalance - amount,
-          total_withdrawn: currentWithdrawn + amount,
-        })
-        .eq("id", userId);
-
-      if (updateError) throw updateError;
-
-      // 3. Create withdrawal request
-      const { data: wRequest, error: wError } = await supabase
-        .from("withdrawals")
-        .insert({
-          user_id: userId,
-          amount,
-          pix_key: pixKey,
-          pix_key_type: "random", // default key type fallback
-          status: "pending",
-        })
-        .select()
-        .single();
-
-      if (wError) throw wError;
-
-      // 4. Create ledger transaction record
-      const { error: txError } = await supabase
-        .from("wallet_transactions")
-        .insert({
-          user_id: userId,
-          type: "withdrawal",
-          amount,
-          description: `Saque via Pix`,
-          status: "pending",
-        });
-
-      if (txError) throw txError;
-
-      logger.info('DRIVER_SERVICE', 'Withdrawal requested', {
-        amount,
+      const { data, error } = await supabase.rpc('rpc_request_withdrawal', {
+        p_amount: amount,
+        p_pix_key: pixKey,
+        p_pix_key_type: 'random',
       });
-
-      return wRequest;
+      if (error) throw error;
+      logger.info('DRIVER_SERVICE', 'Withdrawal requested', { amount });
+      return data;
     } catch (error) {
       logger.error('DRIVER_SERVICE', 'Failed to request withdrawal', error);
       throw error;
     }
   }
 
-  async updatePreferences(payload: Partial<DriverPreferences>): Promise<DriverPreferences> {
-    const response = await apiClient.put('/drivers/preferences', payload);
-    return response.data?.data;
+  async getDepositHistory(limit: number = 20): Promise<DriverDeposit[]> {
+    try {
+      const history = await this.getBalanceHistory(Math.max(limit, 1) * 3);
+      return history
+        .filter((item) => item.type === 'deposit')
+        .slice(0, limit)
+        .map((item) => ({
+          id: item.id,
+          driverId: '',
+          amount: Number(item.amount ?? 0),
+          method: 'pix' as const,
+          status: (item.status === 'failed'
+            ? 'failed'
+            : item.status === 'pending'
+            ? 'pending'
+            : 'confirmed') as DriverDeposit['status'],
+          createdAt: item.createdAt,
+        }));
+    } catch (error) {
+      logger.error('DRIVER_SERVICE', 'Failed to fetch deposit history', error);
+      return [];
+    }
   }
 
-  // 🚗 Listar toda a frota de veículos cadastrada pelo motorista
+  /** Atualiza preferências do motorista em driver_details. */
+  async updatePreferences(payload: Partial<DriverPreferences>): Promise<DriverPreferences> {
+    const userId = await requireUserId();
+    const updates: Record<string, any> = {};
+
+    if (payload.serviceTypes !== undefined) updates.service_types = payload.serviceTypes;
+    if (payload.searchRadiusKm !== undefined) updates.search_radius_km = payload.searchRadiusKm;
+    if (payload.autoAccept !== undefined) updates.auto_accept = payload.autoAccept;
+    if (payload.acceptsCardMachine !== undefined) updates.accepts_card = payload.acceptsCardMachine;
+    if (payload.acceptsCash !== undefined) updates.accepts_cash = payload.acceptsCash;
+    if (payload.acceptsPix !== undefined) updates.accepts_pix = payload.acceptsPix;
+
+    if (Object.keys(updates).length > 0) {
+      const { error } = await supabase
+        .from("driver_details")
+        .update(updates)
+        .eq("id", userId);
+      if (error) throw error;
+    }
+
+    return { serviceTypes: [], selectedVehicles: [], searchRadiusKm: 5, autoAccept: false, ...payload };
+  }
+
+  /**
+   * Retorna o veículo registrado em driver_details.
+   * Modelo de veículo único por motorista — não há lista separada de veículos.
+   */
   async listVehicles(): Promise<{ vehicles: DriverVehicle[]; activeVehicleId?: string }> {
     try {
-      const response = await apiClient.get<any>('/drivers/vehicles');
-      return {
-        vehicles: response.data?.vehicles || [],
-        activeVehicleId: response.data?.activeVehicleId,
+      const userId = await requireUserId();
+      const { data: details, error } = await supabase
+        .from("driver_details")
+        .select("vehicle_type, vehicle_plate, vehicle_model, vehicle_color, vehicle_year, crlv_front_url, vehicle_photo_url, status, created_at, updated_at")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!details?.vehicle_plate) return { vehicles: [], activeVehicleId: undefined };
+
+      const vehicle: DriverVehicle = {
+        _id: userId,
+        type: (details.vehicle_type || "motorcycle") as DriverVehicle["type"],
+        plate: details.vehicle_plate,
+        model: details.vehicle_model || "",
+        color: details.vehicle_color || undefined,
+        year: details.vehicle_year || undefined,
+        documents: {
+          crlvFront: details.crlv_front_url || undefined,
+          vehiclePhoto: details.vehicle_photo_url || undefined,
+        },
+        status: (details.status === "approved" ? "approved" : "pending") as DriverVehicle["status"],
+        createdAt: details.created_at,
+        updatedAt: details.updated_at,
       };
+
+      return { vehicles: [vehicle], activeVehicleId: userId };
     } catch (error) {
       logger.error('DRIVER_SERVICE', 'Failed to list vehicles', error);
-      throw error;
+      return { vehicles: [], activeVehicleId: undefined };
     }
   }
 
-  // 📝 Adicionar novo veículo para a análise da administração
-  async addVehicle(payload: {
-    type: 'motorcycle' | 'car' | 'van' | 'truck';
-    plate: string;
-    model: string;
-    color?: string;
-    year?: number;
-    renavam?: string;
-    rideCategory?: 'car_economy' | 'car_comfort' | 'car_luxury';
-    documents?: any;
-  }): Promise<DriverVehicle> {
-    try {
-      const response = await apiClient.post<any>('/drivers/vehicles', payload);
-      return response.data?.vehicle;
-    } catch (error) {
-      logger.error('DRIVER_SERVICE', 'Failed to add vehicle', error);
-      throw error;
-    }
+  /** No-op: modelo de veículo único — o veículo em driver_details é sempre o ativo. */
+  async addVehicle(_payload: any): Promise<DriverVehicle> {
+    throw new Error('Use saveDriverVehicle() de supabase-auth.service para cadastrar veículos.');
   }
 
-  // 📸 Enviar documentos do veículo (CRLV Frente, Verso e Foto do Veículo)
-  async uploadVehicleDocuments(vehicleId: string, formData: FormData): Promise<any> {
-    try {
-      const response = await apiClient.post<any>(`/drivers/vehicles/${vehicleId}/documents`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-      return response.data;
-    } catch (error) {
-      logger.error('DRIVER_SERVICE', 'Failed to upload vehicle documents', error);
-      throw error;
-    }
+  /** No-op: modelo de veículo único — não há múltiplos veículos para ativar. */
+  async activateVehicle(_id: string): Promise<any> {
+    return { success: true };
   }
 
-  // ⚡️ Definir veículo aprovado como o veículo ativo no momento
-  async activateVehicle(id: string): Promise<any> {
-    try {
-      const response = await apiClient.patch<any>(`/drivers/vehicles/${id}/activate`);
-      return response.data;
-    } catch (error) {
-      logger.error('DRIVER_SERVICE', 'Failed to activate vehicle', error);
-      throw error;
-    }
+  /** No-op: coluna ride_category não existe em driver_details ainda. */
+  async setVehicleRideCategory(_id: string, _rideCategory: string): Promise<any> {
+    return { success: true };
   }
 
-  async setVehicleRideCategory(
-    id: string,
-    rideCategory: 'car_economy' | 'car_comfort' | 'car_luxury',
-  ): Promise<any> {
-    try {
-      const response = await apiClient.patch<any>(`/drivers/vehicles/${id}/ride-category`, { rideCategory });
-      return response.data;
-    } catch (error) {
-      logger.error('DRIVER_SERVICE', 'Failed to set vehicle ride category', error);
-      throw error;
-    }
+  async uploadVehicleDocuments(_vehicleId: string, _formData: FormData): Promise<any> {
+    throw new Error('Use uploadDriverDocument() de supabase-auth.service para enviar documentos.');
   }
 }
 

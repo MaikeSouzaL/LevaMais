@@ -51,7 +51,7 @@ const disputeService = {
         .single();
 
       if (error) {
-        if (error.code === "42P01") {
+        if (error.code === "42P01" || error.code === "PGRST205") {
           return {
             _id: Math.random().toString(36).substring(7),
             rideId: payload.rideId,
@@ -108,7 +108,7 @@ const disputeService = {
       const { data, error } = await query;
 
       if (error) {
-        if (error.code === "42P01") return [];
+        if (error.code === "42P01" || error.code === "PGRST205") return [];
         throw error;
       }
 

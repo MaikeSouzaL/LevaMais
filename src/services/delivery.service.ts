@@ -1,6 +1,6 @@
 import { supabase } from "../lib/supabase";
 import { requireUserId } from "./supabase-auth.service";
-import websocketService from "./websocket.service";
+import pricingService, { calculateFare } from "./pricing.service";
 import type {
   Location, PricingCalculation, DistanceDuration, RideDetails, CreateRideRequest,
   Ride, RideOffer, CalculatePriceRequest, CalculatePriceResponse,
@@ -23,10 +23,30 @@ class DeliveryService {
   }
 
   async calculatePrice(data: CalculatePriceRequest): Promise<CalculatePriceResponse> {
-    const basePrice = 10.0, distanceKm = data.distance || 5.0, durationMin = data.duration || 10.0;
-    const distancePrice = distanceKm * 2.0, total = basePrice + distancePrice;
+    if (!data.distance || data.distance <= 0) {
+      throw new Error("Distância da rota não informada. Tente novamente.");
+    }
+    const distanceKm = data.distance;
+    const durationMin = data.duration || 0;
+
+    const rules = await pricingService.getRules("delivery");
+    const rule = rules.find((r) => r.vehicleCategory === data.vehicleType);
+    if (!rule) throw new Error("Tabela de preços de entrega não configurada para este veículo.");
+
+    const fare = calculateFare(rule.pricing, distanceKm, durationMin, data.stops?.length || 0);
+    const cfg = await pricingService.getConfig();
+    const serviceFee = Number((fare.total * cfg.appFeePercentage / 100).toFixed(2));
+
     return {
-      pricing: { basePrice, distancePrice, serviceFee: 2.0, total, currency: "BRL" },
+      pricing: {
+        basePrice: fare.baseFare,
+        distancePrice: fare.distancePrice,
+        serviceFee,
+        total: fare.total,
+        currency: "BRL",
+        platformFee: serviceFee,
+        driverValue: Number((fare.total - serviceFee).toFixed(2)),
+      },
       distance: { value: distanceKm * 1000, text: `${distanceKm.toFixed(1)} km` },
       duration: { value: durationMin * 60, text: `${durationMin.toFixed(0)} min` },
     };
@@ -47,7 +67,6 @@ class DeliveryService {
       .select().single();
     if (error) throw error;
     const mapped = this.mapToRideModel(ride);
-    websocketService.emit("ride-created", { rideId: mapped._id, ride: mapped });
     return mapped;
   }
 
@@ -125,14 +144,116 @@ class DeliveryService {
   }
 
   async cancel(rideId: string, reason?: string): Promise<{ message?: string; cancellationFee?: number; redispatched?: boolean }> {
-    const { data: ride, error } = await supabase.from("rides")
-      .update({ status: "cancelled", cancelled_at: new Date().toISOString() })
-      .eq("id", rideId).select().single();
+    try {
+      // 1. Tentar chamar a RPC no banco de dados para segurança transacional
+      const { data: fee, error: rpcErr } = await supabase.rpc("rpc_cancel_ride", {
+        p_ride_id: rideId,
+        p_reason: reason || "Cancelado pelo usuário"
+      });
+
+      if (!rpcErr) {
+        return { message: "Entrega cancelada com sucesso", cancellationFee: Number(fee || 0) };
+      }
+      // Se não for erro de "função não encontrada", propaga
+      if (rpcErr.code !== "PGRST202" && rpcErr.code !== "42883") {
+        throw rpcErr;
+      }
+    } catch (rpcEx) {
+      console.warn("[DeliveryService] Falha na RPC rpc_cancel_ride, usando fallback local:", rpcEx);
+    }
+
+    // Fallback local caso a RPC não esteja instalada no Supabase
+    const { data: ride, error: getErr } = await supabase
+      .from("rides")
+      .select("*")
+      .eq("id", rideId)
+      .single();
+
+    if (getErr || !ride) {
+      throw getErr || new Error("Entrega não encontrada");
+    }
+
+    let appliedFee = 0;
+
+    // Se tiver motorista e passou de 2 minutos ou motorista já chegou
+    const hasDriver = !!ride.driver_id;
+    const isArrived = ride.status === "arrived";
+    const acceptedAt = ride.accepted_at ? new Date(ride.accepted_at).getTime() : null;
+    const timeDiffSeconds = acceptedAt ? (Date.now() - acceptedAt) / 1000 : 0;
+
+    if (hasDriver && (isArrived || timeDiffSeconds > 120)) {
+      appliedFee = 5.00; // Taxa de cancelamento padrão fallback
+
+      // Deduz do saldo do cliente
+      try {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("wallet_balance")
+          .eq("id", ride.client_id)
+          .single();
+        const newClientBalance = Number(profile?.wallet_balance || 0) - appliedFee;
+        await supabase
+          .from("profiles")
+          .update({ wallet_balance: newClientBalance })
+          .eq("id", ride.client_id);
+
+        // Insere transação de débito do cliente
+        await supabase.from("wallet_transactions").insert({
+          user_id: ride.client_id,
+          type: "cancellation_fee",
+          amount: -appliedFee,
+          description: "Multa por cancelamento de entrega (fallback)",
+          reference_id: rideId,
+          status: "paid",
+        });
+      } catch (clientWalletErr) {
+        console.error("Erro ao debitar cliente (cancelamento):", clientWalletErr);
+      }
+
+      // Credita o motorista
+      try {
+        const { data: details } = await supabase
+          .from("driver_details")
+          .select("balance")
+          .eq("id", ride.driver_id)
+          .single();
+        const newDriverBalance = Number(details?.balance || 0) + appliedFee;
+        await supabase
+          .from("driver_details")
+          .update({ balance: newDriverBalance })
+          .eq("id", ride.driver_id);
+
+        // Insere transação de crédito do motorista
+        await supabase.from("wallet_transactions").insert({
+          user_id: ride.driver_id,
+          type: "cancellation_fee",
+          amount: appliedFee,
+          description: "Crédito por cancelamento de entrega (fallback)",
+          reference_id: rideId,
+          status: "paid",
+        });
+      } catch (driverWalletErr) {
+        console.error("Erro ao creditar motorista (cancelamento):", driverWalletErr);
+      }
+    }
+
+    const { data: updatedRide, error } = await supabase
+      .from("rides")
+      .update({
+        status: "cancelled",
+        cancelled_at: new Date().toISOString(),
+        cancellation_fee: appliedFee,
+        details: {
+          ...(ride.details || {}),
+          cancel_reason: reason || "Cancelado pelo usuário",
+        }
+      })
+      .eq("id", rideId)
+      .select()
+      .single();
+
     if (error) throw error;
-    const mapped = this.mapToRideModel(ride);
-    websocketService.emit("ride-status-updated", { rideId, status: "cancelled", ride: mapped });
-    websocketService.emit("ride-cancelled", { rideId, reason });
-    return { message: "Entrega cancelada com sucesso", cancellationFee: 0 };
+    return { message: "Entrega cancelada com sucesso", cancellationFee: appliedFee };
   }
 
   async accept(rideId: string): Promise<Ride> {
@@ -142,23 +263,35 @@ class DeliveryService {
       .eq("id", rideId).select().single();
     if (error) throw error;
     const mapped = this.mapToRideModel(ride);
-    websocketService.emit("ride-status-updated", { rideId, status: "accepted", ride: mapped });
-    websocketService.emit("driver-found", { rideId, driverId: userId, ride: mapped });
     return mapped;
   }
 
-  async reject(rideId: string, reason?: string): Promise<void> {
-    websocketService.emit("ride-rejected-by-driver", { rideId, reason });
+  async reject(_rideId: string, _reason?: string): Promise<void> {
+    // Status updates are handled via Supabase Realtime
   }
 
-  async updateStatus(rideId: string, status?: string, arrivedAtDropoff?: boolean, pins?: { pickupPin?: string; deliveryPin?: string }): Promise<Ride> {
+  async updateStatus(
+    rideId: string,
+    status?: string,
+    arrivedAtDropoff?: boolean,
+    pins?: { pickupPin?: string; deliveryPin?: string },
+    realTrajectory?: Array<{ latitude: number; longitude: number; timestamp?: string }>
+  ): Promise<Ride> {
     const updates: any = {};
     if (status) updates.status = status;
     if (arrivedAtDropoff !== undefined) updates.arrived_at_dropoff = arrivedAtDropoff;
-    if (pins) {
+
+    if (pins || realTrajectory) {
       const { data: current } = await supabase.from("rides").select("details").eq("id", rideId).single();
       const currentDetails = current?.details || {};
-      updates.details = { ...currentDetails, pickupPin: pins.pickupPin || currentDetails.pickupPin, deliveryPin: pins.deliveryPin || currentDetails.deliveryPin };
+      updates.details = {
+        ...currentDetails,
+        ...(pins ? {
+          pickupPin: pins.pickupPin || currentDetails.pickupPin,
+          deliveryPin: pins.deliveryPin || currentDetails.deliveryPin,
+        } : {}),
+        ...(realTrajectory ? { real_trajectory: realTrajectory } : {}),
+      };
     }
     const nowStr = new Date().toISOString();
     if (status === "arrived") updates.arrived_at = nowStr;
@@ -168,11 +301,14 @@ class DeliveryService {
     const { data: ride, error } = await supabase.from("rides").update(updates).eq("id", rideId).select().single();
     if (error) throw error;
     const mapped = this.mapToRideModel(ride);
-    if (status) {
-      websocketService.emit("ride-status-updated", { rideId, status, ride: mapped });
-      if (status === "arrived") websocketService.emit("driver-arrived", { rideId, ride: mapped });
-      else if (status === "started") websocketService.emit("ride-started", { rideId, ride: mapped });
+
+    if (status === "completed") {
+      // Liquida a corrida/entrega: debita taxa do motorista, transfere se pagamento=wallet
+      supabase.rpc("rpc_settle_ride", { p_ride_id: rideId }).then(({ error: settleErr }) => {
+        if (settleErr) console.error("[rpc_settle_ride] falhou para entrega:", settleErr);
+      });
     }
+
     return mapped;
   }
 
@@ -191,14 +327,135 @@ class DeliveryService {
   }
 
   async reportDeliveryProblem(rideId: string, payload: { reason: string; photoUrl?: string; note?: string }): Promise<{ message?: string; deliveryFailure?: any }> {
-    const { data: current } = await supabase.from("rides").select("details").eq("id", rideId).single();
-    const details = current?.details || {};
-    const { data: ride, error } = await supabase.from("rides")
-      .update({ status: "cancelled", cancelled_at: new Date().toISOString(), details: { ...details, deliveryProblem: payload } })
+    try {
+      // 1. Tentar chamar a RPC no banco de dados para segurança transacional
+      const { data: success, error: rpcErr } = await supabase.rpc("rpc_return_delivery", {
+        p_ride_id: rideId,
+        p_reason: payload.reason || "Destinatário ausente"
+      });
+
+      if (!rpcErr && success) {
+        return { message: "Problema relatado com sucesso", deliveryFailure: payload };
+      }
+      if (rpcErr && rpcErr.code !== "PGRST202" && rpcErr.code !== "42883") {
+        throw rpcErr;
+      }
+    } catch (rpcEx) {
+      console.warn("[DeliveryService] Falha na RPC rpc_return_delivery, usando fallback local:", rpcEx);
+    }
+
+    // Fallback local caso a RPC não esteja instalada no Supabase
+    const { data: ride, error: getErr } = await supabase
+      .from("rides")
+      .select("*")
+      .eq("id", rideId)
+      .single();
+
+    if (getErr || !ride) {
+      throw getErr || new Error("Entrega não encontrada");
+    }
+
+    const details = ride.details || {};
+    const totalFare = Number(ride.pricing?.total || 0);
+    const returnSurcharge = Math.round(totalFare * 0.50 * 100) / 100; // 50% de taxa adicional
+    const totalCharge = totalFare + returnSurcharge;
+    const appFee = Math.round(totalFare * 0.15 * 100) / 100; // comissão do app (15%)
+    const driverValue = totalCharge - appFee;
+    const paymentMethod = ride.payment?.method?.type || "cash";
+
+    if (paymentMethod === "wallet") {
+      // Debita o cliente pelo valor total + devolução
+      try {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("wallet_balance")
+          .eq("id", ride.client_id)
+          .single();
+        const newClientBalance = Number(profile?.wallet_balance || 0) - totalCharge;
+        await supabase
+          .from("profiles")
+          .update({ wallet_balance: newClientBalance })
+          .eq("id", ride.client_id);
+
+        // Transação
+        await supabase.from("wallet_transactions").insert({
+          user_id: ride.client_id,
+          type: "delivery_failed_charge",
+          amount: -totalCharge,
+          description: "Cobrança de entrega malsucedida + retorno (fallback)",
+          reference_id: rideId,
+          status: "paid",
+        });
+      } catch (clientErr) {
+        console.error("Erro ao debitar cliente na devolução:", clientErr);
+      }
+
+      // Credita o motorista
+      try {
+        const { data: detailsDb } = await supabase
+          .from("driver_details")
+          .select("balance")
+          .eq("id", ride.driver_id)
+          .single();
+        const newDriverBalance = Number(detailsDb?.balance || 0) + driverValue;
+        await supabase
+          .from("driver_details")
+          .update({ balance: newDriverBalance })
+          .eq("id", ride.driver_id);
+
+        // Transação
+        await supabase.from("wallet_transactions").insert({
+          user_id: ride.driver_id,
+          type: "ride_payment",
+          amount: driverValue,
+          description: "Remuneração de entrega malsucedida + retorno (fallback)",
+          reference_id: rideId,
+          status: "paid",
+        });
+      } catch (driverErr) {
+        console.error("Erro ao creditar motorista na devolução:", driverErr);
+      }
+    } else {
+      // Dinheiro / máquina de cartão: desconta taxa do app do motorista
+      try {
+        const { data: detailsDb } = await supabase
+          .from("driver_details")
+          .select("balance")
+          .eq("id", ride.driver_id)
+          .single();
+        const newDriverBalance = Number(detailsDb?.balance || 0) - appFee;
+        await supabase
+          .from("driver_details")
+          .update({ balance: newDriverBalance })
+          .eq("id", ride.driver_id);
+
+        // Transação de comissão do motorista
+        await supabase.from("wallet_transactions").insert({
+          user_id: ride.driver_id,
+          type: "app_fee_debit",
+          amount: -appFee,
+          description: "Taxa de intermediação de entrega devolvida (fallback)",
+          reference_id: rideId,
+          status: "paid",
+        });
+      } catch (driverErr) {
+        console.error("Erro ao debitar comissão na devolução:", driverErr);
+      }
+    }
+
+    const { data: updatedRide, error } = await supabase.from("rides")
+      .update({
+        status: "returned",
+        cancelled_at: new Date().toISOString(),
+        details: {
+          ...details,
+          settled: true,
+          deliveryProblem: payload,
+        }
+      })
       .eq("id", rideId).select().single();
+
     if (error) throw error;
-    const mapped = this.mapToRideModel(ride);
-    websocketService.emit("ride-status-updated", { rideId, status: "cancelled", ride: mapped });
     return { message: "Problema relatado com sucesso", deliveryFailure: payload };
   }
 
@@ -262,8 +519,6 @@ class DeliveryService {
         .eq("id", rideId).select().single();
       if (error) throw error;
       const mapped = this.mapToRideModel(updated);
-      websocketService.emit("ride-status-updated", { rideId, status: "accepted", ride: mapped });
-      websocketService.emit("ride-offers-updated", { rideId, offers });
       return { success: true, rideMatched: true };
     } else {
       const newOffer: RideOffer = {
@@ -274,7 +529,6 @@ class DeliveryService {
       negotiation.offers = offers;
       const { error } = await supabase.from("rides").update({ negotiation }).eq("id", rideId);
       if (error) throw error;
-      websocketService.emit("ride-offers-updated", { rideId, offers });
       return { success: true, rideMatched: false };
     }
   }
@@ -292,7 +546,6 @@ class DeliveryService {
       .eq("id", rideId).select().single();
     if (error) throw error;
     const mapped = this.mapToRideModel(updated);
-    websocketService.emit("ride-status-updated", { rideId, status: "accepted", ride: mapped });
     return mapped;
   }
 }

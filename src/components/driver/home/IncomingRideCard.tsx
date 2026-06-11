@@ -35,7 +35,7 @@ import {
   X,
 } from "lucide-react-native";
 import { formatBRL } from "@/utils/mappers";
-import webSocketService from "@/services/websocket.service";
+import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/context/authStore";
 import rideService from "@/services/ride.service";
 import Toast from "react-native-toast-message";
@@ -337,9 +337,9 @@ export function IncomingRideCard({
       Toast.show({
         type: "info",
         text1: "Oferta Recusada",
-        text2: "O cliente recusou sua contraproposta."
+        text2: "O cliente recusou sua contraproposta.",
       });
-      onReject(); // Clears incoming state & closes sheet
+      onReject();
     };
 
     const handleRideCancelled = () => {
@@ -349,28 +349,42 @@ export function IncomingRideCard({
       Toast.show({
         type: "error",
         text1: "Corrida Cancelada",
-        text2: "Esta solicitação foi cancelada pelo solicitante."
+        text2: "Esta solicitação foi cancelada pelo solicitante.",
       });
-      onReject(); // Clears incoming state & closes sheet
+      onReject();
     };
 
-    // 🛰️ WebSocket Realtime Interception
-    const onRejectedSocket = (payload: any) => {
-      if (payload?.rideId === offer.rideId) {
-        handleOfferRejected();
-      }
-    };
+    const channel = supabase
+      .channel(`incoming-card:${offer.rideId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "rides",
+          filter: `id=eq.${offer.rideId}`,
+        },
+        (payload) => {
+          if (!active) return;
+          const row = payload.new as any;
+          const rideStatus = String(row.status || "");
 
-    const onCancelledSocket = (payload: any) => {
-      if (payload?.rideId === offer.rideId) {
-        handleRideCancelled();
-      }
-    };
+          // Cancelled by client
+          if (rideStatus.startsWith("cancelled") || rideStatus === "expired") {
+            handleRideCancelled();
+            return;
+          }
 
-    webSocketService.on("ride-offer-rejected-by-client", onRejectedSocket);
-    webSocketService.on("ride-cancelled", onCancelledSocket);
+          // Assigned to another driver
+          if (row.driver_id && driverId && String(row.driver_id) !== String(driverId)) {
+            handleOfferRejected();
+            return;
+          }
+        },
+      )
+      .subscribe();
 
-    // 🔁 High-Availability Rest Polling Backup (Every 3.5 seconds)
+    // 🔁 Polling backup (every 3.5s)
     const syncInterval = setInterval(async () => {
       try {
         const ride = await rideService.getById(offer.rideId);
@@ -379,37 +393,34 @@ export function IncomingRideCard({
         const assignedDriver = typeof ride.driverId === "string" ? ride.driverId : ride.driverId?._id;
         const rideStatus = String(ride.status || "");
 
-        // ❌ Assigned to someone else
         if (assignedDriver && driverId && assignedDriver !== driverId) {
-           handleOfferRejected();
-           return;
+          handleOfferRejected();
+          return;
         }
 
         const myOffer = ride.negotiation?.offers?.find((o: any) => {
-           const oDriverId = typeof o.driverId === "string" ? o.driverId : o.driverId?._id;
-           return oDriverId && driverId && oDriverId === driverId;
+          const oDriverId = typeof o.driverId === "string" ? o.driverId : o.driverId?._id;
+          return oDriverId && driverId && oDriverId === driverId;
         });
 
         if (myOffer && myOffer.status === "rejected") {
-           handleOfferRejected();
-           return;
+          handleOfferRejected();
+          return;
         }
 
         if (myOffer && myOffer.status === "client_countered" && loadingState === "waiting") {
-           setLoadingState("idle");
-           setCounterValue(myOffer.amount || baseValue);
-           Toast.show({
-             type: "info",
-             text1: "Contraproposta Recebida!",
-             text2: "O cliente enviou uma nova proposta."
-           });
-           return;
+          setLoadingState("idle");
+          setCounterValue(myOffer.amount || baseValue);
+          Toast.show({
+            type: "info",
+            text1: "Contraproposta Recebida!",
+            text2: "O cliente enviou uma nova proposta.",
+          });
+          return;
         }
 
-        // 🛑 Terminal Cancel Status
         if (["cancelled", "cancelled_by_client", "expired"].includes(rideStatus)) {
-           handleRideCancelled();
-           return;
+          handleRideCancelled();
         }
       } catch {}
     }, 3500);
@@ -417,8 +428,7 @@ export function IncomingRideCard({
     return () => {
       active = false;
       clearInterval(syncInterval);
-      webSocketService.off("ride-offer-rejected-by-client", onRejectedSocket);
-      webSocketService.off("ride-cancelled", onCancelledSocket);
+      supabase.removeChannel(channel);
     };
   }, [loadingState, offer?.rideId, onReject]);
 

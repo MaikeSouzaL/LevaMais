@@ -8,7 +8,8 @@ import GlassCard from "@/components/driver/cards/GlassCard";
 import ProgressBar from "@/components/driver/feedback/ProgressBar";
 import { driverColors, driverSpacing, driverRadius } from "@/theme/driverTheme";
 import { useAuthStore } from "@/context/authStore";
-import rideService from "@/services/ride.service";
+import { supabase } from "@/lib/supabase";
+import { requireUserId } from "@/services/supabase-auth.service";
 
 function StarRow({ count, size = 14 }: { count: number; size?: number }) {
   return (
@@ -52,38 +53,57 @@ export default function DriverRatingsScreen() {
       const fetchHistory = async () => {
         try {
           setLoading(true);
-          const history = await rideService.getHistory({ status: "completed", limit: 50 });
+          const userId = await requireUserId();
           if (!active) return;
 
-          const parsed: FeedBackItem[] = (history?.rides || [])
-            .filter((r: any) => r.rating?.clientRating?.stars != null)
-            .map((r: any, idx: number) => {
-              const gradients = [
-                ["#3B82F6", "#1D4ED8"],
-                ["#10B981", "#047857"],
-                ["#F59E0B", "#B45309"],
-                ["#EC4899", "#BE185D"],
-                ["#8B5CF6", "#6D28D9"],
-              ];
-              const grad = gradients[idx % gradients.length];
-              const dateVal = r.rating?.clientRating?.createdAt || r.completedAt || r.createdAt;
-              const formattedDate = dateVal
-                ? new Date(dateVal).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })
-                : "Recente";
+          const { data, error } = await supabase
+            .from("ride_ratings")
+            .select(
+              "id, stars, comment, created_at, rater_id, profiles!rater_id(full_name, avatar_url), rides!ride_id(service_type, vehicle_type, pricing)",
+            )
+            .eq("ratee_id", userId)
+            .eq("rater_role", "client")
+            .order("created_at", { ascending: false })
+            .limit(50);
 
-              return {
-                id: r._id || String(idx),
-                name: r.clientId?.name || "Cliente LevaMais",
-                stars: Number(r.rating.clientRating.stars),
-                comment: r.rating.clientRating.comment || "",
-                date: formattedDate,
-                gradient: grad,
-                photo: r.clientId?.profilePhoto || undefined,
-                vehicleType: r.vehicleType === "motorcycle" ? "Moto" : r.vehicleType === "car" ? "Carro" : r.vehicleType || "Veículo",
-                serviceType: r.serviceType === "delivery" ? "Entrega" : "Corrida",
-                totalPrice: r.pricing?.total ? `R$ ${Number(r.pricing.total).toFixed(2)}` : undefined,
-              };
-            });
+          if (error) throw error;
+          if (!active) return;
+
+          const gradients = [
+            ["#3B82F6", "#1D4ED8"],
+            ["#10B981", "#047857"],
+            ["#F59E0B", "#B45309"],
+            ["#EC4899", "#BE185D"],
+            ["#8B5CF6", "#6D28D9"],
+          ];
+
+          const parsed: FeedBackItem[] = (data || []).map((r: any, idx: number) => {
+            const grad = gradients[idx % gradients.length];
+            const profile = r.profiles;
+            const ride = r.rides;
+            return {
+              id: r.id,
+              name: profile?.full_name || "Cliente LevaMais",
+              stars: Number(r.stars),
+              comment: r.comment || "",
+              date: new Date(r.created_at).toLocaleDateString("pt-BR", {
+                day: "2-digit",
+                month: "2-digit",
+              }),
+              gradient: grad,
+              photo: profile?.avatar_url || undefined,
+              vehicleType:
+                ride?.vehicle_type === "motorcycle"
+                  ? "Moto"
+                  : ride?.vehicle_type === "car"
+                  ? "Carro"
+                  : ride?.vehicle_type || "Veículo",
+              serviceType: ride?.service_type === "delivery" ? "Entrega" : "Corrida",
+              totalPrice: ride?.pricing?.total
+                ? `R$ ${Number(ride.pricing.total).toFixed(2)}`
+                : undefined,
+            };
+          });
 
           setRealReviews(parsed);
         } catch (e) {

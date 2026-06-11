@@ -36,6 +36,9 @@ export type UserProfile = {
     selectedVehicles?: Array<"motorcycle" | "car" | "van" | "truck">;
     searchRadiusKm?: number;
     autoAccept?: boolean;
+    acceptsCardMachine?: boolean;
+    acceptsCash?: boolean;
+    acceptsPix?: boolean;
   };
   driverStatus?: "none" | "pending" | "approved" | "rejected" | "blocked" | "suspended";
   tourSeen?: boolean;
@@ -148,6 +151,9 @@ async function getProfile(): Promise<UserProfile> {
       serviceTypes: (driver.service_types || []) as any,
       searchRadiusKm: driver.search_radius_km || 5,
       autoAccept: driver.auto_accept || false,
+      acceptsCardMachine: driver.accepts_card || false,
+      acceptsCash: driver.accepts_cash !== false,
+      acceptsPix: driver.accepts_pix || false,
     } : undefined,
     driverStatus: driver?.status || "none",
   };
@@ -187,6 +193,9 @@ async function updateProfile(payload: UpdateProfilePayload): Promise<UserProfile
     if (payload.driverPreferences.serviceTypes !== undefined) driverUpdates.service_types = payload.driverPreferences.serviceTypes;
     if (payload.driverPreferences.searchRadiusKm !== undefined) driverUpdates.search_radius_km = payload.driverPreferences.searchRadiusKm;
     if (payload.driverPreferences.autoAccept !== undefined) driverUpdates.auto_accept = payload.driverPreferences.autoAccept;
+    if ((payload.driverPreferences as any).acceptsCardMachine !== undefined) driverUpdates.accepts_card = (payload.driverPreferences as any).acceptsCardMachine;
+    if ((payload.driverPreferences as any).acceptsCash !== undefined) driverUpdates.accepts_cash = (payload.driverPreferences as any).acceptsCash;
+    if ((payload.driverPreferences as any).acceptsPix !== undefined) driverUpdates.accepts_pix = (payload.driverPreferences as any).acceptsPix;
   }
 
   if (Object.keys(driverUpdates).length > 0) {
