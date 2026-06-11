@@ -1,5 +1,5 @@
 import { supabase } from "../lib/supabase";
-import { requireUserId } from "./supabase-auth.service";
+import { requireUserId } from "./appwrite-auth.service";
 
 export type DisputeCategory =
   | "payment"

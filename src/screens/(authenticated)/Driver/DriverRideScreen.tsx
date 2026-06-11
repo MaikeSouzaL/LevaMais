@@ -7,6 +7,7 @@ import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { GlobalMap } from "@/components/GlobalMap";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import { smoothHeading } from "@/utils/heading";
+import { getPaymentMethodType } from "@/utils/payment";
 import * as Location from "expo-location";
 import * as ImagePicker from "expo-image-picker";
 import Toast from "react-native-toast-message";
@@ -545,7 +546,7 @@ export default function DriverRideScreen() {
     };
 
     const channel = supabase
-      .channel(`ride:${rideId}`)
+      .channel(`ride:${rideId}:${Math.random().toString(36).slice(2)}`)
       .on(
         "postgres_changes",
         {
@@ -559,7 +560,11 @@ export default function DriverRideScreen() {
           const row = payload.new as any;
           if (row.status) {
             setStatus(String(row.status));
-            setRide(row as any);
+            setRide({
+              ...row,
+              serviceType: row.service_type || row.serviceType,
+              vehicleType: row.vehicle_type || row.vehicleType,
+            } as any);
           }
           if (String(row.status || "").startsWith("cancelled")) {
             handleCancelledOnce(
@@ -833,7 +838,7 @@ export default function DriverRideScreen() {
         // Redirecionar para confirmacao de coleta (delivery)
         if (isDelivery) {
           setTimeout(() => {
-            (navigation as any).replace("DeliveryPickupConfirm", { rideId });
+            (navigation as any).navigate("DeliveryPickupConfirm", { rideId });
           }, 500);
           return;
         }
@@ -1201,7 +1206,7 @@ export default function DriverRideScreen() {
             distance={liveDistanceText || ride?.distance?.text}
             duration={liveEtaText || ride?.duration?.text}
             earnings={ride?.pricing?.total || ride?.pricing?.driverValue}
-            paymentLabel={ride?.payment?.method}
+            paymentLabel={getPaymentMethodType(ride?.payment)}
             recipientPhone={ride?.details?.recipientPhone}
             unreadCount={unreadCount}
             onChat={() => {
@@ -1230,14 +1235,14 @@ export default function DriverRideScreen() {
               } else if (canStart) {
                 // Para entregas, abrir tela de confirmação de coleta (PIN + dados)
                 if (isDelivery) {
-                  (navigation as any).replace("DeliveryPickupConfirm", { rideId });
+                  (navigation as any).navigate("DeliveryPickupConfirm", { rideId });
                 } else {
                   update("in_progress");
                 }
               } else if (canComplete) {
                 // Para entregas, abrir tela de confirmação de entrega (PIN de entrega)
                 if (isDelivery) {
-                  (navigation as any).replace("DeliveryDropoffConfirm", { rideId });
+                  (navigation as any).navigate("DeliveryDropoffConfirm", { rideId });
                 } else {
                   update("completed");
                 }

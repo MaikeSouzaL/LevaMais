@@ -155,22 +155,33 @@ export function useActiveRideMonitor() {
           allRejected: false,
         }));
       } else {
-        // 2. Verifica se há corrida aguardando motoristas (requesting)
+        // 2. Verifica se há corrida buscando motoristas (sem ofertas)
         const requestingRide = activeRides.find((ride: any) =>
-          ride.status === "requesting" ||
-          ride.status === "payment_pending" ||
-          ride.status === "driver_assigned"
+          ["requesting", "searching_driver", "payment_pending", "driver_assigned"].includes(String(ride.status)) &&
+          !ride.driverId
         );
 
-        setState((prev) => ({
-          ...prev,
-          negotiationRideId: null,
-          activeRequestingRideId: requestingRide?._id || null,
-          activeServiceType: requestingRide ? ((requestingRide.serviceType as "ride" | "delivery") || "ride") : null,
-          activeRideCreatedAt: requestingRide ? (requestingRide.createdAt || null) : null,
-          activeRideSearchTimeout: requestingRide ? (requestingRide.searchTimeoutSeconds || 300) : null,
-          allRejected: requestingRide ? Boolean((requestingRide as any).allRejected) : false,
-        }));
+        if (requestingRide) {
+          setState((prev) => ({
+            ...prev,
+            activeRequestingRideId: requestingRide._id,
+            activeServiceType: (requestingRide.serviceType as "ride" | "delivery") || "ride",
+            activeRideCreatedAt: requestingRide.createdAt || null,
+            activeRideSearchTimeout: requestingRide.searchTimeoutSeconds || 300,
+            allRejected: Boolean((requestingRide as any).allRejected),
+          }));
+          // Auto-redirect to SearchingDriver is intentionally OMITTED here 
+          // so users aren't forcefully redirected on app reload.
+        } else {
+          setState((prev) => ({
+            ...prev,
+            activeRequestingRideId: null,
+            activeServiceType: null,
+            activeRideCreatedAt: null,
+            activeRideSearchTimeout: null,
+            allRejected: false,
+          }));
+        }
       }
 
       // 3. Conta corridas na fila de espera
@@ -237,8 +248,9 @@ export function useActiveRideMonitor() {
     }
 
     // Supabase Realtime: escuta mudanças na corrida ativa
+    const channelName = `monitor-ride:${currentRideId}:${Math.random().toString(36).slice(2)}`;
     const rideChannel = supabase
-      .channel(`monitor-ride:${currentRideId}`)
+      .channel(channelName)
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "rides", filter: `id=eq.${currentRideId}` },
@@ -328,6 +340,15 @@ export function useActiveRideMonitor() {
       } catch (err) {
         logger.warn("useActiveRideMonitor", "Already cancelled or failed to cancel", err);
       } finally {
+        // Exibe modal de "Oferta Expirada" para o cliente saber o que aconteceu
+        setState((prev) => ({
+          ...prev,
+          expiredRideId: rideId,
+          showCancelledModal: true,
+          activeRequestingRideId: null,
+          negotiationRideId: null,
+          waitingQueueCount: 0,
+        }));
         checkActiveRide();
       }
     };
@@ -352,17 +373,14 @@ export function useActiveRideMonitor() {
   }, []);
 
   const confirmExpiredAction = useCallback(() => {
-    if (state.expiredRideId) {
-      navigation.navigate("RideOffersMarketplace", {
-        rideId: state.expiredRideId,
-      });
-    }
+    // Volta pra Home — a oferta expirou, não tem marketplace pra mostrar
+    navigation.navigate("Home");
     setState((prev) => ({
       ...prev,
       showCancelledModal: false,
       expiredRideId: null,
     }));
-  }, [state.expiredRideId, navigation]);
+  }, [navigation]);
 
   const setActiveRequestingRideId = useCallback((rideId: string | null) => {
     setState((prev) => ({

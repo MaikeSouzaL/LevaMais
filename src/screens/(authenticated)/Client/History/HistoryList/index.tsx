@@ -119,8 +119,10 @@ export default function HistoryScreen() {
       if (isRefresh) setRefreshing(true);
       else setLoading(true);
       const response = await rideService.getHistory({ page: 1, limit: 60 });
+      console.log("[HistoryScreen] loaded rides:", response.rides?.length, "total:", response.pagination?.total);
       setHistory(response.rides || []);
-    } catch {
+    } catch (err) {
+      console.error("[HistoryScreen] loadHistory error:", err);
       setHistory([]);
     } finally {
       setLoading(false);

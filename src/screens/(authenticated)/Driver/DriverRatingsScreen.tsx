@@ -9,7 +9,7 @@ import ProgressBar from "@/components/driver/feedback/ProgressBar";
 import { driverColors, driverSpacing, driverRadius } from "@/theme/driverTheme";
 import { useAuthStore } from "@/context/authStore";
 import { supabase } from "@/lib/supabase";
-import { requireUserId } from "@/services/supabase-auth.service";
+import { requireUserId } from "@/services/appwrite-auth.service";
 
 function StarRow({ count, size = 14 }: { count: number; size?: number }) {
   return (

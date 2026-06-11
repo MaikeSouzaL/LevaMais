@@ -14,7 +14,7 @@ import {
   getMyDriverDetails,
   saveDriverVehicle,
   uploadDriverDocument,
-} from "../../../services/supabase-auth.service";
+} from "../../../services/appwrite-auth.service";
 import { DriverScreen } from "./components/DriverScreen";
 import SectionCard from "../../../components/ui/SectionCard";
 import { DualUploadDocumentCard } from "../../../components/driver/documents/DualUploadDocumentCard";
@@ -196,10 +196,10 @@ export default function DriverVehicleScreen() {
         vehicle_year: newYear ? Number(newYear) : undefined,
       });
 
-      // 2) Documentos no Supabase Storage (recalcula o status de aprovação ao final)
-      await uploadDriverDocument("crlv_front", crlvFront.base64);
-      await uploadDriverDocument("crlv_back", crlvBack.base64);
-      const { status } = await uploadDriverDocument("vehicle_photo", vehiclePhoto.base64);
+      // 2) Documentos no Storage
+      await uploadDriverDocument("crlv_front", crlvFront.uri);
+      await uploadDriverDocument("crlv_back", crlvBack.uri);
+      const { status } = await uploadDriverDocument("vehicle_photo", vehiclePhoto.uri);
 
       Toast.show({
         type: "success",

@@ -1,4 +1,4 @@
-ï»¿import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, ScrollView, Text, View } from "react-native";
 import { useRoute } from "@react-navigation/native";
 import MapView, { Marker, Polyline } from "react-native-maps";
@@ -29,10 +29,10 @@ function formatDuration(ms?: number | null) {
 function mapStatusLabel(status?: string) {
   const key = String(status || "");
   const map: Record<string, string> = {
-    completed: "ConcluÃ­da",
+    completed: "Concluída",
     cancelled: "Cancelada",
     cancelled_by_client: "Cancelada pelo cliente",
-    cancelled_by_driver: "Cancelada por vocÃª",
+    cancelled_by_driver: "Cancelada por você",
     in_progress: "Em andamento",
     accepted: "Aceita",
     arrived: "No local",
@@ -123,7 +123,7 @@ export default function DriverHistoryRideDetailsScreen() {
   if (!ride) {
     return (
       <DriverScreen title="Detalhes da corrida">
-        <Text style={{ color: "#fff", marginTop: 24, textAlign: "center" }}>Corrida nÃ£o encontrada.</Text>
+        <Text style={{ color: "#fff", marginTop: 24, textAlign: "center" }}>Corrida não encontrada.</Text>
       </DriverScreen>
     );
   }
@@ -135,7 +135,7 @@ export default function DriverHistoryRideDetailsScreen() {
   const toPickup = audit?.phases?.to_pickup;
   const toDropoff = audit?.phases?.to_dropoff;
   const declinedByMe = Array.isArray(ride?.rejectedBy) && ride.rejectedBy.some((x: any) => String(x?.driverId?._id || x?.driverId) === String(driverId || ""));
-  const statusLabel = declinedByMe ? "Recusada por vocÃª" : mapStatusLabel(ride?.status);
+  const statusLabel = declinedByMe ? "Recusada por você" : mapStatusLabel(ride?.status);
   const finishDate = ride?.completedAt || ride?.cancelledAt || ride?.updatedAt || ride?.createdAt;
   const finishDateText = finishDate ? new Date(finishDate).toLocaleString("pt-BR") : "--";
   const isCompleted = String(ride?.status || "") === "completed";
@@ -218,7 +218,7 @@ export default function DriverHistoryRideDetailsScreen() {
         </View>
 
         <View style={{ marginTop: 12, backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 16, padding: 14, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" }}>
-          <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15, marginBottom: 8 }}>OperaÃ§Ã£o</Text>
+          <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15, marginBottom: 8 }}>Operação</Text>
           <View style={{ gap: 7 }}>
             <Text style={{ color: "rgba(255,255,255,0.75)" }}>Cliente: {ride?.clientId?.name || "--"}</Text>
             <Text style={{ color: "rgba(255,255,255,0.75)" }}>Recebedor: {ride?.details?.recipientName || "--"}</Text>
@@ -229,13 +229,13 @@ export default function DriverHistoryRideDetailsScreen() {
 
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
             <View style={{ minWidth: "48%", flexGrow: 1, backgroundColor: "rgba(255,255,255,0.03)", borderRadius: 10, padding: 10 }}>
-              <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 11 }}>AtÃ© coleta</Text>
+              <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 11 }}>Até coleta</Text>
               <Text style={{ color: "#fff", marginTop: 3 }}>
                 {toPickup?.pointCount ? `${toPickup.pointCount} pontos / ${formatDuration(new Date(toPickup.endTime).getTime() - new Date(toPickup.startTime).getTime())}` : "--"}
               </Text>
             </View>
             <View style={{ minWidth: "48%", flexGrow: 1, backgroundColor: "rgba(255,255,255,0.03)", borderRadius: 10, padding: 10 }}>
-              <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 11 }}>Coleta atÃ© entrega</Text>
+              <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 11 }}>Coleta até entrega</Text>
               <Text style={{ color: "#fff", marginTop: 3 }}>
                 {toDropoff?.pointCount ? `${toDropoff.pointCount} pontos / ${formatDuration(new Date(toDropoff.endTime).getTime() - new Date(toDropoff.startTime).getTime())}` : "--"}
               </Text>
@@ -252,7 +252,7 @@ export default function DriverHistoryRideDetailsScreen() {
         </View>
 
         <View style={{ marginTop: 12, backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 16, padding: 14, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" }}>
-          <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15, marginBottom: 8 }}>EndereÃ§os</Text>
+          <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15, marginBottom: 8 }}>Endereços</Text>
           <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-start", marginBottom: 8 }}>
             <Icon name="radio-button-checked" size={12} color="#02de95" style={{ marginTop: 4 }} />
             <Text style={{ color: "rgba(255,255,255,0.78)", flex: 1 }}>{ride?.pickup?.address || "--"}</Text>

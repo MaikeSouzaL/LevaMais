@@ -14,7 +14,7 @@ import * as Location from "expo-location";
 import Toast from "react-native-toast-message";
 
 import { obterEnderecoPorCoordenadas } from "../../../utils/location";
-import { updateMyProfile } from "../../../services/supabase-auth.service";
+import { updateMyProfile } from "../../../services/appwrite-auth.service";
 
 const theme = {
   COLORS: {

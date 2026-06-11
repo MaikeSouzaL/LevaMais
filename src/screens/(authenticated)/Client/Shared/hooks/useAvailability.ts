@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import rideService from "@/services/ride.service";
+import { supabase } from "@/lib/supabase";
 import { logger } from "@/utils/logger";
 
 interface Availability {
@@ -17,19 +18,16 @@ interface UseAvailabilityOptions {
     latitude?: number;
     longitude?: number;
   } | null;
-  pollingInterval?: number; // em ms, padrão 15000
   radius?: number; // em metros, padrão 7000
 }
 
 /**
- * Hook para monitorar disponibilidade de motoristas próximos.
- * Atualiza automaticamente em intervalos regulares.
- * O retry em falhas de rede é feito pelo interceptor global do axios (api.ts).
+ * Hook para monitorar disponibilidade de motoristas próximos em TEMPO REAL.
+ * Apenas a primeira carga mostra loading; atualizações Realtime são silenciosas.
  */
 export function useAvailability({
   region,
   userRegion,
-  pollingInterval = 15000,
   radius = 7000,
 }: UseAvailabilityOptions) {
   const [availability, setAvailability] = useState<Availability>({
@@ -37,23 +35,25 @@ export function useAvailability({
     deliveryDrivers: 0,
     totalNearby: 0,
   });
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const initialLoadDone = useRef(false);
 
   useEffect(() => {
     let mounted = true;
 
-    const loadNearbyAvailability = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const lat = userRegion?.latitude || region?.latitude;
-        const lng = userRegion?.longitude || region?.longitude;
-        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-        const safeLat = lat as number;
-        const safeLng = lng as number;
+    const lat = userRegion?.latitude || region?.latitude;
+    const lng = userRegion?.longitude || region?.longitude;
 
-        const drivers = await rideService.getNearbyDrivers(safeLat, safeLng, radius);
+    const fetchAvailability = async (isInitial: boolean) => {
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+      if (!mounted) return;
+      try {
+        if (isInitial) {
+          setLoading(true);
+          setError(null);
+        }
+        const drivers = await rideService.getNearbyDrivers(lat as number, lng as number, radius);
         if (!mounted) return;
 
         const rideDrivers = drivers.filter((d) =>
@@ -63,34 +63,39 @@ export function useAvailability({
           Array.isArray(d.serviceTypes) && d.serviceTypes.includes("delivery"),
         ).length;
 
-        setAvailability({
-          rideDrivers,
-          deliveryDrivers,
-          totalNearby: drivers.length,
-        });
+        setAvailability({ rideDrivers, deliveryDrivers, totalNearby: drivers.length });
       } catch (err) {
         if (!mounted) return;
         logger.warn("useAvailability", "Erro ao buscar motoristas próximos", err);
         setError("Não foi possível validar disponibilidade local agora.");
       } finally {
-        if (mounted) {
+        if (mounted && isInitial) {
           setLoading(false);
+          initialLoadDone.current = true;
         }
       }
     };
 
-    loadNearbyAvailability();
-    const interval = setInterval(loadNearbyAvailability, pollingInterval);
+    // Fetch inicial com loading visível
+    fetchAvailability(true);
+
+    // Supabase Realtime: atualizações silenciosas sem loading flicker
+    const channel = supabase
+      .channel(`home-nearby-${Date.now()}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "driver_locations" },
+        () => {
+          fetchAvailability(false);
+        }
+      )
+      .subscribe();
 
     return () => {
       mounted = false;
-      clearInterval(interval);
+      supabase.removeChannel(channel);
     };
-  }, [region?.latitude, region?.longitude, userRegion?.latitude, userRegion?.longitude, pollingInterval, radius]);
+  }, [region?.latitude, region?.longitude, userRegion?.latitude, userRegion?.longitude, radius]);
 
-  return {
-    availability,
-    loading,
-    error,
-  };
+  return { availability, loading, error };
 }

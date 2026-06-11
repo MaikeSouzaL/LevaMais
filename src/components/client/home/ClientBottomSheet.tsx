@@ -1,4 +1,4 @@
-﻿import React, { useMemo, useRef, useCallback } from "react";
+import React, { useMemo, useRef, useCallback } from "react";
 import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Dimensions } from "react-native";
 import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import { MotiView } from "moti";

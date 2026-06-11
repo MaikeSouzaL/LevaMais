@@ -1,5 +1,5 @@
-import { supabase } from "../lib/supabase";
-import { requireUserId } from "./supabase-auth.service";
+import { supabase, supabaseAdmin } from "../lib/supabase";
+import { requireUserId } from "./appwrite-auth.service";
 import deliveryService from "./delivery.service";
 import pricingService, { calculateFare, calculateDeliveryFare } from "./pricing.service";
 
@@ -278,6 +278,19 @@ export interface AvailableRideRequestsResponse {
   clientCounteredCount?: number;
 }
 
+/** Contexto de matching do motorista — base do filtro de elegibilidade (listagem + realtime). */
+export interface DriverMatchContext {
+  acceptsCash: boolean;
+  acceptsCard: boolean;
+  acceptsPix: boolean;
+  acceptsWallet: boolean;
+  vehicleType: string | null;
+  allowedServiceTypes: string[];
+  lat: number | null;
+  lng: number | null;
+  radiusMeters: number | null;
+}
+
 export interface PendingNegotiationRequest extends AvailableRideRequest {
   status?: string;
   client?: AvailableRideRequest["client"] & { id?: string };
@@ -311,6 +324,25 @@ export interface DriverStats {
 }
 
 class RideService {
+  private normalizeVehicleType(value?: string | null): string | null {
+    const raw = String(value || "").trim().toLowerCase();
+    if (!raw) return null;
+    const aliases: Record<string, string> = {
+      moto: "motorcycle",
+      motorbike: "motorcycle",
+      motorcycle: "motorcycle",
+      bike: "motorcycle",
+      carro: "car",
+      car: "car",
+      auto: "car",
+      van: "van",
+      truck: "truck",
+      caminhao: "truck",
+      "caminhão": "truck",
+    };
+    return aliases[raw] || raw;
+  }
+
   private mapToRideModel(row: any): Ride {
     return {
       _id: row.id,
@@ -563,7 +595,7 @@ class RideService {
       const { data, error } = await supabase
         .from("driver_locations")
         .select(`
-          id, latitude, longitude, heading, current_vehicle_type, is_online,
+          id, latitude, longitude, heading, current_vehicle_type, service_types, is_online,
           profiles!inner ( full_name, avatar_url, rating ),
           driver_details!inner ( service_types, vehicle_type, status )
         `)
@@ -593,9 +625,9 @@ class RideService {
             rating: Number(d.profiles?.rating ?? 5),
             latitude: Number(d.latitude),
             longitude: Number(d.longitude),
-            type: (d.current_vehicle_type || d.driver_details?.vehicle_type || "car") as any,
+            type: (this.normalizeVehicleType(d.current_vehicle_type || d.driver_details?.vehicle_type) || "car") as any,
             rotation: Number(d.heading || 0),
-            serviceTypes: d.driver_details?.service_types || ["ride", "delivery"],
+            serviceTypes: d.service_types || d.driver_details?.service_types || ["ride", "delivery"],
             distance,
           };
         })
@@ -615,7 +647,7 @@ class RideService {
       .from("rides")
       .insert({
         client_id: userId,
-        service_type: "ride",
+        service_type: data.serviceType,
         vehicle_type: data.vehicleType,
         ride_category: data.rideCategory || null,
         pickup: data.pickup,
@@ -651,9 +683,8 @@ class RideService {
       const { data: ride, error } = await supabase
         .from("rides")
         .select("*")
-        .eq("service_type", "ride")
         .or(`client_id.eq.${userId},driver_id.eq.${userId}`)
-        .not("status", "in", '("completed","cancelled")')
+        .not("status", "in", '("completed","cancelled","cancelled_by_client","cancelled_by_driver","cancelled_no_driver","expired","no_drivers_available")')
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -699,38 +730,185 @@ class RideService {
     }
   }
 
+  /**
+   * Contexto de matching do motorista (veículo, serviços, pagamentos, localização,
+   * raio). Compartilhado entre a listagem e o filtro do realtime para consistência.
+   */
+  async getDriverMatchContext(): Promise<DriverMatchContext> {
+    const { data: { user } } = await supabase.auth.getUser();
+    const ctx: DriverMatchContext = {
+      acceptsCash: true,
+      acceptsCard: true,
+      acceptsPix: true,
+      acceptsWallet: true,
+      vehicleType: null,
+      allowedServiceTypes: ["ride"],
+      lat: null,
+      lng: null,
+      radiusMeters: 30000,
+    };
+    if (!user) return ctx;
+
+    const [driverRes, locationRes] = await Promise.all([
+      supabase
+        .from("driver_details")
+        .select("service_types, vehicle_type, accepts_cash, accepts_card, accepts_pix, accepts_wallet, search_radius_km")
+        .eq("id", user.id)
+        .maybeSingle(),
+      supabase
+        .from("driver_locations")
+        .select("service_types, current_vehicle_type, latitude, longitude")
+        .eq("id", user.id)
+        .maybeSingle(),
+    ]);
+
+    const driver = driverRes.data;
+    const location = locationRes.data;
+
+    if (driver) {
+      ctx.acceptsCash = driver.accepts_cash !== false;
+      ctx.acceptsCard = driver.accepts_card !== false;
+      ctx.acceptsPix = driver.accepts_pix !== false;
+      ctx.acceptsWallet = driver.accepts_wallet !== false;
+      ctx.vehicleType = this.normalizeVehicleType(driver.vehicle_type);
+      if (Array.isArray(driver.service_types) && driver.service_types.length > 0) {
+        ctx.allowedServiceTypes = driver.service_types;
+      }
+      const radiusKm = Number(driver.search_radius_km);
+      ctx.radiusMeters = Number.isFinite(radiusKm) && radiusKm > 0 ? radiusKm * 1000 : 30000;
+    }
+
+    if (location) {
+      ctx.vehicleType = this.normalizeVehicleType(location.current_vehicle_type) || ctx.vehicleType;
+      ctx.lat = Number(location.latitude);
+      ctx.lng = Number(location.longitude);
+      if (Array.isArray(location.service_types) && location.service_types.length > 0) {
+        const locationTypes = new Set(location.service_types);
+        const intersection = ctx.allowedServiceTypes.filter((t: string) => locationTypes.has(t));
+        if (intersection.length > 0) ctx.allowedServiceTypes = intersection;
+      }
+    }
+
+    return ctx;
+  }
+
+  /**
+   * Elegibilidade de um pedido para o motorista (serviço, veículo, pagamento, raio).
+   * MESMA regra na listagem e no realtime — nunca mostra oferta incompatível.
+   */
+  isRideEligible(r: any, ctx: DriverMatchContext): boolean {
+    if (!r) return false;
+
+    const serviceType = String(r.service_type || r.serviceType || "");
+    if (serviceType && !ctx.allowedServiceTypes.includes(serviceType)) return false;
+
+    const rideVehicle = this.normalizeVehicleType(r.vehicle_type || r.vehicleType);
+    if (rideVehicle && ctx.vehicleType && rideVehicle !== ctx.vehicleType) return false;
+
+    const rawPaymentMethod = r.payment?.method ?? "cash";
+    const paymentMethod =
+      typeof rawPaymentMethod === "string" ? rawPaymentMethod : rawPaymentMethod?.type || "cash";
+    if (paymentMethod === "cash" && !ctx.acceptsCash) return false;
+    if ((paymentMethod === "card" || paymentMethod === "credit_card") && !ctx.acceptsCard) return false;
+    if (paymentMethod === "pix" && !ctx.acceptsPix) return false;
+    if ((paymentMethod === "wallet" || paymentMethod === "levapay") && !ctx.acceptsWallet) return false;
+
+    if (ctx.lat != null && ctx.lng != null && ctx.radiusMeters != null) {
+      const rideLat = Number(r.pickup?.latitude);
+      const rideLng = Number(r.pickup?.longitude);
+      if (Number.isFinite(rideLat) && Number.isFinite(rideLng)) {
+        const R = 6371000;
+        const dLat = ((rideLat - ctx.lat) * Math.PI) / 180;
+        const dLon = ((rideLng - ctx.lng) * Math.PI) / 180;
+        const a =
+          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos(ctx.lat * Math.PI / 180) * Math.cos(rideLat * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const distance = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        if (distance > ctx.radiusMeters) return false;
+      }
+    }
+
+    return true;
+  }
+
   async getAvailableRequests(): Promise<AvailableRideRequestsResponse> {
     try {
-      // 1. Obter motorista logado e suas preferências
+      // 1. Obter motorista logado, suas preferências e localização atual
       const { data: { user } } = await supabase.auth.getUser();
       let acceptsCash = true;
       let acceptsCard = true;
       let acceptsPix = true;
-      let driverVehicleType = "car";
+      let acceptsWallet = true;
+      let driverVehicleType: string | null = null;
+      let allowedServiceTypes = ["ride"];
+      let driverLat: number | null = null;
+      let driverLng: number | null = null;
+      let searchRadiusMeters: number | null = null;
 
       if (user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("driver_preferences, vehicle_type")
-          .eq("id", user.id)
-          .maybeSingle();
+        const [driverRes, locationRes] = await Promise.all([
+          supabase
+            .from("driver_details")
+            .select("service_types, vehicle_type, accepts_cash, accepts_card, accepts_pix, accepts_wallet, search_radius_km")
+            .eq("id", user.id)
+            .maybeSingle(),
+          supabase
+            .from("driver_locations")
+            .select("service_types, current_vehicle_type, latitude, longitude")
+            .eq("id", user.id)
+            .maybeSingle(),
+        ]);
+
+        const driver = driverRes.data;
+        const location = locationRes.data;
         
-        if (profile) {
-          const prefs = profile.driver_preferences || {};
-          acceptsCash = prefs.acceptsCash !== false;
-          acceptsCard = prefs.acceptsCardMachine !== false;
-          acceptsPix = prefs.acceptsPix !== false;
-          driverVehicleType = profile.vehicle_type || "car";
+        if (driver) {
+          acceptsCash = driver.accepts_cash !== false;
+          acceptsCard = driver.accepts_card !== false;
+          acceptsPix = driver.accepts_pix !== false;
+          acceptsWallet = driver.accepts_wallet !== false;
+          driverVehicleType = this.normalizeVehicleType(driver.vehicle_type);
+          if (Array.isArray(driver.service_types) && driver.service_types.length > 0) {
+            allowedServiceTypes = driver.service_types;
+          }
+          // Raio de busca configurado pelo motorista (default 30km)
+          const radiusKm = Number(driver.search_radius_km);
+          searchRadiusMeters = Number.isFinite(radiusKm) && radiusKm > 0 ? radiusKm * 1000 : 30000;
+        }
+
+        if (location) {
+          driverVehicleType = this.normalizeVehicleType(location.current_vehicle_type) || driverVehicleType;
+          driverLat = Number(location.latitude);
+          driverLng = Number(location.longitude);
+          // driver_details é a fonte de verdade para service_types.
+          // driver_locations complementa mas NUNCA sobrescreve.
+          if (Array.isArray(location.service_types) && location.service_types.length > 0) {
+            const locationTypes = new Set(location.service_types);
+            const intersection = allowedServiceTypes.filter((t: string) => locationTypes.has(t));
+            if (intersection.length > 0) {
+              allowedServiceTypes = intersection;
+            }
+          }
         }
       }
 
-      // 2. Buscar corridas pendentes do banco
-      const { data: rides, error } = await supabase
+      // 2. Buscar corridas pendentes do banco (usa service_role pra bypass RLS)
+      const { data: rides, error } = await supabaseAdmin
         .from("rides")
         .select("*")
-        .eq("service_type", "ride")
+        .in("service_type", allowedServiceTypes)
         .in("status", ["requesting", "searching_driver"])
         .order("created_at", { ascending: false });
+
+      console.log("[ride.service] getAvailableRequests query:", {
+        allowedServiceTypes,
+        totalFound: rides?.length || 0,
+        error: error?.message,
+        driverLat, driverLng, searchRadiusMeters,
+        driverVehicleType,
+        acceptsCash, acceptsCard, acceptsPix, acceptsWallet,
+      });
 
       if (error) {
         if (error.code === "42P01" || error.code === "PGRST205") {
@@ -739,22 +917,49 @@ class RideService {
         throw error;
       }
 
-      // 3. Filtrar baseado no veículo e forma de pagamento do motorista
+      // 3. Filtrar baseado no veículo, forma de pagamento e DISTÂNCIA do motorista
       const filteredRides = (rides || []).filter((r: any) => {
         // Filtrar tipo de veículo
-        const rideVehicle = r.vehicle_type || "car";
-        if (rideVehicle !== driverVehicleType) return false;
+        const rideVehicle = this.normalizeVehicleType(r.vehicle_type);
+        if (rideVehicle && driverVehicleType && rideVehicle !== driverVehicleType) return false;
 
         // Filtrar método de pagamento
-        const paymentMethod = r.payment?.method || "cash";
+        const rawPaymentMethod = r.payment?.method || "cash";
+        const paymentMethod =
+          typeof rawPaymentMethod === "string"
+            ? rawPaymentMethod
+            : rawPaymentMethod?.type || "cash";
         if (paymentMethod === "cash" && !acceptsCash) return false;
-        if (paymentMethod === "card" && !acceptsCard) return false;
-        if ((paymentMethod === "wallet" || paymentMethod === "levapay") && !acceptsPix) return false;
+        if ((paymentMethod === "card" || paymentMethod === "credit_card") && !acceptsCard) return false;
+        if (paymentMethod === "pix" && !acceptsPix) return false;
+        if ((paymentMethod === "wallet" || paymentMethod === "levapay") && !acceptsWallet) return false;
+
+        // Filtrar por distância (geospatial) — só mostra corridas próximas ao motorista
+        if (driverLat != null && driverLng != null && searchRadiusMeters != null) {
+          const rideLat = Number(r.pickup?.latitude);
+          const rideLng = Number(r.pickup?.longitude);
+          if (Number.isFinite(rideLat) && Number.isFinite(rideLng)) {
+            const R = 6371000;
+            const dLat = (rideLat - driverLat) * Math.PI / 180;
+            const dLon = (rideLng - driverLng) * Math.PI / 180;
+            const a =
+              Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(driverLat * Math.PI / 180) * Math.cos(rideLat * Math.PI / 180) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+            const distance = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            if (distance > searchRadiusMeters) return false;
+          }
+        }
 
         return true;
       });
 
-      const requests = filteredRides.map((r) => {
+      console.log("[ride.service] getAvailableRequests after filtering:", {
+        beforeFilter: rides?.length || 0,
+        afterFilter: filteredRides.length,
+      });
+
+      const requests = filteredRides.map((r: any) => {
         const ride = this.mapToRideModel(r);
         return {
           rideId: ride._id,
@@ -766,6 +971,9 @@ class RideService {
           serviceType: ride.serviceType,
           vehicleType: ride.vehicleType,
           requestedAt: ride.requestedAt,
+          payment: ride.payment,
+          details: ride.details,
+          isWaitingInQueue: ride.isWaitingInQueue,
           negotiation: ride.negotiation,
         };
       });
@@ -845,8 +1053,7 @@ class RideService {
       // mostrar corridas E entregas (cada item carrega o serviceType para a UI).
       let query = supabase
         .from("rides")
-        .select("*", { count: "exact" })
-        .or(`client_id.eq.${userId},driver_id.eq.${userId}`);
+        .select("*", { count: "exact" });
 
       if (params?.status) {
         query = query.eq("status", params.status);
@@ -860,6 +1067,7 @@ class RideService {
         if (error.code === "42P01" || error.code === "PGRST205") {
           return { rides: [], pagination: { total: 0, page, limit, pages: 0 } };
         }
+        console.error("[getHistory] supabase query error:", error);
         throw error;
       }
 
@@ -875,7 +1083,8 @@ class RideService {
           pages,
         },
       };
-    } catch {
+    } catch (err) {
+      console.error("[getHistory] catch block error:", err);
       const limit = params?.limit || 10;
       const page = params?.page || 1;
       return { rides: [], pagination: { total: 0, page, limit, pages: 0 } };
@@ -957,15 +1166,15 @@ class RideService {
 
       // Credita o motorista
       try {
-        const { data: details } = await supabase
-          .from("driver_details")
-          .select("balance")
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("wallet_balance")
           .eq("id", ride.driver_id)
           .single();
-        const newDriverBalance = Number(details?.balance || 0) + appliedFee;
+        const newDriverBalance = Number(profile?.wallet_balance || 0) + appliedFee;
         await supabase
-          .from("driver_details")
-          .update({ balance: newDriverBalance })
+          .from("profiles")
+          .update({ wallet_balance: newDriverBalance })
           .eq("id", ride.driver_id);
 
         // Insere transação de crédito do motorista
@@ -1152,9 +1361,9 @@ class RideService {
                   await supabase.from("profiles").update({ wallet_balance: newClientBal }).eq("id", rd.client_id);
 
                   // Credita motorista
-                  const { data: drDetails } = await supabase.from("driver_details").select("balance").eq("id", rd.driver_id).single();
-                  const newDrBal = Number(drDetails?.balance || 0) + driverEarnings;
-                  await supabase.from("driver_details").update({ balance: newDrBal }).eq("id", rd.driver_id);
+                  const { data: drProfile } = await supabase.from("profiles").select("wallet_balance").eq("id", rd.driver_id).single();
+                  const newDrBal = Number(drProfile?.wallet_balance || 0) + driverEarnings;
+                  await supabase.from("profiles").update({ wallet_balance: newDrBal }).eq("id", rd.driver_id);
 
                   // Lança transações
                   await supabase.from("wallet_transactions").insert([
@@ -1163,9 +1372,9 @@ class RideService {
                   ]);
                 } else {
                   // Dinheiro / Cartão: debita taxa do saldo do motorista
-                  const { data: drDetails } = await supabase.from("driver_details").select("balance").eq("id", rd.driver_id).single();
-                  const newDrBal = Number(drDetails?.balance || 0) - appFee;
-                  await supabase.from("driver_details").update({ balance: newDrBal }).eq("id", rd.driver_id);
+                  const { data: drProfile } = await supabase.from("profiles").select("wallet_balance").eq("id", rd.driver_id).single();
+                  const newDrBal = Number(drProfile?.wallet_balance || 0) - appFee;
+                  await supabase.from("profiles").update({ wallet_balance: newDrBal }).eq("id", rd.driver_id);
 
                   // Lança transação
                   await supabase.from("wallet_transactions").insert({
@@ -1461,12 +1670,19 @@ class RideService {
       .eq("id", userId)
       .maybeSingle();
 
+    const { data: loc } = await supabase
+      .from("driver_locations")
+      .select("online_time")
+      .eq("id", userId)
+      .maybeSingle();
+
     return {
       earnings,
       rides: today.length,
       goal: 0,
       bonus: 0,
       rating: Number(profile?.rating ?? 5),
+      onlineTime: loc?.online_time || 0,
       totalRides: all.length,
       completedRides: all.length,
     };

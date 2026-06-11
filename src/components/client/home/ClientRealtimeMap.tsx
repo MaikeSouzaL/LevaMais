@@ -30,6 +30,7 @@ const mapSoftDarkStyle = [
 ];
 
 import rideService from "@/services/ride.service";
+import { supabase } from "@/lib/supabase";
 
 interface RealtimeVehicle {
   id: string;
@@ -71,34 +72,61 @@ export const ClientRealtimeMap = memo(({
 
   const [vehicles, setVehicles] = useState<RealtimeVehicle[]>([]);
 
-  // ⚡ Obter motoristas reais online do banco de dados (sem simulação falsa)
+  // ⚡ Motoristas reais online em TEMPO REAL (sem polling): carrega uma vez e reage
+  // a mudanças em driver_locations via Realtime. O refresh é debounced para coalescer
+  // rajadas (vários motoristas movendo ao mesmo tempo) sem martelar o Supabase.
   useEffect(() => {
     if (!userRegion?.latitude || !userRegion?.longitude) return;
+    let mounted = true;
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
     const fetchRealDrivers = async () => {
       try {
         const driversList = await rideService.getNearbyDrivers(
           userRegion.latitude,
           userRegion.longitude,
-          8000 // Busca motoristas em um raio de até 8km
+          8000, // raio de até 8km
         );
-        const mapped = driversList.map((d: any) => ({
-          id: d.id,
-          type: d.type || "car",
-          lat: d.latitude,
-          lng: d.longitude,
-          rotation: d.rotation || 0,
-        }));
-        setVehicles(mapped);
+        if (!mounted) return;
+        setVehicles(
+          driversList.map((d: any) => ({
+            id: d.id,
+            type: d.type || "car",
+            lat: d.latitude,
+            lng: d.longitude,
+            rotation: d.rotation || 0,
+          })),
+        );
       } catch (err) {
         console.warn("[ClientRealtimeMap] Error getting real drivers", err);
       }
     };
 
+    // Carga inicial
     fetchRealDrivers();
-    const interval = setInterval(fetchRealDrivers, 6000);
 
-    return () => clearInterval(interval);
+    // Atualiza ao haver qualquer mudança nas posições/disponibilidade dos motoristas
+    const scheduleRefresh = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        if (mounted) fetchRealDrivers();
+      }, 1500);
+    };
+
+    const channel = supabase
+      .channel(`nearby-drivers-${Date.now()}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "driver_locations" },
+        scheduleRefresh,
+      )
+      .subscribe();
+
+    return () => {
+      mounted = false;
+      if (debounceTimer) clearTimeout(debounceTimer);
+      supabase.removeChannel(channel);
+    };
   }, [userRegion?.latitude, userRegion?.longitude]);
 
   useEffect(() => {

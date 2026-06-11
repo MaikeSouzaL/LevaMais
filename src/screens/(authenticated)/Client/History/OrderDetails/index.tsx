@@ -29,6 +29,7 @@ import rideService, { Ride } from "@/services/ride.service";
 import disputeService, { DisputeCategory } from "@/services/dispute.service";
 import Toast from "react-native-toast-message";
 import { formatBRL } from "@/utils/mappers";
+import { getPaymentLabel } from "@/utils/payment";
 import { ClientStackParamList } from "../../types/navigation";
 
 function formatDateTime(value?: string): string {
@@ -439,15 +440,7 @@ export default function OrderDetailsScreen() {
           {ride.payment?.method && (
             <InfoRow
               label="Método de pagamento"
-              value={
-                ride.payment.method === "pix"
-                  ? "Pix"
-                  : ride.payment.method === "cash"
-                  ? "Dinheiro"
-                  : ride.payment.method === "wallet"
-                  ? "Saldo/Carteira"
-                  : "Cartão"
-              }
+              value={getPaymentLabel(ride.payment)}
             />
           )}
           <View style={{ height: 1, backgroundColor: "rgba(0,0,0,0.06)", marginVertical: 6 }} />

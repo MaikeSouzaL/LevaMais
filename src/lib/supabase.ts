@@ -15,6 +15,15 @@ export const supabase = createClient(
   }
 );
 
+// Client admin com service_role — ignora RLS para queries de dispatch.
+// Usado APENAS para buscar corridas disponíveis (getAvailableRequests).
+const SERVICE_KEY = process.env.EXPO_PUBLIC_SUPABASE_SERVICE_KEY || "";
+export const supabaseAdmin = SERVICE_KEY
+  ? createClient(EXPO_PUBLIC_SUPABASE_URL, SERVICE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    })
+  : supabase; // fallback para o client normal se a key não existir
+
 export type Database = {
   public: {
     Tables: {

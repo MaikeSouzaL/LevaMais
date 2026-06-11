@@ -65,7 +65,7 @@ export default function DeliveryOfferScreen() {
     };
 
     const channel = supabase
-      .channel(`delivery-offer:${offer._id}`)
+      .channel(`delivery-offer:${offer._id}:${Math.random().toString(36).slice(2)}`)
       .on(
         "postgres_changes",
         {

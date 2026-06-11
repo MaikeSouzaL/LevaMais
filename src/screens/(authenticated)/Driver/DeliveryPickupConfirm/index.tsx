@@ -31,7 +31,11 @@ export default function DeliveryPickupConfirm() {
         setRide(data);
       } catch {
         Toast.show({ type: "error", text1: "Erro ao carregar entrega" });
-        navigation.goBack();
+        if (navigation.canGoBack()) {
+          navigation.goBack();
+        } else {
+          (navigation as any).navigate("DriverRide", { rideId });
+        }
       } finally {
         setLoading(false);
       }
@@ -72,7 +76,11 @@ export default function DeliveryPickupConfirm() {
       Toast.show({ type: "success", text1: "Coleta confirmada!" });
 
       // Volta pra tela do mapa (DriverRide) — motorista verá rota até o destino + botão "CHEGUEI NO DESTINO"
-      navigation.goBack();
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        (navigation as any).navigate("DriverRide", { rideId });
+      }
     } catch (error) {
       console.error("Erro ao confirmar coleta:", error);
       Toast.show({ type: "error", text1: "Erro ao confirmar coleta" });

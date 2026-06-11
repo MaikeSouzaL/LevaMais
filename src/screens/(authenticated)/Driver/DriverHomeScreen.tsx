@@ -825,11 +825,12 @@ export default function DriverHomeScreen() {
     setOnline(true);
   };
 
-  // Supabase Realtime: listen for new/updated rides when driver is online
+  // Supabase Realtime: listen for new/updated rides when driver is online.
+  // Mantém o canal ativo mesmo sem foco — motorista pode estar em outra aba do app.
   useEffect(() => {
     let mounted = true;
 
-    if (!online || !isFocused) {
+    if (!online) {
       return () => {
         mounted = false;
       };
@@ -837,9 +838,11 @@ export default function DriverHomeScreen() {
 
     const currentDriverId = useAuthStore.getState().userData?.id;
     const dedupMap = cancellationDedupRef.current;
+    // Nome único por ciclo de efeito para evitar conflito "cannot add callbacks after subscribe"
+    const channelName = `driver-new-rides-${Date.now()}`;
 
     const channel = supabase
-      .channel("driver-new-rides")
+      .channel(channelName)
       .on(
         "postgres_changes",
         {
@@ -850,17 +853,22 @@ export default function DriverHomeScreen() {
         async (payload) => {
           if (!mounted || !isFocused) return;
           const row = payload.new as any;
+          console.log("[DriverHome] Realtime INSERT received", { rideId: row.id, status: row.status, serviceType: row.service_type, vehicleType: row.vehicle_type });
           // Only handle rides in 'requesting' state with no driver yet
           if (row.status === "requesting" && !row.driver_id) {
             try {
               const active = await rideService.getActive();
               if (active?.active && active.ride?._id) {
+                console.log("[DriverHome] Skipping — already has active ride", { activeRideId: active.ride._id });
                 await clearIncoming();
                 (navigation as any).replace("DriverRide", { rideId: active.ride._id });
                 return;
               }
             } catch {}
+            console.log("[DriverHome] Fetching available requests...");
             syncAvailableRequests().catch(() => {});
+          } else {
+            console.log("[DriverHome] Realtime INSERT ignored", { status: row.status, hasDriver: !!row.driver_id });
           }
         },
       )
@@ -986,7 +994,9 @@ export default function DriverHomeScreen() {
     };
   }, [online, isFocused]);
 
+  // Supabase Realtime para notificações instantâneas de novas corridas
   useEffect(() => {
+    let mounted = true;
     if (!online || !isFocused) {
       if (pendingSyncIntervalRef.current) {
         clearInterval(pendingSyncIntervalRef.current);
@@ -995,19 +1005,44 @@ export default function DriverHomeScreen() {
       return;
     }
 
+    // Primeira sincronização imediata
     syncAvailableRequests().catch(() => {});
+
+    // Fallback de segurança bem espaçado (30s) para garantir resiliência
     if (pendingSyncIntervalRef.current) {
       clearInterval(pendingSyncIntervalRef.current);
     }
     pendingSyncIntervalRef.current = setInterval(() => {
-      syncAvailableRequests().catch(() => {});
-    }, 6000);
+      if (mounted) syncAvailableRequests().catch(() => {});
+    }, 30000);
+
+    // Supabase Realtime Subscription na tabela 'rides'
+    const channelName = `driver-home-rides-${Math.random().toString(36).slice(2)}`;
+    const ridesChannel = supabase
+      .channel(channelName)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "rides" },
+        () => {
+          if (mounted) syncAvailableRequests().catch(() => {});
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "rides" },
+        () => {
+          if (mounted) syncAvailableRequests().catch(() => {});
+        }
+      )
+      .subscribe();
 
     return () => {
+      mounted = false;
       if (pendingSyncIntervalRef.current) {
         clearInterval(pendingSyncIntervalRef.current);
         pendingSyncIntervalRef.current = null;
       }
+      supabase.removeChannel(ridesChannel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [online, isFocused]);

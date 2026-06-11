@@ -26,7 +26,7 @@ import {
   signInWithEmail,
   signInWithGoogle,
   getProfile,
-} from "../../../services/supabase-auth.service";
+} from "../../../services/appwrite-auth.service";
 import { useAuthStore } from "../../../context/authStore";
 import {
   GoogleSignin,
@@ -117,13 +117,12 @@ export default function SignInScreen() {
         return;
       }
 
-      const profile = await getProfile(user.id);
+      const profile = await getProfile(user.$id);
 
-      // Novo usuário sem role → verificação de telefone → escolher perfil
       if (!profile?.role) {
         const googleUserData = {
-          _id: user.id,
-          name: profile?.full_name || user.user_metadata?.full_name || "",
+          _id: user.$id,
+          name: user.name || "",
           email: user.email || "",
           phone: profile?.phone || "",
           city: profile?.city || "",
@@ -133,7 +132,7 @@ export default function SignInScreen() {
           phone: profile?.phone || "",
           askForPhone: !profile?.phone,
           nextScreen: "PhoneLocationSetup",
-          nextParams: { user: googleUserData, token: session.access_token },
+          nextParams: { user: googleUserData, token: session.secret },
         });
         return;
       }
@@ -141,16 +140,16 @@ export default function SignInScreen() {
       useAuthStore.getState().login(
         profile.role as "client" | "driver",
         {
-          id: user.id,
-          name: profile.full_name || "",
-          nome: profile.full_name || "",
+          id: user.$id,
+          name: user.name || "",
+          nome: user.name || "",
           email: user.email || "",
           telefone: profile.phone || "",
           cidade: profile.city || "",
-          fotoPerfil: profile.avatar_url || undefined,
+          fotoPerfil: profile.avatar || undefined,
           aceitouTermos: profile.accepted_terms,
         },
-        session.access_token,
+        session.secret,
       );
 
       Toast.show({
@@ -183,20 +182,20 @@ export default function SignInScreen() {
         return;
       }
 
-      const profile = await getProfile(user.id);
+      const profile = await getProfile(user.$id);
 
       if (!profile?.role) {
         navigation.navigate("SelectProfile", {
-          supabaseUserId: user.id,
+          supabaseUserId: user.$id,
           user: {
-            _id: user.id,
-            name: profile?.full_name || "",
+            _id: user.$id,
+            name: user.name || "",
             email: user.email || "",
             phone: profile?.phone || "",
             city: profile?.city || "",
             acceptedTerms: false,
           },
-          token: session.access_token,
+          token: session.secret,
         });
         return;
       }
@@ -204,22 +203,22 @@ export default function SignInScreen() {
       useAuthStore.getState().login(
         profile.role as "client" | "driver",
         {
-          id: user.id,
-          name: profile.full_name || "",
-          nome: profile.full_name || "",
+          id: user.$id,
+          name: user.name || "",
+          nome: user.name || "",
           email: user.email || "",
           telefone: profile.phone || "",
           cidade: profile.city || "",
-          fotoPerfil: profile.avatar_url || undefined,
+          fotoPerfil: profile.avatar || undefined,
           aceitouTermos: profile.accepted_terms,
         },
-        session.access_token,
+        session.secret,
       );
 
       Toast.show({
         type: "success",
         text1: "Login realizado com sucesso!",
-        text2: `Bem-vindo, ${profile.full_name}!`,
+        text2: `Bem-vindo, ${user.name}!`,
       });
     } catch (error: any) {
       Toast.show({

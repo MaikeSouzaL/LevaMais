@@ -31,7 +31,11 @@ export default function DeliveryDropoffConfirm() {
         setRide(data);
       } catch {
         Toast.show({ type: "error", text1: "Erro ao carregar entrega" });
-        navigation.goBack();
+        if (navigation.canGoBack()) {
+          navigation.goBack();
+        } else {
+          (navigation as any).navigate("DriverRide", { rideId });
+        }
       } finally {
         setLoading(false);
       }

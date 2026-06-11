@@ -1,5 +1,5 @@
 import { supabase } from "../lib/supabase";
-import { requireUserId } from "./supabase-auth.service";
+import { requireUserId } from "./appwrite-auth.service";
 
 export interface Withdrawal {
   _id: string;
@@ -44,16 +44,16 @@ class WalletService {
   async getBalance(): Promise<Balance> {
     const userId = await requireUserId();
 
-    // 1. Get balance, total_earnings from driver_details
-    const { data: details, error: detailsError } = await supabase
-      .from("driver_details")
-      .select("balance, total_earnings")
+    // 1. Get balance from profiles
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("wallet_balance")
       .eq("id", userId)
       .maybeSingle();
 
-    if (detailsError) {
-      if (detailsError.code !== "42P01" && detailsError.code !== "PGRST205") {
-        throw detailsError;
+    if (profileError) {
+      if (profileError.code !== "42P01" && profileError.code !== "PGRST205") {
+        throw profileError;
       }
     }
 
@@ -76,9 +76,9 @@ class WalletService {
     }
 
     return {
-      totalEarnings: Number(details?.total_earnings || 0),
+      totalEarnings: 0,
       totalWithdrawn,
-      available: Number(details?.balance || 0),
+      available: Number(profile?.wallet_balance || 0),
     };
   }
 
@@ -89,23 +89,23 @@ class WalletService {
     const userId = await requireUserId();
 
     // 1. Check current driver balance
-    const { data: details, error: detailsError } = await supabase
-      .from("driver_details")
-      .select("balance")
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("wallet_balance")
       .eq("id", userId)
       .maybeSingle();
 
-    if (detailsError) throw detailsError;
+    if (profileError) throw profileError;
 
-    const currentBalance = Number(details?.balance || 0);
+    const currentBalance = Number(profile?.wallet_balance || 0);
     if (currentBalance < amount) {
       throw new Error("Saldo insuficiente");
     }
 
-    // 2. Deduct amount from driver_details
+    // 2. Deduct amount from profiles
     const { error: updateError } = await supabase
-      .from("driver_details")
-      .update({ balance: currentBalance - amount })
+      .from("profiles")
+      .update({ wallet_balance: currentBalance - amount })
       .eq("id", userId);
 
     if (updateError) throw updateError;

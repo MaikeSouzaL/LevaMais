@@ -22,6 +22,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/context/authStore";
 import { useChatStore } from "@/context/chatStore";
 import { resolveAssetURL } from "@/utils/mappers";
+import { getPaymentMethodType } from "@/utils/payment";
 
 const getMemberSince = (dateStr?: string) => {
   if (!dateStr) return "";
@@ -239,9 +240,11 @@ export default function DeliveryTracking() {
       }
     };
 
-    // Supabase Realtime: escuta mudanças na corrida
+    // Supabase Realtime: escuta mudanças na corrida.
+    // Nome de canal ÚNICO por instância: evita "cannot add postgres_changes callbacks
+    // after subscribe()" quando o efeito re-roda antes do removeChannel (async) concluir.
     const rideChannel = supabase
-      .channel(`ride-delivery:${rideIdRef.current}`)
+      .channel(`ride-delivery:${rideIdRef.current}:${Math.random().toString(36).slice(2)}`)
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "rides", filter: `id=eq.${rideIdRef.current}` },
@@ -266,12 +269,8 @@ export default function DeliveryTracking() {
       onNewMsg(msg);
     });
 
-    // Polling fallback every 4 seconds
-    const interval = setInterval(loadRide, 4000);
-
     return () => {
       mountedRef.current = false;
-      clearInterval(interval);
       supabase.removeChannel(rideChannel);
       cleanupChat();
       if (notificationTimeoutRef.current) {
@@ -314,7 +313,7 @@ export default function DeliveryTracking() {
     if (!driverId) return;
 
     const channel = supabase
-      .channel(`driver-location-delivery:${driverId}`)
+      .channel(`driver-location-delivery:${driverId}:${Math.random().toString(36).slice(2)}`)
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "driver_locations", filter: `id=eq.${driverId}` },
@@ -718,7 +717,7 @@ export default function DeliveryTracking() {
         className="px-4 pt-3.5 bg-[#091A2F] border-t border-white/[0.06]"
         style={{ paddingBottom: Math.max(insets.bottom, 12) + 8 }}
       >
-        {ride?.payment?.method?.toLowerCase() === "pix" && !!ride?.payment?.pixCode && ride?.payment?.status !== "paid" && (
+        {getPaymentMethodType(ride?.payment) === "pix" && !!ride?.payment?.pixCode && ride?.payment?.status !== "paid" && (
           <TouchableOpacity
             activeOpacity={0.8}
             className="mb-3 w-full flex-row items-center justify-center gap-2.5 h-14 rounded-2xl bg-[#32BCAD] shadow-lg shadow-[#32BCAD]/15"

@@ -102,7 +102,7 @@ export function useDriverSearch(rideId?: string) {
     if (!searchingState.visible || !currentRideId) return;
 
     const channel = supabase
-      .channel(`driver-search:${currentRideId}`)
+      .channel(`driver-search:${currentRideId}:${Math.random().toString(36).slice(2)}`)
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "rides", filter: `id=eq.${currentRideId}` },

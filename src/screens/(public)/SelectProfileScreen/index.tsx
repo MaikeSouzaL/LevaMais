@@ -21,8 +21,8 @@ import {
   updateMyProfile,
   createDriverDetails,
   getProfile,
-} from "../../../services/supabase-auth.service";
-import { supabase } from "../../../lib/supabase";
+} from "../../../services/appwrite-auth.service";
+import { account } from "../../../lib/appwrite";
 
 // UI Tokens
 import { colors } from "../../../theme/colors";
@@ -75,18 +75,16 @@ export default function SelectProfileScreen() {
 
     try {
       // Scenario A: já autenticado via Google ou login prévio.
-      // Verifica a sessão real do Supabase — se existir, é cenário A (update),
+      // Verifica a sessão real do Appwrite — se existir, é cenário A (update),
       // caso contrário cai no cadastro manual (cenário B).
-      const { data: { user: sessionUser } } = await supabase.auth.getUser();
+      const sessionUser = await account.get().catch(() => null);
 
       if (sessionUser) {
-        const existingId = sessionUser.id;
+        const existingId = sessionUser.$id;
 
         await updateMyProfile({
           role: choice,
           phone: user.phone,
-          city: user.city,
-          full_name: user.name,
         });
 
         if (choice === "driver") {
@@ -104,7 +102,7 @@ export default function SelectProfileScreen() {
             cidade: user.city || "",
             fotoPerfil: user.profilePhoto,
             aceitouTermos: false,
-            driverStatus: choice === "driver" ? "none" : undefined,
+            driverStatus: choice === "driver" ? "pending" : undefined,
           },
           initialToken || "",
         );
@@ -117,16 +115,15 @@ export default function SelectProfileScreen() {
         return;
       }
 
-      // Scenario B: cadastro manual — cria conta no Supabase
-      const { session, user: sbUser } = await signUpWithEmail(
+      // Scenario B: cadastro manual — cria conta no Appwrite
+      const { session, user: awUser } = await signUpWithEmail(
         user.email,
         user.password || "",
         user.name,
         user.phone,
-        user.city,
       );
 
-      if (!session || !sbUser) {
+      if (!session || !awUser) {
         Toast.show({
           type: "error",
           text1: "Erro ao criar conta",
@@ -135,30 +132,28 @@ export default function SelectProfileScreen() {
         return;
       }
 
-      await updateProfile(sbUser.id, {
+      await updateProfile(awUser.$id, {
         role: choice,
         phone: user.phone,
-        city: user.city,
-        full_name: user.name,
       });
 
       if (choice === "driver") {
-        await createDriverDetails(sbUser.id).catch(() => {});
+        await createDriverDetails(awUser.$id).catch(() => {});
       }
 
       login(
         choice,
         {
-          id: sbUser.id,
+          id: awUser.$id,
           name: user.name,
           nome: user.name,
           email: user.email,
           telefone: user.phone || "",
           cidade: user.city || "",
           aceitouTermos: false,
-          driverStatus: choice === "driver" ? "none" : undefined,
+          driverStatus: choice === "driver" ? "pending" : undefined,
         },
-        session.access_token,
+        session.secret,
       );
 
       Toast.show({

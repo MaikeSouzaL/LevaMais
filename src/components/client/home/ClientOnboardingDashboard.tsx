@@ -8,14 +8,14 @@ import { LinearGradient } from "expo-linear-gradient";
 
 import { useAuthStore } from "@/context/authStore";
 import { colors } from "@/theme/colors";
-import { supabase } from "@/lib/supabase";
+import { account } from "@/lib/appwrite";
 import {
   getProfile,
   saveClientKyc,
   uploadClientSelfie,
   getKycSelfieUrl,
   updateMyProfile,
-} from "@/services/supabase-auth.service";
+} from "@/services/appwrite-auth.service";
 import { getCurrentLocationAndAddress } from "@/utils/location";
 import * as ImagePicker from "expo-image-picker";
 
@@ -119,10 +119,10 @@ export default function ClientOnboardingDashboard({ onContinue }: { onContinue: 
   const handleFaceVerificationSuccess = async (asset: ImagePicker.ImagePickerAsset) => {
     try {
       setUploadingSelfie(true);
-      if (!asset.base64) throw new Error("Imagem inválida (sem dados).");
+      if (!asset.uri) throw new Error("Imagem inválida (sem caminho local).");
 
-      // Upload para o Supabase Storage (bucket privado kyc/{uid}/selfie.jpg)
-      const { kyc_status } = await uploadClientSelfie(asset.base64);
+      // Upload para o Storage do Appwrite
+      const { kyc_status } = await uploadClientSelfie(asset.uri);
 
       // Recarrega status para obter URL assinada e refletir aprovação
       await loadClientStatus();
@@ -143,12 +143,12 @@ export default function ClientOnboardingDashboard({ onContinue }: { onContinue: 
 
   const loadClientStatus = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await account.get().catch(() => null);
       if (!user) {
         setLoading(false);
         return;
       }
-      const profile = await getProfile(user.id).catch(() => null);
+      const profile = await getProfile(user.$id).catch(() => null);
       if (profile) {
         const hasDoc = Boolean(profile.cpf || profile.cnpj);
         const selfiePath = profile.selfie_url || null;

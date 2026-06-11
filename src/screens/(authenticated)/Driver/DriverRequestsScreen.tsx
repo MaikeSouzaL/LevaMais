@@ -24,7 +24,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "../../../context/authStore";
 import driverAlertService from "../../../services/driverAlert.service";
-import rideService from "../../../services/ride.service";
+import rideService, { type DriverMatchContext } from "../../../services/ride.service";
 import driverLocationService from "../../../services/driverLocation.service";
 import driverService from "../../../services/driver.service";
 import Toast from "react-native-toast-message";
@@ -102,6 +102,9 @@ export default function DriverRequestsScreen() {
   const navigation = useNavigation();
   const route = useRoute<any>();
   const insets = useSafeAreaInsets();
+  // Contexto de matching do motorista (veículo/serviço/pagamento/raio) para filtrar
+  // o realtime exatamente como a listagem — nunca mostra oferta incompatível.
+  const matchCtxRef = React.useRef<DriverMatchContext | null>(null);
 
   // Ã°Å¸â€Â Lock native header to implement premium transparent operational HUD
   useEffect(() => {
@@ -212,16 +215,10 @@ export default function DriverRequestsScreen() {
             vehicleType: me?.vehicleType,
             serviceTypes: Array.isArray(me?.serviceTypes) ? me.serviceTypes : [],
           });
-          const isOnline = me?.status === "available";
-          const hasAnyService =
-            Array.isArray(me?.serviceTypes) && me.serviceTypes.length > 0;
-
-          if (!isOnline || !hasAnyService) {
-            (navigation as any).navigate("DriverHome");
-          }
+          // Não redireciona mais pra Home — motorista pode ver a tela mesmo offline
         } catch {
           if (!active) return;
-          (navigation as any).navigate("DriverHome");
+          // Silencioso — não redireciona
         }
       })();
 
@@ -297,28 +294,20 @@ export default function DriverRequestsScreen() {
 
         if (!isOnline || !hasAnyService) {
           Toast.show({
-            type: "error",
+            type: "info",
             text1: "Fique online para receber solicitações",
-            text2: "Você precisa iniciar seu turno para responder às ofertas.",
+            text2: "Ative o modo online na tela inicial para começar a receber chamados.",
           });
-
-          try {
-            (navigation as any).navigate("DriverHome");
-          } catch {}
-          return;
+          // Não redireciona — motorista pode ver pedidos pendentes mesmo offline
+        } else {
+          await syncAvailableRequests();
         }
-
-        await syncAvailableRequests();
       } catch {
         Toast.show({
-          type: "error",
-          text1: "Atualize sua localização primeiro",
+          type: "info",
+          text1: "Atualize sua localização",
           text2: "Volte para a tela inicial e ative o modo online.",
         });
-
-        try {
-          (navigation as any).navigate("DriverHome");
-        } catch {}
       }
     })();
 
@@ -427,8 +416,11 @@ export default function DriverRequestsScreen() {
       );
     };
 
+    // Carrega o contexto de matching uma vez (atualizado também ao sincronizar).
+    rideService.getDriverMatchContext().then((c) => { matchCtxRef.current = c; }).catch(() => {});
+
     const channel = supabase
-      .channel("requests-screen-rides")
+      .channel(`requests-screen-${Date.now()}`)
       .on(
         "postgres_changes",
         {
@@ -439,7 +431,10 @@ export default function DriverRequestsScreen() {
         (payload) => {
           if (!mounted) return;
           const row = payload.new as any;
-          if (row.status === "requesting" && !row.driver_id) {
+          // Mesmo filtro da listagem: só pedidos compatíveis (serviço/veículo/pagamento/raio).
+          const ctx = matchCtxRef.current;
+          const eligible = ctx ? rideService.isRideEligible(row, ctx) : true;
+          if (row.status === "requesting" && !row.driver_id && eligible) {
             onNewRide({
               rideId: row.id,
               status: row.status,
@@ -484,15 +479,8 @@ export default function DriverRequestsScreen() {
       )
       .subscribe();
 
-    const pollInterval = setInterval(() => {
-      if (mounted) {
-        syncAvailableRequests().catch(() => {});
-      }
-    }, 6000);
-
     return () => {
       mounted = false;
-      clearInterval(pollInterval);
       supabase.removeChannel(channel);
       driverAlertService.stop().catch(() => {});
     };

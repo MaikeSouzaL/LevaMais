@@ -12,7 +12,7 @@ import {
   getProfile,
   updateMyProfile,
   getMyDriverDetails,
-} from "@/services/supabase-auth.service";
+} from "@/services/appwrite-auth.service";
 import { useAuthStore } from "@/context/authStore";
 import { colors } from "@/theme/colors";
 import { getCurrentLocationAndAddress } from "@/utils/location";
@@ -217,7 +217,7 @@ export default function DriverOnboardingDashboard() {
 
         // Seed fields
         setCpfInput(profile.cpf ? formatCPF(profile.cpf) : "");
-        setNameInput("");
+        setNameInput(profile.full_name || "");
         setCnpjInput(profile.cnpj ? formatCNPJ(profile.cnpj) : "");
         setPhoneInput(profile.phone ? formatPhone(profile.phone) : "");
         setCompanyNameInput(profile.company_name || "");

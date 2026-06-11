@@ -242,7 +242,7 @@ export function ActiveDeliveryBottomSheet({
         </View>
       )}
 
-      {paymentLabel?.toLowerCase() === "pix" && (status === "in_progress" || canComplete) && onShowPix && (
+      {String(paymentLabel || "").toLowerCase() === "pix" && (status === "in_progress" || canComplete) && onShowPix && (
         <View className="px-5 mt-2">
           <TouchableOpacity
             onPress={onShowPix}

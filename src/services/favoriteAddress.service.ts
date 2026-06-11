@@ -1,5 +1,5 @@
 import { supabase } from "../lib/supabase";
-import { requireUserId } from "./supabase-auth.service";
+import { requireUserId } from "./appwrite-auth.service";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const LOCAL_FAVORITES_KEY = "@LevaMais:favorite_addresses";

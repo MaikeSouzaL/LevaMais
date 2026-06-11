@@ -634,7 +634,7 @@ export default function DriverNegotiationScreen() {
 
     // Supabase Realtime — assina UPDATE em rides WHERE id = offer._id
     const channel = supabase
-      .channel(`ride:${offer._id}`)
+      .channel(`ride:${offer._id}:${Math.random().toString(36).slice(2)}`)
       .on(
         'postgres_changes',
         {

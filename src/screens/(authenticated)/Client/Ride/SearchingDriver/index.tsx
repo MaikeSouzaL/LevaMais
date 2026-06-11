@@ -300,13 +300,10 @@ export default function SearchingDriverScreen() {
            return;
         }
 
-        if (String(ride.status || "") === "payment_pending") {
-          doneRef.current = true;
-          clearInterval(pollInterval);
-          cleanup();
-          navigation.navigate("DeliveryTracking", { rideId: ride._id });
-          return;
-        }
+        // Status payment_pending for deliveries now stays in the negotiation flow
+        // because of the new escrow payment system (Leva Pay) where payment
+        // is held before driver assignment.
+        // if (String(ride.status || "") === "payment_pending") { ... }
 
         if (TERMINAL_CANCEL_STATUSES.includes(String(ride.status || ""))) {
           doneRef.current = true;

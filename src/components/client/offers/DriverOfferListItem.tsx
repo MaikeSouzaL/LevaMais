@@ -1,4 +1,4 @@
-Ôªøimport React, { useMemo } from "react";
+import React, { useMemo } from "react";
 import { View, Text, TouchableOpacity, ActivityIndicator, Image } from "react-native";
 import { MotiView } from "moti";
 import { Star, Clock, Check, MessageCircle, User, Car, Bike, Route, X, ShieldCheck } from "lucide-react-native";
@@ -12,7 +12,7 @@ interface DriverOfferListItemProps {
   onDecline: (offer: RideOffer) => void;
   onCounter: (offer: RideOffer) => void;
   loading: boolean;
-  /** Marca esta oferta como a recomendada (melhor custo-benef√≠cio) ‚Äî calculado pela lista. */
+  /** Marca esta oferta como a recomendada (melhor custo-benefÌcio) ó calculado pela lista. */
   recommended?: boolean;
   /** Timestamp atual (ms) compartilhado, para o contador "expira em". */
   nowTs?: number;
@@ -69,7 +69,7 @@ export function DriverOfferListItem({ offer, clientBudget, onSelect, onDecline, 
   const hasComparableBudget = normalizedBudget > 0 && displayAmount > 0;
   const deltaLabel =
     !hasComparableBudget || deltaAbs < 0.005
-      ? "Igual √† base"
+      ? "Igual ‡ base"
       : `${diff > 0 ? "+" : "-"} ${formatBRL(deltaAbs)}`;
   const deltaCaption =
     !hasComparableBudget || deltaAbs < 0.005
@@ -237,7 +237,7 @@ export function DriverOfferListItem({ offer, clientBudget, onSelect, onDecline, 
               Oferta do entregador
             </Text>
             <Text style={{ fontSize: 25, fontWeight: "900", color: isBestValue ? "#047857" : "#0F172A", letterSpacing: 0 }}>
-              {displayAmount > 0 ? formatBRL(displayAmount) : "‚Äî"}
+              {displayAmount > 0 ? formatBRL(displayAmount) : "ó"}
             </Text>
             <View
               style={{
@@ -279,7 +279,7 @@ export function DriverOfferListItem({ offer, clientBudget, onSelect, onDecline, 
           <View style={metricBoxStyle}>
             <View style={metricLabelRowStyle}>
               <Route size={14} color="#64748B" style={{ marginRight: 5 }} />
-              <Text style={metricLabelStyle}>Dist√¢ncia</Text>
+              <Text style={metricLabelStyle}>Dist‚ncia</Text>
             </View>
             <Text style={metricValueStyle} numberOfLines={1}>{distanceLabel}</Text>
           </View>
@@ -287,7 +287,7 @@ export function DriverOfferListItem({ offer, clientBudget, onSelect, onDecline, 
           <View style={metricBoxStyle}>
             <View style={metricLabelRowStyle}>
               <VehicleIcon size={14} color="#64748B" style={{ marginRight: 5 }} />
-              <Text style={metricLabelStyle}>Ve√≠culo</Text>
+              <Text style={metricLabelStyle}>VeÌculo</Text>
             </View>
             <Text style={metricValueStyle} numberOfLines={1}>{vehicleName}</Text>
           </View>
@@ -315,7 +315,7 @@ export function DriverOfferListItem({ offer, clientBudget, onSelect, onDecline, 
             <View className="flex-1">
               <Text className="text-emerald-600 text-[9px] font-black uppercase tracking-widest mb-0.5">Aguardando Retorno</Text>
               <Text className="text-slate-600 text-[11px] font-bold leading-4">
-                O entregador recebeu sua contraproposta e est√° decidindo.
+                O entregador recebeu sua contraproposta e est· decidindo.
               </Text>
             </View>
           </View>

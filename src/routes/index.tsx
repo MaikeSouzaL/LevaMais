@@ -7,7 +7,7 @@ import { useAuthStore, type UserType } from "../context/authStore";
 import {
   getProfile,
   updateProfile,
-} from "../services/supabase-auth.service";
+} from "../services/appwrite-auth.service";
 import { supabase } from "../lib/supabase";
 import TermsScreen from "../screens/(public)/TermsScreen";
 import notificationService from "../services/notification.service";
@@ -67,6 +67,13 @@ export default function Routes() {
 
         if (!profile) {
           logout();
+          return;
+        }
+
+        if (!profile.role) {
+          if (isAuthenticated) {
+            logout();
+          }
           return;
         }
 

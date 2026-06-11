@@ -1,67 +1,139 @@
-import { supabase } from "../lib/supabase";
+import { databases, APPWRITE_DB_ID, APPWRITE_COLLECTIONS, APPWRITE_ENDPOINT, APPWRITE_BUCKETS, APPWRITE_PROJECT_ID } from "../lib/appwrite";
+import { Query, Models } from "appwrite";
+
+interface ProfileDoc extends Models.Document {
+  full_name?: string;
+  email?: string;
+  phone?: string;
+  cpf?: string;
+  is_active?: boolean;
+  city?: string;
+  kyc_status?: string;
+  selfie_url?: string;
+}
+
+interface DriverDetailsDoc extends Models.Document {
+  cnh_front_url?: string;
+  cnh_back_url?: string;
+  crlv_front_url?: string;
+  crlv_back_url?: string;
+  selfie_url?: string;
+  vehicle_photo_url?: string;
+  rejection_reason?: string;
+  status?: string;
+  reviewed_at?: string;
+  reviewed_by?: string;
+  vehicle_type?: string;
+  vehicle_plate?: string;
+  vehicle_model?: string;
+  vehicle_color?: string;
+  vehicle_year?: number;
+}
+
+function getFileUrl(fileId: string | null | undefined) {
+  if (!fileId) return "";
+  if (fileId.startsWith("http")) return fileId;
+  return `${APPWRITE_ENDPOINT}/storage/buckets/${APPWRITE_BUCKETS.KYC}/files/${fileId}/view?project=${APPWRITE_PROJECT_ID}`;
+}
 
 export const verificationAdminService = {
   async listUsers(userType: "driver" | "client") {
     try {
+      const { documents: profiles } = await databases.listDocuments(
+        APPWRITE_DB_ID,
+        APPWRITE_COLLECTIONS.PROFILES,
+        [Query.equal("role", userType), Query.limit(100)]
+      );
+
       if (userType === "client") {
-        const { data, error } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("role", "client");
-        if (error) throw error;
-
-        return (data || []).map((row: any) => ({
-          _id: row.id,
-          name: row.full_name || "",
-          email: row.email || "",
-          phone: row.phone || "",
-          cpf: row.cpf || undefined,
-          userType: "client",
-          isActive: row.is_active !== false,
-          createdAt: row.created_at,
-          city: row.city || undefined,
-          clientVerification: row.client_verification || {
-            status: "approved",
-          },
-        }));
-      } else {
-        const { data, error } = await supabase
-          .from("profiles")
-          .select(`
-            *,
-            driver_details!driver_details_id_fkey(*)
-          `)
-          .eq("role", "driver");
-        if (error) throw error;
-
-        return (data || []).map((row: any) => {
-          const details = row["driver_details!driver_details_id_fkey"]?.[0] || 
-                          row["driver_details!driver_details_id_fkey"] || 
-                          row.driver_details?.[0] || 
-                          row.driver_details || 
-                          null;
+        return profiles.map((row: ProfileDoc) => {
           return {
-            _id: row.id,
+            _id: row.$id,
+            name: row.full_name || "",
+            email: row.email || "",
+            phone: row.phone || "",
+            cpf: row.cpf || undefined,
+            userType: "client",
+            isActive: row.is_active !== false,
+            createdAt: row.$createdAt,
+            city: row.city || undefined,
+            clientVerification: {
+              status: row.kyc_status || "none",
+              cpfStatus: row.kyc_status === "approved" ? "approved" : "pending",
+              selfieStatus: row.kyc_status === "approved" ? "approved" : "pending",
+              documents: {
+                selfie: getFileUrl(row.selfie_url),
+              },
+              rejectionReason: "",
+            },
+          };
+        });
+      } else {
+        // Fetch all drivers details
+        const { documents: driversDetails } = await databases.listDocuments(
+          APPWRITE_DB_ID,
+          APPWRITE_COLLECTIONS.DRIVERS,
+          [Query.limit(100)]
+        );
+
+        const detailsMap: Record<string, DriverDetailsDoc> = {};
+        driversDetails.forEach(d => {
+          detailsMap[d.$id] = d;
+        });
+
+        return profiles.map((row: ProfileDoc) => {
+          const details = detailsMap[row.$id] || null;
+          
+          const driverDocs = details ? {
+            cnhFront: getFileUrl(details.cnh_front_url),
+            cnhBack: getFileUrl(details.cnh_back_url),
+            crlvFront: getFileUrl(details.crlv_front_url),
+            crlvBack: getFileUrl(details.crlv_back_url),
+            selfie: getFileUrl(details.selfie_url),
+            vehiclePhoto: getFileUrl(details.vehicle_photo_url),
+            rejectionReason: details.rejection_reason || "",
+            cnhFrontStatus: details.status === "approved" ? "approved" : (details.status === "rejected" ? "rejected" : "pending"),
+            cnhBackStatus: details.status === "approved" ? "approved" : (details.status === "rejected" ? "rejected" : "pending"),
+            selfieStatus: details.status === "approved" ? "approved" : "pending",
+            cpfStatus: details.status === "approved" ? "approved" : "pending",
+            bankAccountStatus: details.status === "approved" ? "approved" : "pending",
+            faceMatchStatus: details.status === "approved" ? "approved" : "pending",
+            backgroundCheckStatus: details.status === "approved" ? "approved" : "pending",
+            vehiclePhotoStatus: details.status === "approved" ? "approved" : (details.status === "rejected" ? "rejected" : "pending"),
+            crlvFrontStatus: details.status === "approved" ? "approved" : (details.status === "rejected" ? "rejected" : "pending"),
+            crlvBackStatus: details.status === "approved" ? "approved" : (details.status === "rejected" ? "rejected" : "pending"),
+            reviewedAt: details.reviewed_at,
+            reviewedBy: details.reviewed_by,
+          } : undefined;
+
+          return {
+            _id: row.$id,
             name: row.full_name || "",
             email: row.email || "",
             phone: row.phone || "",
             cpf: row.cpf || undefined,
             userType: "driver",
             isActive: row.is_active !== false,
-            createdAt: row.created_at,
+            createdAt: row.$createdAt,
             city: row.city || undefined,
             driverStatus: details?.status || "none",
-            driverDocuments: details?.documents || undefined,
+            driverDocuments: driverDocs,
             vehicles: details ? [
               {
-                _id: details.id,
-                type: details.vehicle_type,
-                plate: details.vehicle_plate,
-                model: details.vehicle_model,
-                color: details.vehicle_color,
-                year: details.vehicle_year,
-                status: details.status === "approved" ? "approved" : "pending",
-                documents: details.documents || {},
+                _id: details.$id,
+                type: details.vehicle_type || "car",
+                plate: details.vehicle_plate || "",
+                model: details.vehicle_model || "",
+                color: details.vehicle_color || "",
+                year: details.vehicle_year || 0,
+                status: details.status === "approved" ? "approved" : (details.status === "rejected" ? "rejected" : "pending"),
+                documents: {
+                  crlvFront: getFileUrl(details.crlv_front_url),
+                  crlvBack: getFileUrl(details.crlv_back_url),
+                  vehiclePhoto: getFileUrl(details.vehicle_photo_url),
+                },
+                createdAt: details.$createdAt,
+                updatedAt: details.$updatedAt,
               }
             ] : [],
           };
@@ -73,108 +145,67 @@ export const verificationAdminService = {
     }
   },
 
-  async updateUserById(userId: string, payload: Record<string, unknown>) {
-    const profileUpdates: any = {};
-    if (payload.isActive !== undefined) profileUpdates.is_active = payload.isActive;
-    if (payload.name !== undefined) profileUpdates.full_name = payload.name;
-
-    if (Object.keys(profileUpdates).length > 0) {
-      const { data, error } = await supabase
-        .from("profiles")
-        .update(profileUpdates)
-        .eq("id", userId)
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
+  async approveUser(userId: string, userType: "driver" | "client") {
+    if (userType === "driver") {
+      await databases.updateDocument(APPWRITE_DB_ID, APPWRITE_COLLECTIONS.PROFILES, userId, {
+        is_active: true
+      });
+      await databases.updateDocument(APPWRITE_DB_ID, APPWRITE_COLLECTIONS.DRIVERS, userId, {
+        status: "approved",
+        rejection_reason: null,
+        reviewed_at: new Date().toISOString()
+      });
+    } else {
+      await databases.updateDocument(APPWRITE_DB_ID, APPWRITE_COLLECTIONS.PROFILES, userId, {
+        is_active: true,
+        kyc_status: "approved"
+      });
     }
-    return null;
   },
 
-  async updateClientVerification(userId: string, field: "cpfStatus" | "selfieStatus", status: string, reason?: string) {
-    const { data: profile, error: getError } = await supabase
-      .from("profiles")
-      .select("client_verification")
-      .eq("id", userId)
-      .single();
-
-    if (getError) throw getError;
-
-    const currentVerification = profile?.client_verification || {};
-    const updatedVerification = {
-      ...currentVerification,
-      [field]: status,
-      ...(reason ? { rejectionReason: reason } : {}),
-      reviewedAt: new Date().toISOString(),
-    };
-
-    if (updatedVerification.cpfStatus === "approved" && updatedVerification.selfieStatus === "approved") {
-      updatedVerification.status = "approved";
-    } else if (updatedVerification.cpfStatus === "rejected" || updatedVerification.selfieStatus === "rejected") {
-      updatedVerification.status = "rejected";
+  async rejectUser(userId: string, userType: "driver" | "client", reason: string) {
+    if (userType === "driver") {
+      await databases.updateDocument(APPWRITE_DB_ID, APPWRITE_COLLECTIONS.PROFILES, userId, {
+        is_active: false
+      });
+      await databases.updateDocument(APPWRITE_DB_ID, APPWRITE_COLLECTIONS.DRIVERS, userId, {
+        status: "rejected",
+        rejection_reason: reason,
+        reviewed_at: new Date().toISOString()
+      });
+    } else {
+      await databases.updateDocument(APPWRITE_DB_ID, APPWRITE_COLLECTIONS.PROFILES, userId, {
+        is_active: false,
+        kyc_status: "rejected"
+      });
     }
-
-    const { data: updated, error } = await supabase
-      .from("profiles")
-      .update({ client_verification: updatedVerification })
-      .eq("id", userId)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return updated;
   },
 
   async updateDriverVerification(
     userId: string,
-    field:
-      | "cnhFrontStatus"
-      | "cnhBackStatus"
-      | "selfieStatus"
-      | "cpfStatus"
-      | "bankAccountStatus"
-      | "faceMatchStatus"
-      | "backgroundCheckStatus"
-      | "driverStatus",
+    field: string,
     status: string,
     reason?: string,
     riskFlags?: string[]
   ) {
-    const { data: details, error: getError } = await supabase
-      .from("driver_details")
-      .select("*")
-      .eq("id", userId)
-      .maybeSingle();
-
-    if (getError) throw getError;
-
-    const currentDocs = details?.documents || {};
-    const updatedDocs = {
-      ...currentDocs,
-    };
-
-    const updates: any = {};
-    if (field === "driverStatus") {
+    const updates: Record<string, unknown> = {};
+    if (field === "driverStatus" || field === "status") {
       updates.status = status;
       if (reason) updates.rejection_reason = reason;
+      updates.reviewed_at = new Date().toISOString();
     } else {
-      updatedDocs[field] = status;
-      updates.documents = updatedDocs;
-      if (reason) updatedDocs.rejectionReason = reason;
+      if (status === "rejected") {
+        updates.status = "rejected";
+        if (reason) updates.rejection_reason = reason;
+      }
     }
 
-    if (riskFlags) {
-      updates.risk_flags = riskFlags;
-    }
-
-    const { data: updated, error } = await supabase
-      .from("driver_details")
-      .update(updates)
-      .eq("id", userId)
-      .select()
-      .single();
-
-    if (error) throw error;
+    const updated = await databases.updateDocument(
+      APPWRITE_DB_ID,
+      APPWRITE_COLLECTIONS.DRIVERS,
+      userId,
+      updates
+    );
     return updated;
   },
 };

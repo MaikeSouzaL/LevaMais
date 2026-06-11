@@ -1,6 +1,6 @@
 import { apiPost, apiGet, apiDelete, apiPatch } from "./api";
 import { supabase } from "../lib/supabase";
-import { requireUserId } from "./supabase-auth.service";
+import { requireUserId } from "./appwrite-auth.service";
 import type { ApiResponse, AuthResponse, User } from "../types/api";
 import {
   registerUserSchema,

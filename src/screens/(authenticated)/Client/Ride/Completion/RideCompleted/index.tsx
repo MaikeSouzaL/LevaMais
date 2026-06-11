@@ -1,4 +1,4 @@
-Ôªøimport React, { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -32,8 +32,8 @@ import { formatBRL } from "@/utils/mappers";
 
 const QUICK_TAGS = [
   "Educado",
-  "Chegou r√°pido",
-  "Boa comunica√ß√£o",
+  "Chegou r·pido",
+  "Boa comunicaÁ„o",
   "Dirigiu com cuidado",
   "Atendimento excelente",
   "Entrega cuidadosa",
@@ -98,7 +98,7 @@ export default function RideCompletedScreen() {
         comment: comment.trim() || undefined,
       });
       setRatingDone(true);
-      Toast.show({ type: "success", text1: "Avalia√ß√£o enviada!", text2: "Obrigado pelo seu feedback." });
+      Toast.show({ type: "success", text1: "AvaliaÁ„o enviada!", text2: "Obrigado pelo seu feedback." });
 
       // After rating, navigate to TipDriver screen
       setTimeout(() => {
@@ -111,7 +111,7 @@ export default function RideCompletedScreen() {
     } catch (error: any) {
       Toast.show({
         type: "error",
-        text1: "N√£o foi poss√≠vel enviar",
+        text1: "N„o foi possÌvel enviar",
         text2: error?.message || "Tente novamente",
       });
     } finally {
@@ -127,13 +127,13 @@ export default function RideCompletedScreen() {
       setSelectedTip(amount);
       Toast.show({
         type: "success",
-        text1: "Gorjeta enviada! ‚ù§Ô∏è",
-        text2: `Voc√™ enviou R$ ${amount.toFixed(2)} ao motorista. Obrigado!`,
+        text1: "Gorjeta enviada! ??",
+        text2: `VocÍ enviou R$ ${amount.toFixed(2)} ao motorista. Obrigado!`,
       });
     } catch (err: any) {
       Toast.show({
         type: "error",
-        text1: "N√£o foi poss√≠vel enviar gorjeta",
+        text1: "N„o foi possÌvel enviar gorjeta",
         text2: err?.message || "Tente novamente",
       });
     } finally {
@@ -149,7 +149,7 @@ export default function RideCompletedScreen() {
         contentContainerStyle={{ paddingBottom: 120, paddingTop: insets.top + 20 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Hero de conclus√£o */}
+        {/* Hero de conclus„o */}
         <MotiView
           from={{ opacity: 0, scale: 0.7 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -173,13 +173,13 @@ export default function RideCompletedScreen() {
           </View>
 
           <Text style={{ color: "#02de95", fontSize: 13, fontWeight: "800", textTransform: "uppercase", letterSpacing: 2, marginBottom: 8 }}>
-            {isDelivery ? "Entrega Conclu√≠da" : "Corrida Conclu√≠da"}
+            {isDelivery ? "Entrega ConcluÌda" : "Corrida ConcluÌda"}
           </Text>
           <Text style={{ color: "#fff", fontSize: 28, fontWeight: "900", textAlign: "center", letterSpacing: -0.5 }}>
-            Tudo certo! üéâ
+            Tudo certo! ??
           </Text>
           <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 14, textAlign: "center", marginTop: 8, lineHeight: 21 }}>
-            Seu pedido foi conclu√≠do e registrado no hist√≥rico.
+            Seu pedido foi concluÌdo e registrado no histÛrico.
           </Text>
         </MotiView>
 
@@ -282,7 +282,7 @@ export default function RideCompletedScreen() {
               <Text style={{ color: "#fff", fontSize: 15, fontWeight: "800" }}>Enviar Gorjeta</Text>
             </View>
             <Text style={{ color: "rgba(255,255,255,0.45)", fontSize: 12, marginBottom: 16, lineHeight: 18 }}>
-              Reconhe√ßa um servi√ßo excelente com uma gorjeta para o {isDelivery ? "entregador" : "motorista"}.
+              ReconheÁa um serviÁo excelente com uma gorjeta para o {isDelivery ? "entregador" : "motorista"}.
             </Text>
             <View style={{ flexDirection: "row", gap: 10 }}>
               {[2, 5, 10].map((val) => (
@@ -326,12 +326,12 @@ export default function RideCompletedScreen() {
           >
             <Heart size={20} color="#f43f5e" fill="#f43f5e" />
             <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700", flex: 1 }}>
-              Gorjeta de R$ {selectedTip},00 enviada! ‚ù§Ô∏è
+              Gorjeta de R$ {selectedTip},00 enviada! ??
             </Text>
           </MotiView>
         )}
 
-        {/* Avalia√ß√£o */}
+        {/* AvaliaÁ„o */}
         <MotiView
           from={{ opacity: 0, translateY: 20 }}
           animate={{ opacity: 1, translateY: 0 }}
@@ -352,13 +352,13 @@ export default function RideCompletedScreen() {
           {ratingDone ? (
             <View style={{ alignItems: "center", paddingVertical: 16 }}>
               <CheckCircle size={32} color="#02de95" />
-              <Text style={{ color: "#02de95", fontSize: 15, fontWeight: "700", marginTop: 10 }}>Avalia√ß√£o enviada!</Text>
+              <Text style={{ color: "#02de95", fontSize: 15, fontWeight: "700", marginTop: 10 }}>AvaliaÁ„o enviada!</Text>
               <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginTop: 4 }}>Obrigado pelo seu feedback.</Text>
             </View>
           ) : (
             <>
               <Text style={{ color: "rgba(255,255,255,0.45)", fontSize: 12, marginBottom: 20, lineHeight: 18 }}>
-                Como foi sua experi√™ncia? Sua avalia√ß√£o ajuda a melhorar o servi√ßo.
+                Como foi sua experiÍncia? Sua avaliaÁ„o ajuda a melhorar o serviÁo.
               </Text>
 
               {/* Estrelas */}
@@ -389,7 +389,7 @@ export default function RideCompletedScreen() {
                 </Text>
               )}
 
-              {/* Tags r√°pidas */}
+              {/* Tags r·pidas */}
               {rating >= 4 && (
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
                   {QUICK_TAGS.map((tag) => {
@@ -410,7 +410,7 @@ export default function RideCompletedScreen() {
                           color: active ? "#02de95" : "rgba(255,255,255,0.55)",
                           fontSize: 12, fontWeight: "700"
                         }}>
-                          {active ? "‚úì " : ""}{tag}
+                          {active ? "? " : ""}{tag}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -418,11 +418,11 @@ export default function RideCompletedScreen() {
                 </View>
               )}
 
-              {/* Coment√°rio */}
+              {/* Coment·rio */}
               <TextInput
                 value={comment}
                 onChangeText={setComment}
-                placeholder="Deixe um coment√°rio (opcional)..."
+                placeholder="Deixe um coment·rio (opcional)..."
                 placeholderTextColor="rgba(255,255,255,0.2)"
                 multiline
                 numberOfLines={3}
@@ -435,7 +435,7 @@ export default function RideCompletedScreen() {
                 }}
               />
 
-              {/* Bot√£o de avalia√ß√£o */}
+              {/* Bot„o de avaliaÁ„o */}
               {canSubmitRating && (
                 <TouchableOpacity
                   onPress={handleSubmitRating}
@@ -454,7 +454,7 @@ export default function RideCompletedScreen() {
                     <>
                       <Star size={18} color="#091A2F" fill="#091A2F" />
                       <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 14, textTransform: "uppercase" }}>
-                        Enviar Avalia√ß√£o
+                        Enviar AvaliaÁ„o
                       </Text>
                     </>
                   )}
@@ -466,7 +466,7 @@ export default function RideCompletedScreen() {
 
       </ScrollView>
 
-      {/* Bot√£o fixo de voltar ao in√≠cio */}
+      {/* Bot„o fixo de voltar ao inÌcio */}
       <View
         style={{
           position: "absolute", bottom: 0, left: 0, right: 0,
@@ -490,7 +490,7 @@ export default function RideCompletedScreen() {
         >
           <Home size={20} color="#02de95" />
           <Text style={{ color: "#02de95", fontWeight: "900", fontSize: 15, textTransform: "uppercase", letterSpacing: 0.5 }}>
-            Voltar ao In√≠cio
+            Voltar ao InÌcio
           </Text>
         </TouchableOpacity>
       </View>

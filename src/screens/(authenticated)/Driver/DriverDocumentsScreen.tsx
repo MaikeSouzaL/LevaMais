@@ -11,8 +11,9 @@ import {
   getMyDriverDetails,
   uploadDriverDocument,
   getKycSelfieUrl,
-  type DriverDocKind,
-} from "../../../services/supabase-auth.service";
+} from "../../../services/appwrite-auth.service";
+
+type DriverDocKind = "cnh_front" | "cnh_back" | "selfie" | "crlv_front" | "crlv_back" | "vehicle_photo";
 
 const { width, height } = Dimensions.get("window");
 
@@ -132,19 +133,19 @@ export default function DriverDocumentsScreen() {
         : await ImagePicker.launchImageLibraryAsync(options);
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        const base64 = result.assets[0].base64;
-        if (!base64) {
-          Toast.show({ type: "error", text1: "Imagem inválida (sem dados)" });
+        const uri = result.assets[0].uri;
+        if (!uri) {
+          Toast.show({ type: "error", text1: "Imagem inválida (sem caminho local)" });
           return;
         }
-        await uploadFile(key, base64);
+        await uploadFile(key, uri);
       }
     } catch (err) {
       Toast.show({ type: "error", text1: "Erro ao selecionar arquivo" });
     }
   };
 
-  const uploadFile = async (key: DocKey, base64: string) => {
+  const uploadFile = async (key: DocKey, uri: string) => {
     setUploadingKeys((prev) => ({ ...prev, [key]: true }));
     Toast.show({
       type: "info",
@@ -154,12 +155,12 @@ export default function DriverDocumentsScreen() {
     });
 
     try {
-      const { status } = await uploadDriverDocument(DOC_KIND_MAP[key], base64);
+      const { status } = await uploadDriverDocument(DOC_KIND_MAP[key], uri);
       Toast.hide();
       Toast.show({
         type: "success",
         text1: "Sucesso!",
-        text2: status === "approved" ? "Documento anexado — cadastro aprovado!" : "Documento anexado com sucesso.",
+        text2: status === "approved" ? "Documento anexado — cadastro aprovado!" : "Documento recebido, em análise.",
       });
       await loadProfile(); // Atualiza UI (URLs assinadas + status)
     } catch (e: any) {

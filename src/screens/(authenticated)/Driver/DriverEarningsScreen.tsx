@@ -131,7 +131,7 @@ export default function DriverEarningsScreen() {
     if (!userId) return;
 
     const channel = supabase
-      .channel(`earnings-balance:${userId}`)
+      .channel(`earnings-balance:${userId}:${Math.random().toString(36).slice(2)}`)
       .on(
         "postgres_changes",
         {

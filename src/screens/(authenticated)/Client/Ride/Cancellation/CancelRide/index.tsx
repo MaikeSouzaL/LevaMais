@@ -1,4 +1,4 @@
-Ôªøimport React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView, StatusBar, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
@@ -22,12 +22,12 @@ import { estimateCancellationFee } from "@/utils/cancellationFee";
 import { ClientStackParamList } from "../../../types/navigation";
 
 const CANCEL_REASONS = [
-  { id: "changed_mind",   label: "Mudei de ideia",              emoji: "üîÑ" },
-  { id: "driver_late",    label: "Motorista demorou muito",      emoji: "‚è∞" },
-  { id: "other_option",   label: "Encontrei outra op√ß√£o",        emoji: "üîç" },
-  { id: "high_price",     label: "Pre√ßo muito alto",             emoji: "üí∏" },
-  { id: "wrong_address",  label: "Endere√ßo incorreto",           emoji: "üìç" },
-  { id: "other",          label: "Outro motivo",                  emoji: "üìù" },
+  { id: "changed_mind",   label: "Mudei de ideia",              emoji: "??" },
+  { id: "driver_late",    label: "Motorista demorou muito",      emoji: "?" },
+  { id: "other_option",   label: "Encontrei outra opÁ„o",        emoji: "??" },
+  { id: "high_price",     label: "PreÁo muito alto",             emoji: "??" },
+  { id: "wrong_address",  label: "EndereÁo incorreto",           emoji: "??" },
+  { id: "other",          label: "Outro motivo",                  emoji: "??" },
 ];
 
 export default function CancelRideScreen() {
@@ -72,7 +72,7 @@ export default function CancelRideScreen() {
   const isDriverOnTheWay = ["accepted", "driver_arriving"].includes(rideStatus);
   const isDriverAtPickup = rideStatus === "arrived";
 
-  // Usa a estimativa calculada pela regra (j√° trata janela gr√°tis e fase); fallback no param.
+  // Usa a estimativa calculada pela regra (j· trata janela gr·tis e fase); fallback no param.
   const effectiveEstimatedFee = computedFee > 0 ? computedFee : (feeStatusApplies ? Number(initialEstimatedFee || 0) : 0);
 
   const warningConfig = useMemo(() => {
@@ -82,27 +82,27 @@ export default function CancelRideScreen() {
         bg: "rgba(249,115,22,0.08)",
         border: "rgba(249,115,22,0.25)",
         icon: AlertTriangle,
-        title: "Pacote j√° coletado",
-        message: "O entregador j√° est√° com seu pacote. Ao cancelar agora ser√° cobrada uma taxa de retorno e o entregador levar√° o item de volta ao endere√ßo de origem.",
+        title: "Pacote j· coletado",
+        message: "O entregador j· est· com seu pacote. Ao cancelar agora ser· cobrada uma taxa de retorno e o entregador levar· o item de volta ao endereÁo de origem.",
         blocked: false,
       };
     }
     if (isDriverAtPickup) return {
       color: "#f97316", bg: "rgba(249,115,22,0.08)", border: "rgba(249,115,22,0.25)", icon: AlertTriangle,
       title: "Motorista no local",
-      message: "O motorista j√° chegou ao ponto de coleta. O cancelamento pode gerar uma taxa.",
+      message: "O motorista j· chegou ao ponto de coleta. O cancelamento pode gerar uma taxa.",
       blocked: false,
     };
     if (isDriverOnTheWay) return {
       color: "#fbbf24", bg: "rgba(251,191,36,0.08)", border: "rgba(251,191,36,0.25)", icon: AlertTriangle,
       title: "Motorista a caminho",
-      message: "O motorista j√° aceitou e est√° em deslocamento. O cancelamento pode gerar taxa.",
+      message: "O motorista j· aceitou e est· em deslocamento. O cancelamento pode gerar taxa.",
       blocked: false,
     };
     return {
       color: "#60a5fa", bg: "rgba(96,165,250,0.06)", border: "rgba(96,165,250,0.2)", icon: Info,
       title: "Ainda em fase inicial",
-      message: "Seu pedido ainda n√£o foi atribu√≠do a um motorista. O cancelamento ser√° aplicado sem cobran√ßa.",
+      message: "Seu pedido ainda n„o foi atribuÌdo a um motorista. O cancelamento ser· aplicado sem cobranÁa.",
       blocked: false,
     };
   }, [isBeforeDriverAccepted, isDriverAtPickup, isDriverOnTheWay, isPackageCollected]);
@@ -121,7 +121,7 @@ export default function CancelRideScreen() {
         navigation.reset({ index: 0, routes: [{ name: "Home" }] });
       }
     } catch (error: any) {
-      Toast.show({ type: "error", text1: "N√£o foi poss√≠vel cancelar", text2: error?.message || "Tente novamente" });
+      Toast.show({ type: "error", text1: "N„o foi possÌvel cancelar", text2: error?.message || "Tente novamente" });
     } finally {
       setLoading(false);
     }
@@ -150,7 +150,7 @@ export default function CancelRideScreen() {
             {isDelivery ? "Cancelar Entrega" : "Cancelar Corrida"}
           </Text>
           <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginTop: 2 }}>
-            Revise com aten√ß√£o antes de confirmar
+            Revise com atenÁ„o antes de confirmar
           </Text>
         </View>
       </View>
@@ -203,7 +203,7 @@ export default function CancelRideScreen() {
           </MotiView>
         )}
 
-        {/* Motivos ‚Äî bloqueado se pacote coletado */}
+        {/* Motivos ó bloqueado se pacote coletado */}
         {warningConfig.blocked ? (
           <MotiView
             from={{ opacity: 0, translateY: 10 }}
@@ -218,10 +218,10 @@ export default function CancelRideScreen() {
               <HeadphonesIcon size={26} color="#ef4444" />
             </View>
             <Text style={{ color: "#fff", fontSize: 16, fontWeight: "800", textAlign: "center" }}>
-              Suporte necess√°rio
+              Suporte necess·rio
             </Text>
             <Text style={{ color: "rgba(255,255,255,0.45)", fontSize: 13, textAlign: "center", lineHeight: 20 }}>
-              Como o pacote j√° foi coletado, o cancelamento precisa de an√°lise do suporte.
+              Como o pacote j· foi coletado, o cancelamento precisa de an·lise do suporte.
             </Text>
             <TouchableOpacity
               onPress={() => navigation.navigate("SupportCenter")}
@@ -275,7 +275,7 @@ export default function CancelRideScreen() {
         )}
       </ScrollView>
 
-      {/* Bot√£o fixo de confirma√ß√£o */}
+      {/* Bot„o fixo de confirmaÁ„o */}
       {!warningConfig.blocked && (
         <View style={{
           position: "absolute", bottom: 0, left: 0, right: 0,

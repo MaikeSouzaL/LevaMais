@@ -31,7 +31,6 @@ import {
 import { useToast } from "@/components/ui/Toast";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import axios from "axios";
 import { verificationAdminService } from "@/services/verificationAdminService";
 
 // TypeScript Interfaces
@@ -62,6 +61,9 @@ interface PendingDriver {
     bankAccountStatus?: string;
     faceMatchStatus?: string;
     backgroundCheckStatus?: string;
+    vehiclePhotoStatus?: string;
+    crlvFrontStatus?: string;
+    crlvBackStatus?: string;
     riskFlags?: string[];
     reviewedAt?: string;
     reviewedBy?: string;
@@ -134,15 +136,15 @@ const cleanDocUrl = (url?: string) => {
   if (url.startsWith("file:///")) {
     return url; // Keep local cache URIs, will be handled gracefully by UI
   }
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
-  const backendBase = API_URL.replace("/api", "");
   if (url.startsWith("http://") || url.startsWith("https://")) {
-    return url.replace(/^https?:\/\/[^\/]+/, backendBase);
+    return url;
   }
-  if (url.startsWith("/")) {
-    return `${backendBase}${url}`;
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://iirmoiduygmeckfjuwqv.supabase.co";
+    return `${supabaseUrl}/storage/v1/object/public/kyc/${url}`;
+  } catch {
+    return url;
   }
-  return `${backendBase}/${url}`;
 };
 
 interface PendingClient {
@@ -215,20 +217,11 @@ export default function UnifiedVerificationPage() {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
-      const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || '';
-      
-      const [driversRes, clientsRes] = await Promise.all([
-        axios.get(`${API_URL}/auth/users?userType=driver`, {
-          headers: { "x-admin-key": ADMIN_API_KEY }
-        }),
-        axios.get(`${API_URL}/auth/users?userType=client`, {
-          headers: { "x-admin-key": ADMIN_API_KEY }
-        })
-      ]);
+      const driversList = await verificationAdminService.listUsers("driver");
+      const clientsList = await verificationAdminService.listUsers("client");
 
-      setDrivers(driversRes.data.users || []);
-      setClients(clientsRes.data.users || []);
+      setDrivers(driversList as any[]);
+      setClients(clientsList as any[]);
     } catch (err) {
       showToast("Erro ao conectar ao banco de cadastros", "error");
     } finally {
@@ -287,59 +280,7 @@ export default function UnifiedVerificationPage() {
   const handleApproveUser = async (user: PendingDriver | PendingClient) => {
     setProcessing(true);
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
-      const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || '';
-
-      const payload: AdminUserPatchPayload = {
-        isActive: true
-      };
-
-      if (user.userType === "driver") {
-        payload.driverStatus = "approved";
-        payload.driverDocuments = {
-          ...(user as PendingDriver).driverDocuments,
-          cnhFrontStatus: "approved",
-          cnhBackStatus: "approved",
-          selfieStatus: "approved",
-          cpfStatus: "approved",
-          bankAccountStatus: "approved",
-          faceMatchStatus: "approved",
-          backgroundCheckStatus: "approved",
-          riskFlags: [],
-          rejectionReason: ""
-        };
-
-        const driverUser = user as PendingDriver;
-        // Na nova abordagem, cada veiculo mantem seu status individual.
-        // Apenas ativa o primeiro veiculo APROVADO se nenhum estiver ativo
-        if (driverUser.vehicles && driverUser.vehicles.length > 0) {
-          if (!driverUser.activeVehicleId) {
-            const approvedVehicle = driverUser.vehicles.find(v => v.status === "approved");
-            if (approvedVehicle) {
-              payload.activeVehicleId = approvedVehicle._id;
-              payload.vehicleType = approvedVehicle.type;
-              payload.vehicleInfo = {
-                plate: approvedVehicle.plate,
-                model: approvedVehicle.model,
-                color: approvedVehicle.color || "N?o informada",
-                year: approvedVehicle.year || new Date().getFullYear()
-              };
-            }
-          }
-        }
-      } else if (user.userType === "client") {
-        payload.clientVerification = {
-          ...((user as PendingClient).clientVerification || {}),
-          status: "approved",
-          selfieStatus: "approved",
-          cpfStatus: "valid"
-        };
-      }
-
-      await axios.patch(`${API_URL}/auth/users/${user._id}`, payload, {
-        headers: { "x-admin-key": ADMIN_API_KEY }
-      });
-
+      await verificationAdminService.approveUser(user._id, user.userType);
       showToast(`Cadastro de ${user.name} aprovado e ativo!`, "success");
       setIsDrawerOpen(false);
       loadData();
@@ -354,14 +295,7 @@ export default function UnifiedVerificationPage() {
   const handleDriverVerificationUpdate = async (userId: string, field: string, newStatus: "approved" | "rejected", reason?: string) => {
     setProcessing(true);
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
-      const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || '';
-
-      await axios.patch(`${API_URL}/auth/users/${userId}/driver-verification`, {
-        field,
-        status: newStatus,
-        reason: reason || ""
-      }, { headers: { "x-admin-key": ADMIN_API_KEY } });
+      await verificationAdminService.updateDriverVerification(userId, field, newStatus, reason);
 
       const fieldLabel = field
         .replace("Status", "")
@@ -371,7 +305,10 @@ export default function UnifiedVerificationPage() {
         .replace("cpf", "CPF")
         .replace("bankAccount", "Dados de Repasse")
         .replace("faceMatch", "Face Match")
-        .replace("backgroundCheck", "Antecedentes");
+        .replace("backgroundCheck", "Antecedentes")
+        .replace("vehiclePhoto", "Foto do Veículo")
+        .replace("crlvFront", "CRLV Frente")
+        .replace("crlvBack", "CRLV Verso");
 
       showToast(`${fieldLabel} ${newStatus === "approved" ? "aprovado" : "reprovado"} com sucesso!`, "success");
       
@@ -393,10 +330,7 @@ export default function UnifiedVerificationPage() {
 
       loadData();
     } catch (err: unknown) {
-      const errMsg = axios.isAxiosError(err)
-        ? err.response?.data?.message || "Erro ao atualizar status do documento"
-        : "Erro ao atualizar status do documento";
-      showToast(errMsg, "error");
+      showToast("Erro ao atualizar status do documento", "error");
     } finally {
       setProcessing(false);
     }
@@ -453,25 +387,11 @@ export default function UnifiedVerificationPage() {
   const handleVehicleStatusUpdate = async (userId: string, vehicleId: string, newStatus: "approved" | "rejected", reason?: string) => {
     setProcessing(true);
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
-      const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || '';
-
-      const driverUser = selectedUser as PendingDriver;
-      const updatedVehicles = (driverUser.vehicles || []).map(v => {
-        if (v._id === vehicleId) {
-          return { ...v, status: newStatus, rejectionReason: newStatus === "rejected" ? (reason || "Reprovado pelo admin") : "" };
-        }
-        return v;
-      });
-
-      await axios.patch(`${API_URL}/auth/users/${userId}`, {
-        vehicles: updatedVehicles,
-      }, { headers: { "x-admin-key": ADMIN_API_KEY } });
-
-      showToast(`Veiculo ${newStatus === "approved" ? "aprovado" : "reprovado"}!`, "success");
+      await verificationAdminService.updateDriverVerification(userId, "driverStatus", newStatus === "approved" ? "approved" : "rejected", reason);
+      showToast(`Veículo ${newStatus === "approved" ? "aprovado" : "reprovado"}!`, "success");
       loadData();
     } catch {
-      showToast("Erro ao atualizar status do veiculo", "error");
+      showToast("Erro ao atualizar status do veículo", "error");
     } finally {
       setProcessing(false);
     }
@@ -479,30 +399,17 @@ export default function UnifiedVerificationPage() {
 
   // Reject Account Action
   const handleRejectUser = async () => {
+    if (!selectedUser) return;
     const finalReason = customReason.trim() || rejectionReason;
     if (!finalReason) {
       showToast("Selecione ou insira um motivo de reprovação", "error");
       return;
     }
 
-    if (selectedUser?.userType === "client") {
+    if (selectedUser.userType === "client") {
       setProcessing(true);
       try {
-        const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
-        const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || "";
-        await axios.patch(
-          `${API_URL}/auth/users/${selectedUser._id}`,
-          {
-            isActive: false,
-            clientVerification: {
-              ...(selectedUser.clientVerification || {}),
-              status: "rejected",
-              selfieStatus: "rejected",
-              rejectionReason: finalReason,
-            },
-          },
-          { headers: { "x-admin-key": ADMIN_API_KEY } },
-        );
+        await verificationAdminService.rejectUser(selectedUser._id, "client", finalReason);
         showToast(`Cadastro de ${selectedUser.name} reprovado.`, "success");
         setShowRejectModal(false);
         setIsDrawerOpen(false);
@@ -518,25 +425,8 @@ export default function UnifiedVerificationPage() {
 
     setProcessing(true);
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
-      const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || '';
-
-      const payload: AdminUserPatchPayload = {};
-
-      if (selectedUser?.userType === "driver") {
-        payload.isActive = false;
-        payload.driverStatus = "rejected";
-        payload.driverDocuments = {
-          ...(selectedUser as PendingDriver).driverDocuments,
-          rejectionReason: finalReason
-        };
-      }
-
-      await axios.patch(`${API_URL}/auth/users/${selectedUser?._id}`, payload, {
-        headers: { "x-admin-key": ADMIN_API_KEY }
-      });
-
-      showToast(`Cadastro de ${selectedUser?.name} reprovado.`, "success");
+      await verificationAdminService.rejectUser(selectedUser._id, "driver", finalReason);
+      showToast(`Cadastro de ${selectedUser.name} reprovado.`, "success");
       setShowRejectModal(false);
       setIsDrawerOpen(false);
       setCustomReason("");
@@ -810,7 +700,13 @@ export default function UnifiedVerificationPage() {
                           ) : driver.vehicles && driver.vehicles.length > 0 ? (
                             <div>
                               <p className="text-gray-950 font-bold">{driver.vehicles[0].model} ({driver.vehicles[0].plate})</p>
-                              <p className="text-[10px] text-amber-600 font-bold capitalize mt-0.5">{driver.vehicles[0].color} ⬢ {driver.vehicles[0].year} (Pendente)</p>
+                              {driver.vehicles[0].status === "approved" ? (
+                                <p className="text-[10px] text-emerald-600 font-bold capitalize mt-0.5">{driver.vehicles[0].color} ⬢ {driver.vehicles[0].year} (Aprovado)</p>
+                              ) : driver.vehicles[0].status === "rejected" ? (
+                                <p className="text-[10px] text-rose-600 font-bold capitalize mt-0.5">{driver.vehicles[0].color} ⬢ {driver.vehicles[0].year} (Reprovado)</p>
+                              ) : (
+                                <p className="text-[10px] text-amber-600 font-bold capitalize mt-0.5">{driver.vehicles[0].color} ⬢ {driver.vehicles[0].year} (Pendente)</p>
+                              )}
                             </div>
                           ) : (
                             <span className="text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100/50 text-[10px] font-bold">Sem Veículo</span>
@@ -1440,110 +1336,242 @@ export default function UnifiedVerificationPage() {
                                 )}
                               </div>
 
-                              {/* Documentos específicos do veículo (CRLV & Foto do veículo) */}
-                              <div className="p-4 bg-white space-y-3">
-                                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-2">Anexos de Documentação do Veículo</p>
-                                <div className="grid grid-cols-3 gap-2.5">
-                                  {/* Foto do Veículo */}
-                                  <div className="border border-gray-200 rounded-xl p-2 bg-slate-50 text-center space-y-1">
-                                    <p className="text-[8px] font-bold text-gray-500 uppercase">Foto do Veículo</p>
-                                    {vehicle.documents?.vehiclePhoto ? (
-                                      vehicle.documents.vehiclePhoto.startsWith("file://") ? (
-                                        <div className="relative rounded-lg aspect-square border border-gray-200 bg-white flex flex-col items-center justify-center p-2 text-center">
-                                          <Car className="w-6 h-6 text-emerald-600 opacity-60 mb-1" />
-                                          <p className="text-[7px] leading-tight text-gray-400 font-bold truncate w-full">{vehicle.documents.vehiclePhoto.split("/").pop()}</p>
-                                          <span className="absolute bottom-1 left-1 right-1 bg-emerald-500 text-white font-extrabold text-[6px] py-0.5 rounded leading-none">Simulado</span>
-                                        </div>
-                                      ) : (
-                                        <div
-                                          className="relative group overflow-hidden rounded-lg aspect-square border border-gray-200 bg-white cursor-pointer"
-                                          onClick={() => openLightbox(vehicle.documents!.vehiclePhoto!, "Foto do Veiculo - " + vehicle.plate)}
-                                        >
-                                          <img
-                                            src={cleanDocUrl(vehicle.documents.vehiclePhoto)}
-                                            alt="Veiculo"
-                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                                          />
-                                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
-                                            <Eye className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
-                                          </div>
-                                        </div>
-                                      )
-                                    ) : (
-                                      <div className="aspect-square rounded-lg border border-dashed border-gray-300 bg-white flex flex-col items-center justify-center text-gray-400 p-2">
-                                        <Car className="w-5 h-5 opacity-40" />
-                                        <span className="text-[7px] leading-tight font-bold">Sem foto</span>
-                                      </div>
-                                    )}
-                                  </div>
+                                {/* Documentos específicos do veículo (CRLV & Foto do veículo) */}
+                               <div className="p-4 bg-white space-y-3">
+                                 <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-2">Anexos de Documentação do Veículo</p>
+                                 <div className="grid grid-cols-3 gap-2.5">
+                                   {/* Foto do Veículo */}
+                                   <div className="border border-gray-200 rounded-xl p-2 bg-slate-50 text-center space-y-1 flex flex-col justify-between">
+                                     <div>
+                                       <p className="text-[8px] font-bold text-gray-500 uppercase mb-1">Foto do Veículo</p>
+                                       {vehicle.documents?.vehiclePhoto ? (
+                                         vehicle.documents.vehiclePhoto.startsWith("file://") ? (
+                                           <div className="relative rounded-lg aspect-square border border-gray-200 bg-white flex flex-col items-center justify-center p-2 text-center">
+                                             <Car className="w-6 h-6 text-emerald-600 opacity-60 mb-1" />
+                                             <p className="text-[7px] leading-tight text-gray-400 font-bold truncate w-full">{vehicle.documents.vehiclePhoto.split("/").pop()}</p>
+                                             <span className="absolute bottom-1 left-1 right-1 bg-emerald-500 text-white font-extrabold text-[6px] py-0.5 rounded leading-none">Simulado</span>
+                                           </div>
+                                         ) : (
+                                           <div
+                                             className="relative group overflow-hidden rounded-lg aspect-square border border-gray-200 bg-white cursor-pointer"
+                                             onClick={() => openLightbox(vehicle.documents!.vehiclePhoto!, "Foto do Veiculo - " + vehicle.plate)}
+                                           >
+                                             <img
+                                               src={cleanDocUrl(vehicle.documents.vehiclePhoto)}
+                                               alt="Veiculo"
+                                               className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                             />
+                                             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                                               <Eye className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                                             </div>
+                                           </div>
+                                         )
+                                       ) : (
+                                         <div className="aspect-square rounded-lg border border-dashed border-gray-300 bg-white flex flex-col items-center justify-center text-gray-400 p-2">
+                                           <Car className="w-5 h-5 opacity-40" />
+                                           <span className="text-[7px] leading-tight font-bold">Sem foto</span>
+                                         </div>
+                                       )}
+                                     </div>
 
-                                  {/* CRLV Frente */}
-                                  <div className="border border-gray-200 rounded-xl p-2 bg-slate-50 text-center space-y-1">
-                                    <p className="text-[8px] font-bold text-gray-500 uppercase">CRLV Frente</p>
-                                    {vehicle.documents?.crlvFront ? (
-                                      vehicle.documents.crlvFront.startsWith("file://") ? (
-                                        <div className="relative rounded-lg aspect-square border border-gray-200 bg-white flex flex-col items-center justify-center p-2 text-center">
-                                          <FileText className="w-6 h-6 text-emerald-600 opacity-60 mb-1" />
-                                          <p className="text-[7px] leading-tight text-gray-400 font-bold truncate w-full">{vehicle.documents.crlvFront.split("/").pop()}</p>
-                                          <span className="absolute bottom-1 left-1 right-1 bg-emerald-500 text-white font-extrabold text-[6px] py-0.5 rounded leading-none">Simulado</span>
-                                        </div>
-                                      ) : (
-                                        <div
-                                          className="relative group overflow-hidden rounded-lg aspect-square border border-gray-200 bg-white cursor-pointer"
-                                          onClick={() => openLightbox(vehicle.documents!.crlvFront!, "CRLV Frente - " + vehicle.plate)}
-                                        >
-                                          <img
-                                            src={cleanDocUrl(vehicle.documents.crlvFront)}
-                                            alt="CRLV Frente"
-                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                                          />
-                                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
-                                            <Eye className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
-                                          </div>
-                                        </div>
-                                      )
-                                    ) : (
-                                      <div className="aspect-square rounded-lg border border-dashed border-gray-300 bg-white flex flex-col items-center justify-center text-gray-400 p-2">
-                                        <FileText className="w-5 h-5 opacity-40" />
-                                        <span className="text-[7px] leading-tight font-bold">Sem CRLV</span>
-                                      </div>
-                                    )}
-                                  </div>
+                                     {/* Status and Action Buttons */}
+                                     <div className="space-y-1.5 pt-1.5 border-t border-gray-200/60 mt-1">
+                                       {(() => {
+                                         const status = (selectedUser as PendingDriver).driverDocuments?.vehiclePhotoStatus || "pending";
+                                         const badgeColors = {
+                                           approved: "bg-emerald-50 text-emerald-700 border-emerald-200",
+                                           rejected: "bg-rose-50 text-rose-700 border-rose-200",
+                                           pending: "bg-amber-50 text-amber-700 border-amber-200",
+                                         };
+                                         const badgeLabels = {
+                                           approved: "Aprovada",
+                                           rejected: "Rejeitada",
+                                           pending: "Pendente",
+                                         };
+                                         const statusKey = (status === "approved" || status === "rejected") ? status : "pending";
+                                         return (
+                                           <div className={`px-1.5 py-0.5 rounded border text-[7px] font-extrabold tracking-wide uppercase inline-block ${badgeColors[statusKey]}`}>
+                                             {badgeLabels[statusKey]}
+                                           </div>
+                                         );
+                                       })()}
 
-                                  {/* CRLV Verso */}
-                                  <div className="border border-gray-200 rounded-xl p-2 bg-slate-50 text-center space-y-1">
-                                    <p className="text-[8px] font-bold text-gray-500 uppercase">CRLV Verso</p>
-                                    {vehicle.documents?.crlvBack ? (
-                                      vehicle.documents.crlvBack.startsWith("file://") ? (
-                                        <div className="relative rounded-lg aspect-square border border-gray-200 bg-white flex flex-col items-center justify-center p-2 text-center">
-                                          <FileText className="w-6 h-6 text-emerald-600 opacity-60 mb-1" />
-                                          <p className="text-[7px] leading-tight text-gray-400 font-bold truncate w-full">{vehicle.documents.crlvBack.split("/").pop()}</p>
-                                          <span className="absolute bottom-1 left-1 right-1 bg-emerald-500 text-white font-extrabold text-[6px] py-0.5 rounded leading-none">Simulado</span>
-                                        </div>
-                                      ) : (
-                                        <div
-                                          className="relative group overflow-hidden rounded-lg aspect-square border border-gray-200 bg-white cursor-pointer"
-                                          onClick={() => openLightbox(vehicle.documents!.crlvBack!, "CRLV Verso - " + vehicle.plate)}
-                                        >
-                                          <img
-                                            src={cleanDocUrl(vehicle.documents.crlvBack)}
-                                            alt="CRLV Verso"
-                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                                          />
-                                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
-                                            <Eye className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
-                                          </div>
-                                        </div>
-                                      )
-                                    ) : (
-                                      <div className="aspect-square rounded-lg border border-dashed border-gray-300 bg-white flex flex-col items-center justify-center text-gray-400 p-2">
-                                        <FileText className="w-5 h-5 opacity-40" />
-                                        <span className="text-[7px] leading-tight font-bold">Sem CRLV</span>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
+                                       {vehicle.documents?.vehiclePhoto && (
+                                         <div className="flex gap-1">
+                                           <button
+                                             onClick={() => handleDriverVerificationUpdate(selectedUser._id, "vehiclePhotoStatus", "rejected", "Foto do veículo com qualidade baixa ou placa ilegível")}
+                                             disabled={processing}
+                                             className="px-1 py-0.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-100 rounded text-[7px] font-extrabold transition-all shrink-0 grow"
+                                           >
+                                             Reprovar
+                                           </button>
+                                           <button
+                                             onClick={() => handleDriverVerificationUpdate(selectedUser._id, "vehiclePhotoStatus", "approved")}
+                                             disabled={processing}
+                                             className="px-1 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-100 rounded text-[7px] font-extrabold transition-all shrink-0 grow"
+                                           >
+                                             Aprovar
+                                           </button>
+                                         </div>
+                                       )}
+                                     </div>
+                                   </div>
+
+                                   {/* CRLV Frente */}
+                                   <div className="border border-gray-200 rounded-xl p-2 bg-slate-50 text-center space-y-1 flex flex-col justify-between">
+                                     <div>
+                                       <p className="text-[8px] font-bold text-gray-500 uppercase mb-1">CRLV Frente</p>
+                                       {vehicle.documents?.crlvFront ? (
+                                         vehicle.documents.crlvFront.startsWith("file://") ? (
+                                           <div className="relative rounded-lg aspect-square border border-gray-200 bg-white flex flex-col items-center justify-center p-2 text-center">
+                                             <FileText className="w-6 h-6 text-emerald-600 opacity-60 mb-1" />
+                                             <p className="text-[7px] leading-tight text-gray-400 font-bold truncate w-full">{vehicle.documents.crlvFront.split("/").pop()}</p>
+                                             <span className="absolute bottom-1 left-1 right-1 bg-emerald-500 text-white font-extrabold text-[6px] py-0.5 rounded leading-none">Simulado</span>
+                                           </div>
+                                         ) : (
+                                           <div
+                                             className="relative group overflow-hidden rounded-lg aspect-square border border-gray-200 bg-white cursor-pointer"
+                                             onClick={() => openLightbox(vehicle.documents!.crlvFront!, "CRLV Frente - " + vehicle.plate)}
+                                           >
+                                             <img
+                                               src={cleanDocUrl(vehicle.documents.crlvFront)}
+                                               alt="CRLV Frente"
+                                               className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                             />
+                                             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                                               <Eye className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                                             </div>
+                                           </div>
+                                         )
+                                       ) : (
+                                         <div className="aspect-square rounded-lg border border-dashed border-gray-300 bg-white flex flex-col items-center justify-center text-gray-400 p-2">
+                                           <FileText className="w-5 h-5 opacity-40" />
+                                           <span className="text-[7px] leading-tight font-bold">Sem CRLV</span>
+                                         </div>
+                                       )}
+                                     </div>
+
+                                     {/* Status and Action Buttons */}
+                                     <div className="space-y-1.5 pt-1.5 border-t border-gray-200/60 mt-1">
+                                       {(() => {
+                                         const status = (selectedUser as PendingDriver).driverDocuments?.crlvFrontStatus || "pending";
+                                         const badgeColors = {
+                                           approved: "bg-emerald-50 text-emerald-700 border-emerald-200",
+                                           rejected: "bg-rose-50 text-rose-700 border-rose-200",
+                                           pending: "bg-amber-50 text-amber-700 border-amber-200",
+                                         };
+                                         const badgeLabels = {
+                                           approved: "Aprovada",
+                                           rejected: "Rejeitada",
+                                           pending: "Pendente",
+                                         };
+                                         const statusKey = (status === "approved" || status === "rejected") ? status : "pending";
+                                         return (
+                                           <div className={`px-1.5 py-0.5 rounded border text-[7px] font-extrabold tracking-wide uppercase inline-block ${badgeColors[statusKey]}`}>
+                                             {badgeLabels[statusKey]}
+                                           </div>
+                                         );
+                                       })()}
+
+                                       {vehicle.documents?.crlvFront && (
+                                         <div className="flex gap-1">
+                                           <button
+                                             onClick={() => handleDriverVerificationUpdate(selectedUser._id, "crlvFrontStatus", "rejected", "CRLV Frente vencido ou irregular")}
+                                             disabled={processing}
+                                             className="px-1 py-0.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-100 rounded text-[7px] font-extrabold transition-all shrink-0 grow"
+                                           >
+                                             Reprovar
+                                           </button>
+                                           <button
+                                             onClick={() => handleDriverVerificationUpdate(selectedUser._id, "crlvFrontStatus", "approved")}
+                                             disabled={processing}
+                                             className="px-1 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-100 rounded text-[7px] font-extrabold transition-all shrink-0 grow"
+                                           >
+                                             Aprovar
+                                           </button>
+                                         </div>
+                                       )}
+                                     </div>
+                                   </div>
+
+                                   {/* CRLV Verso */}
+                                   <div className="border border-gray-200 rounded-xl p-2 bg-slate-50 text-center space-y-1 flex flex-col justify-between">
+                                     <div>
+                                       <p className="text-[8px] font-bold text-gray-500 uppercase mb-1">CRLV Verso</p>
+                                       {vehicle.documents?.crlvBack ? (
+                                         vehicle.documents.crlvBack.startsWith("file://") ? (
+                                           <div className="relative rounded-lg aspect-square border border-gray-200 bg-white flex flex-col items-center justify-center p-2 text-center">
+                                             <FileText className="w-6 h-6 text-emerald-600 opacity-60 mb-1" />
+                                             <p className="text-[7px] leading-tight text-gray-400 font-bold truncate w-full">{vehicle.documents.crlvBack.split("/").pop()}</p>
+                                             <span className="absolute bottom-1 left-1 right-1 bg-emerald-500 text-white font-extrabold text-[6px] py-0.5 rounded leading-none">Simulado</span>
+                                           </div>
+                                         ) : (
+                                           <div
+                                             className="relative group overflow-hidden rounded-lg aspect-square border border-gray-200 bg-white cursor-pointer"
+                                             onClick={() => openLightbox(vehicle.documents!.crlvBack!, "CRLV Verso - " + vehicle.plate)}
+                                           >
+                                             <img
+                                               src={cleanDocUrl(vehicle.documents.crlvBack)}
+                                               alt="CRLV Verso"
+                                               className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                             />
+                                             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                                               <Eye className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                                             </div>
+                                           </div>
+                                         )
+                                       ) : (
+                                         <div className="aspect-square rounded-lg border border-dashed border-gray-300 bg-white flex flex-col items-center justify-center text-gray-400 p-2">
+                                           <FileText className="w-5 h-5 opacity-40" />
+                                           <span className="text-[7px] leading-tight font-bold">Sem CRLV</span>
+                                         </div>
+                                       )}
+                                     </div>
+
+                                     {/* Status and Action Buttons */}
+                                     <div className="space-y-1.5 pt-1.5 border-t border-gray-200/60 mt-1">
+                                       {(() => {
+                                         const status = (selectedUser as PendingDriver).driverDocuments?.crlvBackStatus || "pending";
+                                         const badgeColors = {
+                                           approved: "bg-emerald-50 text-emerald-700 border-emerald-200",
+                                           rejected: "bg-rose-50 text-rose-700 border-rose-200",
+                                           pending: "bg-amber-50 text-amber-700 border-amber-200",
+                                         };
+                                         const badgeLabels = {
+                                           approved: "Aprovada",
+                                           rejected: "Rejeitada",
+                                           pending: "Pendente",
+                                         };
+                                         const statusKey = (status === "approved" || status === "rejected") ? status : "pending";
+                                         return (
+                                           <div className={`px-1.5 py-0.5 rounded border text-[7px] font-extrabold tracking-wide uppercase inline-block ${badgeColors[statusKey]}`}>
+                                             {badgeLabels[statusKey]}
+                                           </div>
+                                         );
+                                       })()}
+
+                                       {vehicle.documents?.crlvBack && (
+                                         <div className="flex gap-1">
+                                           <button
+                                             onClick={() => handleDriverVerificationUpdate(selectedUser._id, "crlvBackStatus", "rejected", "CRLV Verso com dados ilegíveis")}
+                                             disabled={processing}
+                                             className="px-1 py-0.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-100 rounded text-[7px] font-extrabold transition-all shrink-0 grow"
+                                           >
+                                             Reprovar
+                                           </button>
+                                           <button
+                                             onClick={() => handleDriverVerificationUpdate(selectedUser._id, "crlvBackStatus", "approved")}
+                                             disabled={processing}
+                                             className="px-1 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-100 rounded text-[7px] font-extrabold transition-all shrink-0 grow"
+                                           >
+                                             Aprovar
+                                           </button>
+                                         </div>
+                                       )}
+                                     </div>
+                                   </div>
+                                 </div>
+                               </div>
                             </div>
                           );
                         })}

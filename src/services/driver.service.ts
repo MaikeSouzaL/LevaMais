@@ -1,7 +1,7 @@
 import { logger } from '@/utils/logger';
 import configService from '@/services/config.service';
 import { supabase } from '../lib/supabase';
-import { requireUserId } from './supabase-auth.service';
+import { requireUserId } from './appwrite-auth.service';
 import pricingService from './pricing.service';
 
 export interface DriverBalance {
@@ -363,7 +363,7 @@ class DriverService {
 
   /** No-op: modelo de veículo único — o veículo em driver_details é sempre o ativo. */
   async addVehicle(_payload: any): Promise<DriverVehicle> {
-    throw new Error('Use saveDriverVehicle() de supabase-auth.service para cadastrar veículos.');
+    throw new Error('Use saveDriverVehicle() de appwrite-auth.service para cadastrar veículos.');
   }
 
   /** No-op: modelo de veículo único — não há múltiplos veículos para ativar. */
@@ -377,7 +377,7 @@ class DriverService {
   }
 
   async uploadVehicleDocuments(_vehicleId: string, _formData: FormData): Promise<any> {
-    throw new Error('Use uploadDriverDocument() de supabase-auth.service para enviar documentos.');
+    throw new Error('Use uploadDriverDocument() de appwrite-auth.service para enviar documentos.');
   }
 }
 

@@ -6,7 +6,7 @@ const LogoImg = require("../assets/Logo/logo.png");
 import DrawerDriverRoutes from "./drawer.driver.routes";
 import rideService from "../services/ride.service";
 import { useAuthStore } from "../context/authStore";
-import { getMyDriverDetails } from "../services/supabase-auth.service";
+import { getMyDriverDetails } from "../services/appwrite-auth.service";
 
 /** Resolve com `fallback` se a promise não completar em `ms` — evita boot travado por backend offline. */
 function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {

@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import rideService from "@/services/ride.service";
+import { supabase } from "@/lib/supabase";
 
 export interface NearbyDriver {
   id: string;
@@ -11,111 +12,109 @@ export interface NearbyDriver {
   vehicleType: string;
   rotation?: number;
   status?: "scanning" | "analyzing" | "idle";
-  isUnavailable?: boolean; // Flagado se não aceitar o tipo de serviço atual!
+  isUnavailable?: boolean;
 }
 
 export function useRealtimeDelivery(
-  centerLat?: number, 
-  centerLng?: number, 
+  centerLat?: number,
+  centerLng?: number,
   type: string = "motorcycle",
   secondsElapsed: number = 0,
-  serviceType: string = "ride" // "ride" ou "delivery"
+  serviceType: string = "ride"
 ) {
   const [drivers, setDrivers] = useState<NearbyDriver[]>([]);
   const [feedMessage, setFeedMessage] = useState("Iniciando mapeamento urbano...");
-  
-  // 🧠 Progressive Search Scaler (Keep high-end logic)
+
   const searchState = useMemo(() => {
-    // 💎 Definição de raios progressivos customizados por categoria de veículo
     const radiusConfig: Record<string, { nearby: number; expanded: number; regional: number }> = {
       motorcycle: { nearby: 2.5, expanded: 8.0, regional: 15.0 },
       car: { nearby: 5.0, expanded: 15.0, regional: 30.0 },
       van: { nearby: 10.0, expanded: 35.0, regional: 80.0 },
       truck: { nearby: 15.0, expanded: 80.0, regional: 200.0 },
     };
-
     const active = radiusConfig[type] || radiusConfig.motorcycle;
-
     if (secondsElapsed < 20) return { stage: "nearby" as const, radius: active.nearby, label: "Busca Local" };
     if (secondsElapsed < 60) return { stage: "expanded" as const, radius: active.expanded, label: "Raio Expandido" };
     return { stage: "regional" as const, radius: active.regional, label: "Busca Regional" };
   }, [secondsElapsed, type]);
 
-  // 📡 Production Grade Polling Loop: Fetches REAL coordinates from DB
+  const mapToNearbyDriver = (d: any): NearbyDriver | null => {
+    if (d.latitude == null || d.longitude == null) return null;
+    const sTypes: string[] = Array.isArray(d.service_types) ? d.service_types : [];
+    const supportsCurrentService = sTypes.length === 0 || sTypes.includes(serviceType);
+    return {
+      id: d.id,
+      name: d.profiles?.full_name || "Motorista",
+      profilePhoto: d.profiles?.avatar_url || null,
+      rating: Number(d.profiles?.rating ?? 5),
+      latitude: Number(d.latitude),
+      longitude: Number(d.longitude),
+      vehicleType: d.current_vehicle_type || "motorcycle",
+      rotation: Number(d.heading || 0),
+      status: "scanning" as const,
+      isUnavailable: !supportsCurrentService,
+    };
+  };
+
+  const updateFeedFromDrivers = (list: NearbyDriver[]) => {
+    const label = type === "motorcycle" ? "motoboy" : type === "car" ? "carro" : type === "van" ? "van" : "frete";
+    const plural = type === "motorcycle" ? "motoboys" : type === "car" ? "carros" : type === "van" ? "vans" : "fretes";
+    const activeDrivers = list.filter((d) => !d.isUnavailable);
+    const unavailableDrivers = list.filter((d) => d.isUnavailable);
+
+    if (list.length === 0) {
+      if (secondsElapsed < 10) setFeedMessage("Escaneando assinaturas de GPS...");
+      else setFeedMessage(`Buscando ${plural} num raio de ${searchState.radius}km`);
+    } else if (activeDrivers.length === 0 && unavailableDrivers.length > 0) {
+      const count = unavailableDrivers.length;
+      setFeedMessage(`${count} ${count === 1 ? label : plural} online, porém indisponível no momento`);
+    } else {
+      const count = activeDrivers.length;
+      setFeedMessage(`${count} ${count === 1 ? label : plural} operando no perímetro`);
+    }
+  };
+
   useEffect(() => {
     if (!centerLat || !centerLng) return;
 
-    // Helper to pluralize display tags
+    let mounted = true;
     const label = type === "motorcycle" ? "motoboy" : type === "car" ? "carro" : type === "van" ? "van" : "frete";
     const plural = type === "motorcycle" ? "motoboys" : type === "car" ? "carros" : type === "van" ? "vans" : "fretes";
 
-    const fetchRealNearbyDrivers = async () => {
+    const fetchDrivers = async () => {
       try {
-        // Convert KM state into Meters required by the API backend
         const radiusMeters = searchState.radius * 1000;
-        
-        const response = await rideService.getNearbyDrivers(
-          centerLat, 
-          centerLng, 
-          radiusMeters
-        );
-
-        // Sanitize API response into local render schema 🔒
-        if (Array.isArray(response)) {
-          const mappedDrivers: NearbyDriver[] = response.map((d: any) => {
-            const sTypes = Array.isArray(d.serviceTypes) ? d.serviceTypes : [];
-            // Verifica se o motorista suporta o tipo que o cliente está pedindo
-            const supportsCurrentService = sTypes.length === 0 || sTypes.includes(serviceType);
-            
-            return {
-              id: d._id || d.id,
-              name: d.name,
-              profilePhoto: d.profilePhoto,
-              rating: d.rating,
-              latitude: Number(d.latitude),
-              longitude: Number(d.longitude),
-              vehicleType: d.vehicleType || d.type || type,
-              rotation: d.rotation,
-              status: "scanning" as const,
-              isUnavailable: !supportsCurrentService, // 🛑 Trava lógica!
-            };
-          });
-
-          setDrivers(mappedDrivers);
-
-          // Separar motoristas ativos e inativos para feedback cirúrgico
-          const activeDrivers = mappedDrivers.filter(d => !d.isUnavailable);
-          const unavailableDrivers = mappedDrivers.filter(d => d.isUnavailable);
-
-          // Regra de Telemetria Dinâmica (Pedida pelo Usuário) 📡
-          if (mappedDrivers.length === 0) {
-            if (secondsElapsed < 10) setFeedMessage("Escaneando assinaturas de GPS...");
-            else setFeedMessage(`Buscando ${plural} num raio de ${searchState.radius}km`);
-          } else if (activeDrivers.length === 0 && unavailableDrivers.length > 0) {
-            // 🔥 REGRA CRÍTICA: Motoristas online, mas com preferência desativada para este serviço!
-            const count = unavailableDrivers.length;
-            setFeedMessage(`${count} ${count === 1 ? label : plural} online, porém indisponível no momento`);
-          } else {
-            // Pelo menos um ativo operando!
-            const count = activeDrivers.length;
-            setFeedMessage(`${count} ${count === 1 ? label : plural} operando no perímetro`);
-          }
-        }
+        const response = await rideService.getNearbyDrivers(centerLat, centerLng, radiusMeters);
+        if (!mounted) return;
+        const mapped = (Array.isArray(response) ? response : []).map(mapToNearbyDriver).filter(Boolean) as NearbyDriver[];
+        setDrivers(mapped);
+        updateFeedFromDrivers(mapped);
       } catch (error) {
         console.error("[useRealtimeDelivery] Failed tracking:", error);
       }
     };
 
-    // Initial Immediate Fetch ⚡
-    fetchRealNearbyDrivers();
+    // Initial fetch
+    fetchDrivers();
 
-    // Recursive 4-second tracking loop
-    const tracker = setInterval(fetchRealNearbyDrivers, 4000);
+    // Supabase Realtime: subscribe to driver_locations changes (INSERT and UPDATE)
+    const channel = supabase
+      .channel(`nearby-drivers-${Date.now()}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "driver_locations" },
+        () => {
+          // Re-fetch on any driver location change
+          fetchDrivers();
+        }
+      )
+      .subscribe();
 
-    return () => clearInterval(tracker);
-
-  }, [centerLat, centerLng, type, searchState.radius]); 
-  // Recalculates instantly if coordinates, type, or expanded radius tier changes!
+    return () => {
+      mounted = false;
+      supabase.removeChannel(channel);
+    };
+  }, [centerLat, centerLng, type, searchState.radius]);
 
   return { drivers, feedMessage, searchState };
 }

@@ -1,5 +1,9 @@
 {
   "mcpServers": {
+    "supabase": {
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp?project_ref=iirmoiduygmeckfjuwqv&read_only=true&features=database,debugging,development,docs"
+    },
     "ruflo": {
       "command": "cmd",
       "args": [

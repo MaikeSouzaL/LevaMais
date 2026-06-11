@@ -1,7 +1,7 @@
 import api from "./api";
 import { logger } from "@/utils/logger";
 import { supabase } from "../lib/supabase";
-import { requireUserId } from "./supabase-auth.service";
+import { requireUserId } from "./appwrite-auth.service";
 
 /**
  * Servico de deposito no saldo LevaPay.
@@ -215,23 +215,13 @@ class DepositService {
 
         // Credit balance directly on profiles
         try {
-          if (pending.account === "driver_balance") {
-            const { data: details } = await supabase
-              .from("driver_details")
-              .select("balance")
-              .eq("id", pending.userId)
-              .single();
-            const newBalance = Number(details?.balance || 0) + pending.amount;
-            await supabase.from("driver_details").update({ balance: newBalance }).eq("id", pending.userId);
-          } else {
-            const { data: profile } = await supabase
-              .from("profiles")
-              .select("wallet_balance")
-              .eq("id", pending.userId)
-              .single();
-            const newBalance = Number(profile?.wallet_balance || 0) + pending.amount;
-            await supabase.from("profiles").update({ wallet_balance: newBalance }).eq("id", pending.userId);
-          }
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("wallet_balance")
+            .eq("id", pending.userId)
+            .single();
+          const newBalance = Number(profile?.wallet_balance || 0) + pending.amount;
+          await supabase.from("profiles").update({ wallet_balance: newBalance }).eq("id", pending.userId);
         } catch (creditErr) {
           logger.warn("DepositService", "Erro ao creditar saldo (fallback local)", creditErr);
         }

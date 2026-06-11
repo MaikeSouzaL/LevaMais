@@ -1,4 +1,4 @@
-ï»¿import React, { useCallback, useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   FlatList,
   Text,
@@ -130,7 +130,7 @@ export default function FavoritesScreen() {
         <View style={{ flex: 1 }}>
           <Text style={{ color: "#fff", fontSize: 18, fontWeight: "800" }}>Favoritos</Text>
           <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginTop: 2 }}>
-            {favorites.length > 0 ? `${favorites.length} endereÃ§o${favorites.length !== 1 ? "s" : ""} salvo${favorites.length !== 1 ? "s" : ""}` : "EndereÃ§os para pedir mais rÃ¡pido"}
+            {favorites.length > 0 ? `${favorites.length} endereço${favorites.length !== 1 ? "s" : ""} salvo${favorites.length !== 1 ? "s" : ""}` : "Endereços para pedir mais rápido"}
           </Text>
         </View>
         <TouchableOpacity
@@ -169,7 +169,7 @@ export default function FavoritesScreen() {
           </MotiView>
           <Text style={{ color: "#fff", fontSize: 18, fontWeight: "800", marginBottom: 10 }}>Nenhum favorito ainda</Text>
           <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 14, textAlign: "center", lineHeight: 21, marginBottom: 28 }}>
-            Salve endereÃ§os frequentes para solicitar corridas e entregas mais rapidamente.
+            Salve endereços frequentes para solicitar corridas e entregas mais rapidamente.
           </Text>
           <TouchableOpacity
             onPress={openNewFavoriteFlow}

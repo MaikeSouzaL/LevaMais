@@ -1,5 +1,5 @@
 import { supabase } from "../lib/supabase";
-import { requireUserId } from "./supabase-auth.service";
+import { requireUserId } from "./appwrite-auth.service";
 
 export type DriverStatus = "offline" | "available" | "busy" | "on_ride";
 
@@ -36,10 +36,12 @@ class DriverLocationService {
 
     if (!location) return null;
 
-    // Normaliza is_online → status para consumo em DriverHomeScreen
+    // Normaliza is_online → status e service_types → serviceTypes (camelCase) para
+    // consumo nas telas (DriverHomeScreen/DriverRequestsScreen).
     return {
       ...location,
       status: location.is_online ? "available" : "offline",
+      serviceTypes: Array.isArray(location.service_types) ? location.service_types : [],
     };
   }
 

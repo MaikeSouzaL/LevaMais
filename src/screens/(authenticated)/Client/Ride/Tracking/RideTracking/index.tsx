@@ -20,6 +20,7 @@ import { useChatStore } from "@/context/chatStore";
 import { supabase } from "@/lib/supabase";
 import { darkMapStyle } from "@/utils/mapStyle";
 import { decodePolyline, LatLng } from "@/utils/polyline";
+import { getPaymentMethodType } from "@/utils/payment";
 import { estimateCancellationFee } from "@/utils/cancellationFee";
 import RoutePin from "@/components/maps/RoutePin";
 import StopPin from "@/components/maps/StopPin";
@@ -371,8 +372,9 @@ export default function RideTrackingScreen() {
     }
 
     loadRide();
-    const poll = setInterval(loadRide, 5000);
-    return () => clearInterval(poll);
+    // Realtime ensures the component updates immediately. Polling is redundant.
+    // const poll = setInterval(loadRide, 5000);
+    // return () => clearInterval(poll);
   }, [rideId, navigation, loadRide]);
 
   useEffect(() => {
@@ -440,9 +442,9 @@ export default function RideTrackingScreen() {
       }
     };
 
-    // Supabase Realtime: escuta mudanças na corrida
+    // Supabase Realtime: escuta mudanças na corrida (nome de canal único por instância)
     const rideChannel = supabase
-      .channel(`ride:${rideId}`)
+      .channel(`ride:${rideId}:${Math.random().toString(36).slice(2)}`)
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "rides", filter: `id=eq.${rideId}` },
@@ -520,7 +522,7 @@ export default function RideTrackingScreen() {
     if (!driverId) return;
 
     const channel = supabase
-      .channel(`driver-location:${driverId}`)
+      .channel(`driver-location:${driverId}:${Math.random().toString(36).slice(2)}`)
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "driver_locations", filter: `id=eq.${driverId}` },
@@ -898,7 +900,7 @@ export default function RideTrackingScreen() {
 
         {loading && <Text className="text-[rgba(255,255,255,0.5)] text-[10px] mt-1">Atualizando dados...</Text>}
 
-        {ride?.payment?.method?.toLowerCase() === "pix" && !!ride?.payment?.pixCode && ride?.payment?.status !== "paid" && (
+        {getPaymentMethodType(ride?.payment) === "pix" && !!ride?.payment?.pixCode && ride?.payment?.status !== "paid" && (
           <TouchableOpacity
             className="mt-3 w-full flex-row items-center justify-center gap-2 h-12 rounded-xl bg-[#32BCAD]"
             onPress={() => setShowPixModal(true)}

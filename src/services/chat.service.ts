@@ -1,5 +1,5 @@
 import { supabase } from "../lib/supabase";
-import { requireUserId } from "./supabase-auth.service";
+import { requireUserId } from "./appwrite-auth.service";
 
 export interface ChatMessage {
   _id: string;
@@ -101,7 +101,7 @@ class ChatService {
    */
   onNewMessage(rideId: string, callback: (msg: ChatMessage) => void): () => void {
     const channel = supabase
-      .channel(`chat:${rideId}`)
+      .channel(`chat:${rideId}:${Math.random().toString(36).slice(2)}`)
       .on(
         "postgres_changes",
         {

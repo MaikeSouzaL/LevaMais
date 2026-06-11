@@ -14,7 +14,7 @@ import {
 import { useClientCityStore } from "../context/clientCityStore";
 import { logger } from "../utils/logger";
 import { useAuthStore } from "../context/authStore";
-import { getProfile as getSupabaseProfile, updateMyProfile } from "../services/supabase-auth.service";
+import { getProfile as getSupabaseProfile, updateMyProfile } from "../services/appwrite-auth.service";
 import TermsScreen from "../screens/(public)/TermsScreen";
 import ClientOnboardingDashboard from "../components/client/home/ClientOnboardingDashboard";
 import LocationPermissionScreen from "../screens/(public)/LocationPermissionScreen";

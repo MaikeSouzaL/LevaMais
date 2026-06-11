@@ -1,6 +1,6 @@
 import { Platform } from "react-native";
 import { supabase } from "../lib/supabase";
-import { requireUserId } from "./supabase-auth.service";
+import { requireUserId } from "./appwrite-auth.service";
 
 export type UserProfile = {
   _id: string;

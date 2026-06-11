@@ -19,7 +19,7 @@ import { MotiView, MotiText } from "moti";
 import { ShieldCheck, MessageSquare, Info } from "lucide-react-native";
 import Toast from "react-native-toast-message";
 
-import { updateMyProfile } from "../../../services/supabase-auth.service";
+import { updateMyProfile } from "../../../services/appwrite-auth.service";
 
 // 🎨 Unified System & Components
 import { colors } from "../../../theme/colors";
