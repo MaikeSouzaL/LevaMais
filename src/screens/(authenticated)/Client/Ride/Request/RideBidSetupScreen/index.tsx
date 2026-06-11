@@ -22,6 +22,7 @@ import Toast from "react-native-toast-message";
 
 import rideService from "@/services/ride.service";
 import { PaymentMethodsSheet, type PaymentMethod } from "@/components/payment/PaymentMethodsSheet";
+import { useWalletBalance } from "@/hooks/useWalletBalance";
 import { BidAmountControl } from "@/components/ride/BidAmountControl";
 import userService from "@/services/user.service";
 
@@ -37,17 +38,14 @@ export default function RideBidSetupScreen({ route, navigation }: any) {
   const [clientOffer, setClientOffer] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("wallet");
   const [showPaymentMethods, setShowPaymentMethods] = useState(false);
-  const [balance, setBalance] = useState(0);
-  const [held, setHeld] = useState(0);
+  // Saldo LevaPay em tempo real (assina mudanças em profiles.wallet_balance)
+  const { balance, held, refresh: refreshWallet } = useWalletBalance();
   const [pendingDebt, setPendingDebt] = useState(0);
 
   const loadBalance = async () => {
+    refreshWallet();
     try {
       const profile = await userService.getProfile();
-      if (profile && (profile as any).wallet) {
-        setBalance((profile as any).wallet.balance || 0);
-        setHeld((profile as any).wallet.held || 0);
-      }
       setPendingDebt((profile as any)?.pendingDebt || 0);
     } catch (err) {
       console.warn("Erro ao buscar saldo:", err);

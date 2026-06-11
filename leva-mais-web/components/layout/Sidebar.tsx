@@ -19,6 +19,7 @@ import {
   Settings,
   ShieldAlert,
   Landmark,
+  DollarSign,
   LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -47,6 +48,12 @@ const MENU_ITEMS = [
     label: "Disputas",
     icon: ShieldAlert,
     href: "/disputes",
+    active: true,
+  },
+  {
+    label: "Preços por Cidade",
+    icon: DollarSign,
+    href: "/settings/pricing",
     active: true,
   },
   {

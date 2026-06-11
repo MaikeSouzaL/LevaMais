@@ -1,7 +1,7 @@
 import { supabase } from "../lib/supabase";
 import { requireUserId } from "./supabase-auth.service";
 import deliveryService from "./delivery.service";
-import pricingService, { calculateFare } from "./pricing.service";
+import pricingService, { calculateFare, calculateDeliveryFare } from "./pricing.service";
 
 export interface Location {
   address: string;
@@ -169,6 +169,8 @@ export interface CalculatePriceRequest {
   dropoff: Location;
   stops?: Location[];
   vehicleType: "motorcycle" | "car" | "van" | "truck";
+  // Cidade do usuário — seleciona a tabela de preço da cidade (fallback: regra global).
+  city?: string | null;
   // Logistic Extensions for Smart Engine¡
   serviceType?: "ride" | "delivery";
   deliveryType?: string;
@@ -511,11 +513,15 @@ class RideService {
     const durationMin = data.duration || 0;
     const serviceType = data.serviceType || "ride";
 
-    const rules = await pricingService.getRules(serviceType);
+    const rules = await pricingService.getRules(serviceType, data.city);
     const rule = rules.find((r) => r.vehicleCategory === data.vehicleType);
     if (!rule) throw new Error("Tabela de preços não configurada para este veículo.");
 
-    const fare = calculateFare(rule.pricing, distanceKm, durationMin, data.stops?.length || 0);
+    const stopsCount = data.stops?.length || 0;
+    const fare =
+      serviceType === "delivery"
+        ? calculateDeliveryFare(rule.pricing, distanceKm, stopsCount)
+        : calculateFare(rule.pricing, distanceKm, durationMin, stopsCount);
     const cfg = await pricingService.getConfig();
     const serviceFee = Number((fare.total * cfg.appFeePercentage / 100).toFixed(2));
 

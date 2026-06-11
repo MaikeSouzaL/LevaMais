@@ -111,11 +111,76 @@ class AddressHistoryService {
     }
   }
 
+  private mapRow(row: any): AddressHistoryEntry {
+    return {
+      _id: row.id,
+      id: row.id,
+      context: row.context as AddressHistoryContext,
+      name: row.name,
+      address: row.address,
+      formattedAddress: row.formatted_address,
+      latitude: Number(row.latitude),
+      longitude: Number(row.longitude),
+      details: row.details,
+      contactName: row.contact_name,
+      contactPhone: row.contact_phone,
+      source: row.source as AddressHistorySource,
+      lastUsedAt: row.last_used_at,
+      useCount: row.use_count,
+    };
+  }
+
+  /**
+   * Atualiza a lista local (AsyncStorage) deduplicando pelo endereço dentro do
+   * mesmo contexto: se já existe, sobe a entrada ao topo e incrementa o uso.
+   */
+  private async upsertLocal(
+    newEntry: AddressHistoryEntry,
+    addrKey: string,
+    data: CreateAddressHistoryRequest,
+  ): Promise<AddressHistoryEntry> {
+    const local = await this.getLocal();
+    const ctx = data.context || "general";
+    const key = addrKey.toLowerCase();
+    const idx = key
+      ? local.findIndex(
+          (x) =>
+            (x.context || "general") === ctx &&
+            String(x.address || x.formattedAddress || "").trim().toLowerCase() === key,
+        )
+      : -1;
+
+    if (idx >= 0) {
+      const ex = local[idx];
+      const merged: AddressHistoryEntry = {
+        ...ex,
+        name: data.name ?? ex.name,
+        details: data.details ?? ex.details,
+        contactName: data.contactName ?? ex.contactName,
+        contactPhone: data.contactPhone ?? ex.contactPhone,
+        source: data.source || ex.source,
+        lastUsedAt: newEntry.lastUsedAt,
+        useCount: (ex.useCount || 1) + 1,
+      };
+      local.splice(idx, 1);
+      local.unshift(merged);
+      await this.saveLocal(local.slice(0, 100));
+      return merged;
+    }
+
+    local.unshift(newEntry);
+    await this.saveLocal(local.slice(0, 100));
+    return newEntry;
+  }
+
   async create(data: CreateAddressHistoryRequest): Promise<AddressHistoryEntry | null> {
     const userId = await requireUserId();
+    const ctx = data.context || "general";
+    const addrKey = String(data.address || data.formattedAddress || "").trim();
+    const nowIso = new Date().toISOString();
     const newEntry: AddressHistoryEntry = {
       _id: Math.random().toString(36).substring(7),
-      context: data.context || "general",
+      context: ctx,
       name: data.name,
       address: data.address,
       formattedAddress: data.formattedAddress,
@@ -125,16 +190,49 @@ class AddressHistoryService {
       contactName: data.contactName,
       contactPhone: data.contactPhone,
       source: data.source || "search",
-      lastUsedAt: new Date().toISOString(),
+      lastUsedAt: nowIso,
       useCount: 1,
     };
 
     try {
+      // Dedupe: se o mesmo endereço já existe para este usuário+contexto, apenas
+      // atualiza (sobe ao topo, incrementa o uso) em vez de criar uma duplicata.
+      if (addrKey) {
+        const pattern = addrKey.replace(/[\\%_]/g, "\\$&");
+        const { data: existingList } = await supabase
+          .from("address_history")
+          .select("*")
+          .eq("user_id", userId)
+          .eq("context", ctx)
+          .ilike("address", pattern)
+          .order("last_used_at", { ascending: false })
+          .limit(1);
+
+        const existing = existingList?.[0];
+        if (existing) {
+          const { data: updated } = await supabase
+            .from("address_history")
+            .update({
+              last_used_at: nowIso,
+              use_count: (existing.use_count || 1) + 1,
+              name: data.name ?? existing.name,
+              details: data.details ?? existing.details,
+              contact_name: data.contactName ?? existing.contact_name,
+              contact_phone: data.contactPhone ?? existing.contact_phone,
+              source: data.source || existing.source,
+            })
+            .eq("id", existing.id)
+            .select()
+            .single();
+          return this.mapRow(updated || existing);
+        }
+      }
+
       const { data: inserted, error } = await supabase
         .from("address_history")
         .insert({
           user_id: userId,
-          context: data.context || "general",
+          context: ctx,
           name: data.name,
           address: data.address,
           formatted_address: data.formattedAddress,
@@ -150,10 +248,7 @@ class AddressHistoryService {
 
       if (error) {
         if (error.code === "42P01" || error.code === "PGRST205") {
-          const local = await this.getLocal();
-          local.unshift(newEntry);
-          await this.saveLocal(local.slice(0, 100));
-          return newEntry;
+          return this.upsertLocal(newEntry, addrKey, data);
         }
         throw error;
       }
@@ -169,10 +264,7 @@ class AddressHistoryService {
       if (error?.code !== "42P01" && error?.code !== "PGRST205") {
         console.error("Erro ao salvar historico de endereco:", error);
       }
-      const local = await this.getLocal();
-      local.unshift(newEntry);
-      await this.saveLocal(local.slice(0, 100));
-      return newEntry;
+      return this.upsertLocal(newEntry, addrKey, data);
     }
   }
 }

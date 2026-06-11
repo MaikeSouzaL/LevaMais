@@ -708,48 +708,6 @@ export async function getClientWallet(): Promise<{
   };
 }
 
-export async function topupClientWallet(amount: number): Promise<{
-  balance: number;
-}> {
-  const userId = await requireUserId();
-
-  // Buscar saldo atual
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("wallet_balance")
-    .eq("id", userId)
-    .single();
-
-  if (profileError) throw profileError;
-
-  const newBalance = Number(profile?.wallet_balance || 0) + amount;
-
-  // Atualizar saldo do perfil
-  const { error: updateError } = await supabase
-    .from("profiles")
-    .update({ wallet_balance: newBalance })
-    .eq("id", userId);
-
-  if (updateError) throw updateError;
-
-  // Inserir transação
-  const { error: txError } = await supabase
-    .from("wallet_transactions")
-    .insert({
-      user_id: userId,
-      type: "topup",
-      amount: amount,
-      description: "Recarga via PIX",
-      status: "completed",
-    });
-
-  if (txError) throw txError;
-
-  return {
-    balance: newBalance,
-  };
-}
-
 export async function getNotifications(): Promise<AppNotification[]> {
   try {
     const userId = await requireUserId();

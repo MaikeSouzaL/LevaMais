@@ -1,10 +1,10 @@
-﻿import React, { useCallback, useState } from "react";
+import React, { useCallback, useState } from "react";
 import { ScrollView, Text, TouchableOpacity, View, StatusBar, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { MotiView } from "moti";
-import { ArrowLeft, CreditCard, CheckCircle, Trash2, Plus, CreditCardIcon, Star, Info } from "lucide-react-native";
+import { ArrowLeft, CreditCard, CheckCircle, Trash2, Plus, CreditCardIcon, Star, Info, Wallet } from "lucide-react-native";
 import Toast from "react-native-toast-message";
 
 import {
@@ -13,6 +13,7 @@ import {
   setDefaultPaymentMethod,
   type PaymentMethod,
 } from "@/services/auth.service";
+import { useWalletBalance } from "@/hooks/useWalletBalance";
 import { ClientStackParamList } from "../types/navigation";
 import { Modal } from "@/components/Modal";
 
@@ -32,6 +33,8 @@ export default function PaymentsCenterScreen() {
   const [deleteTarget, setDeleteTarget] = useState<PaymentMethod | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [settingDefault, setSettingDefault] = useState<string | null>(null);
+  // Saldo LevaPay em tempo real (assina mudanças em profiles.wallet_balance)
+  const { balance, refresh: loadBalance } = useWalletBalance();
 
   const loadMethods = useCallback(async () => {
     try {
@@ -45,7 +48,10 @@ export default function PaymentsCenterScreen() {
     }
   }, []);
 
-  useFocusEffect(useCallback(() => { loadMethods(); }, [loadMethods]));
+  useFocusEffect(useCallback(() => {
+    loadMethods();
+    loadBalance();
+  }, [loadMethods, loadBalance]));
 
   const handleConfirmDelete = async () => {
     if (!deleteTarget || isDeleting) return;
@@ -98,6 +104,62 @@ export default function PaymentsCenterScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+
+        {/* LevaPay Balance Card */}
+        <MotiView
+          from={{ opacity: 0, translateY: 8 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          style={{
+            backgroundColor: "#11253E",
+            borderRadius: 20,
+            padding: 20,
+            borderWidth: 1.5,
+            borderColor: "rgba(2,222,149,0.3)",
+            marginBottom: 20,
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: "rgba(2,222,149,0.15)", alignItems: "center", justifyContent: "center" }}>
+                <Wallet size={18} color="#02de95" />
+              </View>
+              <View style={{ flex: 1, flexDirection: "column" } as any}>
+                <Text style={{ color: "#fff", fontSize: 16, fontWeight: "800" }}>LevaPay</Text>
+                <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 11 }}>Saldo recomendado</Text>
+              </View>
+            </View>
+            <View style={{ backgroundColor: "rgba(2,222,149,0.15)", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2, borderWidth: 1, borderColor: "rgba(2,222,149,0.3)" }}>
+              <Text style={{ color: "#02de95", fontSize: 10, fontWeight: "800" }}>ATIVO</Text>
+            </View>
+          </View>
+          
+          <View style={{ marginVertical: 10 }}>
+            <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, textTransform: "uppercase", fontWeight: "700", letterSpacing: 0.5 }}>Saldo Disponível</Text>
+            <Text style={{ color: "#fff", fontSize: 28, fontWeight: "900", marginTop: 2 }}>
+              R$ {balance.toFixed(2).replace(".", ",")}
+            </Text>
+          </View>
+          
+          <TouchableOpacity
+            onPress={() => (navigation as any).navigate("Deposit", { onSuccess: () => { loadBalance(); } })}
+            activeOpacity={0.85}
+            style={{
+              height: 44,
+              borderRadius: 12,
+              backgroundColor: "#02de95",
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              marginTop: 10,
+            }}
+          >
+            <Plus size={16} color="#091A2F" />
+            <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 13, textTransform: "uppercase", letterSpacing: 0.5 }}>
+              Depositar Saldo
+            </Text>
+          </TouchableOpacity>
+        </MotiView>
 
         {/* Adicionar cartão */}
         <TouchableOpacity

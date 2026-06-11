@@ -138,8 +138,14 @@ class DepositService {
       const payload = `00020101021226830014br.gov.bcb.pix2561pix-h.mercado...LevaPay...tx${txId}`;
       const qrCode = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(payload)}`;
 
-      // Store pending deposit info locally for status polling
-      this._pendingDeposits.set(txId, { userId, amount, account, createdAt: Date.now() });
+      // Só usa o fallback em memória quando a transação NÃO foi persistida no banco
+      // (id "local_"). Para transações reais, o polling deve seguir o caminho do banco,
+      // que marca status='paid' e deixa o trigger on_wallet_transaction_paid creditar o
+      // saldo com segurança (o crédito direto pelo client é revertido por
+      // protect_wallet_balance).
+      if (txId.startsWith("local_")) {
+        this._pendingDeposits.set(txId, { userId, amount, account, createdAt: Date.now() });
+      }
 
       return {
         provider: "pix",
@@ -259,38 +265,12 @@ class DepositService {
       if (currentStatus === "pending") {
         currentStatus = "paid";
         
-        // Update transaction status to paid
+        // Update transaction status to paid. This will trigger the database
+        // trigger trg_wallet_transaction_paid to automatically credit the balance.
         await supabase
           .from("wallet_transactions")
           .update({ status: "paid" })
           .eq("id", transactionId);
-
-        // Credit balance
-        const userId = tx.user_id;
-        const isDriverTx = tx.description?.includes("motorista");
-        if (isDriverTx) {
-          const { data: details } = await supabase
-            .from("driver_details")
-            .select("balance")
-            .eq("id", userId)
-            .single();
-          const newBalance = Number(details?.balance || 0) + Number(tx.amount);
-          await supabase
-            .from("driver_details")
-            .update({ balance: newBalance })
-            .eq("id", userId);
-        } else {
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("wallet_balance")
-            .eq("id", userId)
-            .single();
-          const newBalance = Number(profile?.wallet_balance || 0) + Number(tx.amount);
-          await supabase
-            .from("profiles")
-            .update({ wallet_balance: newBalance })
-            .eq("id", userId);
-        }
       }
 
       return {

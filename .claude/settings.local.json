@@ -69,7 +69,17 @@
       "mcp__Claude_in_Chrome__javascript_tool",
       "mcp__Claude_in_Chrome__read_page",
       "mcp__Claude_in_Chrome__form_input",
-      "Bash(findstr /i \"SUPABASE\")"
+      "Bash(findstr /i \"SUPABASE\")",
+      "mcp__bccc8d4e-32be-4d16-8981-a9d11837fec4__list_tables",
+      "Bash(echo \"=== total erros: $\\(npx tsc --noEmit -p tsconfig.json 2>&1)",
+      "Bash(echo \"erros totais: $\\(npx tsc --noEmit -p tsconfig.json 2>&1)",
+      "Bash(echo \"erros: $\\(npx tsc --noEmit -p tsconfig.json 2>&1)",
+      "Bash(echo \"erros web \\(pricing/sidebar\\): $\\(npx tsc --noEmit 2>&1)",
+      "Bash(echo \"erros nos meus arquivos web: $\\(npx tsc --noEmit 2>&1)",
+      "Bash(echo \"=== MOBILE total: $\\(npx tsc --noEmit -p tsconfig.json 2>&1)",
+      "Bash(echo \"erros meus arquivos: $\\(npx tsc --noEmit 2>&1)",
+      "Bash(echo \"MOBILE total: $\\(npx tsc --noEmit -p tsconfig.json 2>&1)",
+      "Bash(echo \"WEB erros pricing: $\\(npx tsc --noEmit 2>&1)"
     ]
   },
   "disabledMcpjsonServers": [

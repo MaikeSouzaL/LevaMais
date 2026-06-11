@@ -1,6 +1,6 @@
 import { supabase } from "../lib/supabase";
 import { requireUserId } from "./supabase-auth.service";
-import pricingService, { calculateFare } from "./pricing.service";
+import pricingService, { calculateDeliveryFare } from "./pricing.service";
 import type {
   Location, PricingCalculation, DistanceDuration, RideDetails, CreateRideRequest,
   Ride, RideOffer, CalculatePriceRequest, CalculatePriceResponse,
@@ -29,11 +29,11 @@ class DeliveryService {
     const distanceKm = data.distance;
     const durationMin = data.duration || 0;
 
-    const rules = await pricingService.getRules("delivery");
+    const rules = await pricingService.getRules("delivery", data.city);
     const rule = rules.find((r) => r.vehicleCategory === data.vehicleType);
     if (!rule) throw new Error("Tabela de preços de entrega não configurada para este veículo.");
 
-    const fare = calculateFare(rule.pricing, distanceKm, durationMin, data.stops?.length || 0);
+    const fare = calculateDeliveryFare(rule.pricing, distanceKm, data.stops?.length || 0);
     const cfg = await pricingService.getConfig();
     const serviceFee = Number((fare.total * cfg.appFeePercentage / 100).toFixed(2));
 

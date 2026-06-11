@@ -1249,97 +1249,141 @@ function MethodSelectStep(props: {
 }) {
   return (
     <View style={{ gap: sp.md }}>
+      {/* Target Amount Header Card */}
+      <View
+        style={{
+          backgroundColor: "rgba(255, 255, 255, 0.03)",
+          borderRadius: br.xl,
+          borderWidth: 1,
+          borderColor: "rgba(255, 255, 255, 0.06)",
+          padding: sp.lg,
+          alignItems: "center",
+          marginBottom: sp.xs,
+        }}
+      >
+        <Text style={{ fontSize: 11, color: t.text.tertiary, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.8 }}>
+          Valor a ser adicionado
+        </Text>
+        <Text style={{ fontSize: 32, fontWeight: "900", color: t.icon.brand, marginTop: 4 }}>
+          {formatBRL(props.amount)}
+        </Text>
+      </View>
+
       <Text
         style={{
-          fontSize: fs.base,
+          fontSize: fs.base - 1,
           fontWeight: fw.black,
           color: t.text.primary,
           marginBottom: sp.xs,
+          marginLeft: 2,
         }}
       >
         Escolha o método de pagamento
       </Text>
 
+      {/* PIX (Stripe) Option Card */}
       <Pressable
         onPress={() => props.onSelectMethod("pix")}
         style={({ pressed }) => ({
           backgroundColor: t.surface.card,
           borderRadius: br.xl,
           padding: sp.lg,
-          borderWidth: 1,
-          borderColor: t.border.subtle,
+          borderWidth: 1.5,
+          borderColor: pressed ? t.border.focus : "rgba(2, 222, 149, 0.15)",
           flexDirection: "row",
           alignItems: "center",
-          opacity: pressed ? 0.9 : 1,
+          opacity: pressed ? 0.95 : 1,
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.1,
+          shadowRadius: 10,
+          elevation: 2,
         })}
       >
         <View
           style={{
-            width: 44,
-            height: 44,
+            width: 48,
+            height: 48,
             borderRadius: br.lg,
-            backgroundColor: t.surface.successSoft,
+            backgroundColor: "rgba(2, 222, 149, 0.12)",
             alignItems: "center",
             justifyContent: "center",
             marginRight: sp.md,
           }}
         >
-          <Zap size={22} color={t.icon.brand} />
+          <Zap size={24} color={t.icon.brand} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: fs.base, fontWeight: fw.black, color: t.text.primary }}>
-            PIX (Stripe)
-          </Text>
-          <Text style={{ fontSize: fs.xs, color: t.text.tertiary, marginTop: 2 }}>
-            Aprovação imediata e sem taxas.
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            <Text style={{ fontSize: fs.base, fontWeight: fw.black, color: t.text.primary }}>
+              PIX (Stripe)
+            </Text>
+            <View style={{ backgroundColor: "rgba(2, 222, 149, 0.15)", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+              <Text style={{ color: t.icon.brand, fontSize: 9, fontWeight: "900" }}>RÁPIDO</Text>
+            </View>
+          </View>
+          <Text style={{ fontSize: fs.xs, color: t.text.tertiary, marginTop: 4, lineHeight: 16 }}>
+            Aprovação imediata e sem taxas adicionais.
           </Text>
         </View>
         <ArrowRight size={18} color={t.text.secondary} />
       </Pressable>
 
+      {/* Boleto (Stripe) Option Card */}
       <Pressable
         onPress={() => props.onSelectMethod("boleto")}
         style={({ pressed }) => ({
           backgroundColor: t.surface.card,
           borderRadius: br.xl,
           padding: sp.lg,
-          borderWidth: 1,
-          borderColor: t.border.subtle,
+          borderWidth: 1.5,
+          borderColor: pressed ? t.border.focus : t.border.subtle,
           flexDirection: "row",
           alignItems: "center",
-          opacity: pressed ? 0.9 : 1,
+          opacity: pressed ? 0.95 : 1,
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.1,
+          shadowRadius: 10,
+          elevation: 2,
         })}
       >
         <View
           style={{
-            width: 44,
-            height: 44,
+            width: 48,
+            height: 48,
             borderRadius: br.lg,
-            backgroundColor: "rgba(59,130,246,0.1)",
+            backgroundColor: "rgba(96, 165, 250, 0.12)",
             alignItems: "center",
             justifyContent: "center",
             marginRight: sp.md,
           }}
         >
-          <FileText size={22} color="#60a5fa" />
+          <FileText size={24} color="#60a5fa" />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={{ fontSize: fs.base, fontWeight: fw.black, color: t.text.primary }}>
             Boleto (Stripe)
           </Text>
-          <Text style={{ fontSize: fs.xs, color: t.text.tertiary, marginTop: 2 }}>
-            Compensação em 1 a 2 dias úteis.
+          <Text style={{ fontSize: fs.xs, color: t.text.tertiary, marginTop: 4, lineHeight: 16 }}>
+            Compensação entre 1 a 2 dias úteis.
           </Text>
         </View>
         <ArrowRight size={18} color={t.text.secondary} />
       </Pressable>
 
+      {/* Back button */}
       <Pressable
         onPress={props.onBack}
-        style={{ marginTop: sp.md, alignItems: "center", paddingVertical: sp.sm }}
+        style={({ pressed }) => ({
+          marginTop: sp.md,
+          alignItems: "center",
+          paddingVertical: sp.sm,
+          opacity: pressed ? 0.7 : 1,
+        })}
       >
         <Text style={{ color: t.text.secondary, fontWeight: fw.bold, fontSize: fs.sm }}>
-          Voltar para o valor
+          Voltar e alterar valor
         </Text>
       </Pressable>
     </View>

@@ -12,6 +12,7 @@ import { resolveAssetURL } from "@/utils/mappers";
 import { useAuthStore } from "@/context/authStore";
 import favoriteAddressService from "@/services/favoriteAddress.service";
 import rideService from "@/services/ride.service";
+import { useWalletBalance } from "@/hooks/useWalletBalance";
 import { LocationLoadingScreen } from "@/components/ui/LocationLoadingScreen";
 
 // 🛠️ Reused Domain Hooks from Original Flow
@@ -33,6 +34,15 @@ export default function HomeScreen() {
   const route = useRoute<RouteProp<ClientStackParamList, "Home">>();
   const { userData: user } = useAuthStore();
   const insets = useSafeAreaInsets();
+
+  // Saldo LevaPay em tempo real (assina mudanças em profiles.wallet_balance)
+  const { balance, refresh: loadBalance } = useWalletBalance();
+
+  useFocusEffect(
+    useCallback(() => {
+      loadBalance();
+    }, [loadBalance])
+  );
 
   useRegisterPushToken();
 
@@ -993,14 +1003,14 @@ export default function HomeScreen() {
             {/* Wallet Balance Card */}
             <View className="bg-[#11253E] mx-5 mt-3.5 rounded-[24px] p-6 border border-white/[0.03]">
               <Text className="text-white/50 text-[13px] font-bold uppercase tracking-[0.5px] mb-1.5">Saldo Disponível</Text>
-              <Text className="text-white text-3xl font-bold mb-5">R$ 0,00</Text>
+              <Text className="text-white text-3xl font-bold mb-5">R$ {balance.toFixed(2).replace(".", ",")}</Text>
               
               <View className="flex-row gap-3">
                 <TouchableOpacity
                   className="flex-1 bg-[#02de95] h-12 rounded-2xl items-center justify-center"
                   accessibilityLabel="Adicionar saldo"
                   accessibilityRole="button"
-                  onPress={() => Alert.alert("Adicionar Saldo", "Recurso em desenvolvimento.")}
+                  onPress={() => (navigation as any).navigate("Deposit", { onSuccess: () => { loadBalance(); } })}
                 >
                   <Text className="text-[#091A2F] text-sm font-bold">Adicionar Saldo</Text>
                 </TouchableOpacity>
@@ -1035,7 +1045,7 @@ export default function HomeScreen() {
 
               <TouchableOpacity 
                 className="flex-row items-center bg-[#11253E] rounded-[20px] p-4 mb-3 border border-white/[0.03]"
-                onPress={() => Alert.alert("Cartões", "Gerencie seus cartões de crédito salvos.")}
+                onPress={() => (navigation as any).navigate("PaymentsCenter")}
               >
                 <View className="w-11 h-11 rounded-[14px] bg-[#02de95]/10 items-center justify-center mr-4">
                   <Wallet size={20} color="#02de95" />

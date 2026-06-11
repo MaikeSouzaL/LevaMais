@@ -54,6 +54,9 @@ import rideService, { CalculatePriceResponse, CreateRideRequest } from "@/servic
 import paymentService from "@/services/payment.service";
 import { PaymentMethodsSheet, type PaymentMethod } from "@/components/payment/PaymentMethodsSheet";
 import userService from "@/services/user.service";
+import { useWalletBalance } from "@/hooks/useWalletBalance";
+import { useAuthStore } from "@/context/authStore";
+import { reverseGeocode } from "@/services/googlePlaces.service";
 
 /**
  * Converte string de data em português para ISO 8601
@@ -238,17 +241,20 @@ export default function DeliveryDetailsScreen() {
   const [showVerificationBenefits, setShowVerificationBenefits] = useState(false);
   const [showExitReason, setShowExitReason] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("wallet");
-  const [balance, setBalance] = useState(0);
-  const [held, setHeld] = useState(0);
+  // Saldo LevaPay em tempo real (assina mudanças em profiles.wallet_balance)
+  const { balance, held, refresh: refreshWallet } = useWalletBalance();
   const [pendingDebt, setPendingDebt] = useState(0);
+  // Cidade de cadastro (fallback). O preço usa a cidade ATUAL da coleta (GPS) abaixo.
+  const userCity = useAuthStore((s) => s.userData?.city);
+  // Cidade resolvida pela localização da COLETA — torna o preço "inteligente":
+  // segue a cidade onde o cliente está, mesmo que ele viaje para outra cidade.
+  const [pickupCity, setPickupCity] = useState<string | null>(null);
+  const pricingCity = pickupCity ?? userCity ?? null;
 
   const loadBalance = async () => {
+    refreshWallet();
     try {
       const profile = await userService.getProfile();
-      if (profile && (profile as any).wallet) {
-        setBalance((profile as any).wallet.balance || 0);
-        setHeld((profile as any).wallet.held || 0);
-      }
       setPendingDebt((profile as any)?.pendingDebt || 0);
     } catch (err) {
       console.warn("Erro ao buscar saldo:", err);
@@ -488,6 +494,25 @@ export default function DeliveryDetailsScreen() {
 
   const selectedItemLabel = itemTypes.find((item) => item.id === selectedItemType)?.label;
 
+  // Resolve a cidade da COLETA pelas coordenadas (GPS) para precificar pela cidade
+  // onde o cliente está agora — não pela cidade de cadastro.
+  useEffect(() => {
+    const coords = routeProfiles.pickupProfile.addressCoords;
+    if (!coords?.latitude || !coords?.longitude) return;
+    let active = true;
+    reverseGeocode(coords.latitude, coords.longitude)
+      .then((details) => {
+        if (active && details?.city) setPickupCity(details.city);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [
+    routeProfiles.pickupProfile.addressCoords?.latitude,
+    routeProfiles.pickupProfile.addressCoords?.longitude,
+  ]);
+
   useEffect(() => {
     let mounted = true;
 
@@ -506,6 +531,7 @@ export default function DeliveryDetailsScreen() {
         const response = await rideService.calculatePrice({
           serviceType: "delivery",
           vehicleType: selectedVehicleType,
+          city: pricingCity,
           pickup: {
             address: routeProfiles.pickupProfile.address,
             latitude: pickup.latitude,
@@ -551,6 +577,7 @@ export default function DeliveryDetailsScreen() {
     selectedVehicleType,
     selectedItemType,
     stops,
+    pricingCity,
   ]);
 
   const handleBackHome = () => {

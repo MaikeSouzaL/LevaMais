@@ -63,6 +63,32 @@ export function calculateFare(
   return { baseFare: model.baseFare, distancePrice, timePrice, stopsFee, total, billableKm };
 }
 
+/**
+ * Tarifa de ENTREGA (modelo simples e aditivo):
+ *   total = minFare + max(0, distanceKm - includedKm) * pricePerKm + stopsCount * perStopFee
+ *
+ * Entrega NÃO usa taxa base (baseFare) nem preço por minuto (pricePerMinute) —
+ * esses campos são exclusivos de corrida. O `minFare` é o ponto de partida.
+ */
+export function calculateDeliveryFare(
+  model: PricingModel,
+  distanceKm: number,
+  stopsCount: number = 0,
+): {
+  baseFare: number;
+  distancePrice: number;
+  timePrice: number;
+  stopsFee: number;
+  total: number;
+  billableKm: number;
+} {
+  const billableKm = Math.max(0, distanceKm - model.includedKm);
+  const distancePrice = Number((billableKm * model.pricePerKm).toFixed(2));
+  const stopsFee = Number((stopsCount * model.perStopFee).toFixed(2));
+  const total = Number((model.minFare + distancePrice + stopsFee).toFixed(2));
+  return { baseFare: model.minFare, distancePrice, timePrice: 0, stopsFee, total, billableKm };
+}
+
 const pricingService = {
   /**
    * Regras de preço do Supabase para um tipo de serviço e cidade.

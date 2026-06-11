@@ -27,9 +27,9 @@ import {
 import Toast from "react-native-toast-message";
 
 import { formatBRL } from "@/utils/mappers";
-import { getClientWallet, topupClientWallet, WalletTransaction } from "@/services/auth.service";
+import { getClientWallet, WalletTransaction } from "@/services/auth.service";
 import { ClientStackParamList } from "../../types/navigation";
-import { Modal } from "@/components/Modal";
+import { useWalletBalance } from "@/hooks/useWalletBalance";
 
 const QUICK_TOPUPS = [10, 20, 50, 100];
 
@@ -55,14 +55,10 @@ export default function WalletScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<ClientStackParamList, "Wallet">>();
   const insets = useSafeAreaInsets();
 
-  const [balance, setBalance] = useState(0);
+  // Saldo LevaPay em tempo real (assina mudanças em profiles.wallet_balance)
+  const { balance } = useWalletBalance();
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [loading, setLoading] = useState(true);
-  const [topupLoading, setTopupLoading] = useState(false);
-
-  // Modal de confirmação de recarga
-  const [confirmVisible, setConfirmVisible] = useState(false);
-  const [pendingTopup, setPendingTopup] = useState<number | null>(null);
   const [customAmount, setCustomAmount] = useState("");
   const [showCustom, setShowCustom] = useState(false);
 
@@ -70,7 +66,6 @@ export default function WalletScreen() {
     setLoading(true);
     try {
       const wallet = await getClientWallet();
-      setBalance(Number(wallet?.balance || 0));
       setTransactions(wallet?.transactions || []);
     } catch (error: any) {
       Toast.show({
@@ -89,10 +84,19 @@ export default function WalletScreen() {
     }, [loadWallet]),
   );
 
-  const handleQuickTopup = (value: number) => {
-    setPendingTopup(value);
-    setConfirmVisible(true);
-  };
+  // Recarga padronizada: leva ao fluxo Deposit (PIX/Boleto via Supabase).
+  // O saldo é creditado pelo trigger no banco e reflete aqui em tempo real.
+  const goToDeposit = useCallback(
+    (presetAmount?: number) => {
+      (navigation as any).navigate("Deposit", {
+        defaultAmount: presetAmount,
+        onSuccess: () => loadWallet(),
+      });
+    },
+    [navigation, loadWallet],
+  );
+
+  const handleQuickTopup = (value: number) => goToDeposit(value);
 
   const handleCustomTopup = () => {
     const parsed = parseFloat(customAmount.replace(",", "."));
@@ -100,35 +104,9 @@ export default function WalletScreen() {
       Toast.show({ type: "error", text1: "Valor inválido", text2: "Informe um valor acima de R$ 1,00" });
       return;
     }
-    setPendingTopup(parsed);
-    setConfirmVisible(true);
-  };
-
-  const handleConfirmTopup = async () => {
-    if (!pendingTopup) return;
-    setConfirmVisible(false);
-    setTopupLoading(true);
-    try {
-      const response = await topupClientWallet(pendingTopup);
-      setBalance(Number(response?.balance || 0));
-      setCustomAmount("");
-      setShowCustom(false);
-      Toast.show({
-        type: "success",
-        text1: "Saldo adicionado!",
-        text2: `+ ${formatBRL(pendingTopup)} na sua carteira`,
-      });
-      await loadWallet();
-    } catch (error: any) {
-      Toast.show({
-        type: "error",
-        text1: "Erro ao recarregar",
-        text2: error?.message || "Tente novamente",
-      });
-    } finally {
-      setTopupLoading(false);
-      setPendingTopup(null);
-    }
+    setShowCustom(false);
+    setCustomAmount("");
+    goToDeposit(parsed);
   };
 
   return (
@@ -241,7 +219,6 @@ export default function WalletScreen() {
               <TouchableOpacity
                 key={value}
                 onPress={() => handleQuickTopup(value)}
-                disabled={topupLoading}
                 activeOpacity={0.8}
                 style={{
                   flex: 1, minWidth: "40%", height: 52,
@@ -250,18 +227,12 @@ export default function WalletScreen() {
                   backgroundColor: "rgba(2,222,149,0.07)",
                 }}
               >
-                {topupLoading ? (
-                  <ActivityIndicator size="small" color="#02de95" />
-                ) : (
-                  <>
-                    <Text style={{ color: "#02de95", fontSize: 16, fontWeight: "900" }}>
-                      {formatBRL(value)}
-                    </Text>
-                    <Text style={{ color: "rgba(2,222,149,0.55)", fontSize: 10, fontWeight: "600" }}>
-                      adicionar
-                    </Text>
-                  </>
-                )}
+                <Text style={{ color: "#02de95", fontSize: 16, fontWeight: "900" }}>
+                  {formatBRL(value)}
+                </Text>
+                <Text style={{ color: "rgba(2,222,149,0.55)", fontSize: 10, fontWeight: "600" }}>
+                  adicionar
+                </Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -303,7 +274,6 @@ export default function WalletScreen() {
               </View>
               <TouchableOpacity
                 onPress={handleCustomTopup}
-                disabled={topupLoading}
                 activeOpacity={0.85}
                 style={{
                   height: 48, paddingHorizontal: 18, borderRadius: 14,
@@ -437,28 +407,6 @@ export default function WalletScreen() {
           )}
         </MotiView>
       </ScrollView>
-
-      {/* Modal de confirmação de recarga */}
-      <Modal
-        visible={confirmVisible}
-        title="Confirmar Recarga"
-        type="info"
-        confirmText="Confirmar"
-        onClose={() => { setConfirmVisible(false); setPendingTopup(null); }}
-        onConfirm={handleConfirmTopup}
-      >
-        <View style={{ width: "100%", marginTop: 12, alignItems: "center" }}>
-          <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, textAlign: "center", marginBottom: 12 }}>
-            Você está adicionando à sua carteira:
-          </Text>
-          <Text style={{ color: "#02de95", fontSize: 36, fontWeight: "900" }}>
-            {pendingTopup ? formatBRL(pendingTopup) : ""}
-          </Text>
-          <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 12, textAlign: "center", marginTop: 10, lineHeight: 18 }}>
-            O saldo será creditado imediatamente e poderá ser usado em suas próximas corridas e entregas.
-          </Text>
-        </View>
-      </Modal>
     </View>
   );
 }
