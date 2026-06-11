@@ -44,12 +44,17 @@ export function useWalletBalance() {
     refresh();
   }, [refresh, userId]);
 
-  // Assinatura Realtime da própria linha em profiles
+  // Assinatura Realtime da própria linha em profiles.
+  // Nome de canal ÚNICO por instância: várias telas podem usar este hook ao mesmo
+  // tempo (ficam montadas na stack). Se todas usassem o mesmo tópico, o Supabase
+  // reaproveitaria o canal já inscrito e quebraria com
+  // "cannot add postgres_changes callbacks after subscribe()".
   useEffect(() => {
     if (!REALTIME_ENABLED || !userId) return;
 
+    const channelName = `wallet:${userId}:${Math.random().toString(36).slice(2)}`;
     const channel: RealtimeChannel = supabase
-      .channel(`wallet:${userId}`)
+      .channel(channelName)
       .on(
         "postgres_changes",
         {
@@ -61,6 +66,8 @@ export function useWalletBalance() {
         (payload) => {
           const next = (payload.new as any)?.wallet_balance;
           if (next != null) setBalance(Number(next));
+          const heldNext = (payload.new as any)?.wallet_held;
+          if (heldNext != null) setHeld(Number(heldNext));
         },
       )
       .subscribe();

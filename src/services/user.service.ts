@@ -72,6 +72,7 @@ export type UserProfile = {
   paymentMethods?: Array<any>;
   wallet?: {
     balance: number;
+    held: number;
     transactions: Array<any>;
   };
 };
@@ -138,6 +139,7 @@ async function getProfile(): Promise<UserProfile> {
     acceptedTerms: profile.accepted_terms || false,
     wallet: {
       balance: profile.wallet_balance || 0,
+      held: profile.wallet_held || 0,
       transactions: [],
     },
     vehicleType: driver?.vehicle_type || undefined,

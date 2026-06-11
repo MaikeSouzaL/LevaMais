@@ -70,6 +70,16 @@ class DeliveryService {
     return mapped;
   }
 
+  /**
+   * Reserva (hold) o valor do pedido no saldo LevaPay do cliente.
+   * Move o valor de wallet_balance para wallet_held no servidor (rpc_hold_wallet).
+   * Chamado logo após criar uma entrega paga com saldo.
+   */
+  async holdWallet(rideId: string): Promise<void> {
+    const { error } = await supabase.rpc("rpc_hold_wallet", { p_ride_id: rideId });
+    if (error) throw error;
+  }
+
   async getActive(): Promise<ActiveRideResponse> {
     try {
       const userId = await requireUserId();

@@ -674,10 +674,11 @@ class RideService {
   async getActiveList(): Promise<ActiveRidesResponse> {
     try {
       const userId = await requireUserId();
+      // Sem filtro de service_type: o monitor da Home e a lista de pedidos ativos
+      // precisam enxergar corridas E entregas (cada consumidor trata serviceType).
       const { data: rides, error } = await supabase
         .from("rides")
         .select("*")
-        .eq("service_type", "ride")
         .or(`client_id.eq.${userId},driver_id.eq.${userId}`)
         .not("status", "in", '("completed","cancelled")')
         .order("created_at", { ascending: false });
@@ -840,10 +841,11 @@ class RideService {
       const from = (page - 1) * limit;
       const to = from + limit - 1;
 
+      // Sem filtro de service_type: o histórico do cliente e do motorista deve
+      // mostrar corridas E entregas (cada item carrega o serviceType para a UI).
       let query = supabase
         .from("rides")
         .select("*", { count: "exact" })
-        .eq("service_type", "ride")
         .or(`client_id.eq.${userId},driver_id.eq.${userId}`);
 
       if (params?.status) {

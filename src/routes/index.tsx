@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { View, Text } from "react-native";
+import { View, Text, TouchableOpacity } from "react-native";
 import AuthRoutes from "./auth.routes";
 import ClientBoot from "./ClientBoot";
 import DriverBoot from "./DriverBoot";
-import { useAuthStore } from "../context/authStore";
+import { useAuthStore, type UserType } from "../context/authStore";
 import {
   getProfile,
   updateProfile,
@@ -165,5 +165,63 @@ export default function Routes() {
     return <ClientBoot />;
   }
 
-  return <RouteFallbackLoader />;
+  // Conta autenticada que NÃO é cliente nem entregador (ex.: admin do painel web,
+  // ou perfil sem role). O app é só para clientes/entregadores — em vez de travar
+  // no loader "Preparando seu perfil", mostra um aviso com opção de sair.
+  return <BlockedAccountScreen email={userData?.email} role={userType} onLogout={logout} />;
+}
+
+function BlockedAccountScreen({
+  email,
+  role,
+  onLogout,
+}: {
+  email?: string;
+  role?: UserType;
+  onLogout: () => void;
+}) {
+  return (
+    <View
+      style={{
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: "#091A2F",
+        padding: 28,
+      }}
+    >
+      <Text style={{ color: "#fff", fontSize: 20, fontWeight: "800", marginBottom: 12, textAlign: "center" }}>
+        Conta sem acesso ao app
+      </Text>
+      <Text
+        style={{
+          color: "rgba(255,255,255,0.65)",
+          fontSize: 14,
+          textAlign: "center",
+          lineHeight: 21,
+          marginBottom: 28,
+        }}
+      >
+        {email ? `O e-mail ${email} ` : "Esta conta "}
+        {role === "admin"
+          ? "é uma conta de administrador (painel web)."
+          : "não tem um perfil de cliente ou entregador."}
+        {"\n"}Use uma conta de cliente ou entregador para acessar o aplicativo.
+      </Text>
+      <TouchableOpacity
+        onPress={onLogout}
+        style={{
+          height: 54,
+          paddingHorizontal: 36,
+          borderRadius: 16,
+          backgroundColor: "#02de95",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+        activeOpacity={0.85}
+      >
+        <Text style={{ color: "#091A2F", fontWeight: "900", fontSize: 16 }}>Sair e usar outra conta</Text>
+      </TouchableOpacity>
+    </View>
+  );
 }

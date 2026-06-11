@@ -51,6 +51,7 @@ import {
 
 import { ClientStackParamList, DeliveryAddressProfile, DeliveryVehicleType } from "../../../types/navigation";
 import rideService, { CalculatePriceResponse, CreateRideRequest } from "@/services/ride.service";
+import deliveryService from "@/services/delivery.service";
 import paymentService from "@/services/payment.service";
 import { PaymentMethodsSheet, type PaymentMethod } from "@/components/payment/PaymentMethodsSheet";
 import userService from "@/services/user.service";
@@ -268,6 +269,9 @@ export default function DeliveryDetailsScreen() {
   const [submitting, setSubmitting] = useState(false);
   const mapRef = useRef<MapView>(null);
   const [routeCoords, setRouteCoords] = useState<Array<{ latitude: number; longitude: number }>>([]);
+  // Distância/duração reais da rota (km/min), vindas do MapViewDirections. Base do cálculo.
+  const [routeDistanceKm, setRouteDistanceKm] = useState<number | null>(null);
+  const [routeDurationMin, setRouteDurationMin] = useState<number | null>(null);
   const [animatedVehicleCoord, setAnimatedVehicleCoord] = useState<{ latitude: number; longitude: number } | null>(null);
   const routeCoordsRef = useRef<Array<{ latitude: number; longitude: number }>>([]);
 
@@ -424,6 +428,14 @@ export default function DeliveryDetailsScreen() {
     setRouteCoords(coords);
     routeCoordsRef.current = coords;
 
+    // res.distance vem em KM e res.duration em MIN (react-native-maps-directions).
+    if (typeof res.distance === "number" && res.distance > 0) {
+      setRouteDistanceKm(res.distance);
+    }
+    if (typeof res.duration === "number" && res.duration >= 0) {
+      setRouteDurationMin(res.duration);
+    }
+
     mapRef.current?.fitToCoordinates(coords, {
       edgePadding: { top: 40, right: 40, bottom: 40, left: 40 },
       animated: true,
@@ -525,6 +537,15 @@ export default function DeliveryDetailsScreen() {
         return;
       }
 
+      // Sem a distância da rota (ainda calculando no mapa) não dá para precificar.
+      // Mostra estado de carregamento — não é erro.
+      if (!routeDistanceKm || routeDistanceKm <= 0) {
+        setPriceData(null);
+        setPricingError(null);
+        setLoadingPricing(true);
+        return;
+      }
+
       try {
         setLoadingPricing(true);
         setPricingError(null);
@@ -532,6 +553,8 @@ export default function DeliveryDetailsScreen() {
           serviceType: "delivery",
           vehicleType: selectedVehicleType,
           city: pricingCity,
+          distance: routeDistanceKm,
+          duration: routeDurationMin ?? 0,
           pickup: {
             address: routeProfiles.pickupProfile.address,
             latitude: pickup.latitude,
@@ -578,6 +601,8 @@ export default function DeliveryDetailsScreen() {
     selectedItemType,
     stops,
     pricingCity,
+    routeDistanceKm,
+    routeDurationMin,
   ]);
 
   const handleBackHome = () => {
@@ -599,6 +624,15 @@ export default function DeliveryDetailsScreen() {
     }
     if (!priceData?.pricing || !priceData?.distance || !priceData?.duration) {
       Toast.show({ type: "error", text1: "Preco indisponivel", text2: "Aguarde o calculo da entrega antes de confirmar." });
+      return;
+    }
+    if (!savedItemSummary) {
+      Toast.show({
+        type: "error",
+        text1: "Detalhes do item",
+        text2: "Informe os detalhes do item antes de confirmar a entrega.",
+      });
+      setShowItemDetails(true);
       return;
     }
 
@@ -682,7 +716,16 @@ export default function DeliveryDetailsScreen() {
 
     try {
       setSubmitting(true);
-      const created = await rideService.create(payload);
+      const created = await deliveryService.create(payload);
+      // Pagamento por saldo LevaPay: reserva (hold) o valor agora. O dinheiro sai do
+      // saldo disponível e fica retido até a conclusão (captura) ou cancelamento (estorno).
+      if (paymentMethod === "wallet" && created?._id) {
+        try {
+          await deliveryService.holdWallet(created._id);
+        } catch (e) {
+          console.warn("[DeliveryDetails] Falha ao reservar saldo LevaPay:", e);
+        }
+      }
       if (created?.status === "scheduled") {
         navigation.navigate("ActiveOrders");
         return;
@@ -716,7 +759,23 @@ export default function DeliveryDetailsScreen() {
     }));
   };
 
+  // Detalhes do item são obrigatórios: tipo, valor e observações (tudo é repassado
+  // ao entregador). "Outro" exige descrever o tipo.
+  const itemDetailsValid =
+    !!selectedItemType &&
+    (selectedItemType !== "other" || customItemType.trim().length > 0) &&
+    itemValue.trim().length > 0 &&
+    itemNotes.trim().length > 0;
+
   const handleSaveItemDetails = () => {
+    if (!itemDetailsValid) {
+      Toast.show({
+        type: "error",
+        text1: "Detalhes obrigatórios",
+        text2: "Informe o tipo do item, o valor e as observações.",
+      });
+      return;
+    }
     const typeText = selectedItemType === "other" && customItemType.trim()
       ? customItemType.trim()
       : selectedItemLabel || "Item";
@@ -1020,14 +1079,23 @@ export default function DeliveryDetailsScreen() {
           </View>
         </View>
 
-        <TouchableOpacity activeOpacity={0.9} style={styles.cardRow} onPress={() => setShowItemDetails(true)}>
+        <TouchableOpacity
+          activeOpacity={0.9}
+          style={[styles.cardRow, !savedItemSummary && { borderWidth: 1.5, borderColor: "#fca5a5" }]}
+          onPress={() => setShowItemDetails(true)}
+        >
           <View style={styles.iconSlot}>
-            <Package size={19} color="#667085" />
+            <Package size={19} color={savedItemSummary ? "#667085" : "#ef4444"} />
           </View>
           <View style={styles.cardTextWrap}>
-            <Text style={styles.cardTitle}>Inserir detalhes do item</Text>
-            <Text style={styles.cardSubtitle} numberOfLines={2}>
-              {savedItemSummary || "Adicionar uma observação na entrega"}
+            <Text style={styles.cardTitle}>
+              Detalhes do item<Text style={{ color: "#ef4444" }}> *</Text>
+            </Text>
+            <Text
+              style={[styles.cardSubtitle, !savedItemSummary && { color: "#ef4444" }]}
+              numberOfLines={2}
+            >
+              {savedItemSummary || "Obrigatório: informe tipo, valor e observações"}
             </Text>
           </View>
           <ChevronRight size={23} color="#7b7f86" />
@@ -1176,10 +1244,10 @@ export default function DeliveryDetailsScreen() {
             <Text style={styles.totalText}>{total}</Text>
           )}
           <TouchableOpacity
-            style={[styles.confirmButton, (submitting || loadingPricing) && styles.confirmButtonDisabled]}
+            style={[styles.confirmButton, (submitting || loadingPricing || !savedItemSummary) && styles.confirmButtonDisabled]}
             onPress={handleConfirm}
             activeOpacity={0.9}
-            disabled={submitting || loadingPricing}
+            disabled={submitting || loadingPricing || !savedItemSummary}
           >
             {submitting ? <ActivityIndicator color="#111" /> : <ShieldCheck size={21} color="#111" />}
             <Text style={styles.confirmText}>{submitting ? "Enviando" : "Confirmar"}</Text>
@@ -1267,8 +1335,13 @@ export default function DeliveryDetailsScreen() {
               </View>
             </ScrollView>
 
-            <TouchableOpacity className="h-[55px] items-center justify-center rounded-[18px] bg-[#ffd400]" onPress={handleSaveItemDetails} activeOpacity={0.9}>
-              <Text className="text-[21px] font-black text-[#111827]">Confirmar</Text>
+            <TouchableOpacity
+              className={`h-[55px] items-center justify-center rounded-[18px] ${itemDetailsValid ? "bg-[#02de95]" : "bg-[#c7d0d2]"}`}
+              onPress={handleSaveItemDetails}
+              disabled={!itemDetailsValid}
+              activeOpacity={0.9}
+            >
+              <Text className={`text-[21px] font-black ${itemDetailsValid ? "text-[#091A2F]" : "text-[#6b7280]"}`}>Confirmar</Text>
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
